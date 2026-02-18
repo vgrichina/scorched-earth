@@ -1,0 +1,1500 @@
+0x24F00  1E50:0000  retf                                   ; x86
+0x24F01  1E50:0001  enter word 0x4,byte 0x0                ; x86
+0x24F05  1E50:0005  push si                                ; x86
+0x24F06  1E50:0006  cmp [0x519a],sp                        ; x86
+0x24F0A  1E50:000A  ja 0x11                                ; x86
+0x24F0C  1E50:000C  call word 0x0:word 0xa2ce              ; x86
+0x24F11  1E50:0011  xor si,si                              ; x86
+0x24F13  1E50:0013  jmp 0xbf                               ; x86
+0x24F16  1E50:0016  mov ax,si                              ; x86
+0x24F18  1E50:0018  imul ax,ax,0xca                        ; x86
+0x24F1C  1E50:001C  add ax,0xd568                          ; x86
+0x24F1F  1E50:001F  mov word [bp-0x2],ds                   ; x86
+0x24F22  1E50:0022  mov [bp-0x4],ax                        ; x86
+0x24F25  1E50:0025  mov ax,[0xe4da]                        ; x86
+0x24F28  1E50:0028  imul ax,ax,0x6c                        ; x86
+0x24F2B  1E50:002B  les bx,word [0xceb8]                   ; x86
+0x24F2F  1E50:002F  add bx,ax                              ; x86
+0x24F31  1E50:0031  mov dx,[es:bx+0x2c]                    ; x86
+0x24F35  1E50:0035  mov ax,[es:bx+0x2a]                    ; x86
+0x24F39  1E50:0039  cmp dx,[bp-0x2]                        ; x86
+0x24F3C  1E50:003C  jnz 0x43                               ; x86
+0x24F3E  1E50:003E  cmp ax,[bp-0x4]                        ; x86
+0x24F41  1E50:0041  jz 0xbe                                ; x86
+0x24F43  1E50:0043  les bx,word [bp-0x4]                   ; x86
+0x24F46  1E50:0046  cmp word [es:bx+0x18],0x0              ; x86
+0x24F4B  1E50:004B  jz 0xbe                                ; x86
+0x24F4D  1E50:004D  les bx,word [bp-0x4]                   ; x86
+0x24F50  1E50:0050  push word [es:bx+0x10]                 ; x86
+0x24F54  1E50:0054  les bx,word [bp-0x4]                   ; x86
+0x24F57  1E50:0057  push word [es:bx+0xe]                  ; x86
+0x24F5B  1E50:005B  push word [bp+0x8]                     ; x86
+0x24F5E  1E50:005E  push word [bp+0x6]                     ; x86
+0x24F61  1E50:0061  call word 0x1fa0:word 0xf              ; x86
+0x24F66  1E50:0066  add sp,0x8                             ; x86
+0x24F69  1E50:0069  cmp ax,[0x5186]                        ; x86
+0x24F6D  1E50:006D  jnl 0xbe                               ; x86
+0x24F6F  1E50:006F  mov ax,[0xe4da]                        ; x86
+0x24F72  1E50:0072  imul ax,ax,0x6c                        ; x86
+0x24F75  1E50:0075  les bx,word [0xceb8]                   ; x86
+0x24F79  1E50:0079  add bx,ax                              ; x86
+0x24F7B  1E50:007B  mov dx,[bp-0x2]                        ; x86
+0x24F7E  1E50:007E  mov ax,[bp-0x4]                        ; x86
+0x24F81  1E50:0081  mov [es:bx+0x40],dx                    ; x86
+0x24F85  1E50:0085  mov [es:bx+0x3e],ax                    ; x86
+0x24F89  1E50:0089  les bx,word [bp-0x4]                   ; x86
+0x24F8C  1E50:008C  mov ax,[es:bx+0xe]                     ; x86
+0x24F90  1E50:0090  mov dx,[0xe4da]                        ; x86
+0x24F94  1E50:0094  imul dx,dx,0x6c                        ; x86
+0x24F97  1E50:0097  les bx,word [0xceb8]                   ; x86
+0x24F9B  1E50:009B  add bx,dx                              ; x86
+0x24F9D  1E50:009D  mov [es:bx+0x44],ax                    ; x86
+0x24FA1  1E50:00A1  les bx,word [bp-0x4]                   ; x86
+0x24FA4  1E50:00A4  mov ax,[es:bx+0x10]                    ; x86
+0x24FA8  1E50:00A8  mov dx,[0xe4da]                        ; x86
+0x24FAC  1E50:00AC  imul dx,dx,0x6c                        ; x86
+0x24FAF  1E50:00AF  les bx,word [0xceb8]                   ; x86
+0x24FB3  1E50:00B3  add bx,dx                              ; x86
+0x24FB5  1E50:00B5  mov [es:bx+0x46],ax                    ; x86
+0x24FB9  1E50:00B9  mov ax,0x1                             ; x86
+0x24FBC  1E50:00BC  jmp 0xcc                               ; x86
+0x24FBE  1E50:00BE  inc si                                 ; x86
+0x24FBF  1E50:00BF  cmp si,[0x50d4]                        ; x86
+0x24FC3  1E50:00C3  jnl 0xc8                               ; x86
+0x24FC5  1E50:00C5  jmp 0x16                               ; x86
+0x24FC8  1E50:00C8  xor ax,ax                              ; x86
+0x24FCA  1E50:00CA  jmp 0xcc                               ; x86
+0x24FCC  1E50:00CC  pop si                                 ; x86
+0x24FCD  1E50:00CD  leave                                  ; x86
+0x24FCE  1E50:00CE  retf                                   ; x86
+0x24FCF  1E50:00CF  enter word 0x36,byte 0x0               ; x86
+0x24FD3  1E50:00D3  push si                                ; x86
+0x24FD4  1E50:00D4  push di                                ; x86
+0x24FD5  1E50:00D5  cmp [0x519a],sp                        ; x86
+0x24FD9  1E50:00D9  ja 0xe0                                ; x86
+0x24FDB  1E50:00DB  call word 0x0:word 0xa2ce              ; x86
+0x24FE0  1E50:00E0  fld dword [0xceac]                     ; INT 39h  DS:CEAC
+0x24FE5  1E50:00E5  fmul qword [0x31fc]                    ; INT 34h  DS:31FC
+0x24FEA  1E50:00EA  fstp dword [0x31f4]                    ; INT 39h  DS:31F4
+0x24FEF  1E50:00EF  wait                                   ; INT 3Dh
+0x24FF1  1E50:00F1  mov ax,[0xe4da]                        ; x86
+0x24FF4  1E50:00F4  imul ax,ax,0x6c                        ; x86
+0x24FF7  1E50:00F7  les bx,word [0xceb8]                   ; x86
+0x24FFB  1E50:00FB  add bx,ax                              ; x86
+0x24FFD  1E50:00FD  fcomp st5                              ; INT 3Ch
+0x25000  1E50:0100  inc di                                 ; x86
+0x25001  1E50:0101  db 0x14                                ; x86
+0x25002  1E50:0102  fstp dword [bp-0xa]                    ; INT 39h
+0x25006  1E50:0106  wait                                   ; INT 3Dh
+0x25008  1E50:0108  mov ax,[0xe4da]                        ; x86
+0x2500B  1E50:010B  imul ax,ax,0x6c                        ; x86
+0x2500E  1E50:010E  les bx,word [0xceb8]                   ; x86
+0x25012  1E50:0112  add bx,ax                              ; x86
+0x25014  1E50:0114  fcomp st5                              ; INT 3Ch
+0x25017  1E50:0117  inc di                                 ; x86
+0x25018  1E50:0118  db 0x1c                                ; x86
+0x25019  1E50:0119  fstp dword [bp-0x12]                   ; INT 39h
+0x2501D  1E50:011D  fld dword [bp-0xa]                     ; INT 39h
+0x25021  1E50:0121  call word 0x0:word 0x14df              ; x86
+0x25026  1E50:0126  mov di,ax                              ; x86
+0x25028  1E50:0128  fld dword [bp-0x12]                    ; INT 39h
+0x2502C  1E50:012C  call word 0x0:word 0x14df              ; x86
+0x25031  1E50:0131  mov [bp-0x2],ax                        ; x86
+0x25034  1E50:0134  jmp 0x577                              ; x86
+0x25037  1E50:0137  mov ax,[0xe4da]                        ; x86
+0x2503A  1E50:013A  imul ax,ax,0x6c                        ; x86
+0x2503D  1E50:013D  les bx,word [0xceb8]                   ; x86
+0x25041  1E50:0141  add bx,ax                              ; x86
+0x25043  1E50:0143  mov ax,[es:bx+0x44]                    ; x86
+0x25047  1E50:0147  mov [bp-0x36],ax                       ; x86
+0x2504A  1E50:014A  fild word [bp-0x36]                    ; INT 3Bh
+0x2504E  1E50:014E  frstor [bp-0xa]                        ; INT 38h
+0x25052  1E50:0152  fstp dword [bp-0x1a]                   ; INT 39h
+0x25056  1E50:0156  wait                                   ; INT 3Dh
+0x25058  1E50:0158  mov ax,[0xe4da]                        ; x86
+0x2505B  1E50:015B  imul ax,ax,0x6c                        ; x86
+0x2505E  1E50:015E  les bx,word [0xceb8]                   ; x86
+0x25062  1E50:0162  add bx,ax                              ; x86
+0x25064  1E50:0164  mov ax,[es:bx+0x46]                    ; x86
+0x25068  1E50:0168  mov [bp-0x36],ax                       ; x86
+0x2506B  1E50:016B  fild word [bp-0x36]                    ; INT 3Bh
+0x2506F  1E50:016F  frstor [bp-0x12]                       ; INT 38h
+0x25073  1E50:0173  fstp dword [bp-0x22]                   ; INT 39h
+0x25077  1E50:0177  fld dword [bp-0x1a]                    ; INT 39h
+0x2507B  1E50:017B  fstp dword [bp-0x34]                   ; INT 39h
+0x2507F  1E50:017F  fld dword [bp-0x34]                    ; INT 39h
+0x25083  1E50:0183  fsubr st6                              ; INT 35h
+0x25086  1E50:0186  fcmovnu st1                            ; INT 3Ah
+0x25089  1E50:0189  fnstcw [bp-0x36]                       ; INT 39h
+0x2508D  1E50:018D  wait                                   ; INT 3Dh
+0x2508F  1E50:018F  mov ax,[bp-0x36]                       ; x86
+0x25092  1E50:0192  sahf                                   ; x86
+0x25093  1E50:0193  jna 0x1a2                              ; x86
+0x25095  1E50:0195  fld dword [bp-0x34]                    ; INT 39h
+0x25099  1E50:0199  fsub st0                               ; INT 35h
+0x2509C  1E50:019C  fstp dword [bp-0x34]                   ; INT 39h
+0x250A0  1E50:01A0  wait                                   ; INT 3Dh
+0x250A2  1E50:01A2  fld dword [bp-0x22]                    ; INT 39h
+0x250A6  1E50:01A6  fsub st0                               ; INT 35h
+0x250A9  1E50:01A9  fstp qword [bp-0x34]                   ; INT 38h
+0x250AD  1E50:01AD  fnstcw [bp-0x36]                       ; INT 39h
+0x250B1  1E50:01B1  wait                                   ; INT 3Dh
+0x250B3  1E50:01B3  mov ax,[bp-0x36]                       ; x86
+0x250B6  1E50:01B6  sahf                                   ; x86
+0x250B7  1E50:01B7  jna 0x1c6                              ; x86
+0x250B9  1E50:01B9  fld dword [bp-0x22]                    ; INT 39h
+0x250BD  1E50:01BD  fsub st0                               ; INT 35h
+0x250C0  1E50:01C0  fstp dword [bp-0x34]                   ; INT 39h
+0x250C4  1E50:01C4  wait                                   ; INT 3Dh
+0x250C6  1E50:01C6  fld dword [bp-0x22]                    ; INT 39h
+0x250CA  1E50:01CA  fstp qword [bp-0x34]                   ; INT 38h
+0x250CE  1E50:01CE  fnstcw [bp-0x36]                       ; INT 39h
+0x250D2  1E50:01D2  wait                                   ; INT 3Dh
+0x250D4  1E50:01D4  mov ax,[bp-0x36]                       ; x86
+0x250D7  1E50:01D7  sahf                                   ; x86
+0x250D8  1E50:01D8  jna 0x1e4                              ; x86
+0x250DA  1E50:01DA  fld dword [bp-0x22]                    ; INT 39h
+0x250DE  1E50:01DE  fstp dword [bp-0x34]                   ; INT 39h
+0x250E2  1E50:01E2  wait                                   ; INT 3Dh
+0x250E4  1E50:01E4  fld dword [bp-0x34]                    ; INT 39h
+0x250E8  1E50:01E8  fsubr st6                              ; INT 35h
+0x250EB  1E50:01EB  fcmovnu st1                            ; INT 3Ah
+0x250EE  1E50:01EE  fnstcw [bp-0x36]                       ; INT 39h
+0x250F2  1E50:01F2  wait                                   ; INT 3Dh
+0x250F4  1E50:01F4  mov ax,[bp-0x36]                       ; x86
+0x250F7  1E50:01F7  sahf                                   ; x86
+0x250F8  1E50:01F8  jnz 0x1fd                              ; x86
+0x250FA  1E50:01FA  jmp 0x5e1                              ; x86
+0x250FD  1E50:01FD  fld dword [bp-0x34]                    ; INT 39h
+0x25101  1E50:0201  fnstsw [bp-0x1a]                       ; INT 38h
+0x25105  1E50:0205  fstp dword [bp-0x1a]                   ; INT 39h
+0x25109  1E50:0209  fld dword [bp-0x34]                    ; INT 39h
+0x2510D  1E50:020D  fnstsw [bp-0x22]                       ; INT 38h
+0x25111  1E50:0211  fstp dword [bp-0x22]                   ; INT 39h
+0x25115  1E50:0215  fld dword [bp-0xa]                     ; INT 39h
+0x25119  1E50:0219  fld qword [bp-0x1a]                    ; INT 38h
+0x2511D  1E50:021D  call word 0x0:word 0x14df              ; x86
+0x25122  1E50:0222  mov [bp-0x28],ax                       ; x86
+0x25125  1E50:0225  fld dword [bp-0x12]                    ; INT 39h
+0x25129  1E50:0229  fld qword [bp-0x22]                    ; INT 38h
+0x2512D  1E50:022D  call word 0x0:word 0x14df              ; x86
+0x25132  1E50:0232  mov [bp-0x2a],ax                       ; x86
+0x25135  1E50:0235  fld dword [bp-0xa]                     ; INT 39h
+0x25139  1E50:0239  call word 0x0:word 0x14df              ; x86
+0x2513E  1E50:023E  mov dx,[bp-0x28]                       ; x86
+0x25141  1E50:0241  sub dx,ax                              ; x86
+0x25143  1E50:0243  mov [bp-0x24],dx                       ; x86
+0x25146  1E50:0246  fld dword [bp-0x12]                    ; INT 39h
+0x2514A  1E50:024A  call word 0x0:word 0x14df              ; x86
+0x2514F  1E50:024F  mov dx,[bp-0x2a]                       ; x86
+0x25152  1E50:0252  sub dx,ax                              ; x86
+0x25154  1E50:0254  mov [bp-0x26],dx                       ; x86
+0x25157  1E50:0257  cmp word [bp-0x24],0x0                 ; x86
+0x2515B  1E50:025B  jnz 0x280                              ; x86
+0x2515D  1E50:025D  cmp word [bp-0x26],0x0                 ; x86
+0x25161  1E50:0261  jnz 0x280                              ; x86
+0x25163  1E50:0263  fld dword [bp-0x1a]                    ; INT 39h
+0x25167  1E50:0267  fld qword [bp-0xa]                     ; INT 38h
+0x2516B  1E50:026B  fstp dword [bp-0xa]                    ; INT 39h
+0x2516F  1E50:026F  fld dword [bp-0x22]                    ; INT 39h
+0x25173  1E50:0273  fld qword [bp-0x12]                    ; INT 38h
+0x25177  1E50:0277  fstp dword [bp-0x12]                   ; INT 39h
+0x2517B  1E50:027B  wait                                   ; INT 3Dh
+0x2517D  1E50:027D  jmp 0x568                              ; x86
+0x25180  1E50:0280  push word [bp-0x2a]                    ; x86
+0x25183  1E50:0283  push word [bp-0x28]                    ; x86
+0x25186  1E50:0286  call word far [0xeef8]                 ; x86
+0x2518A  1E50:028A  add sp,0x4                             ; x86
+0x2518D  1E50:028D  mov [bp-0x2c],ax                       ; x86
+0x25190  1E50:0290  cmp word [bp-0x2c],0x69                ; x86
+0x25194  1E50:0294  jl 0x299                               ; x86
+0x25196  1E50:0296  jmp 0x3fc                              ; x86
+0x25199  1E50:0299  mov ax,[bp-0x2c]                       ; x86
+0x2519C  1E50:029C  mov bx,0x8                             ; x86
+0x2519F  1E50:029F  cwd                                    ; x86
+0x251A0  1E50:02A0  idiv bx                                ; x86
+0x251A2  1E50:02A2  imul ax,ax,0xca                        ; x86
+0x251A6  1E50:02A6  mov dx,ds                              ; x86
+0x251A8  1E50:02A8  add ax,0xd568                          ; x86
+0x251AB  1E50:02AB  mov bx,[0xe4da]                        ; x86
+0x251AF  1E50:02AF  imul bx,bx,0x6c                        ; x86
+0x251B2  1E50:02B2  les si,word [0xceb8]                   ; x86
+0x251B6  1E50:02B6  add si,bx                              ; x86
+0x251B8  1E50:02B8  cmp dx,[es:si+0x40]                    ; x86
+0x251BC  1E50:02BC  jnz 0x2c7                              ; x86
+0x251BE  1E50:02BE  cmp ax,[es:si+0x3e]                    ; x86
+0x251C2  1E50:02C2  jnz 0x2c7                              ; x86
+0x251C4  1E50:02C4  jmp 0x3fc                              ; x86
+0x251C7  1E50:02C7  cmp word [bp-0x24],0x0                 ; x86
+0x251CB  1E50:02CB  jnz 0x2d0                              ; x86
+0x251CD  1E50:02CD  jmp 0x350                              ; x86
+0x251D0  1E50:02D0  mov ax,[bp-0x2]                        ; x86
+0x251D3  1E50:02D3  cmp ax,[0xef40]                        ; x86
+0x251D7  1E50:02D7  jnz 0x2e9                              ; x86
+0x251D9  1E50:02D9  mov word [bp-0x26],0x0                 ; x86
+0x251DE  1E50:02DE  fsubr st6                              ; INT 35h
+0x251E1  1E50:02E1  fstp dword [bp-0x22]                   ; INT 39h
+0x251E5  1E50:02E5  wait                                   ; INT 3Dh
+0x251E7  1E50:02E7  jmp 0x305                              ; x86
+0x251E9  1E50:02E9  fld dword [0x3200]                     ; INT 39h  DS:3200
+0x251EE  1E50:02EE  fstp dword [bp-0x22]                   ; INT 39h
+0x251F2  1E50:02F2  fsubr st6                              ; INT 35h
+0x251F5  1E50:02F5  fstp dword [bp-0x1a]                   ; INT 39h
+0x251F9  1E50:02F9  wait                                   ; INT 3Dh
+0x251FB  1E50:02FB  mov word [bp-0x26],0xffff              ; x86
+0x25200  1E50:0300  mov word [bp-0x24],0x0                 ; x86
+0x25205  1E50:0305  mov ax,[bp-0x2]                        ; x86
+0x25208  1E50:0308  add ax,[bp-0x26]                       ; x86
+0x2520B  1E50:030B  push ax                                ; x86
+0x2520C  1E50:030C  mov ax,di                              ; x86
+0x2520E  1E50:030E  add ax,[bp-0x24]                       ; x86
+0x25211  1E50:0311  push ax                                ; x86
+0x25212  1E50:0312  call word far [0xeef8]                 ; x86
+0x25216  1E50:0316  add sp,0x4                             ; x86
+0x25219  1E50:0319  mov [bp-0x2c],ax                       ; x86
+0x2521C  1E50:031C  cmp word [bp-0x2c],0x69                ; x86
+0x25220  1E50:0320  jg 0x34d                               ; x86
+0x25222  1E50:0322  mov ax,[bp-0x2c]                       ; x86
+0x25225  1E50:0325  mov bx,0x8                             ; x86
+0x25228  1E50:0328  cwd                                    ; x86
+0x25229  1E50:0329  idiv bx                                ; x86
+0x2522B  1E50:032B  imul ax,ax,0xca                        ; x86
+0x2522F  1E50:032F  mov dx,ds                              ; x86
+0x25231  1E50:0331  add ax,0xd568                          ; x86
+0x25234  1E50:0334  mov bx,[0xe4da]                        ; x86
+0x25238  1E50:0338  imul bx,bx,0x6c                        ; x86
+0x2523B  1E50:033B  les si,word [0xceb8]                   ; x86
+0x2523F  1E50:033F  add si,bx                              ; x86
+0x25241  1E50:0341  cmp dx,[es:si+0x40]                    ; x86
+0x25245  1E50:0345  jnz 0x350                              ; x86
+0x25247  1E50:0347  cmp ax,[es:si+0x3e]                    ; x86
+0x2524B  1E50:034B  jnz 0x350                              ; x86
+0x2524D  1E50:034D  jmp 0x3fc                              ; x86
+0x25250  1E50:0350  cmp word [bp-0x2c],0x50                ; x86
+0x25254  1E50:0354  jnl 0x3c6                              ; x86
+0x25256  1E50:0356  mov ax,[bp-0x2c]                       ; x86
+0x25259  1E50:0359  mov bx,0x8                             ; x86
+0x2525C  1E50:035C  cwd                                    ; x86
+0x2525D  1E50:035D  idiv bx                                ; x86
+0x2525F  1E50:035F  imul ax,ax,0xca                        ; x86
+0x25263  1E50:0363  add ax,0xd568                          ; x86
+0x25266  1E50:0366  mov word [0xe1e6],ds                   ; x86
+0x2526A  1E50:036A  mov [0xe1e4],ax                        ; x86
+0x2526D  1E50:036D  mov ax,[bp-0x2c]                       ; x86
+0x25270  1E50:0370  mov bx,0x8                             ; x86
+0x25273  1E50:0373  cwd                                    ; x86
+0x25274  1E50:0374  idiv bx                                ; x86
+0x25276  1E50:0376  cmp dx,0x5                             ; x86
+0x25279  1E50:0379  jnz 0x381                              ; x86
+0x2527B  1E50:037B  mov word [0xe1e8],0x1                  ; x86
+0x25281  1E50:0381  mov ax,[0xe4da]                        ; x86
+0x25284  1E50:0384  imul ax,ax,0x6c                        ; x86
+0x25287  1E50:0387  les bx,word [0xceb8]                   ; x86
+0x2528B  1E50:038B  add bx,ax                              ; x86
+0x2528D  1E50:038D  mov dx,[es:bx+0x2c]                    ; x86
+0x25291  1E50:0391  mov ax,[es:bx+0x2a]                    ; x86
+0x25295  1E50:0395  cmp dx,[0xe1e6]                        ; x86
+0x25299  1E50:0399  jnz 0x3a8                              ; x86
+0x2529B  1E50:039B  cmp ax,[0xe1e4]                        ; x86
+0x2529F  1E50:039F  jnz 0x3a8                              ; x86
+0x252A1  1E50:03A1  cmp word [0xe1e8],0x0                  ; x86
+0x252A6  1E50:03A6  jnz 0x3c6                              ; x86
+0x252A8  1E50:03A8  call word 0x1a4a:word 0x211c           ; x86
+0x252AD  1E50:03AD  push word [bp-0x2]                     ; x86
+0x252B0  1E50:03B0  push di                                ; x86
+0x252B1  1E50:03B1  call word 0x1a4a:word 0x2228           ; x86
+0x252B6  1E50:03B6  add sp,0x4                             ; x86
+0x252B9  1E50:03B9  push word [0xe4da]                     ; x86
+0x252BD  1E50:03BD  call word 0x1a4a:word 0x2827           ; x86
+0x252C2  1E50:03C2  pop cx                                 ; x86
+0x252C3  1E50:03C3  jmp 0x5e1                              ; x86
+0x252C6  1E50:03C6  push word 0xa                          ; x86
+0x252C8  1E50:03C8  push word 0x3e8                        ; x86
+0x252CB  1E50:03CB  call word 0x4571:word 0x7              ; x86
+0x252D0  1E50:03D0  add sp,0x4                             ; x86
+0x252D3  1E50:03D3  mov ax,di                              ; x86
+0x252D5  1E50:03D5  add ax,[bp-0x24]                       ; x86
+0x252D8  1E50:03D8  push ax                                ; x86
+0x252D9  1E50:03D9  mov ax,di                              ; x86
+0x252DB  1E50:03DB  add ax,[bp-0x24]                       ; x86
+0x252DE  1E50:03DE  push ax                                ; x86
+0x252DF  1E50:03DF  call word 0x162c:word 0x104            ; x86
+0x252E4  1E50:03E4  add sp,0x4                             ; x86
+0x252E7  1E50:03E7  mov ax,[bp-0x2]                        ; x86
+0x252EA  1E50:03EA  add ax,[bp-0x26]                       ; x86
+0x252ED  1E50:03ED  push ax                                ; x86
+0x252EE  1E50:03EE  mov ax,di                              ; x86
+0x252F0  1E50:03F0  add ax,[bp-0x24]                       ; x86
+0x252F3  1E50:03F3  push ax                                ; x86
+0x252F4  1E50:03F4  call word 0x32c2:word 0x1519           ; x86
+0x252F9  1E50:03F9  add sp,0x4                             ; x86
+0x252FC  1E50:03FC  fld dword [bp-0x1a]                    ; INT 39h
+0x25300  1E50:0400  fld qword [bp-0xa]                     ; INT 38h
+0x25304  1E50:0404  fstp dword [bp-0xa]                    ; INT 39h
+0x25308  1E50:0408  fld dword [bp-0x22]                    ; INT 39h
+0x2530C  1E50:040C  fld qword [bp-0x12]                    ; INT 38h
+0x25310  1E50:0410  fstp dword [bp-0x12]                   ; INT 39h
+0x25314  1E50:0414  mov ax,di                              ; x86
+0x25316  1E50:0416  wait                                   ; INT 3Dh
+0x25318  1E50:0418  add ax,[bp-0x24]                       ; x86
+0x2531B  1E50:041B  mov [bp-0x28],ax                       ; x86
+0x2531E  1E50:041E  mov di,ax                              ; x86
+0x25320  1E50:0420  mov ax,[bp-0x2]                        ; x86
+0x25323  1E50:0423  add ax,[bp-0x26]                       ; x86
+0x25326  1E50:0426  mov [bp-0x2a],ax                       ; x86
+0x25329  1E50:0429  mov [bp-0x2],ax                        ; x86
+0x2532C  1E50:042C  mov ax,[0xe4da]                        ; x86
+0x2532F  1E50:042F  imul ax,ax,0x6c                        ; x86
+0x25332  1E50:0432  les bx,word [0xceb8]                   ; x86
+0x25336  1E50:0436  add bx,ax                              ; x86
+0x25338  1E50:0438  mov ax,[bp-0x24]                       ; x86
+0x2533B  1E50:043B  mov [bp-0x36],ax                       ; x86
+0x2533E  1E50:043E  fild word [bp-0x36]                    ; INT 3Bh
+0x25342  1E50:0442  fcomp st5                              ; INT 3Ch
+0x25345  1E50:0445  pop di                                 ; x86
+0x25346  1E50:0446  db 0x04                                ; x86
+0x25347  1E50:0447  wait                                   ; INT 3Dh
+0x25349  1E50:0449  mov ax,[0xe4da]                        ; x86
+0x2534C  1E50:044C  imul ax,ax,0x6c                        ; x86
+0x2534F  1E50:044F  les bx,word [0xceb8]                   ; x86
+0x25353  1E50:0453  add bx,ax                              ; x86
+0x25355  1E50:0455  mov ax,[bp-0x26]                       ; x86
+0x25358  1E50:0458  mov [bp-0x36],ax                       ; x86
+0x2535B  1E50:045B  fild word [bp-0x36]                    ; INT 3Bh
+0x2535F  1E50:045F  fcomp st5                              ; INT 3Ch
+0x25362  1E50:0462  pop di                                 ; x86
+0x25363  1E50:0463  db 0x0c                                ; x86
+0x25364  1E50:0464  wait                                   ; INT 3Dh
+0x25366  1E50:0466  mov ax,[bp-0x24]                       ; x86
+0x25369  1E50:0469  mov [bp-0x36],ax                       ; x86
+0x2536C  1E50:046C  fild word [bp-0x36]                    ; INT 3Bh
+0x25370  1E50:0470  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x25375  1E50:0475  wait                                   ; INT 3Dh
+0x25377  1E50:0477  mov ax,[bp-0x26]                       ; x86
+0x2537A  1E50:047A  mov [bp-0x36],ax                       ; x86
+0x2537D  1E50:047D  fild word [bp-0x36]                    ; INT 3Bh
+0x25381  1E50:0481  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x25386  1E50:0486  wait                                   ; INT 3Dh
+0x25388  1E50:0488  push word [bp-0x2]                     ; x86
+0x2538B  1E50:048B  push di                                ; x86
+0x2538C  1E50:048C  call word far [0xeef8]                 ; x86
+0x25390  1E50:0490  add sp,0x4                             ; x86
+0x25393  1E50:0493  mov [bp-0x2c],ax                       ; x86
+0x25396  1E50:0496  cmp word [bp-0x2c],0x50                ; x86
+0x2539A  1E50:049A  jnl 0x519                              ; x86
+0x2539C  1E50:049C  mov ax,[bp-0x2c]                       ; x86
+0x2539F  1E50:049F  mov bx,0x8                             ; x86
+0x253A2  1E50:04A2  cwd                                    ; x86
+0x253A3  1E50:04A3  idiv bx                                ; x86
+0x253A5  1E50:04A5  imul ax,ax,0xca                        ; x86
+0x253A9  1E50:04A9  add ax,0xd568                          ; x86
+0x253AC  1E50:04AC  mov word [0xe1e6],ds                   ; x86
+0x253B0  1E50:04B0  mov [0xe1e4],ax                        ; x86
+0x253B3  1E50:04B3  mov ax,[bp-0x2c]                       ; x86
+0x253B6  1E50:04B6  mov bx,0x8                             ; x86
+0x253B9  1E50:04B9  cwd                                    ; x86
+0x253BA  1E50:04BA  idiv bx                                ; x86
+0x253BC  1E50:04BC  cmp dx,0x5                             ; x86
+0x253BF  1E50:04BF  jnz 0x4c7                              ; x86
+0x253C1  1E50:04C1  mov word [0xe1e8],0x1                  ; x86
+0x253C7  1E50:04C7  mov ax,[0xe4da]                        ; x86
+0x253CA  1E50:04CA  imul ax,ax,0x6c                        ; x86
+0x253CD  1E50:04CD  les bx,word [0xceb8]                   ; x86
+0x253D1  1E50:04D1  add bx,ax                              ; x86
+0x253D3  1E50:04D3  mov dx,[es:bx+0x2c]                    ; x86
+0x253D7  1E50:04D7  mov ax,[es:bx+0x2a]                    ; x86
+0x253DB  1E50:04DB  cmp dx,[0xe1e6]                        ; x86
+0x253DF  1E50:04DF  jnz 0x4ee                              ; x86
+0x253E1  1E50:04E1  cmp ax,[0xe1e4]                        ; x86
+0x253E5  1E50:04E5  jnz 0x4ee                              ; x86
+0x253E7  1E50:04E7  cmp word [0xe1e8],0x0                  ; x86
+0x253EC  1E50:04EC  jnz 0x507                              ; x86
+0x253EE  1E50:04EE  push word [bp-0x2]                     ; x86
+0x253F1  1E50:04F1  push di                                ; x86
+0x253F2  1E50:04F2  call word 0x1a4a:word 0x2228           ; x86
+0x253F7  1E50:04F7  add sp,0x4                             ; x86
+0x253FA  1E50:04FA  push word [0xe4da]                     ; x86
+0x253FE  1E50:04FE  call word 0x1a4a:word 0x2827           ; x86
+0x25403  1E50:0503  pop cx                                 ; x86
+0x25404  1E50:0504  jmp 0x5e1                              ; x86
+0x25407  1E50:0507  mov word [0xe1e6],0x0                  ; x86
+0x2540D  1E50:050D  mov word [0xe1e4],0x0                  ; x86
+0x25413  1E50:0513  mov word [0xe1e8],0x0                  ; x86
+0x25419  1E50:0519  mov ax,[0xe4da]                        ; x86
+0x2541C  1E50:051C  imul ax,ax,0x6c                        ; x86
+0x2541F  1E50:051F  les bx,word [0xceb8]                   ; x86
+0x25423  1E50:0523  add bx,ax                              ; x86
+0x25425  1E50:0525  cmp [es:bx+0x44],di                    ; x86
+0x25429  1E50:0529  jnz 0x55c                              ; x86
+0x2542B  1E50:052B  mov ax,[0xe4da]                        ; x86
+0x2542E  1E50:052E  imul ax,ax,0x6c                        ; x86
+0x25431  1E50:0531  les bx,word [0xceb8]                   ; x86
+0x25435  1E50:0535  add bx,ax                              ; x86
+0x25437  1E50:0537  mov ax,[es:bx+0x46]                    ; x86
+0x2543B  1E50:053B  cmp ax,[bp-0x2]                        ; x86
+0x2543E  1E50:053E  jnz 0x55c                              ; x86
+0x25440  1E50:0540  push word [bp-0x2]                     ; x86
+0x25443  1E50:0543  push di                                ; x86
+0x25444  1E50:0544  call word 0x1a4a:word 0x2228           ; x86
+0x25449  1E50:0549  add sp,0x4                             ; x86
+0x2544C  1E50:054C  push word [0xe4da]                     ; x86
+0x25450  1E50:0550  call word 0x1a4a:word 0x2827           ; x86
+0x25455  1E50:0555  pop cx                                 ; x86
+0x25456  1E50:0556  jmp 0x5e1                              ; x86
+0x25459  1E50:0559  jmp 0x5e1                              ; x86
+0x2545C  1E50:055C  push word [bp-0x2]                     ; x86
+0x2545F  1E50:055F  push di                                ; x86
+0x25460  1E50:0560  call word 0x1a4a:word 0x1f5a           ; x86
+0x25465  1E50:0565  add sp,0x4                             ; x86
+0x25468  1E50:0568  fsubr st0                              ; INT 35h
+0x2546B  1E50:056B  db dd 2e f4 31 (/5 mod=0 rm=6)         ; INT 38h  DS:31F4
+0x25470  1E50:0570  fstp dword [0x31f4]                    ; INT 39h  DS:31F4
+0x25475  1E50:0575  wait                                   ; INT 3Dh
+0x25477  1E50:0577  fld dword [0x31f4]                     ; INT 39h  DS:31F4
+0x2547C  1E50:057C  fsubr st6                              ; INT 35h
+0x2547F  1E50:057F  fcmovnu st1                            ; INT 3Ah
+0x25482  1E50:0582  fnstcw [bp-0x36]                       ; INT 39h
+0x25486  1E50:0586  wait                                   ; INT 3Dh
+0x25488  1E50:0588  mov ax,[bp-0x36]                       ; x86
+0x2548B  1E50:058B  sahf                                   ; x86
+0x2548C  1E50:058C  jnc 0x591                              ; x86
+0x2548E  1E50:058E  jmp 0x137                              ; x86
+0x25491  1E50:0591  mov ax,[0xe4da]                        ; x86
+0x25494  1E50:0594  imul ax,ax,0x6c                        ; x86
+0x25497  1E50:0597  les bx,word [0xceb8]                   ; x86
+0x2549B  1E50:059B  add bx,ax                              ; x86
+0x2549D  1E50:059D  mov [es:bx],di                         ; x86
+0x254A0  1E50:05A0  mov ax,[0xe4da]                        ; x86
+0x254A3  1E50:05A3  imul ax,ax,0x6c                        ; x86
+0x254A6  1E50:05A6  les bx,word [0xceb8]                   ; x86
+0x254AA  1E50:05AA  add bx,ax                              ; x86
+0x254AC  1E50:05AC  mov ax,[bp-0x2]                        ; x86
+0x254AF  1E50:05AF  mov [es:bx+0x2],ax                     ; x86
+0x254B3  1E50:05B3  mov ax,[0xe4da]                        ; x86
+0x254B6  1E50:05B6  imul ax,ax,0x6c                        ; x86
+0x254B9  1E50:05B9  les bx,word [0xceb8]                   ; x86
+0x254BD  1E50:05BD  add bx,ax                              ; x86
+0x254BF  1E50:05BF  fld dword [bp-0xa]                     ; INT 39h
+0x254C3  1E50:05C3  fcomp st5                              ; INT 3Ch
+0x254C6  1E50:05C6  pop di                                 ; x86
+0x254C7  1E50:05C7  db 0x14                                ; x86
+0x254C8  1E50:05C8  wait                                   ; INT 3Dh
+0x254CA  1E50:05CA  mov ax,[0xe4da]                        ; x86
+0x254CD  1E50:05CD  imul ax,ax,0x6c                        ; x86
+0x254D0  1E50:05D0  les bx,word [0xceb8]                   ; x86
+0x254D4  1E50:05D4  add bx,ax                              ; x86
+0x254D6  1E50:05D6  fld dword [bp-0x12]                    ; INT 39h
+0x254DA  1E50:05DA  fcomp st5                              ; INT 3Ch
+0x254DD  1E50:05DD  pop di                                 ; x86
+0x254DE  1E50:05DE  db 0x1c                                ; x86
+0x254DF  1E50:05DF  wait                                   ; INT 3Dh
+0x254E1  1E50:05E1  xor ax,ax                              ; x86
+0x254E3  1E50:05E3  jmp 0x5e5                              ; x86
+0x254E5  1E50:05E5  pop di                                 ; x86
+0x254E6  1E50:05E6  pop si                                 ; x86
+0x254E7  1E50:05E7  leave                                  ; x86
+0x254E8  1E50:05E8  retf                                   ; x86
+0x254E9  1E50:05E9  enter word 0x64,byte 0x0               ; x86
+0x254ED  1E50:05ED  push si                                ; x86
+0x254EE  1E50:05EE  push di                                ; x86
+0x254EF  1E50:05EF  mov si,[bp+0xe]                        ; x86
+0x254F2  1E50:05F2  cmp [0x519a],sp                        ; x86
+0x254F6  1E50:05F6  ja 0x5fd                               ; x86
+0x254F8  1E50:05F8  call word 0x0:word 0xa2ce              ; x86
+0x254FD  1E50:05FD  les bx,word [bp+0x6]                   ; x86
+0x25500  1E50:0600  cmp word [es:bx+0x32],0x5a             ; x86
+0x25505  1E50:0605  jnl 0x60c                              ; x86
+0x25507  1E50:0607  mov di,0x1                             ; x86
+0x2550A  1E50:060A  jmp 0x623                              ; x86
+0x2550C  1E50:060C  les bx,word [bp+0x6]                   ; x86
+0x2550F  1E50:060F  cmp word [es:bx+0x32],0x5a             ; x86
+0x25514  1E50:0614  jng 0x61b                              ; x86
+0x25516  1E50:0616  mov di,0xffff                          ; x86
+0x25519  1E50:0619  jmp 0x623                              ; x86
+0x2551B  1E50:061B  les bx,word [bp+0x6]                   ; x86
+0x2551E  1E50:061E  mov di,[es:bx+0x94]                    ; x86
+0x25523  1E50:0623  mov ax,[0x515a]                        ; x86
+0x25526  1E50:0626  mov [bp-0x64],ax                       ; x86
+0x25529  1E50:0629  fild word [bp-0x64]                    ; INT 3Bh
+0x2552D  1E50:062D  fdiv qword [0x3208]                    ; INT 34h  DS:3208
+0x25532  1E50:0632  fstp dword [bp-0x50]                   ; INT 39h
+0x25536  1E50:0636  fld dword [0x512a]                     ; INT 39h  DS:512A
+0x2553B  1E50:063B  fstp dword [bp-0x48]                   ; INT 39h
+0x2553F  1E50:063F  wait                                   ; INT 3Dh
+0x25541  1E50:0641  les bx,word [bp+0x6]                   ; x86
+0x25544  1E50:0644  cmp word [es:bx+0x32],0x5a             ; x86
+0x25549  1E50:0649  jg 0x654                               ; x86
+0x2554B  1E50:064B  les bx,word [bp+0x6]                   ; x86
+0x2554E  1E50:064E  mov ax,[es:bx+0x32]                    ; x86
+0x25552  1E50:0652  jmp 0x65e                              ; x86
+0x25554  1E50:0654  les bx,word [bp+0x6]                   ; x86
+0x25557  1E50:0657  mov ax,0xb4                            ; x86
+0x2555A  1E50:065A  sub ax,[es:bx+0x32]                    ; x86
+0x2555E  1E50:065E  mov [bp-0x64],ax                       ; x86
+0x25561  1E50:0661  fild word [bp-0x64]                    ; INT 3Bh
+0x25565  1E50:0665  fisttp qword [0x320c]                  ; INT 38h  DS:320C
+0x2556A  1E50:066A  fstp dword [bp-0x18]                   ; INT 39h
+0x2556E  1E50:066E  wait                                   ; INT 3Dh
+0x25570  1E50:0670  fld dword [bp-0x18]                    ; INT 39h
+0x25574  1E50:0674  sub sp,0x8                             ; x86
+0x25577  1E50:0677  fstp dword [bp-0x70]                   ; INT 39h
+0x2557B  1E50:067B  wait                                   ; INT 3Dh
+0x2557D  1E50:067D  call word 0x0:word 0x1204              ; x86
+0x25582  1E50:0682  add sp,0x8                             ; x86
+0x25585  1E50:0685  les bx,word [bp+0x6]                   ; x86
+0x25588  1E50:0688  mov ax,[es:bx+0x2]                     ; x86
+0x2558C  1E50:068C  mov [bp-0x64],ax                       ; x86
+0x2558F  1E50:068F  fild word [bp-0x64]                    ; INT 3Bh
+0x25593  1E50:0693  fcmovne st1                            ; INT 3Ah
+0x25596  1E50:0696  les bx,word [bp+0x6]                   ; x86
+0x25599  1E50:0699  mov ax,[es:bx+0x10]                    ; x86
+0x2559D  1E50:069D  les bx,word [bp+0x6]                   ; x86
+0x255A0  1E50:06A0  add ax,[es:bx+0x6]                     ; x86
+0x255A4  1E50:06A4  mov [bp-0x64],ax                       ; x86
+0x255A7  1E50:06A7  fild word [bp-0x64]                    ; INT 3Bh
+0x255AB  1E50:06AB  fndisi                                 ; INT 3Ah
+0x255AE  1E50:06AE  fstp dword [bp-0x38]                   ; INT 39h
+0x255B2  1E50:06B2  wait                                   ; INT 3Dh
+0x255B4  1E50:06B4  les bx,word [bp+0x6]                   ; x86
+0x255B7  1E50:06B7  mov ax,[es:bx+0x32]                    ; x86
+0x255BB  1E50:06BB  mov [bp-0x64],ax                       ; x86
+0x255BE  1E50:06BE  fild word [bp-0x64]                    ; INT 3Bh
+0x255C2  1E50:06C2  fisttp qword [0x320c]                  ; INT 38h  DS:320C
+0x255C7  1E50:06C7  sub sp,0x8                             ; x86
+0x255CA  1E50:06CA  fstp dword [bp-0x70]                   ; INT 39h
+0x255CE  1E50:06CE  wait                                   ; INT 3Dh
+0x255D0  1E50:06D0  call word 0x0:word 0x13d1              ; x86
+0x255D5  1E50:06D5  add sp,0x8                             ; x86
+0x255D8  1E50:06D8  les bx,word [bp+0x6]                   ; x86
+0x255DB  1E50:06DB  mov ax,[es:bx+0x2]                     ; x86
+0x255DF  1E50:06DF  mov [bp-0x64],ax                       ; x86
+0x255E2  1E50:06E2  fild word [bp-0x64]                    ; INT 3Bh
+0x255E6  1E50:06E6  fcmovne st1                            ; INT 3Ah
+0x255E9  1E50:06E9  les bx,word [bp+0x6]                   ; x86
+0x255EC  1E50:06EC  mov ax,[es:bx+0xe]                     ; x86
+0x255F0  1E50:06F0  les bx,word [bp+0x6]                   ; x86
+0x255F3  1E50:06F3  push ax                                ; x86
+0x255F4  1E50:06F4  mov ax,[es:bx+0x4]                     ; x86
+0x255F8  1E50:06F8  imul di                                ; x86
+0x255FA  1E50:06FA  pop dx                                 ; x86
+0x255FB  1E50:06FB  add dx,ax                              ; x86
+0x255FD  1E50:06FD  mov [bp-0x64],dx                       ; x86
+0x25600  1E50:0700  fild word [bp-0x64]                    ; INT 3Bh
+0x25604  1E50:0704  fcmovnb st1                            ; INT 3Ah
+0x25607  1E50:0707  fstp dword [bp-0x30]                   ; INT 39h
+0x2560B  1E50:070B  wait                                   ; INT 3Dh
+0x2560D  1E50:070D  mov ax,[bp+0xa]                        ; x86
+0x25610  1E50:0710  mov [bp-0x64],ax                       ; x86
+0x25613  1E50:0713  fild word [bp-0x64]                    ; INT 3Bh
+0x25617  1E50:0717  frstor [bp-0x30]                       ; INT 38h
+0x2561B  1E50:071B  fstp dword [bp-0x8]                    ; INT 39h
+0x2561F  1E50:071F  fld dword [bp-0x8]                     ; INT 39h
+0x25623  1E50:0723  fsubr st6                              ; INT 35h
+0x25626  1E50:0726  fcmovnu st1                            ; INT 3Ah
+0x25629  1E50:0729  fnstcw [bp-0x64]                       ; INT 39h
+0x2562D  1E50:072D  wait                                   ; INT 3Dh
+0x2562F  1E50:072F  mov ax,[bp-0x64]                       ; x86
+0x25632  1E50:0732  sahf                                   ; x86
+0x25633  1E50:0733  jna 0x751                              ; x86
+0x25635  1E50:0735  fld dword [0x3200]                     ; INT 39h  DS:3200
+0x2563A  1E50:073A  fisttp qword [bp-0x8]                  ; INT 38h
+0x2563E  1E50:073E  fstp dword [bp-0x8]                    ; INT 39h
+0x25642  1E50:0742  fld dword [0x3200]                     ; INT 39h  DS:3200
+0x25647  1E50:0747  fisttp qword [bp-0x50]                 ; INT 38h
+0x2564B  1E50:074B  fstp dword [bp-0x50]                   ; INT 39h
+0x2564F  1E50:074F  wait                                   ; INT 3Dh
+0x25651  1E50:0751  mov ax,[bp+0xc]                        ; x86
+0x25654  1E50:0754  mov [bp-0x64],ax                       ; x86
+0x25657  1E50:0757  fild word [bp-0x64]                    ; INT 3Bh
+0x2565B  1E50:075B  db dd 6e c8 (/5 mod=1 rm=6)            ; INT 38h
+0x2565F  1E50:075F  fstp dword [bp-0x10]                   ; INT 39h
+0x25663  1E50:0763  fld dword [0x6e5a]                     ; INT 39h  DS:6E5A
+0x25668  1E50:0768  fnstsw [bp-0x8]                        ; INT 38h
+0x2566C  1E50:076C  fstp dword [bp-0x8]                    ; INT 39h
+0x25670  1E50:0770  fld dword [bp-0x50]                    ; INT 39h
+0x25674  1E50:0774  fsubr st6                              ; INT 35h
+0x25677  1E50:0777  fcmovnu st1                            ; INT 3Ah
+0x2567A  1E50:077A  fnstcw [bp-0x64]                       ; INT 39h
+0x2567E  1E50:077E  wait                                   ; INT 3Dh
+0x25680  1E50:0780  mov ax,[bp-0x64]                       ; x86
+0x25683  1E50:0783  sahf                                   ; x86
+0x25684  1E50:0784  jnz 0x789                              ; x86
+0x25686  1E50:0786  jmp 0x878                              ; x86
+0x25689  1E50:0789  fld dword [bp-0x8]                     ; INT 39h
+0x2568D  1E50:078D  fsubr st6                              ; INT 35h
+0x25690  1E50:0790  fcmovnu st1                            ; INT 3Ah
+0x25693  1E50:0793  fnstcw [bp-0x64]                       ; INT 39h
+0x25697  1E50:0797  wait                                   ; INT 3Dh
+0x25699  1E50:0799  mov ax,[bp-0x64]                       ; x86
+0x2569C  1E50:079C  sahf                                   ; x86
+0x2569D  1E50:079D  jnz 0x7a2                              ; x86
+0x2569F  1E50:079F  jmp 0x878                              ; x86
+0x256A2  1E50:07A2  fld dword [bp-0x50]                    ; INT 39h
+0x256A6  1E50:07A6  fnsave [bp-0x48]                       ; INT 38h
+0x256AA  1E50:07AA  sub sp,0x8                             ; x86
+0x256AD  1E50:07AD  fstp dword [bp-0x70]                   ; INT 39h
+0x256B1  1E50:07B1  wait                                   ; INT 3Dh
+0x256B3  1E50:07B3  call word 0x0:word 0x4dc               ; x86
+0x256B8  1E50:07B8  add sp,0x8                             ; x86
+0x256BB  1E50:07BB  fstp dword [bp-0x20]                   ; INT 39h
+0x256BF  1E50:07BF  fld dword [bp-0x10]                    ; INT 39h
+0x256C3  1E50:07C3  fnsave [bp-0x8]                        ; INT 38h
+0x256C7  1E50:07C7  sub sp,0x8                             ; x86
+0x256CA  1E50:07CA  fstp dword [bp-0x70]                   ; INT 39h
+0x256CE  1E50:07CE  wait                                   ; INT 3Dh
+0x256D0  1E50:07D0  call word 0x0:word 0x4dc               ; x86
+0x256D5  1E50:07D5  add sp,0x8                             ; x86
+0x256D8  1E50:07D8  frstor [bp-0x20]                       ; INT 38h
+0x256DC  1E50:07DC  fstp dword [bp-0x60]                   ; INT 39h
+0x256E0  1E50:07E0  fld dword [bp-0x8]                     ; INT 39h
+0x256E4  1E50:07E4  fisttp qword [bp-0x8]                  ; INT 38h
+0x256E8  1E50:07E8  fld dword [bp-0x10]                    ; INT 39h
+0x256EC  1E50:07EC  fisttp qword [bp-0x10]                 ; INT 38h
+0x256F0  1E50:07F0  fcmovnb st1                            ; INT 3Ah
+0x256F3  1E50:07F3  sub sp,0x8                             ; x86
+0x256F6  1E50:07F6  fstp dword [bp-0x70]                   ; INT 39h
+0x256FA  1E50:07FA  wait                                   ; INT 3Dh
+0x256FC  1E50:07FC  call word 0x0:word 0xfc8               ; x86
+0x25701  1E50:0801  add sp,0x8                             ; x86
+0x25704  1E50:0804  fstp dword [bp-0x58]                   ; INT 39h
+0x25708  1E50:0808  fld dword [bp-0x48]                    ; INT 39h
+0x2570C  1E50:080C  fisttp qword [bp-0x48]                 ; INT 38h
+0x25710  1E50:0810  fld dword [bp-0x50]                    ; INT 39h
+0x25714  1E50:0814  fisttp qword [bp-0x50]                 ; INT 38h
+0x25718  1E50:0818  fcmovnb st1                            ; INT 3Ah
+0x2571B  1E50:081B  sub sp,0x8                             ; x86
+0x2571E  1E50:081E  fstp dword [bp-0x70]                   ; INT 39h
+0x25722  1E50:0822  wait                                   ; INT 3Dh
+0x25724  1E50:0824  call word 0x0:word 0xfc8               ; x86
+0x25729  1E50:0829  add sp,0x8                             ; x86
+0x2572C  1E50:082C  fstp dword [bp-0x48]                   ; INT 39h
+0x25730  1E50:0830  fld dword [bp-0x18]                    ; INT 39h
+0x25734  1E50:0834  frstor [bp-0x20]                       ; INT 38h
+0x25738  1E50:0838  fstp dword [bp-0x18]                   ; INT 39h
+0x2573C  1E50:083C  fld dword [bp-0x60]                    ; INT 39h
+0x25740  1E50:0840  sub sp,0x8                             ; x86
+0x25743  1E50:0843  fstp dword [bp-0x70]                   ; INT 39h
+0x25747  1E50:0847  wait                                   ; INT 3Dh
+0x25749  1E50:0849  call word 0x0:word 0x13d1              ; x86
+0x2574E  1E50:084E  add sp,0x8                             ; x86
+0x25751  1E50:0851  fisttp qword [bp-0x58]                 ; INT 38h
+0x25755  1E50:0855  fstp dword [bp-0x8]                    ; INT 39h
+0x25759  1E50:0859  fld dword [bp-0x60]                    ; INT 39h
+0x2575D  1E50:085D  sub sp,0x8                             ; x86
+0x25760  1E50:0860  fstp dword [bp-0x70]                   ; INT 39h
+0x25764  1E50:0864  wait                                   ; INT 3Dh
+0x25766  1E50:0866  call word 0x0:word 0x1204              ; x86
+0x2576B  1E50:086B  add sp,0x8                             ; x86
+0x2576E  1E50:086E  fisttp qword [bp-0x58]                 ; INT 38h
+0x25772  1E50:0872  fstp dword [bp-0x10]                   ; INT 39h
+0x25776  1E50:0876  wait                                   ; INT 3Dh
+0x25778  1E50:0878  fld dword [bp-0x18]                    ; INT 39h
+0x2577C  1E50:087C  sub sp,0x8                             ; x86
+0x2577F  1E50:087F  fstp dword [bp-0x70]                   ; INT 39h
+0x25783  1E50:0883  wait                                   ; INT 3Dh
+0x25785  1E50:0885  call word 0x0:word 0x13d1              ; x86
+0x2578A  1E50:088A  add sp,0x8                             ; x86
+0x2578D  1E50:088D  fstp dword [bp-0x28]                   ; INT 39h
+0x25791  1E50:0891  fld dword [bp-0x28]                    ; INT 39h
+0x25795  1E50:0895  fisttp qword [bp-0x28]                 ; INT 38h
+0x25799  1E50:0899  fstp dword [bp-0x28]                   ; INT 39h
+0x2579D  1E50:089D  fld dword [bp-0x18]                    ; INT 39h
+0x257A1  1E50:08A1  sub sp,0x8                             ; x86
+0x257A4  1E50:08A4  fstp dword [bp-0x70]                   ; INT 39h
+0x257A8  1E50:08A8  wait                                   ; INT 3Dh
+0x257AA  1E50:08AA  call word 0x0:word 0x1254              ; x86
+0x257AF  1E50:08AF  add sp,0x8                             ; x86
+0x257B2  1E50:08B2  fisttp qword [bp-0x8]                  ; INT 38h
+0x257B6  1E50:08B6  frstor [bp-0x10]                       ; INT 38h
+0x257BA  1E50:08BA  fadd dword [0x3214]                    ; INT 35h  DS:3214
+0x257BF  1E50:08BF  fisttp qword [bp-0x28]                 ; INT 38h
+0x257C3  1E50:08C3  fcmovne st1                            ; INT 3Ah
+0x257C6  1E50:08C6  fstp dword [bp-0x58]                   ; INT 39h
+0x257CA  1E50:08CA  fld dword [bp-0x58]                    ; INT 39h
+0x257CE  1E50:08CE  fsubr st6                              ; INT 35h
+0x257D1  1E50:08D1  fcmovnu st1                            ; INT 3Ah
+0x257D4  1E50:08D4  fnstcw [bp-0x64]                       ; INT 39h
+0x257D8  1E50:08D8  wait                                   ; INT 3Dh
+0x257DA  1E50:08DA  mov ax,[bp-0x64]                       ; x86
+0x257DD  1E50:08DD  sahf                                   ; x86
+0x257DE  1E50:08DE  jnz 0x8f4                              ; x86
+0x257E0  1E50:08E0  or si,si                               ; x86
+0x257E2  1E50:08E2  jnz 0x8ee                              ; x86
+0x257E4  1E50:08E4  les bx,word [bp+0x6]                   ; x86
+0x257E7  1E50:08E7  inc word [es:bx+0x32]                  ; x86
+0x257EB  1E50:08EB  jmp 0x623                              ; x86
+0x257EE  1E50:08EE  mov ax,0xfffe                          ; x86
+0x257F1  1E50:08F1  jmp 0x998                              ; x86
+0x257F4  1E50:08F4  fld dword [bp-0x48]                    ; INT 39h
+0x257F8  1E50:08F8  fisttp qword [bp-0x8]                  ; INT 38h
+0x257FC  1E50:08FC  fisttp qword [bp-0x8]                  ; INT 38h
+0x25800  1E50:0900  fnsave [bp-0x58]                       ; INT 38h
+0x25804  1E50:0904  fstp dword [bp-0x40]                   ; INT 39h
+0x25808  1E50:0908  fld dword [bp-0x40]                    ; INT 39h
+0x2580C  1E50:090C  fsubr st6                              ; INT 35h
+0x2580F  1E50:090F  fcmovnu st1                            ; INT 3Ah
+0x25812  1E50:0912  fnstcw [bp-0x64]                       ; INT 39h
+0x25816  1E50:0916  wait                                   ; INT 3Dh
+0x25818  1E50:0918  mov ax,[bp-0x64]                       ; x86
+0x2581B  1E50:091B  sahf                                   ; x86
+0x2581C  1E50:091C  jna 0x933                              ; x86
+0x2581E  1E50:091E  fld dword [0x3200]                     ; INT 39h  DS:3200
+0x25823  1E50:0923  fisttp qword [bp-0x40]                 ; INT 38h
+0x25827  1E50:0927  fstp dword [bp-0x40]                   ; INT 39h
+0x2582B  1E50:092B  or si,si                               ; x86
+0x2582D  1E50:092D  wait                                   ; INT 3Dh
+0x2582F  1E50:092F  jz 0x933                               ; x86
+0x25831  1E50:0931  jmp 0x988                              ; x86
+0x25833  1E50:0933  fld dword [bp-0x40]                    ; INT 39h
+0x25837  1E50:0937  sub sp,0x8                             ; x86
+0x2583A  1E50:093A  fstp dword [bp-0x70]                   ; INT 39h
+0x2583E  1E50:093E  wait                                   ; INT 3Dh
+0x25840  1E50:0940  call word 0x0:word 0xfc8               ; x86
+0x25845  1E50:0945  add sp,0x8                             ; x86
+0x25848  1E50:0948  fmul qword [0x3218]                    ; INT 34h  DS:3218
+0x2584D  1E50:094D  fstp dword [bp-0x40]                   ; INT 39h
+0x25851  1E50:0951  or si,si                               ; x86
+0x25853  1E50:0953  wait                                   ; INT 3Dh
+0x25855  1E50:0955  jz 0x98d                               ; x86
+0x25857  1E50:0957  les bx,word [bp+0x6]                   ; x86
+0x2585A  1E50:095A  mov cx,[es:bx+0xa4]                    ; x86
+0x2585F  1E50:095F  mov bx,[es:bx+0xa2]                    ; x86
+0x25864  1E50:0964  xor dx,dx                              ; x86
+0x25866  1E50:0966  mov ax,0xa                             ; x86
+0x25869  1E50:0969  call word 0x0:word 0x17a6              ; x86
+0x2586E  1E50:096E  mov [bp-0x64],ax                       ; x86
+0x25871  1E50:0971  mov [bp-0x62],dx                       ; x86
+0x25874  1E50:0974  fiadd word [bp-0x64]                   ; INT 37h
+0x25878  1E50:0978  fstp qword [bp-0x40]                   ; INT 38h
+0x2587C  1E50:097C  fnstcw [bp-0x64]                       ; INT 39h
+0x25880  1E50:0980  wait                                   ; INT 3Dh
+0x25882  1E50:0982  mov ax,[bp-0x64]                       ; x86
+0x25885  1E50:0985  sahf                                   ; x86
+0x25886  1E50:0986  jnc 0x98d                              ; x86
+0x25888  1E50:0988  mov ax,0xffff                          ; x86
+0x2588B  1E50:098B  jmp 0x998                              ; x86
+0x2588D  1E50:098D  fld dword [bp-0x40]                    ; INT 39h
+0x25891  1E50:0991  call word 0x0:word 0x14df              ; x86
+0x25896  1E50:0996  jmp 0x998                              ; x86
+0x25898  1E50:0998  pop di                                 ; x86
+0x25899  1E50:0999  pop si                                 ; x86
+0x2589A  1E50:099A  leave                                  ; x86
+0x2589B  1E50:099B  retf                                   ; x86
+0x2589C  1E50:099C  enter word 0x32,byte 0x0               ; x86
+0x258A0  1E50:09A0  push si                                ; x86
+0x258A1  1E50:09A1  cmp [0x519a],sp                        ; x86
+0x258A5  1E50:09A5  ja 0x9ac                               ; x86
+0x258A7  1E50:09A7  call word 0x0:word 0xa2ce              ; x86
+0x258AC  1E50:09AC  xor si,si                              ; x86
+0x258AE  1E50:09AE  mov ax,[0xe4da]                        ; x86
+0x258B1  1E50:09B1  imul ax,ax,0x6c                        ; x86
+0x258B4  1E50:09B4  les bx,word [0xceb8]                   ; x86
+0x258B8  1E50:09B8  add bx,ax                              ; x86
+0x258BA  1E50:09BA  fcomp st5                              ; INT 3Ch
+0x258BD  1E50:09BD  inc di                                 ; x86
+0x258BE  1E50:09BE  db 0x14                                ; x86
+0x258BF  1E50:09BF  fstp dword [bp-0x10]                   ; INT 39h
+0x258C3  1E50:09C3  wait                                   ; INT 3Dh
+0x258C5  1E50:09C5  mov ax,[0xe4da]                        ; x86
+0x258C8  1E50:09C8  imul ax,ax,0x6c                        ; x86
+0x258CB  1E50:09CB  les bx,word [0xceb8]                   ; x86
+0x258CF  1E50:09CF  add bx,ax                              ; x86
+0x258D1  1E50:09D1  fcomp st5                              ; INT 3Ch
+0x258D4  1E50:09D4  inc di                                 ; x86
+0x258D5  1E50:09D5  db 0x1c                                ; x86
+0x258D6  1E50:09D6  fstp dword [bp-0x18]                   ; INT 39h
+0x258DA  1E50:09DA  wait                                   ; INT 3Dh
+0x258DC  1E50:09DC  mov ax,[0xe4da]                        ; x86
+0x258DF  1E50:09DF  imul ax,ax,0x6c                        ; x86
+0x258E2  1E50:09E2  les bx,word [0xceb8]                   ; x86
+0x258E6  1E50:09E6  add bx,ax                              ; x86
+0x258E8  1E50:09E8  mov ax,[es:bx+0x44]                    ; x86
+0x258EC  1E50:09EC  mov [bp-0x32],ax                       ; x86
+0x258EF  1E50:09EF  fild word [bp-0x32]                    ; INT 3Bh
+0x258F3  1E50:09F3  frstor [bp-0x10]                       ; INT 38h
+0x258F7  1E50:09F7  fstp dword [bp-0x20]                   ; INT 39h
+0x258FB  1E50:09FB  wait                                   ; INT 3Dh
+0x258FD  1E50:09FD  mov ax,[0xe4da]                        ; x86
+0x25900  1E50:0A00  imul ax,ax,0x6c                        ; x86
+0x25903  1E50:0A03  les bx,word [0xceb8]                   ; x86
+0x25907  1E50:0A07  add bx,ax                              ; x86
+0x25909  1E50:0A09  mov ax,[es:bx+0x46]                    ; x86
+0x2590D  1E50:0A0D  mov [bp-0x32],ax                       ; x86
+0x25910  1E50:0A10  fild word [bp-0x32]                    ; INT 3Bh
+0x25914  1E50:0A14  db dd 6e e8 (/5 mod=1 rm=6)            ; INT 38h
+0x25918  1E50:0A18  fstp dword [bp-0x28]                   ; INT 39h
+0x2591C  1E50:0A1C  wait                                   ; INT 3Dh
+0x2591E  1E50:0A1E  mov ax,[0xe4da]                        ; x86
+0x25921  1E50:0A21  imul ax,ax,0x6c                        ; x86
+0x25924  1E50:0A24  les bx,word [0xceb8]                   ; x86
+0x25928  1E50:0A28  add bx,ax                              ; x86
+0x2592A  1E50:0A2A  cmp word [es:bx+0x66],0x0              ; x86
+0x2592F  1E50:0A2F  jz 0xa8b                               ; x86
+0x25931  1E50:0A31  fld dword [bp-0x20]                    ; INT 39h
+0x25935  1E50:0A35  fsubr st6                              ; INT 35h
+0x25938  1E50:0A38  fcmovnu st1                            ; INT 3Ah
+0x2593B  1E50:0A3B  fnstcw [bp-0x32]                       ; INT 39h
+0x2593F  1E50:0A3F  wait                                   ; INT 3Dh
+0x25941  1E50:0A41  mov ax,[bp-0x32]                       ; x86
+0x25944  1E50:0A44  sahf                                   ; x86
+0x25945  1E50:0A45  jna 0xa5f                              ; x86
+0x25947  1E50:0A47  mov ax,[0xe4da]                        ; x86
+0x2594A  1E50:0A4A  imul ax,ax,0x6c                        ; x86
+0x2594D  1E50:0A4D  les bx,word [0xceb8]                   ; x86
+0x25951  1E50:0A51  add bx,ax                              ; x86
+0x25953  1E50:0A53  cmp word [es:bx+0x66],0x0              ; x86
+0x25958  1E50:0A58  jnl 0xa5f                              ; x86
+0x2595A  1E50:0A5A  mov si,0x1                             ; x86
+0x2595D  1E50:0A5D  jmp 0xa8b                              ; x86
+0x2595F  1E50:0A5F  fld dword [bp-0x20]                    ; INT 39h
+0x25963  1E50:0A63  fsubr st6                              ; INT 35h
+0x25966  1E50:0A66  fcmovnu st1                            ; INT 3Ah
+0x25969  1E50:0A69  fnstcw [bp-0x32]                       ; INT 39h
+0x2596D  1E50:0A6D  wait                                   ; INT 3Dh
+0x2596F  1E50:0A6F  mov ax,[bp-0x32]                       ; x86
+0x25972  1E50:0A72  sahf                                   ; x86
+0x25973  1E50:0A73  jnc 0xa8b                              ; x86
+0x25975  1E50:0A75  mov ax,[0xe4da]                        ; x86
+0x25978  1E50:0A78  imul ax,ax,0x6c                        ; x86
+0x2597B  1E50:0A7B  les bx,word [0xceb8]                   ; x86
+0x2597F  1E50:0A7F  add bx,ax                              ; x86
+0x25981  1E50:0A81  cmp word [es:bx+0x66],0x0              ; x86
+0x25986  1E50:0A86  jng 0xa8b                              ; x86
+0x25988  1E50:0A88  mov si,0x1                             ; x86
+0x2598B  1E50:0A8B  mov ax,[0xe4da]                        ; x86
+0x2598E  1E50:0A8E  imul ax,ax,0x6c                        ; x86
+0x25991  1E50:0A91  les bx,word [0xceb8]                   ; x86
+0x25995  1E50:0A95  add bx,ax                              ; x86
+0x25997  1E50:0A97  cmp word [es:bx+0x68],0x0              ; x86
+0x2599C  1E50:0A9C  jz 0xaf8                               ; x86
+0x2599E  1E50:0A9E  fld dword [bp-0x28]                    ; INT 39h
+0x259A2  1E50:0AA2  fsubr st6                              ; INT 35h
+0x259A5  1E50:0AA5  fcmovnu st1                            ; INT 3Ah
+0x259A8  1E50:0AA8  fnstcw [bp-0x32]                       ; INT 39h
+0x259AC  1E50:0AAC  wait                                   ; INT 3Dh
+0x259AE  1E50:0AAE  mov ax,[bp-0x32]                       ; x86
+0x259B1  1E50:0AB1  sahf                                   ; x86
+0x259B2  1E50:0AB2  jna 0xacc                              ; x86
+0x259B4  1E50:0AB4  mov ax,[0xe4da]                        ; x86
+0x259B7  1E50:0AB7  imul ax,ax,0x6c                        ; x86
+0x259BA  1E50:0ABA  les bx,word [0xceb8]                   ; x86
+0x259BE  1E50:0ABE  add bx,ax                              ; x86
+0x259C0  1E50:0AC0  cmp word [es:bx+0x68],0x0              ; x86
+0x259C5  1E50:0AC5  jng 0xacc                              ; x86
+0x259C7  1E50:0AC7  mov si,0x1                             ; x86
+0x259CA  1E50:0ACA  jmp 0xaf8                              ; x86
+0x259CC  1E50:0ACC  fld dword [bp-0x28]                    ; INT 39h
+0x259D0  1E50:0AD0  fsubr st6                              ; INT 35h
+0x259D3  1E50:0AD3  fcmovnu st1                            ; INT 3Ah
+0x259D6  1E50:0AD6  fnstcw [bp-0x32]                       ; INT 39h
+0x259DA  1E50:0ADA  wait                                   ; INT 3Dh
+0x259DC  1E50:0ADC  mov ax,[bp-0x32]                       ; x86
+0x259DF  1E50:0ADF  sahf                                   ; x86
+0x259E0  1E50:0AE0  jnc 0xaf8                              ; x86
+0x259E2  1E50:0AE2  mov ax,[0xe4da]                        ; x86
+0x259E5  1E50:0AE5  imul ax,ax,0x6c                        ; x86
+0x259E8  1E50:0AE8  les bx,word [0xceb8]                   ; x86
+0x259EC  1E50:0AEC  add bx,ax                              ; x86
+0x259EE  1E50:0AEE  cmp word [es:bx+0x68],0x0              ; x86
+0x259F3  1E50:0AF3  jnl 0xaf8                              ; x86
+0x259F5  1E50:0AF5  mov si,0x1                             ; x86
+0x259F8  1E50:0AF8  or si,si                               ; x86
+0x259FA  1E50:0AFA  jz 0xb5a                               ; x86
+0x259FC  1E50:0AFC  mov ax,[0xe4da]                        ; x86
+0x259FF  1E50:0AFF  imul ax,ax,0x6c                        ; x86
+0x25A02  1E50:0B02  les bx,word [0xceb8]                   ; x86
+0x25A06  1E50:0B06  add bx,ax                              ; x86
+0x25A08  1E50:0B08  cmp word [es:bx+0x6a],0x1              ; x86
+0x25A0D  1E50:0B0D  jnz 0xb3f                              ; x86
+0x25A0F  1E50:0B0F  call word 0x1a4a:word 0x211c           ; x86
+0x25A14  1E50:0B14  fld dword [bp-0x18]                    ; INT 39h
+0x25A18  1E50:0B18  call word 0x0:word 0x14df              ; x86
+0x25A1D  1E50:0B1D  push ax                                ; x86
+0x25A1E  1E50:0B1E  fld dword [bp-0x10]                    ; INT 39h
+0x25A22  1E50:0B22  call word 0x0:word 0x14df              ; x86
+0x25A27  1E50:0B27  push ax                                ; x86
+0x25A28  1E50:0B28  call word 0x1a4a:word 0x2228           ; x86
+0x25A2D  1E50:0B2D  add sp,0x4                             ; x86
+0x25A30  1E50:0B30  push word [0xe4da]                     ; x86
+0x25A34  1E50:0B34  call word 0x1a4a:word 0x2827           ; x86
+0x25A39  1E50:0B39  pop cx                                 ; x86
+0x25A3A  1E50:0B3A  xor ax,ax                              ; x86
+0x25A3C  1E50:0B3C  jmp 0xc2d                              ; x86
+0x25A3F  1E50:0B3F  mov ax,[0xe4da]                        ; x86
+0x25A42  1E50:0B42  imul ax,ax,0x6c                        ; x86
+0x25A45  1E50:0B45  les bx,word [0xceb8]                   ; x86
+0x25A49  1E50:0B49  add bx,ax                              ; x86
+0x25A4B  1E50:0B4B  mov word [es:bx+0x4e],0x0              ; x86
+0x25A51  1E50:0B51  mov word [es:bx+0x4c],0x0              ; x86
+0x25A57  1E50:0B57  jmp 0xc28                              ; x86
+0x25A5A  1E50:0B5A  fld dword [bp-0x20]                    ; INT 39h
+0x25A5E  1E50:0B5E  fisttp qword [bp-0x20]                 ; INT 38h
+0x25A62  1E50:0B62  fld dword [bp-0x28]                    ; INT 39h
+0x25A66  1E50:0B66  fisttp qword [bp-0x28]                 ; INT 38h
+0x25A6A  1E50:0B6A  fcmovnb st1                            ; INT 3Ah
+0x25A6D  1E50:0B6D  fstp dword [bp-0x8]                    ; INT 39h
+0x25A71  1E50:0B71  fld dword [bp-0x8]                     ; INT 39h
+0x25A75  1E50:0B75  fstp qword [0x321c]                    ; INT 38h  DS:321C
+0x25A7A  1E50:0B7A  fnstcw [bp-0x32]                       ; INT 39h
+0x25A7E  1E50:0B7E  wait                                   ; INT 3Dh
+0x25A80  1E50:0B80  mov ax,[bp-0x32]                       ; x86
+0x25A83  1E50:0B83  sahf                                   ; x86
+0x25A84  1E50:0B84  jnc 0xb89                              ; x86
+0x25A86  1E50:0B86  jmp 0xc28                              ; x86
+0x25A89  1E50:0B89  fld dword [bp-0x8]                     ; INT 39h
+0x25A8D  1E50:0B8D  sub sp,0x8                             ; x86
+0x25A90  1E50:0B90  fstp dword [bp-0x3c]                   ; INT 39h
+0x25A94  1E50:0B94  wait                                   ; INT 3Dh
+0x25A96  1E50:0B96  call word 0x0:word 0xfc8               ; x86
+0x25A9B  1E50:0B9B  add sp,0x8                             ; x86
+0x25A9E  1E50:0B9E  fstp dword [bp-0x8]                    ; INT 39h
+0x25AA2  1E50:0BA2  fld dword [bp-0x8]                     ; INT 39h
+0x25AA6  1E50:0BA6  sub sp,0x8                             ; x86
+0x25AA9  1E50:0BA9  fstp dword [bp-0x3c]                   ; INT 39h
+0x25AAD  1E50:0BAD  wait                                   ; INT 3Dh
+0x25AAF  1E50:0BAF  call word 0x0:word 0xfc8               ; x86
+0x25AB4  1E50:0BB4  add sp,0x8                             ; x86
+0x25AB7  1E50:0BB7  fadd dword [0x3224]                    ; INT 35h  DS:3224
+0x25ABC  1E50:0BBC  fisttp qword [0xceac]                  ; INT 38h  DS:CEAC
+0x25AC1  1E50:0BC1  fcomi st1                              ; INT 3Ah
+0x25AC4  1E50:0BC4  fstp dword [bp-0x30]                   ; INT 39h
+0x25AC8  1E50:0BC8  wait                                   ; INT 3Dh
+0x25ACA  1E50:0BCA  mov ax,[0xe4da]                        ; x86
+0x25ACD  1E50:0BCD  imul ax,ax,0x6c                        ; x86
+0x25AD0  1E50:0BD0  les bx,word [0xceb8]                   ; x86
+0x25AD4  1E50:0BD4  add bx,ax                              ; x86
+0x25AD6  1E50:0BD6  fcomp st5                              ; INT 3Ch
+0x25AD9  1E50:0BD9  inc di                                 ; x86
+0x25ADA  1E50:0BDA  db 0x04                                ; x86
+0x25ADB  1E50:0BDB  fld dword [bp-0x30]                    ; INT 39h
+0x25ADF  1E50:0BDF  fisttp qword [bp-0x20]                 ; INT 38h
+0x25AE3  1E50:0BE3  fcmovnb st1                            ; INT 3Ah
+0x25AE6  1E50:0BE6  mov ax,[0xe4da]                        ; x86
+0x25AE9  1E50:0BE9  imul ax,ax,0x6c                        ; x86
+0x25AEC  1E50:0BEC  les bx,word [0xceb8]                   ; x86
+0x25AF0  1E50:0BF0  add bx,ax                              ; x86
+0x25AF2  1E50:0BF2  fcomp st5                              ; INT 3Ch
+0x25AF5  1E50:0BF5  pop di                                 ; x86
+0x25AF6  1E50:0BF6  db 0x04                                ; x86
+0x25AF7  1E50:0BF7  wait                                   ; INT 3Dh
+0x25AF9  1E50:0BF9  mov ax,[0xe4da]                        ; x86
+0x25AFC  1E50:0BFC  imul ax,ax,0x6c                        ; x86
+0x25AFF  1E50:0BFF  les bx,word [0xceb8]                   ; x86
+0x25B03  1E50:0C03  add bx,ax                              ; x86
+0x25B05  1E50:0C05  fcomp st5                              ; INT 3Ch
+0x25B08  1E50:0C08  inc di                                 ; x86
+0x25B09  1E50:0C09  db 0x0c                                ; x86
+0x25B0A  1E50:0C0A  fld dword [bp-0x30]                    ; INT 39h
+0x25B0E  1E50:0C0E  fisttp qword [bp-0x28]                 ; INT 38h
+0x25B12  1E50:0C12  fcmovnb st1                            ; INT 3Ah
+0x25B15  1E50:0C15  mov ax,[0xe4da]                        ; x86
+0x25B18  1E50:0C18  imul ax,ax,0x6c                        ; x86
+0x25B1B  1E50:0C1B  les bx,word [0xceb8]                   ; x86
+0x25B1F  1E50:0C1F  add bx,ax                              ; x86
+0x25B21  1E50:0C21  fcomp st5                              ; INT 3Ch
+0x25B24  1E50:0C24  pop di                                 ; x86
+0x25B25  1E50:0C25  db 0x0c                                ; x86
+0x25B26  1E50:0C26  wait                                   ; INT 3Dh
+0x25B28  1E50:0C28  mov ax,0x1                             ; x86
+0x25B2B  1E50:0C2B  jmp 0xc2d                              ; x86
+0x25B2D  1E50:0C2D  pop si                                 ; x86
+0x25B2E  1E50:0C2E  leave                                  ; x86
+0x25B2F  1E50:0C2F  retf                                   ; x86
+0x25B30  1E50:0C30  enter word 0x32,byte 0x0               ; x86
+0x25B34  1E50:0C34  push si                                ; x86
+0x25B35  1E50:0C35  cmp [0x519a],sp                        ; x86
+0x25B39  1E50:0C39  ja 0xc40                               ; x86
+0x25B3B  1E50:0C3B  call word 0x0:word 0xa2ce              ; x86
+0x25B40  1E50:0C40  xor si,si                              ; x86
+0x25B42  1E50:0C42  mov ax,[0xe4da]                        ; x86
+0x25B45  1E50:0C45  imul ax,ax,0x6c                        ; x86
+0x25B48  1E50:0C48  les bx,word [0xceb8]                   ; x86
+0x25B4C  1E50:0C4C  add bx,ax                              ; x86
+0x25B4E  1E50:0C4E  fcomp st5                              ; INT 3Ch
+0x25B51  1E50:0C51  inc di                                 ; x86
+0x25B52  1E50:0C52  db 0x14                                ; x86
+0x25B53  1E50:0C53  fstp dword [bp-0x10]                   ; INT 39h
+0x25B57  1E50:0C57  wait                                   ; INT 3Dh
+0x25B59  1E50:0C59  mov ax,[0xe4da]                        ; x86
+0x25B5C  1E50:0C5C  imul ax,ax,0x6c                        ; x86
+0x25B5F  1E50:0C5F  les bx,word [0xceb8]                   ; x86
+0x25B63  1E50:0C63  add bx,ax                              ; x86
+0x25B65  1E50:0C65  fcomp st5                              ; INT 3Ch
+0x25B68  1E50:0C68  inc di                                 ; x86
+0x25B69  1E50:0C69  db 0x1c                                ; x86
+0x25B6A  1E50:0C6A  fstp dword [bp-0x18]                   ; INT 39h
+0x25B6E  1E50:0C6E  wait                                   ; INT 3Dh
+0x25B70  1E50:0C70  mov ax,[0xe4da]                        ; x86
+0x25B73  1E50:0C73  imul ax,ax,0x6c                        ; x86
+0x25B76  1E50:0C76  les bx,word [0xceb8]                   ; x86
+0x25B7A  1E50:0C7A  add bx,ax                              ; x86
+0x25B7C  1E50:0C7C  mov ax,[es:bx+0x44]                    ; x86
+0x25B80  1E50:0C80  mov [bp-0x32],ax                       ; x86
+0x25B83  1E50:0C83  fild word [bp-0x32]                    ; INT 3Bh
+0x25B87  1E50:0C87  frstor [bp-0x10]                       ; INT 38h
+0x25B8B  1E50:0C8B  fstp dword [bp-0x20]                   ; INT 39h
+0x25B8F  1E50:0C8F  wait                                   ; INT 3Dh
+0x25B91  1E50:0C91  mov ax,[0xe4da]                        ; x86
+0x25B94  1E50:0C94  imul ax,ax,0x6c                        ; x86
+0x25B97  1E50:0C97  les bx,word [0xceb8]                   ; x86
+0x25B9B  1E50:0C9B  add bx,ax                              ; x86
+0x25B9D  1E50:0C9D  mov ax,[es:bx+0x46]                    ; x86
+0x25BA1  1E50:0CA1  mov [bp-0x32],ax                       ; x86
+0x25BA4  1E50:0CA4  fild word [bp-0x32]                    ; INT 3Bh
+0x25BA8  1E50:0CA8  db dd 6e e8 (/5 mod=1 rm=6)            ; INT 38h
+0x25BAC  1E50:0CAC  fstp dword [bp-0x28]                   ; INT 39h
+0x25BB0  1E50:0CB0  wait                                   ; INT 3Dh
+0x25BB2  1E50:0CB2  mov ax,[0xe4da]                        ; x86
+0x25BB5  1E50:0CB5  imul ax,ax,0x6c                        ; x86
+0x25BB8  1E50:0CB8  les bx,word [0xceb8]                   ; x86
+0x25BBC  1E50:0CBC  add bx,ax                              ; x86
+0x25BBE  1E50:0CBE  cmp word [es:bx+0x66],0x0              ; x86
+0x25BC3  1E50:0CC3  jz 0xd1f                               ; x86
+0x25BC5  1E50:0CC5  fld dword [bp-0x20]                    ; INT 39h
+0x25BC9  1E50:0CC9  fsubr st6                              ; INT 35h
+0x25BCC  1E50:0CCC  fcmovnu st1                            ; INT 3Ah
+0x25BCF  1E50:0CCF  fnstcw [bp-0x32]                       ; INT 39h
+0x25BD3  1E50:0CD3  wait                                   ; INT 3Dh
+0x25BD5  1E50:0CD5  mov ax,[bp-0x32]                       ; x86
+0x25BD8  1E50:0CD8  sahf                                   ; x86
+0x25BD9  1E50:0CD9  jna 0xcf3                              ; x86
+0x25BDB  1E50:0CDB  mov ax,[0xe4da]                        ; x86
+0x25BDE  1E50:0CDE  imul ax,ax,0x6c                        ; x86
+0x25BE1  1E50:0CE1  les bx,word [0xceb8]                   ; x86
+0x25BE5  1E50:0CE5  add bx,ax                              ; x86
+0x25BE7  1E50:0CE7  cmp word [es:bx+0x66],0x0              ; x86
+0x25BEC  1E50:0CEC  jnl 0xcf3                              ; x86
+0x25BEE  1E50:0CEE  mov si,0x1                             ; x86
+0x25BF1  1E50:0CF1  jmp 0xd1f                              ; x86
+0x25BF3  1E50:0CF3  fld dword [bp-0x20]                    ; INT 39h
+0x25BF7  1E50:0CF7  fsubr st6                              ; INT 35h
+0x25BFA  1E50:0CFA  fcmovnu st1                            ; INT 3Ah
+0x25BFD  1E50:0CFD  fnstcw [bp-0x32]                       ; INT 39h
+0x25C01  1E50:0D01  wait                                   ; INT 3Dh
+0x25C03  1E50:0D03  mov ax,[bp-0x32]                       ; x86
+0x25C06  1E50:0D06  sahf                                   ; x86
+0x25C07  1E50:0D07  jnc 0xd1f                              ; x86
+0x25C09  1E50:0D09  mov ax,[0xe4da]                        ; x86
+0x25C0C  1E50:0D0C  imul ax,ax,0x6c                        ; x86
+0x25C0F  1E50:0D0F  les bx,word [0xceb8]                   ; x86
+0x25C13  1E50:0D13  add bx,ax                              ; x86
+0x25C15  1E50:0D15  cmp word [es:bx+0x66],0x0              ; x86
+0x25C1A  1E50:0D1A  jng 0xd1f                              ; x86
+0x25C1C  1E50:0D1C  mov si,0x1                             ; x86
+0x25C1F  1E50:0D1F  mov ax,[0xe4da]                        ; x86
+0x25C22  1E50:0D22  imul ax,ax,0x6c                        ; x86
+0x25C25  1E50:0D25  les bx,word [0xceb8]                   ; x86
+0x25C29  1E50:0D29  add bx,ax                              ; x86
+0x25C2B  1E50:0D2B  cmp word [es:bx+0x68],0x0              ; x86
+0x25C30  1E50:0D30  jz 0xd8c                               ; x86
+0x25C32  1E50:0D32  fld dword [bp-0x28]                    ; INT 39h
+0x25C36  1E50:0D36  fsubr st6                              ; INT 35h
+0x25C39  1E50:0D39  fcmovnu st1                            ; INT 3Ah
+0x25C3C  1E50:0D3C  fnstcw [bp-0x32]                       ; INT 39h
+0x25C40  1E50:0D40  wait                                   ; INT 3Dh
+0x25C42  1E50:0D42  mov ax,[bp-0x32]                       ; x86
+0x25C45  1E50:0D45  sahf                                   ; x86
+0x25C46  1E50:0D46  jna 0xd60                              ; x86
+0x25C48  1E50:0D48  mov ax,[0xe4da]                        ; x86
+0x25C4B  1E50:0D4B  imul ax,ax,0x6c                        ; x86
+0x25C4E  1E50:0D4E  les bx,word [0xceb8]                   ; x86
+0x25C52  1E50:0D52  add bx,ax                              ; x86
+0x25C54  1E50:0D54  cmp word [es:bx+0x68],0x0              ; x86
+0x25C59  1E50:0D59  jng 0xd60                              ; x86
+0x25C5B  1E50:0D5B  mov si,0x1                             ; x86
+0x25C5E  1E50:0D5E  jmp 0xd8c                              ; x86
+0x25C60  1E50:0D60  fld dword [bp-0x28]                    ; INT 39h
+0x25C64  1E50:0D64  fsubr st6                              ; INT 35h
+0x25C67  1E50:0D67  fcmovnu st1                            ; INT 3Ah
+0x25C6A  1E50:0D6A  fnstcw [bp-0x32]                       ; INT 39h
+0x25C6E  1E50:0D6E  wait                                   ; INT 3Dh
+0x25C70  1E50:0D70  mov ax,[bp-0x32]                       ; x86
+0x25C73  1E50:0D73  sahf                                   ; x86
+0x25C74  1E50:0D74  jnc 0xd8c                              ; x86
+0x25C76  1E50:0D76  mov ax,[0xe4da]                        ; x86
+0x25C79  1E50:0D79  imul ax,ax,0x6c                        ; x86
+0x25C7C  1E50:0D7C  les bx,word [0xceb8]                   ; x86
+0x25C80  1E50:0D80  add bx,ax                              ; x86
+0x25C82  1E50:0D82  cmp word [es:bx+0x68],0x0              ; x86
+0x25C87  1E50:0D87  jnl 0xd8c                              ; x86
+0x25C89  1E50:0D89  mov si,0x1                             ; x86
+0x25C8C  1E50:0D8C  or si,si                               ; x86
+0x25C8E  1E50:0D8E  jz 0xdee                               ; x86
+0x25C90  1E50:0D90  mov ax,[0xe4da]                        ; x86
+0x25C93  1E50:0D93  imul ax,ax,0x6c                        ; x86
+0x25C96  1E50:0D96  les bx,word [0xceb8]                   ; x86
+0x25C9A  1E50:0D9A  add bx,ax                              ; x86
+0x25C9C  1E50:0D9C  cmp word [es:bx+0x6a],0x1              ; x86
+0x25CA1  1E50:0DA1  jnz 0xdd3                              ; x86
+0x25CA3  1E50:0DA3  call word 0x1a4a:word 0x211c           ; x86
+0x25CA8  1E50:0DA8  fld dword [bp-0x18]                    ; INT 39h
+0x25CAC  1E50:0DAC  call word 0x0:word 0x14df              ; x86
+0x25CB1  1E50:0DB1  push ax                                ; x86
+0x25CB2  1E50:0DB2  fld dword [bp-0x10]                    ; INT 39h
+0x25CB6  1E50:0DB6  call word 0x0:word 0x14df              ; x86
+0x25CBB  1E50:0DBB  push ax                                ; x86
+0x25CBC  1E50:0DBC  call word 0x1a4a:word 0x2228           ; x86
+0x25CC1  1E50:0DC1  add sp,0x4                             ; x86
+0x25CC4  1E50:0DC4  push word [0xe4da]                     ; x86
+0x25CC8  1E50:0DC8  call word 0x1a4a:word 0x2827           ; x86
+0x25CCD  1E50:0DCD  pop cx                                 ; x86
+0x25CCE  1E50:0DCE  xor ax,ax                              ; x86
+0x25CD0  1E50:0DD0  jmp 0xebe                              ; x86
+0x25CD3  1E50:0DD3  mov ax,[0xe4da]                        ; x86
+0x25CD6  1E50:0DD6  imul ax,ax,0x6c                        ; x86
+0x25CD9  1E50:0DD9  les bx,word [0xceb8]                   ; x86
+0x25CDD  1E50:0DDD  add bx,ax                              ; x86
+0x25CDF  1E50:0DDF  mov word [es:bx+0x4e],0x0              ; x86
+0x25CE5  1E50:0DE5  mov word [es:bx+0x4c],0x0              ; x86
+0x25CEB  1E50:0DEB  jmp 0xeb9                              ; x86
+0x25CEE  1E50:0DEE  fld dword [bp-0x20]                    ; INT 39h
+0x25CF2  1E50:0DF2  fisttp qword [bp-0x20]                 ; INT 38h
+0x25CF6  1E50:0DF6  fld dword [bp-0x28]                    ; INT 39h
+0x25CFA  1E50:0DFA  fisttp qword [bp-0x28]                 ; INT 38h
+0x25CFE  1E50:0DFE  fcmovnb st1                            ; INT 3Ah
+0x25D01  1E50:0E01  fstp dword [bp-0x8]                    ; INT 39h
+0x25D05  1E50:0E05  fld dword [bp-0x8]                     ; INT 39h
+0x25D09  1E50:0E09  fstp qword [0x321c]                    ; INT 38h  DS:321C
+0x25D0E  1E50:0E0E  fnstcw [bp-0x32]                       ; INT 39h
+0x25D12  1E50:0E12  wait                                   ; INT 3Dh
+0x25D14  1E50:0E14  mov ax,[bp-0x32]                       ; x86
+0x25D17  1E50:0E17  sahf                                   ; x86
+0x25D18  1E50:0E18  jnc 0xe1d                              ; x86
+0x25D1A  1E50:0E1A  jmp 0xeb9                              ; x86
+0x25D1D  1E50:0E1D  fld dword [bp-0x8]                     ; INT 39h
+0x25D21  1E50:0E21  sub sp,0x8                             ; x86
+0x25D24  1E50:0E24  fstp dword [bp-0x3c]                   ; INT 39h
+0x25D28  1E50:0E28  wait                                   ; INT 3Dh
+0x25D2A  1E50:0E2A  call word 0x0:word 0xfc8               ; x86
+0x25D2F  1E50:0E2F  add sp,0x8                             ; x86
+0x25D32  1E50:0E32  fstp dword [bp-0x8]                    ; INT 39h
+0x25D36  1E50:0E36  fld dword [bp-0x8]                     ; INT 39h
+0x25D3A  1E50:0E3A  sub sp,0x8                             ; x86
+0x25D3D  1E50:0E3D  fstp dword [bp-0x3c]                   ; INT 39h
+0x25D41  1E50:0E41  wait                                   ; INT 3Dh
+0x25D43  1E50:0E43  call word 0x0:word 0xfc8               ; x86
+0x25D48  1E50:0E48  add sp,0x8                             ; x86
+0x25D4B  1E50:0E4B  fnstsw [0xceac]                        ; INT 38h  DS:CEAC
+0x25D50  1E50:0E50  fmul qword [0x3228]                    ; INT 34h  DS:3228
+0x25D55  1E50:0E55  fstp dword [bp-0x30]                   ; INT 39h
+0x25D59  1E50:0E59  wait                                   ; INT 3Dh
+0x25D5B  1E50:0E5B  mov ax,[0xe4da]                        ; x86
+0x25D5E  1E50:0E5E  imul ax,ax,0x6c                        ; x86
+0x25D61  1E50:0E61  les bx,word [0xceb8]                   ; x86
+0x25D65  1E50:0E65  add bx,ax                              ; x86
+0x25D67  1E50:0E67  fcomp st5                              ; INT 3Ch
+0x25D6A  1E50:0E6A  inc di                                 ; x86
+0x25D6B  1E50:0E6B  db 0x04                                ; x86
+0x25D6C  1E50:0E6C  fld dword [bp-0x30]                    ; INT 39h
+0x25D70  1E50:0E70  fisttp qword [bp-0x20]                 ; INT 38h
+0x25D74  1E50:0E74  fcmovnb st1                            ; INT 3Ah
+0x25D77  1E50:0E77  mov ax,[0xe4da]                        ; x86
+0x25D7A  1E50:0E7A  imul ax,ax,0x6c                        ; x86
+0x25D7D  1E50:0E7D  les bx,word [0xceb8]                   ; x86
+0x25D81  1E50:0E81  add bx,ax                              ; x86
+0x25D83  1E50:0E83  fcomp st5                              ; INT 3Ch
+0x25D86  1E50:0E86  pop di                                 ; x86
+0x25D87  1E50:0E87  db 0x04                                ; x86
+0x25D88  1E50:0E88  wait                                   ; INT 3Dh
+0x25D8A  1E50:0E8A  mov ax,[0xe4da]                        ; x86
+0x25D8D  1E50:0E8D  imul ax,ax,0x6c                        ; x86
+0x25D90  1E50:0E90  les bx,word [0xceb8]                   ; x86
+0x25D94  1E50:0E94  add bx,ax                              ; x86
+0x25D96  1E50:0E96  fcomp st5                              ; INT 3Ch
+0x25D99  1E50:0E99  inc di                                 ; x86
+0x25D9A  1E50:0E9A  db 0x0c                                ; x86
+0x25D9B  1E50:0E9B  fld dword [bp-0x30]                    ; INT 39h
+0x25D9F  1E50:0E9F  fisttp qword [bp-0x28]                 ; INT 38h
+0x25DA3  1E50:0EA3  fcmovnb st1                            ; INT 3Ah
+0x25DA6  1E50:0EA6  mov ax,[0xe4da]                        ; x86
+0x25DA9  1E50:0EA9  imul ax,ax,0x6c                        ; x86
+0x25DAC  1E50:0EAC  les bx,word [0xceb8]                   ; x86
+0x25DB0  1E50:0EB0  add bx,ax                              ; x86
+0x25DB2  1E50:0EB2  fcomp st5                              ; INT 3Ch
+0x25DB5  1E50:0EB5  pop di                                 ; x86
+0x25DB6  1E50:0EB6  db 0x0c                                ; x86
+0x25DB7  1E50:0EB7  wait                                   ; INT 3Dh
+0x25DB9  1E50:0EB9  mov ax,0x1                             ; x86
+0x25DBC  1E50:0EBC  jmp 0xebe                              ; x86
+0x25DBE  1E50:0EBE  pop si                                 ; x86
+0x25DBF  1E50:0EBF  leave                                  ; x86
+0x25DC0  1E50:0EC0  retf                                   ; x86
+0x25DC1  1E50:0EC1  push bp                                ; x86
+0x25DC2  1E50:0EC2  mov bp,sp                              ; x86
+0x25DC4  1E50:0EC4  mov dx,[bp+0x6]                        ; x86
+0x25DC7  1E50:0EC7  cmp [0x519a],sp                        ; x86
+0x25DCB  1E50:0ECB  ja 0xed2                               ; x86
+0x25DCD  1E50:0ECD  call word 0x0:word 0xa2ce              ; x86
+0x25DD2  1E50:0ED2  cmp [0xd548],dx                        ; x86
+0x25DD6  1E50:0ED6  jnl 0xee3                              ; x86
+0x25DD8  1E50:0ED8  cmp dx,[0xd552]                        ; x86
+0x25DDC  1E50:0EDC  jg 0xee3                               ; x86
+0x25DDE  1E50:0EDE  mov ax,0x1                             ; x86
+0x25DE1  1E50:0EE1  jmp 0xee5                              ; x86
+0x25DE3  1E50:0EE3  xor ax,ax                              ; x86
+0x25DE5  1E50:0EE5  pop bp                                 ; x86
+0x25DE6  1E50:0EE6  retf                                   ; x86
+0x25DE7  1E50:0EE7  pop bp                                 ; x86
+0x25DE8  1E50:0EE8  retf                                   ; x86
+0x25DE9  1E50:0EE9  enter word 0x20,byte 0x0               ; x86
+0x25DED  1E50:0EED  push si                                ; x86
+0x25DEE  1E50:0EEE  cmp [0x519a],sp                        ; x86
+0x25DF2  1E50:0EF2  ja 0xef9                               ; x86
+0x25DF4  1E50:0EF4  call word 0x0:word 0xa2ce              ; x86
+0x25DF9  1E50:0EF9  mov word [bp-0x1a],0xa                 ; x86
+0x25DFE  1E50:0EFE  mov word [bp-0x1c],0x5                 ; x86
+0x25E03  1E50:0F03  mov word [bp-0x1e],0xa                 ; x86
+0x25E08  1E50:0F08  mov ax,[bp+0x6]                        ; x86
+0x25E0B  1E50:0F0B  add ax,ax                              ; x86
+0x25E0D  1E50:0F0D  mov [bp-0x20],ax                       ; x86
+0x25E10  1E50:0F10  fild word [bp-0x20]                    ; INT 3Bh
+0x25E14  1E50:0F14  fnstsw [0x322e]                        ; INT 38h  DS:322E
+0x25E19  1E50:0F19  fstp dword [bp-0x8]                    ; INT 39h
+0x25E1D  1E50:0F1D  wait                                   ; INT 3Dh
+0x25E1F  1E50:0F1F  mov ax,[bp-0x1e]                       ; x86
+0x25E22  1E50:0F22  mov [bp-0x20],ax                       ; x86
+0x25E25  1E50:0F25  fild word [bp-0x20]                    ; INT 3Bh
+0x25E29  1E50:0F29  fnstsw [0x3236]                        ; INT 38h  DS:3236
+0x25E2E  1E50:0F2E  fstp dword [bp-0x18]                   ; INT 39h
+0x25E32  1E50:0F32  wait                                   ; INT 3Dh
+0x25E34  1E50:0F34  fld dword [bp-0x8]                     ; INT 39h
+0x25E38  1E50:0F38  fmul qword [0x323e]                    ; INT 34h  DS:323E
+0x25E3D  1E50:0F3D  fstp dword [bp-0x10]                   ; INT 39h
+0x25E41  1E50:0F41  wait                                   ; INT 3Dh
+0x25E43  1E50:0F43  mov ax,[bp+0x8]                        ; x86
+0x25E46  1E50:0F46  add ax,0xffe2                          ; x86
+0x25E49  1E50:0F49  mov si,ax                              ; x86
+0x25E4B  1E50:0F4B  mov word [0x322c],0x0                  ; x86
+0x25E51  1E50:0F51  jmp 0x1018                             ; x86
+0x25E54  1E50:0F54  call word 0x2bf9:word 0x275            ; x86
+0x25E59  1E50:0F59  mov [bp-0x20],si                       ; x86
+0x25E5C  1E50:0F5C  fild word [bp-0x20]                    ; INT 3Bh
+0x25E60  1E50:0F60  fcmovne st1                            ; INT 3Ah
+0x25E63  1E50:0F63  fmul qword [0x3242]                    ; INT 34h  DS:3242
+0x25E68  1E50:0F68  mov bx,[0x322c]                        ; x86
+0x25E6C  1E50:0F6C  shl bx,byte 0x3                        ; x86
+0x25E6F  1E50:0F6F  fstp dword [bx-0x3020]                 ; INT 39h
+0x25E74  1E50:0F74  wait                                   ; INT 3Dh
+0x25E76  1E50:0F76  call word 0x2bf9:word 0x275            ; x86
+0x25E7B  1E50:0F7B  fisttp qword [bp-0x10]                 ; INT 38h
+0x25E7F  1E50:0F7F  mov bx,[0x322c]                        ; x86
+0x25E83  1E50:0F83  shl bx,byte 0x3                        ; x86
+0x25E86  1E50:0F86  fstp dword [bx-0x3070]                 ; INT 39h
+0x25E8B  1E50:0F8B  wait                                   ; INT 3Dh
+0x25E8D  1E50:0F8D  mov bx,[0x322c]                        ; x86
+0x25E91  1E50:0F91  shl bx,byte 0x3                        ; x86
+0x25E94  1E50:0F94  fld dword [bx-0x3070]                  ; INT 39h
+0x25E99  1E50:0F99  fstp qword [bp-0x8]                    ; INT 38h
+0x25E9D  1E50:0F9D  fnstcw [bp-0x20]                       ; INT 39h
+0x25EA1  1E50:0FA1  wait                                   ; INT 3Dh
+0x25EA3  1E50:0FA3  mov ax,[bp-0x20]                       ; x86
+0x25EA6  1E50:0FA6  sahf                                   ; x86
+0x25EA7  1E50:0FA7  jc 0xf76                               ; x86
+0x25EA9  1E50:0FA9  mov bx,[0x322c]                        ; x86
+0x25EAD  1E50:0FAD  shl bx,byte 0x3                        ; x86
+0x25EB0  1E50:0FB0  fld dword [bx-0x3070]                  ; INT 39h
+0x25EB5  1E50:0FB5  fstp qword [bp-0x18]                   ; INT 38h
+0x25EB9  1E50:0FB9  fnstcw [bp-0x20]                       ; INT 39h
+0x25EBD  1E50:0FBD  wait                                   ; INT 3Dh
+0x25EBF  1E50:0FBF  mov ax,[bp-0x20]                       ; x86
+0x25EC2  1E50:0FC2  sahf                                   ; x86
+0x25EC3  1E50:0FC3  ja 0xf76                               ; x86
+0x25EC5  1E50:0FC5  push word 0x12c                        ; x86
+0x25EC8  1E50:0FC8  call word 0x2bf9:word 0x48b            ; x86
+0x25ECD  1E50:0FCD  pop cx                                 ; x86
+0x25ECE  1E50:0FCE  mov [bp-0x20],ax                       ; x86
+0x25ED1  1E50:0FD1  fild word [bp-0x20]                    ; INT 3Bh
+0x25ED5  1E50:0FD5  mov bx,[0x322c]                        ; x86
+0x25ED9  1E50:0FD9  shl bx,byte 0x3                        ; x86
+0x25EDC  1E50:0FDC  fstp dword [bx-0x2fd0]                 ; INT 39h
+0x25EE1  1E50:0FE1  wait                                   ; INT 3Dh
+0x25EE3  1E50:0FE3  mov bx,[0x322c]                        ; x86
+0x25EE7  1E50:0FE7  shl bx,byte 0x3                        ; x86
+0x25EEA  1E50:0FEA  fld dword [bx-0x3020]                  ; INT 39h
+0x25EEF  1E50:0FEF  fmul qword [0x3246]                    ; INT 34h  DS:3246
+0x25EF4  1E50:0FF4  mov [bp-0x20],si                       ; x86
+0x25EF7  1E50:0FF7  fild word [bp-0x20]                    ; INT 3Bh
+0x25EFB  1E50:0FFB  fndisi                                 ; INT 3Ah
+0x25EFE  1E50:0FFE  call word 0x0:word 0x14df              ; x86
+0x25F03  1E50:1003  mov si,ax                              ; x86
+0x25F05  1E50:1005  fadd dword [0x323e]                    ; INT 35h  DS:323E
+0x25F0A  1E50:100A  fisttp qword [bp-0x10]                 ; INT 38h
+0x25F0E  1E50:100E  fstp dword [bp-0x10]                   ; INT 39h
+0x25F12  1E50:1012  wait                                   ; INT 3Dh
+0x25F14  1E50:1014  inc word [0x322c]                      ; x86
+0x25F18  1E50:1018  cmp si,[bp-0x1a]                       ; x86
+0x25F1B  1E50:101B  jng 0x1028                             ; x86
+0x25F1D  1E50:101D  mov ax,[0x322c]                        ; x86
+0x25F20  1E50:1020  cmp ax,[bp-0x1c]                       ; x86
+0x25F23  1E50:1023  jnl 0x1028                             ; x86
+0x25F25  1E50:1025  jmp 0xf54                              ; x86
+0x25F28  1E50:1028  cmp word [0x322c],0x2                  ; x86
+0x25F2D  1E50:102D  jnl 0x1032                             ; x86
+0x25F2F  1E50:102F  jmp 0xf34                              ; x86
+0x25F32  1E50:1032  jmp 0x1034                             ; x86
+0x25F34  1E50:1034  pop si                                 ; x86
+0x25F35  1E50:1035  leave                                  ; x86
+0x25F36  1E50:1036  retf                                   ; x86
+0x25F37  1E50:1037  enter word 0x10,byte 0x0               ; x86
+0x25F3B  1E50:103B  push si                                ; x86
+0x25F3C  1E50:103C  push di                                ; x86
+0x25F3D  1E50:103D  cmp [0x519a],sp                        ; x86
+0x25F41  1E50:1041  ja 0x1048                              ; x86
+0x25F43  1E50:1043  call word 0x0:word 0xa2ce              ; x86
+0x25F48  1E50:1048  mov ax,[bp+0xc]                        ; x86
+0x25F4B  1E50:104B  sub ax,[bp+0x10]                       ; x86
+0x25F4E  1E50:104E  inc ax                                 ; x86
+0x25F4F  1E50:104F  push ax                                ; x86
+0x25F50  1E50:1050  mov ax,[bp+0xe]                        ; x86
+0x25F53  1E50:1053  sub ax,[bp+0xa]                        ; x86
+0x25F56  1E50:1056  inc ax                                 ; x86
+0x25F57  1E50:1057  push ax                                ; x86
+0x25F58  1E50:1058  push cs                                ; x86
+0x25F59  1E50:1059  call 0xee9                             ; x86
+0x25F5C  1E50:105C  add sp,0x4                             ; x86
+0x25F5F  1E50:105F  fld dword [0xcfe0]                     ; INT 39h  DS:CFE0
+0x25F64  1E50:1064  fstp dword [bp-0xe]                    ; INT 39h
+0x25F68  1E50:1068  mov si,0x1                             ; x86
+0x25F6B  1E50:106B  wait                                   ; INT 3Dh
+0x25F6D  1E50:106D  jmp 0x1084                             ; x86
+0x25F6F  1E50:106F  mov bx,si                              ; x86
+0x25F71  1E50:1071  shl bx,byte 0x3                        ; x86
+0x25F74  1E50:1074  fld dword [bx-0x3020]                  ; INT 39h
+0x25F79  1E50:1079  fld qword [bp-0xe]                     ; INT 38h
+0x25F7D  1E50:107D  fstp dword [bp-0xe]                    ; INT 39h
+0x25F81  1E50:1081  wait                                   ; INT 3Dh
+0x25F83  1E50:1083  inc si                                 ; x86
+0x25F84  1E50:1084  cmp si,[0x322c]                        ; x86
+0x25F88  1E50:1088  jl 0x106f                              ; x86
+0x25F8A  1E50:108A  mov ax,[bp+0xc]                        ; x86
+0x25F8D  1E50:108D  sub ax,[bp+0x10]                       ; x86
+0x25F90  1E50:1090  add ax,0xffec                          ; x86
+0x25F93  1E50:1093  mov [bp-0x10],ax                       ; x86
+0x25F96  1E50:1096  fild word [bp-0x10]                    ; INT 3Bh
+0x25F9A  1E50:109A  fadd dword [0x3246]                    ; INT 35h  DS:3246
+0x25F9F  1E50:109F  fisttp qword [bp-0xe]                  ; INT 38h
+0x25FA3  1E50:10A3  fucomi st1                             ; INT 3Ah
+0x25FA6  1E50:10A6  call word 0x0:word 0x14df              ; x86
+0x25FAB  1E50:10AB  mov [bp-0x2],ax                        ; x86
+0x25FAE  1E50:10AE  push word [bp-0x2]                     ; x86
+0x25FB1  1E50:10B1  call word 0x2bf9:word 0x48b            ; x86
+0x25FB6  1E50:10B6  pop cx                                 ; x86
+0x25FB7  1E50:10B7  mov [bp-0x10],ax                       ; x86
+0x25FBA  1E50:10BA  fild word [bp-0x10]                    ; INT 3Bh
+0x25FBE  1E50:10BE  mov ax,[bp+0x10]                       ; x86
+0x25FC1  1E50:10C1  mov [bp-0x10],ax                       ; x86
+0x25FC4  1E50:10C4  fild word [bp-0x10]                    ; INT 3Bh
+0x25FC8  1E50:10C8  fld qword [bp-0xe]                     ; INT 38h
+0x25FCC  1E50:10CC  fcmovnb st1                            ; INT 3Ah
+0x25FCF  1E50:10CF  call word 0x0:word 0x14df              ; x86
+0x25FD4  1E50:10D4  mov [bp-0x6],ax                        ; x86
+0x25FD7  1E50:10D7  mov word [bp-0x4],0x0                  ; x86
+0x25FDC  1E50:10DC  les bx,word [bp+0x6]                   ; x86
+0x25FDF  1E50:10DF  cmp word [es:bx+0x8],0x1               ; x86
+0x25FE4  1E50:10E4  jz 0x10e9                              ; x86
+0x25FE6  1E50:10E6  jmp 0x117b                             ; x86
+0x25FE9  1E50:10E9  mov si,[bp+0xa]                        ; x86
+0x25FEC  1E50:10EC  jmp 0x1170                             ; x86
+0x25FEF  1E50:10EF  inc word [bp-0x4]                      ; x86
+0x25FF2  1E50:10F2  mov ax,[bp-0x6]                        ; x86
+0x25FF5  1E50:10F5  mov [bp-0x10],ax                       ; x86
+0x25FF8  1E50:10F8  fild word [bp-0x10]                    ; INT 3Bh
+0x25FFC  1E50:10FC  fstp dword [bp-0xe]                    ; INT 39h
+0x26000  1E50:1100  xor di,di                              ; x86
+0x26002  1E50:1102  wait                                   ; INT 3Dh
+0x26004  1E50:1104  jmp 0x1150                             ; x86
+0x26006  1E50:1106  mov bx,di                              ; x86
+0x26008  1E50:1108  shl bx,byte 0x3                        ; x86
+0x2600B  1E50:110B  fld dword [bx-0x3070]                  ; INT 39h
+0x26010  1E50:1110  mov bx,di                              ; x86
+0x26012  1E50:1112  shl bx,byte 0x3                        ; x86
+0x26015  1E50:1115  fld dword [bx-0x2fd0]                  ; INT 39h
+0x2601A  1E50:111A  mov ax,[bp-0x4]                        ; x86
+0x2601D  1E50:111D  mov [bp-0x10],ax                       ; x86
+0x26020  1E50:1120  fild word [bp-0x10]                    ; INT 3Bh
+0x26024  1E50:1124  fcmovnb st1                            ; INT 3Ah
+0x26027  1E50:1127  fcmovne st1                            ; INT 3Ah
+0x2602A  1E50:112A  sub sp,0x8                             ; x86
+0x2602D  1E50:112D  fstp dword [bp-0x1c]                   ; INT 39h
+0x26031  1E50:1131  wait                                   ; INT 3Dh
+0x26033  1E50:1133  call word 0x0:word 0x1204              ; x86
+0x26038  1E50:1138  add sp,0x8                             ; x86
+0x2603B  1E50:113B  mov bx,di                              ; x86
+0x2603D  1E50:113D  shl bx,byte 0x3                        ; x86
+0x26040  1E50:1140  fisttp qword [bx-0x3020]               ; INT 38h
+0x26045  1E50:1145  fld qword [bp-0xe]                     ; INT 38h
+0x26049  1E50:1149  fstp dword [bp-0xe]                    ; INT 39h
+0x2604D  1E50:114D  wait                                   ; INT 3Dh
+0x2604F  1E50:114F  inc di                                 ; x86
+0x26050  1E50:1150  cmp di,[0x322c]                        ; x86
+0x26054  1E50:1154  jl 0x1106                              ; x86
+0x26056  1E50:1156  fld dword [bp-0xe]                     ; INT 39h
+0x2605A  1E50:115A  call word 0x0:word 0x14df              ; x86
+0x2605F  1E50:115F  push ax                                ; x86
+0x26060  1E50:1160  push si                                ; x86
+0x26061  1E50:1161  push word [bp+0x8]                     ; x86
+0x26064  1E50:1164  push word [bp+0x6]                     ; x86
+0x26067  1E50:1167  call word 0x223a:word 0x980            ; x86
+0x2606C  1E50:116C  add sp,0x8                             ; x86
+0x2606F  1E50:116F  inc si                                 ; x86
+0x26070  1E50:1170  cmp si,[bp+0xe]                        ; x86
+0x26073  1E50:1173  jg 0x1178                              ; x86
+0x26075  1E50:1175  jmp 0x10ef                             ; x86
+0x26078  1E50:1178  jmp 0x120a                             ; x86
+0x2607B  1E50:117B  mov si,[bp+0xe]                        ; x86
+0x2607E  1E50:117E  jmp 0x1202                             ; x86
+0x26081  1E50:1181  inc word [bp-0x4]                      ; x86
+0x26084  1E50:1184  mov ax,[bp-0x6]                        ; x86
+0x26087  1E50:1187  mov [bp-0x10],ax                       ; x86
+0x2608A  1E50:118A  fild word [bp-0x10]                    ; INT 3Bh
+0x2608E  1E50:118E  fstp dword [bp-0xe]                    ; INT 39h
+0x26092  1E50:1192  xor di,di                              ; x86
+0x26094  1E50:1194  wait                                   ; INT 3Dh
+0x26096  1E50:1196  jmp 0x11e2                             ; x86
+0x26098  1E50:1198  mov bx,di                              ; x86
+0x2609A  1E50:119A  shl bx,byte 0x3                        ; x86
+0x2609D  1E50:119D  fld dword [bx-0x3070]                  ; INT 39h
+0x260A2  1E50:11A2  mov bx,di                              ; x86
+0x260A4  1E50:11A4  shl bx,byte 0x3                        ; x86
+0x260A7  1E50:11A7  fld dword [bx-0x2fd0]                  ; INT 39h
+0x260AC  1E50:11AC  mov ax,[bp-0x4]                        ; x86
+0x260AF  1E50:11AF  mov [bp-0x10],ax                       ; x86
+0x260B2  1E50:11B2  fild word [bp-0x10]                    ; INT 3Bh
+0x260B6  1E50:11B6  fcmovnb st1                            ; INT 3Ah
+0x260B9  1E50:11B9  fcmovne st1                            ; INT 3Ah
+0x260BC  1E50:11BC  sub sp,0x8                             ; x86
+0x260BF  1E50:11BF  fstp dword [bp-0x1c]                   ; INT 39h
+0x260C3  1E50:11C3  wait                                   ; INT 3Dh
+0x260C5  1E50:11C5  call word 0x0:word 0x1204              ; x86
+0x260CA  1E50:11CA  add sp,0x8                             ; x86
+0x260CD  1E50:11CD  mov bx,di                              ; x86
+0x260CF  1E50:11CF  shl bx,byte 0x3                        ; x86
+0x260D2  1E50:11D2  fisttp qword [bx-0x3020]               ; INT 38h
+0x260D7  1E50:11D7  fld qword [bp-0xe]                     ; INT 38h
+0x260DB  1E50:11DB  fstp dword [bp-0xe]                    ; INT 39h
+0x260DF  1E50:11DF  wait                                   ; INT 3Dh
+0x260E1  1E50:11E1  inc di                                 ; x86
+0x260E2  1E50:11E2  cmp di,[0x322c]                        ; x86
+0x260E6  1E50:11E6  jl 0x1198                              ; x86
+0x260E8  1E50:11E8  fld dword [bp-0xe]                     ; INT 39h
+0x260EC  1E50:11EC  call word 0x0:word 0x14df              ; x86
+0x260F1  1E50:11F1  push ax                                ; x86
+0x260F2  1E50:11F2  push si                                ; x86
+0x260F3  1E50:11F3  push word [bp+0x8]                     ; x86
+0x260F6  1E50:11F6  push word [bp+0x6]                     ; x86
+0x260F9  1E50:11F9  call word 0x223a:word 0x980            ; x86
+0x260FE  1E50:11FE  add sp,0x8                             ; x86
+0x26101  1E50:1201  dec si                                 ; x86
+0x26102  1E50:1202  cmp si,[bp+0xa]                        ; x86
+0x26105  1E50:1205  jl 0x120a                              ; x86
+0x26107  1E50:1207  jmp 0x1181                             ; x86
+0x2610A  1E50:120A  jmp 0x120c                             ; x86
+0x2610C  1E50:120C  pop di                                 ; x86
+0x2610D  1E50:120D  pop si                                 ; x86
+0x2610E  1E50:120E  leave                                  ; x86
+0x2610F  1E50:120F  retf                                   ; x86
+--- Statistics ---
+FPU instructions: 481
+x86 instructions: 1014
+Total: 1495
+

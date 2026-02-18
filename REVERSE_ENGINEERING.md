@@ -396,21 +396,25 @@ The explosion code lives in code segment **0x1A4A** (file base 0x20EA0, ~11 KB).
 - **Type 1**: Multi-warhead (MIRV) — iterates **6 sub-warheads** (12-byte stride)
 - **Type 2**: Special — **8 particles** distributed at 1/3 radius intervals
 
-**Damage formula constants** (doubles in DS:0x1D00-0x1D70):
-| Offset | Value | Purpose |
-|--------|-------|---------|
-| DS:0x1D08 | 0.0174532930 | PI/180 (degree-to-radian) |
-| DS:0x1D10 | 1.02 | +2% damage randomization |
-| DS:0x1D18 | 0.98 | -2% damage randomization |
-| DS:0x1D20 | 5000.0 | Max effective distance |
-| DS:0x1D28 | 1.825 | Coefficient |
-| DS:0x1D2C | 1000000.0 | Distance squared threshold |
-| DS:0x1D30 | 1000.0 | Scaling factor |
-| DS:0x1D38 | -1.875 | Polynomial curve coefficient |
-| DS:0x1D40 | -1.75 | Polynomial curve coefficient |
-| DS:0x1D48 | -2.0 | Polynomial curve coefficient |
-| DS:0x1D60 | 0.7 | Damage falloff coefficient |
-| DS:0x1D68 | 0.001 | Minimum damage threshold |
+**Damage formula constants** (DS:0x1D00-0x1D70, mixed float64 and float32):
+| Offset | Type | Value | Purpose |
+|--------|------|-------|---------|
+| DS:0x1D08 | f64 | 0.0174532930 | PI/180 (degree-to-radian) |
+| DS:0x1D10 | f64 | 1.02 | +2% damage randomization |
+| DS:0x1D18 | f64 | 0.98 | -2% damage randomization |
+| DS:0x1D20 | f32 | 5000.0 | Max effective distance |
+| DS:0x1D28 | f32 | 1.825 | Damage coefficient |
+| DS:0x1D2C | f32 | 1000000.0 | Distance squared threshold |
+| DS:0x1D30 | f32 | 1000.0 | Scaling factor |
+| DS:0x1D38 | f32 | -1.875 | Polynomial curve coefficient |
+| DS:0x1D40 | f32 | -1.75 | Polynomial curve coefficient |
+| DS:0x1D48 | f32 | -2.0 | Polynomial curve coefficient |
+| DS:0x1D50 | f32 | -3.140625 | ~-PI |
+| DS:0x1D54 | f32 | 0.75 | Coefficient |
+| DS:0x1D58 | f32 | 2000.0 | Scaling |
+| DS:0x1D5C | f32 | 2.0 | Doubling |
+| DS:0x1D60 | f64 | 0.7 | Damage falloff coefficient |
+| DS:0x1D68 | f64 | 0.001 | Minimum damage threshold |
 
 **Inferred damage formula**:
 ```

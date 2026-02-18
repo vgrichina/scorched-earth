@@ -58,22 +58,24 @@ STRINGS:
   DS:0x1DD2: " was"                 - singular
   DS:0x1DD7: "s were"               - plural
 
-FLOATING-POINT CONSTANTS (doubles, 8 bytes each):
-  DS:0x1CC8: 100.0                  - float 100.0 (as 4-byte: 00 00 C8 42)
-  DS:0x1D08: 0.0174532930           - PI/180 (degrees to radians conversion)
-  DS:0x1D10: 1.02                   - 102% multiplier
-  DS:0x1D18: 0.98                   - 98% multiplier
-  DS:0x1D20: 5000.0                 - float constant (max distance?)
-  DS:0x1D28: 1.825                  - coefficient
-  DS:0x1D2C: 1000000.0              - large float (squared distance?)
-  DS:0x1D30: 1000.0                 - float constant  
-  DS:0x1D38: -1.875                 - negative coefficient (as double)
-  DS:0x1D40: -1.75                  - negative coefficient (as double)
-  DS:0x1D48: -2.0                   - negative coefficient (as double)
-  DS:0x1D50: -3.140625 / 0.75       - as double: 0.0004882816
-  DS:0x1D58: 2000.0 / 2.0           - as double: 2.0000005139
-  DS:0x1D60: 0.7                    - damage falloff coefficient (as double)
-  DS:0x1D68: 0.001                  - epsilon/threshold (as double)
+FLOATING-POINT CONSTANTS (mixed f64 and f32):
+  DS:0x1CC8: 100.0                  - float 100.0 (f32, 4 bytes)
+  DS:0x1D08: 0.0174532930           - PI/180 degrees to radians (f64, 8 bytes)
+  DS:0x1D10: 1.02                   - 102% multiplier (f64, 8 bytes)
+  DS:0x1D18: 0.98                   - 98% multiplier (f64, 8 bytes)
+  DS:0x1D20: 5000.0                 - max effective distance (f32, 4 bytes)
+  DS:0x1D28: 1.825                  - damage coefficient (f32, 4 bytes)
+  DS:0x1D2C: 1000000.0              - distance squared threshold (f32, 4 bytes)
+  DS:0x1D30: 1000.0                 - scaling factor (f32, 4 bytes)
+  DS:0x1D38: -1.875                 - polynomial coefficient (f32, 4 bytes)
+  DS:0x1D40: -1.75                  - polynomial coefficient (f32, 4 bytes)
+  DS:0x1D48: -2.0                   - polynomial coefficient (f32, 4 bytes)
+  DS:0x1D50: -3.140625              - ~-PI (f32, 4 bytes)
+  DS:0x1D54: 0.75                   - coefficient (f32, 4 bytes)
+  DS:0x1D58: 2000.0                 - scaling (f32, 4 bytes)
+  DS:0x1D5C: 2.0                    - doubling (f32, 4 bytes)
+  DS:0x1D60: 0.7                    - damage falloff coefficient (f64, 8 bytes)
+  DS:0x1D68: 0.001                  - epsilon/threshold (f64, 8 bytes)
 
 =============================================================================
 3. CODE STRUCTURE - EXPLOSION HANDLING
