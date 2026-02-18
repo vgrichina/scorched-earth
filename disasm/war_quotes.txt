@@ -1,0 +1,110 @@
+============================================================================
+  Scorched Earth (DOS, 1991) - War Quotes
+  Extracted from: SCORCH.EXE
+  Region: 0x05B580 - 0x05BC5E
+  Total quotes: 15
+============================================================================
+
+  [ 1]  Offset: 0x05B65C
+
+        "There's many a boy here today who looks on war as all glory,
+         but, boys, it is all hell."
+
+        -- Gen. William T. Sherman
+
+  [ 2]  Offset: 0x05B6CC
+
+        "The essence of war is violence.  Moderation in war is imbecility."
+
+        -- Fisher
+
+  [ 3]  Offset: 0x05B715
+
+        "War is the science of destruction."
+
+        -- John Abbott
+
+  [ 4]  Offset: 0x05B744
+
+        "Providence is always on the side of the big battalions."
+
+        -- Sevigne
+
+  [ 5]  Offset: 0x05B784
+
+        "War is a matter of vital importance to the State; the province of
+         life or death; the road to survival or ruin.  It is mandatory that
+         it be throughly studied."
+
+        -- Sun Tzu
+
+  [ 6]  Offset: 0x05B82A
+
+        "War should be the only study of a prince.  He should consider
+         peace only as a breathing-time, which gives him leisure to
+         contrive, and furnishes as ability to execute, military plans."
+
+        -- Macchiavelli
+
+  [ 7]  Offset: 0x05B8EF
+
+        "Not with dreams but with blood and iron,
+         Shall a nation be moulded at last."
+
+        -- Swinburne
+
+  [ 8]  Offset: 0x05B945
+
+        "No one can guarantee success in war, but only deserve it."
+
+        -- Winston Churchill
+
+  [ 9]  Offset: 0x05B991
+
+        "The grim fact is that we prepare for war like precocious giants
+         and for peace like retarded pygmies."
+
+        -- Lester Pearson
+
+  [10]  Offset: 0x05BA05
+
+        "We cannot live by power, and a culture that seeks to live
+         by it becomes brutal and sterile.  But we can die without it."
+
+        -- Max Lerner
+
+  [11]  Offset: 0x05BA88
+
+        "No man is wise enough, nor good enough to be trusted with
+         unlimited power."
+
+        -- Charles Colton
+
+  [12]  Offset: 0x05BAE2
+
+        "Nothing good ever comes of violence."
+
+        -- Martin Luther
+
+  [13]  Offset: 0x05BB15
+
+        "Give me the money that has been spent in war, and ... I will
+         clothe every man, woman and child in attire of which kings and
+         queens would be proud."
+
+        -- Henry Richard
+
+  [14]  Offset: 0x05BBB6
+
+        "That mad game the world so loves to play."
+
+        -- Jonathon Swift
+
+  [15]  Offset: 0x05BBEF
+
+        "Nearly all men can stand adversity, but if you want to test a man's
+         character, give him power."
+
+        -- Abraham Lincoln
+
+============================================================================

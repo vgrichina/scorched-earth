@@ -1,0 +1,6 @@
+  Bundle sequence (16-bit) at 0x056F7C stride=52
+    Extended: [9504, 50372, 10, 5, 3, 1, 2, 2, 3, 1, 10, 2, 20, 10, 10, 5, 2]
+
+=== BYTE-STRIDE SEARCH ===
+  Bundle sequence (byte) at 0x056F7C stride=52
+    Extended: [32, 196, 10, 5, 3, 1, 2, 2, 3, 1, 10, 2, 20, 10, 10, 5, 2]

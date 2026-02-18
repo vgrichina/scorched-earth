@@ -1,0 +1,519 @@
+================================================================================
+SCORCHED EARTH - SHIELD SYSTEM REVERSE ENGINEERING
+================================================================================
+Binary: SCORCH.EXE
+shields.cpp debug string: file offset 0x05BF66 (DS:0x61E6)
+Data segment base: 0x055D80 (DS=0x4F38)
+MZ header size: 0x6A00
+
+Analysis date: 2026-02-18
+
+================================================================================
+1. SHIELD TYPE ENUMERATION
+================================================================================
+
+The game has 7 shield states (stored in DS:0x5110):
+
+  0 = None (no shield active)
+  1 = Shield (basic)
+  2 = Warp Shield
+  3 = Teleport Shield
+  4 = Flicker Shield
+  5 = Force Shield
+  6 = Heavy Shield
+
+Equipment names (DS offsets):
+  DS:0x260D  "Shield"
+  DS:0x2614  "Warp Shield"
+  DS:0x2620  "Teleport Shield"
+  DS:0x2630  "Flicker Shield"
+  DS:0x263F  "Force Shield"
+  DS:0x264C  "Heavy Shield"
+
+Related non-shield defense items:
+  DS:0x25EB  "Battery"
+  DS:0x25FF  "Mag Deflector"
+  DS:0x2659  "Super Mag"
+  DS:0x25DB  "Parachute"
+
+Category label: DS:0x2EFE "Shields"
+
+================================================================================
+2. SHIELD CONFIGURATION TABLE
+================================================================================
+
+Location: DS:0x616C (file offset 0x05BF4C)
+6 entries, each 16 bytes (0x10):
+Far pointer table at DS:0x61CC pointing to each entry (seg 4F38 = DS)
+Count at DS:0x61E4 = 5 (number of real shield types, excluding "None")
+
+Structure per entry:
+  +0x00 (word): Type index (0-5)
+  +0x02 (word): Max energy (shield HP / absorption capacity)
+  +0x04 (word): Visual radius in pixels
+  +0x06 (word): Red component (0-63 VGA palette)
+  +0x08 (word): Green component (0-63 VGA palette)
+  +0x0A (word): Blue component (0-63 VGA palette)
+  +0x0C (word): Behavior flags
+  +0x0E (word): Reserved/padding
+
+Decoded entries:
+  -----------------------------------------------------------------------
+  Type  Name              Energy  Radius  Color (R,G,B)  Flags
+  -----------------------------------------------------------------------
+  0     None                 0       0    (0, 0, 0)        0
+  1     Shield              55      16    (63, 63, 23)     2    yellow-ish
+  2     Warp Shield        100      15    (63, 63, 63)     0    white
+  3     Teleport Shield    100      15    (63, 23, 63)     1    purple
+  4     Force Shield       150      16    (63, 63, 63)     0    white
+  5     Heavy Shield       200      16    (63, 53, 33)     4    orange-ish
+  -----------------------------------------------------------------------
+
+NOTE: Flicker Shield (type 4 in the switch) does NOT have its own config entry.
+It uses a special on/off cycling mechanic independent of the energy absorption
+model. The config table indices 4 and 5 correspond to Force Shield and Heavy
+Shield respectively. When the shield type switch dispatches, types 0-3 and 5-6
+use the config table, while type 4 (Flicker) has hardcoded behavior.
+
+Shield visual colors are computed dynamically: as the shield absorbs damage,
+its displayed color fades proportionally to remaining energy / max energy.
+
+================================================================================
+3. SHIELD DAMAGE ABSORPTION FORMULA
+================================================================================
+
+Primary damage handler: segment 3191, offset 0x0034 (file 0x38344)
+Function signature: int shield_takeDamage(player_t far *player, int attacker, int damage)
+
+The function works as follows:
+
+  // player->shieldEnergy is at player struct offset +0x96
+  // player->shieldConfig is a far pointer at player struct offset +0xC6
+  // shieldConfig->maxEnergy is at config struct offset +0x02
+
+  if (player->shieldEnergy <= 0)
+      return damage;  // no shield, full damage passes through
+
+  if (damage <= 0)
+      return damage;  // no damage to absorb
+
+  if (player->shieldEnergy > damage) {
+      // --- SHIELD ABSORBS ALL DAMAGE ---
+      player->shieldEnergy -= damage;
+      // Update shield color proportionally:
+      //   color_R = shieldEnergy * config_R / config_maxEnergy
+      //   color_G = shieldEnergy * config_G / config_maxEnergy
+      //   color_B = shieldEnergy * config_B / config_maxEnergy
+      setPalette(playerIndex + 5, color_R, color_G, color_B, 1);
+      // Report full absorption to score tracking
+      reportDamage(currentPlayer, player, attacker, shieldEnergy, 1);
+      return 0;  // no damage passes through
+  } else {
+      // --- SHIELD IS OVERWHELMED ---
+      int remainingDamage = damage - player->shieldEnergy;
+      // Report partial absorption
+      reportDamage(currentPlayer, player, attacker, player->shieldEnergy, 1);
+      // Flash shield with original config colors (at full brightness)
+      setPalette(playerIndex + 5, config_R, config_G, config_B, 1);
+      
+      // Shield break animation: fade from full color to black over 50 frames
+      int fadeDelay = 6000;  // 0x1770
+      for (int i = 0; i <= 50; i++) {  // 0x32 = 50
+          delay(fadeDelay, 20);  // delay with sound
+          fadeDelay -= 100;      // 0x64 = 100 (accelerating fade)
+          
+          // Interpolated color: config_color * (60 - i) / 60
+          int factor = 60 - i;  // 0x3C = 60
+          int r = config_R * factor / 60;
+          int g = config_G * factor / 60;
+          int b = config_B * factor / 60;
+          setPalette(playerIndex + 5, r, g, b);
+      }
+      // Final flash: white (10, 1000 delay)
+      delay(1000, 10);
+      
+      // Kill the shield
+      killShield(player, attacker, 1);
+      player->shieldEnergy = 0;
+      
+      // Redraw tank with shield visual cleared
+      redrawTank(player->x, config_radius);
+      
+      return remainingDamage;  // leftover damage hits the tank
+  }
+
+Key insight: Damage is absorbed 1:1 against shield energy. A Shield with 55 HP
+absorbs exactly 55 damage before breaking. There is NO percentage reduction -
+it's a flat HP pool that depletes point-for-point.
+
+The visual color of the shield palette entry (playerIndex + 5) is proportional
+to shieldEnergy / maxEnergy. As the shield takes damage, it visually fades.
+
+================================================================================
+4. SHIELD VISUAL/RENDERING SYSTEM
+================================================================================
+
+Shield drawing function: segment 3191, offset 0x0455 (file 0x38765)
+Called via far call from segment 315D (the shield main update segment).
+
+The shield is drawn as a circular region around the tank. Key function pointers
+are used through indirect calls:
+  DS:0xEEF4 = putPixel(color, y, x)
+  DS:0xEEF8 = getPixel(y, x) -> returns color
+  DS:0xEEFC = delay(amount, ticks)
+  DS:0xEF08 = setPalette(index, r, g, b)
+  DS:0xEF0C = drawCircle(playerIndex, x, y, radius+offset)
+  DS:0xEF14 = eraseArea(style, y, x, ground, count)
+
+Shield bounding box variables:
+  DS:0xEF38 = shield right edge (x + radius)
+  DS:0xEF3C = shield bottom edge
+  DS:0xEF40 = shield top edge
+  DS:0xEF42 = shield left edge
+
+The "isShieldPixel" check:
+  The shield is drawn with color 0xFF on top of the terrain.
+  To test if a pixel belongs to the shield, the code calls getPixel(y,x)
+  and compares to 0xFF. Shield pixels are also detected at threshold 0x69
+  (105 decimal) for terrain interaction.
+
+Shield color palette animation:
+  For each player, the shield uses VGA palette index (playerIndex + 5).
+  Shield visuals are updated by modifying this palette entry.
+  When shield has energy:
+    R = shieldEnergy * configR / maxEnergy
+    G = shieldEnergy * configG / maxEnergy
+    B = shieldEnergy * configB / maxEnergy
+  When shield breaks, a 50-frame fade-out animation plays.
+
+================================================================================
+5. SHIELD DEPLOYMENT AND STATE MACHINE
+================================================================================
+
+Shield state variable: DS:0x5110 (current shield type, 0-6)
+Shield activation flag: DS:0x3C62 (0 = needs activation, 1 = activated)
+Equipped shield type: DS:0x4E62 (from equipment struct field +0x0E)
+
+Shield activation flow (file 0x396FA, segment 32C2):
+  1. On turn start, DS:0x3C62 is checked
+  2. If DS:0x3C62 == 0, the equipped shield type (DS:0x4E62) is loaded 
+     into DS:0x5110, and DS:0x3C62 is set to 0
+  3. Shield energy allocation from Battery charges is attempted:
+     - Code at 0x39750 allocates battery energy to shield
+     - If allocation fails (no battery/energy), shield type resets to 0
+  4. Random re-assignment: a random value 0-5 is computed and added to
+     the shield type (code at 0x39796), but only if DS:0x3C62 is set
+  5. Special check: if DS:0x1A62 != 0 and type == 5 (Force Shield),
+     the code loops back (Force Shield has special re-activation logic)
+
+The main shield behavior switch at file 0x39951 (7 cases):
+
+  CASE 0: No shield
+    - Sets palette to default (R=31, G=9, B=9, index=0x78=120)
+    - Falls through to end
+
+  CASE 1: Shield (basic)  
+    - Draws the shield circle with fading colors
+    - For palette indices 0-29 (0x1E), sets RGB based on fade progression:
+      r = 29 - frame, g = 29 - frame, b = frame (graduated blue->white)
+    - Draws shield boundary line at radius 120
+    - Updates terrain pixels within the shield bounding box
+
+  CASE 2: Warp Shield
+    - Checks DS:0x6240 and DS:0x6242 (warp state counters)
+    - If warp counter expires, deactivates shield (sets type = 0)
+    - Otherwise continues shield maintenance
+
+  CASE 3: Teleport Shield
+    - Checks DS:0x624A for teleport state (== 1 means teleport triggered)
+    - If triggered, deactivates shield and calls teleport handler
+    - Otherwise continues shield maintenance
+
+  CASE 4: Flicker Shield
+    - Checks DS:0x624A for flicker state (== 1)
+    - If triggered, deactivates shield
+    - Otherwise continues with on/off cycling behavior
+
+  CASE 5: Force Shield (extended, at file 0x39E6A)
+    - Computes shield center: (top + right) / 2
+    - Computes shield diameter: right - top  
+    - Uses the Mag Deflector mechanics for projectile deflection
+    - More complex rendering with the shield geometry
+
+  CASE 6: Heavy Shield (extended, at file 0x39F30)
+    - Same geometric computation as Force Shield
+    - Uses enhanced deflection/absorption model
+    - Draws with the Heavy Shield orange-ish palette
+
+================================================================================
+6. BATTERY INTERACTION
+================================================================================
+
+Battery charges interact with shields through the shield activation code:
+
+At file 0x39750:
+  - Code reads DS:0x3AEF (battery pointer/data? actually 0xEF3A + offset)
+  - Increments battery counter
+  - Allocates battery energy to shield: far pointer at DS:0x4262:0x4462
+  - If battery allocation fails (pointer is null), shield type is reset to 0:
+      mov word [0x5110], 0  (at file 0x39772)
+
+The Battery item (DS:0x25EB "Battery") provides energy charges that power
+shields across turns. Without batteries, shields deplete and cannot recharge.
+The "~Batteries:" string at DS:0x25F3 is used in the HUD display.
+
+================================================================================
+7. INDIVIDUAL SHIELD TYPE BEHAVIOR DETAILS
+================================================================================
+
+--- SHIELD (Type 1, Energy=55) ---
+The basic shield. Yellow-tinted (63,63,23). Smallest energy pool at 55 HP.
+Absorbs damage point-for-point until depleted. Simple visual circle.
+Flag=2: possibly indicates "can be seen through" or "standard rendering".
+
+--- WARP SHIELD (Type 2, Energy=100) ---
+White shield (63,63,63). When hit, instead of absorbing damage, the tank
+teleports to a random location on the battlefield. The warp state is tracked
+via DS:0x6240/0x6242. When the warp counter reaches 0, the shield deactivates.
+Uses radius 15 (slightly smaller visual than other shields).
+
+--- TELEPORT SHIELD (Type 3, Energy=100) ---
+Purple shield (63,23,63). When triggered (DS:0x624A == 1), the tank teleports.
+Similar to Warp Shield but with different trigger conditions. The teleport
+function is called from the shield's case handler to relocate the player.
+Flag=1 in config.
+
+Code at file 0x39C24 (Force/Teleport handler):
+  - Saves all player state: position (x,y at +0x0E,+0x10), dimensions (+0x12,+0x14)
+  - Saves turret angle (+0x92), turret direction (+0x94), and energy (+0x96)
+  - Moves tank to new position
+  - Restores all state after teleport
+  - Updates DS:0x50E2 flag during teleport
+
+--- FLICKER SHIELD (Type 4, no config entry) ---
+The Flicker Shield cycles between being active and inactive. It has no entry
+in the shield config table because it doesn't use the standard energy absorption
+model. Instead, it probabilistically avoids damage by being "off" when hit.
+
+Special code at file 0x3D63C:
+  - Checks if DS:0x2C6E >= 256 (0x100): if so, sets shield type to 4 (Flicker)
+  - Sets DS:0x6310 flag to 1 during flicker activation
+  - Saves/restores shield state around the flicker cycle
+  - The 7-pixel radius variation in the shield circle drawing (offset 0xF9 = -7
+    from standard) creates the visual "flicker" effect
+
+When Flicker Shield is active, damage may pass through entirely (shield "off"
+phase) or be fully absorbed (shield "on" phase). This makes it unreliable
+but potentially powerful - a hit during the "off" phase does full damage,
+but a hit during the "on" phase is fully blocked.
+
+--- FORCE SHIELD (Type 5, Energy=150) ---
+White shield (63,63,63) with 150 energy. Larger energy pool than basic shields.
+Has additional projectile deflection behavior (related to Mag Deflector).
+The Force Shield case handler computes the shield geometry and applies
+deflection forces to incoming projectiles.
+
+The shield center and diameter are computed from the bounding box:
+  center_y = (top + right) / 2
+  diameter = right - top
+
+--- HEAVY SHIELD (Type 6, Energy=200) ---
+Orange-tinted shield (63,53,33) with the maximum energy pool of 200 HP.
+Provides the most damage absorption before breaking. Flag=4 in config
+may indicate enhanced visual effects or special rendering.
+Same geometric deflection model as Force Shield but with higher
+absorption capacity.
+
+================================================================================
+8. MAG DEFLECTOR AND SUPER MAG
+================================================================================
+
+Equipment names:
+  DS:0x25FF  "Mag Deflector"
+  DS:0x2659  "Super Mag"
+
+These are NOT shield types (not in the shield type enum 0-6). They are separate
+defensive items that deflect incoming projectiles magnetically.
+
+The Mag Deflector and Super Mag work through the projectile physics system
+rather than the shield damage absorption system. They modify projectile
+trajectories when the projectile enters the deflection zone around the tank.
+
+From the equipment init (DS:0xD55A-D55E):
+  Shield      -> DS:0xD55A
+  Force Shield -> DS:0xD55C
+  Heavy Shield -> DS:0xD55E
+
+These are equipment category indices used during the shop/purchase phase.
+
+================================================================================
+9. SHIELD STATUS QUERY FUNCTIONS
+================================================================================
+
+Several small utility functions in segment 3191 provide shield state queries:
+
+Function at file 0x38911 (seg offset 0x0601):
+  Returns DS:0x50F8 (shield visual state)
+  Simple getter: mov ax, [0x50F8]; retf
+
+Function at file 0x38926 (seg offset 0x0616):
+  Returns 1 if (DS:0x50E2 != 0 AND DS:0xE1E2 == 0), else 0
+  "Is shield deployed but not in special animation state"
+
+Function at file 0x3894D (seg offset 0x063D):
+  Returns 1 if (DS:0x51A0 != 0 AND DS:0x50F6 == 0), else 0  
+  "Is shield ready but not in pause state"
+
+Function at file 0x38989 (seg offset 0x0679):
+  Returns 1 if (DS:0x519E != 0 AND DS:0x50E2 == 0), else 0
+  "Is shield equipment present but not deployed"
+
+Function at file 0x389B0 (seg offset 0x06A0):
+  Returns !DS:0x50F6 (boolean: is shield NOT paused)
+  Computed as: neg ax; sbb ax,ax; inc ax
+
+================================================================================
+10. PLAYER STRUCTURE SHIELD-RELATED FIELDS
+================================================================================
+
+Player/Tank structure (far pointer at DS:0x5182:5184):
+  +0x00: tank type/status
+  +0x02: x position base  
+  +0x04: y position base
+  +0x06: width/dimension
+  +0x0C: some counter
+  +0x0E: x position
+  +0x10: y position
+  +0x12: x dimension 2
+  +0x14: y dimension 2
+  +0x16: color index
+  +0x18: alive/active flag (0 = dead)
+  +0x1A: player index (0-based)
+  +0x20: far pointer to equipment array
+  +0x22: equipped shield index (into equipment array)
+  +0x92: turret angle
+  +0x94: turret direction (-1 or 1)
+  +0x96: shield energy remaining (HP)
+  +0x9A: some shield timer
+  +0xA0: shield visual modifier
+  +0xC6: far pointer to shield config entry (16 bytes)
+  +0xC8: high word of shield config pointer
+
+Equipment array (pointed to by player+0x20):
+  Each entry accessed as: player->equip[n]
+  Equipment struct field +0x0E: shield type value (0-5, maps to config table)
+  Equipment struct field +0x4E: some offset used in rendering
+
+Player array: stored as far pointers at DS:0xE4F6 (array of 4-byte pointers)
+  Accessed as: [bx*4 - 0x1B0A] and [bx*4 - 0x1B08] for offset:segment
+
+================================================================================
+11. KEY CONSTANTS
+================================================================================
+
+Floating-point constants near shields.cpp data:
+  DS:0x613C: 0.8   (9A 99 99 99 99 99 E9 3F)
+  DS:0x6144: 0.65  (CD CC CC CC CC CC E4 3F)
+  DS:0x6210: 57.29577951 = 180/pi  (radians-to-degrees conversion)
+
+Integer constants in shield code:
+  0x3F = 63   (max VGA palette intensity)
+  0x2E = 46   (color fade factor for G and B channels)
+  0x3C = 60   (shield break animation divisor)
+  0x32 = 50   (shield break animation frame count)
+  0x1770 = 6000 (initial delay for break animation, ms)
+  0x64 = 100  (delay decrement per frame during break animation)
+  0x3E8 = 1000 (final flash delay)
+  0xFF = 255  (shield pixel color marker)
+  0x69 = 105  (terrain/shield boundary threshold)
+  0x50 = 80   (damage threshold - below this, shield sparks)
+  0x78 = 120  (default palette index for shield circle)
+
+================================================================================
+12. CODE SEGMENT MAP
+================================================================================
+
+Segment 315D (file 0x37FD0 - 0x38310):
+  Shield update/main processing - calls into 3191
+  Handles the initial hit detection and dispatches to shield damage handler
+  Contains Warp Shield position tracking and teleport logic
+
+Segment 3191 (file 0x38310 - 0x38AD0): shields.cpp code segment
+  0x38310: shield query - returns shield type flags (AND with 0x06)
+  0x38344: shield_takeDamage() - main damage absorption function
+  0x38572: shield_applyDamageVisual() - palette update on damage
+  0x38649: shield pixel test functions (getPixel == 0xFF or == 0x69)
+  0x38765: shield deploy/draw handler (contains the two assert checks)
+  0x388C3: shield render function (draws circle, handles terrain)
+  0x38911+: shield state query utility functions
+  0x389CA: shield activation with equipment type dispatch
+
+Segment 3249 (file 0x38E90):
+  Contains shield type sub-handlers (switch with 6 cases)
+  Shield rendering sub-routines for specific types
+
+Segment 32C2 (file 0x39620): 
+  Main shield behavior loop (switch with 7 cases for types 0-6)
+  Shield activation and battery interaction code
+  Shield animation and per-turn update logic
+  Teleport/Warp coordinate computation
+  Force/Heavy shield geometric deflection
+
+Segment 300B:
+  Called for cases 5 and 6 of shield sub-dispatch (Force/Heavy special handlers)
+  Far calls: 0x300B:0x4AB and 0x300B:0x686
+
+Segment 2E76:
+  Called for case 3 (Teleport Shield sub-handler)
+  Far call: 0x2E76:0x650
+
+================================================================================
+13. STRING REFERENCES
+================================================================================
+
+DS:0x61E6: "shields.cpp"     (debug assert filename, referenced at file 0x38786)
+DS:0x61F2: "shields.cpp"     (second assert reference at file 0x387B2)
+DS:0x61FE: "%s activating %s\n" (debug/log message, referenced at file 0x38836)
+
+The "%s activating %s" format string is used in a debug printf call:
+  printf("%s activating %s\n", player_name, shield_type_name);
+This call includes parameters:
+  - player struct field +0xB6/+0xB8 (player name far pointer)
+  - equip entry field +0xF6/+0xF8 (item/weapon name array entry)
+
+Assert checks in shield deploy function verify:
+  1. Line 0x89: player pointer is not null (file 0x38786)
+  2. Line 0x8C: target position matches current player (file 0x387B2)
+
+================================================================================
+14. SUMMARY OF SHIELD MECHANICS
+================================================================================
+
+1. DAMAGE MODEL: Flat HP absorption. Shield energy depletes 1:1 with damage.
+   No percentage-based reduction. Shield absorbs up to its energy value, then
+   any excess damage passes through to the tank.
+
+2. ENERGY VALUES:
+   - Shield:          55 HP (cheapest, weakest)
+   - Warp Shield:    100 HP (teleports on hit instead of absorbing)
+   - Teleport Shield: 100 HP (teleports when triggered)  
+   - Flicker Shield:  N/A   (probabilistic - either full block or no block)
+   - Force Shield:   150 HP (mid-tier, with deflection)
+   - Heavy Shield:   200 HP (strongest, most expensive)
+
+3. BATTERIES: Required to power shields across turns. Without battery charges,
+   shields cannot maintain energy and deactivate (type resets to 0).
+
+4. VISUAL FEEDBACK: Shield color fades proportionally as energy depletes.
+   When shield breaks, a 50-frame accelerating fade-to-black animation plays
+   with a final white flash before the shield disappears.
+
+5. SPECIAL SHIELDS:
+   - Warp: Relocates tank randomly when hit
+   - Teleport: Relocates tank to specific coordinates when triggered
+   - Flicker: Cycles visibility; blocks everything when "on", nothing when "off"
+   - Force/Heavy: Standard absorption plus projectile deflection
+
+================================================================================
+END OF ANALYSIS
+================================================================================

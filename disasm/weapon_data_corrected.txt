@@ -1,0 +1,137 @@
+=== CORRECTED COMPLETE WEAPON DATA TABLE ===
+Idx Name                     Price  Bndl Arms BhvType  BhvSub  Param Notes
+--------------------------------------------------------------------------------------------------------------
+  0 Jump Jets                  N/A   N/A  N/A     N/A     N/A    N/A  (special item, no struct data)
+  1 Popcorn Bomb               N/A   N/A  N/A     N/A     N/A    N/A  (special item, no struct data)
+  2 Baby Missile               400    10    0      33   15646     10  
+  3 Missile                   1875     5    0      33   15646     20  
+  4 Baby Nuke                10000     3    0      33   15646     40  
+  5 Nuke                     12000     1    1      33   15646     75  
+  6 LeapFrog                 10000     2    3       6    9090      3  
+  7 Funky Bomb                7000     2    4       0    7630     80  
+  8 MIRV                     10000     3    2     569    9685      0  
+  9 Death's Head             20000     1    4     569    9685      1  
+ 10 Napalm                   10000    10    2     416    9958     15  
+ 11 Hot Napalm               20000     2    4     416    9958     20  
+ 12 Tracer                      10    20    0       2   15646      0  
+ 13 Smoke Tracer               500    10    0       2   15646      1  
+ 14 Baby Roller               5000    10    2       3   12221     10  
+ 15 Roller                    6000     5    2       3   12221     20  
+ 16 Heavy Roller              6750     2    3       3   12221     45  
+ 17 Plasma Blast              2000    10    2      13   12150      0  
+ 18 Riot Charge               5000     5    3      13   12150      1  
+ 19 Riot Blast                5000     5    3     957   12150     30  
+ 20 Riot Bomb                 4750     2    3     957   12150     45  
+ 21 Heavy Riot Bomb           3000    10    0      10    5403    -10  param=-10 (signed)
+ 22 Baby Digger               2500     5    0      10    5403    -20  param=-20 (signed)
+ 23 Digger                    6750     2    1      10    5403    -35  param=-35 (signed)
+ 24 Heavy Digger             10000    10    0      10    5403     10  
+ 25 Baby Sandhog             16750     5    0      10    5403     20  
+ 26 Sandhog                  25000     2    1      10    5403     35  
+ 27 Heavy Sandhog             5000    10    0       9    5536     20  
+ 28 Dirt Clod                 5000     5    0       9    5536     35  
+ 29 Dirt Ball                 6750     2    1       9    5536     70  
+ 30 Ton of Dirt               5000     5    2     416    9958    -20  param=-20 (signed)
+ 31 Liquid Dirt               5000    10    1     129    5536      0  
+ 32 Dirt Charge               5000    10    0     318    5676      0  
+ 33 Dirt Tower                9000     5    3       9   10096      0  
+ 34 Earth Disrupter           5000     5    2       4    8985      0  
+ 35 Laser                    10000     6    2       0       0      0  
+ 36 Plasma Laser             10000     2    2       0       0      0  
+ 37 Heat Guidance            15000     5    1       0       0      0  
+ 38 Bal Guidance             20000     5    1       0       0      0  
+ 39 Horz Guidance            20000     2    3       0       0      0  
+ 40 Vert Guidance            10000     8    2       0       0      0  
+ 41 Lazy Boy                  5000    10    2       0       0      0  
+ 42 Parachute                10000     2    2       0       0      0  
+ 43 Battery                  20000     3    3       0       0      0  
+ 44 ~Batteries:              25000     3    3       0       0      0  
+ 45 Mag Deflector            30000     2    4       0       0      0  
+ 46 Shield                   40000     2    4       0       0      0  
+ 47 Warp Shield               1500     1    3       0       0      0  
+ 48 Teleport Shield          10000    10    3       0       0      0  
+ 49 Flicker Shield            1000    25    3       0       0      0  +30=48, +32=1
+ 50 Force Shield             29029 26997 11888   28771     112  24902  +0C=27753, +0E=25701, +10=29728, +12=8303, +14=25705, +16=28261, +18=26996, +1A=31078, +1C=26912, +1E=25972, +20=109, +22=60678, +24=43665, +26=57158, +28=16273, +2A=5, +2C=20, +2E=50, +30=78, +32=106
+ 51 Heavy Shield               134   162    1       0       0      0  +10=20, +12=50, +14=78, +16=106, +18=134, +1A=162, +1C=1, +2C=1, +2E=25637, +30=9472, +32=100
+ 52 Super Mag                25637  9472 25650   14592      57  29477  +0C=8250, +0E=25637, +10=10240, +12=9472, +14=14963, +16=9504, +18=100, +1A=25637, +1C=32256, +1E=115, +20=12337, +22=12336, +24=25856, +26=29816, +28=24946, +2A=11891, +2C=28771, +2E=112, +30=12837, +32=100
+ 53 Patriot Missiles          9512 10611 9472     100   13349    100  +0C=25637, +10=5, +16=17224, +1E=16368
+ 54 Auto Defense              7028  6730    0   16128   39322 -26215  param=-26215 (signed), +0C=39321, +0E=16409, +10=39028, +12=12079, +14=16064, +16=16282, +1A=16320, +1C=28482, +1E=28519, +20=26957, +22=29552, +24=8250, +26=27685, +28=8292, +2A=27685, +2C=2660, +2E=18176, +30=29797, +32=26996
+ 55 Fuel Tank                26478 19744 20553    2643       0      0  +0C=17096, +0E=15716, +10=27685, +12=8294, +14=17952, +16=29289, +18=17509, +1A=27749, +1C=31073, +1E=9533, +20=8292, +22=22304, +24=29281, +26=25960, +28=25697, +2A=19571, +2C=26213, +2E=15732, +30=25637, +32=32
+ 56 Contact Trigger              0 16968    0   16928    5243  18350  +0C=31457, +0E=16276, +10=28516, +12=25966, +14=10, +16=60678, +18=43665, +1A=57158, +1C=16273, +1E=47186, +20=34078, +22=20971, +24=16368, +26=36700, +28=62914, +2A=23592, +2C=16367, +2E=16384, +30=17820, +32=39322
+
+=== BEHAVIOR TYPE GROUPS ===
+  Type     0 (0x0000) = Non-projectile (item/accessory)
+    Funky Bomb (sub=7630)
+    Laser (sub=0)
+    Plasma Laser (sub=0)
+    Heat Guidance (sub=0)
+    Bal Guidance (sub=0)
+    Horz Guidance (sub=0)
+    Vert Guidance (sub=0)
+    Lazy Boy (sub=0)
+    Parachute (sub=0)
+    Battery (sub=0)
+    ~Batteries: (sub=0)
+    Mag Deflector (sub=0)
+    Shield (sub=0)
+    Warp Shield (sub=0)
+    Teleport Shield (sub=0)
+    Flicker Shield (sub=0)
+    Heavy Shield (sub=0)
+  Type     2 (0x0002) = Tracer (no damage)
+    Tracer (sub=15646)
+    Smoke Tracer (sub=15646)
+  Type     3 (0x0003) = Roller
+    Baby Roller (sub=12221)
+    Roller (sub=12221)
+    Heavy Roller (sub=12221)
+  Type     4 (0x0004) = Beam/Laser
+    Earth Disrupter (sub=8985)
+  Type     6 (0x0006) = LeapFrog (bouncing)
+    LeapFrog (sub=9090)
+  Type     9 (0x0009) = Dirt (terrain adding)
+    Heavy Sandhog (sub=5536)
+    Dirt Clod (sub=5536)
+    Dirt Ball (sub=5536)
+    Dirt Tower (sub=10096)
+  Type    10 (0x000A) = Digger/Sandhog (tunneling)
+    Heavy Riot Bomb (sub=5403)
+    Baby Digger (sub=5403)
+    Digger (sub=5403)
+    Heavy Digger (sub=5403)
+    Baby Sandhog (sub=5403)
+    Sandhog (sub=5403)
+  Type    13 (0x000D) = Plasma (variable radius)
+    Plasma Blast (sub=12150)
+    Riot Charge (sub=12150)
+  Type    33 (0x0021) = Standard projectile
+    Baby Missile (sub=15646)
+    Missile (sub=15646)
+    Baby Nuke (sub=15646)
+    Nuke (sub=15646)
+  Type   100 (0x0064) = UNKNOWN
+    Patriot Missiles (sub=13349)
+  Type   129 (0x0081) = Liquid dirt
+    Liquid Dirt (sub=5536)
+  Type   318 (0x013E) = Dirt charge
+    Dirt Charge (sub=5676)
+  Type   416 (0x01A0) = Napalm (fire particles)
+    Napalm (sub=9958)
+    Hot Napalm (sub=9958)
+    Ton of Dirt (sub=9958)
+  Type   569 (0x0239) = MIRV/Death's Head (splitting)
+    MIRV (sub=9685)
+    Death's Head (sub=9685)
+  Type   957 (0x03BD) = Riot (earth-moving blast)
+    Riot Blast (sub=12150)
+    Riot Bomb (sub=12150)
+  Type  2643 (0x0A53) = UNKNOWN
+    Fuel Tank (sub=0)
+  Type 14592 (0x3900) = UNKNOWN
+    Super Mag (sub=57)
+  Type 16128 (0x3F00) = UNKNOWN
+    Auto Defense (sub=39322)
+  Type 16928 (0x4220) = UNKNOWN
+    Contact Trigger (sub=5243)
+  Type 28771 (0x7063) = UNKNOWN
+    Force Shield (sub=112)

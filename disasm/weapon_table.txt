@@ -1,0 +1,82 @@
+=== WEAPON NAME TABLE ===
+   1. 0x058193: 'Jump Jets'
+   2. 0x05819D: 'Popcorn Bomb'
+   3. 0x0581AA: 'Baby Missile'
+   4. 0x0581B7: 'Missile'
+   5. 0x0581BF: 'Baby Nuke'
+   6. 0x0581CE: 'LeapFrog'
+   7. 0x0581D7: 'Funky Bomb'
+   8. 0x0581E7: 'Death's Head'
+   9. 0x0581F4: 'Napalm'
+  10. 0x0581FB: 'Hot Napalm'
+  11. 0x058206: 'Tracer'
+  12. 0x05820D: 'Smoke Tracer'
+  13. 0x05821A: 'Baby Roller'
+  14. 0x058226: 'Roller'
+  15. 0x05822D: 'Heavy Roller'
+  16. 0x05823A: 'Plasma Blast'
+  17. 0x058247: 'Riot Charge'
+  18. 0x058253: 'Riot Blast'
+  19. 0x05825E: 'Riot Bomb'
+  20. 0x058268: 'Heavy Riot Bomb'
+  21. 0x058278: 'Baby Digger'
+  22. 0x058284: 'Digger'
+  23. 0x05828B: 'Heavy Digger'
+  24. 0x058298: 'Baby Sandhog'
+  25. 0x0582A5: 'Sandhog'
+  26. 0x0582AD: 'Heavy Sandhog'
+  27. 0x0582BB: 'Dirt Clod'
+  28. 0x0582C5: 'Dirt Ball'
+  29. 0x0582CF: 'Ton of Dirt'
+  30. 0x0582DB: 'Liquid Dirt'
+  31. 0x0582E7: 'Dirt Charge'
+  32. 0x0582F3: 'Dirt Tower'
+  33. 0x058314: 'Plasma Laser'
+  34. 0x058321: 'Heat Guidance'
+  35. 0x05832F: 'Bal Guidance'
+  36. 0x05833C: 'Horz Guidance'
+  37. 0x05834A: 'Vert Guidance'
+  38. 0x058361: 'Parachute'
+  39. 0x05836B: 'Battery'
+  40. 0x05837F: 'Mag Deflector'
+  41. 0x058394: 'Warp Shield'
+  42. 0x0583A0: 'Teleport Shield'
+  43. 0x0583B0: 'Flicker Shield'
+  44. 0x0583BF: 'Force Shield'
+  45. 0x0583CC: 'Heavy Shield'
+  46. 0x0583D9: 'Super Mag'
+  47. 0x0583E3: 'Patriot Missiles'
+  48. 0x0583F4: 'Auto Defense'
+  49. 0x058401: 'Fuel Tank'
+  50. 0x05840B: 'Contact Trigger'
+
+=== DATA BEFORE WEAPON NAMES (0x058000-0x058193) ===
+(Hex dump of potential weapon data tables)
+  058000: 6E 2C 38 4F 7A 2C 38 4F 7F 2C 38 4F 88 2C 38 4F  n,8Oz,8O.,8O.,8O
+  058010: 99 2C 38 4F AE 2C 38 4F B8 2C 38 4F C4 2C 38 4F  .,8O.,8O.,8O.,8O
+  058020: CE 2C 38 4F DC 2C 38 4F E6 2C 38 4F F0 2C 38 4F  .,8O.,8O.,8O.,8O
+  058030: FA 2C 38 4F 07 2D 38 4F 15 2D 38 4F 21 2D 38 4F  .,8O.-8O.-8O!-8O
+  058040: 2B 2D 38 4F 2F 2D 38 4F 35 2D 38 4F 3E 2D 38 4F  +-8O/-8O5-8O>-8O
+  058050: 48 2D 38 4F 55 2D 38 4F 65 2D 38 4F 7A 2D 38 4F  H-8OU-8Oe-8Oz-8O
+  058060: 8A 2D 38 4F 9E 2D 38 4F AE 2D 38 4F C1 2D 38 4F  .-8O.-8O.-8O.-8O
+  058070: C8 2D 38 4F D5 2D 38 4F DD 2D 38 4F E8 2D 38 4F  .-8O.-8O.-8O.-8O
+  058080: EE 2D 38 4F F5 2D 38 4F FB 2D 38 4F 01 2E 38 4F  .-8O.-8O.-8O..8O
+  058090: 08 2E 38 4F 0E 2E 38 4F 26 2E 38 4F 2A 2E 38 4F  ..8O..8O&.8O*.8O
+  0580A0: 39 2E 38 4F 41 2E 38 4F 48 2E 38 4F 4D 2E 38 4F  9.8OA.8OH.8OM.8O
+  0580B0: 5B 2E 38 4F 67 2E 38 4F 71 2E 38 4F 7B 2E 38 4F  [.8Og.8Oq.8O{.8O
+  0580C0: 87 2E 38 4F 97 2E 38 4F AA 2E 38 4F B0 2E 38 4F  ..8O..8O..8O..8O
+  0580D0: BF 2E 38 4F C7 2E 38 4F CF 2E 38 4F DF 2E 38 4F  ..8O..8O..8O..8O
+  0580E0: EF 2E 38 4F FA 2E 38 4F FE 2E 38 4F 06 2F 38 4F  ..8O..8O..8O./8O
+  0580F0: 1E 2F 38 4F 25 2F 38 4F 29 2F 38 4F 2F 2F 38 4F  ./8O%/8O)/8O//8O
+  058100: 39 2F 38 4F 4E 2F 38 4F 5D 2F 38 4F 77 2F 38 4F  9/8ON/8O]/8Ow/8O
+  058110: 9C 2F 38 4F B5 2F 38 4F C2 2F 38 4F CA 2F 38 4F  ./8O./8O./8O./8O
+  058120: E4 2F 38 4F FC 2F 38 4F 02 30 38 4F 1A 30 38 4F  ./8O./8O.08O.08O
+  058130: 2D 30 38 4F 47 30 38 4F 58 30 38 4F 73 30 38 4F  -08OG08OX08Os08O
+  058140: 92 30 38 4F A9 30 38 4F B8 30 38 4F BF 30 38 4F  .08O.08O.08O.08O
+  058150: DD 30 38 4F 07 31 38 4F 29 31 38 4F 42 31 38 4F  .08O.18O)18OB18O
+  058160: 4A 31 38 4F 58 31 38 4F 6E 31 38 4F 86 31 38 4F  J18OX18On18O.18O
+  058170: 8C 31 38 4F 95 31 38 4F AF 31 38 4F DD 31 38 4F  .18O.18O.18O.18O
+  058180: E5 31 38 4F ED 31 38 4F 54 65 6C 65 70 6F 72 74  .18O.18OTeleport
+  058190: 65 72 00 4A 75 6D 70 20 4A 65 74 73 00 50 6F 70  er.Jump Jets.Pop
+
+=== SEARCHING FOR POINTER TABLE TO WEAPON NAMES ===

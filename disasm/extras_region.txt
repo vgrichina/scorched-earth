@@ -1,0 +1,209 @@
+extras.cpp string at: 0x0579C7
+FireDelay string at: 0x057A53
+WarheadsLeft string at: 0x057A61
+
+=== DISASSEMBLY NEAR extras.cpp (0x0579C7) ===
+  50DC7: add	byte ptr [bx + si], al
+  50DC9: add	byte ptr [bx + si], al
+  50DCB: add	byte ptr [bx + si], al
+  50DCD: add	byte ptr [bx + si], ah
+  50DCF: dec	si
+  50DD0: add	ax, word ptr [bx + si]
+  50DD2: add	ax, word ptr [bx + si]
+  50DD4: add	byte ptr [bx + si], al
+  50DD6: add	byte ptr [bx + si], al
+  50DD8: add	byte ptr [bx + si], al
+  50DDA: add	byte ptr [bx + si], al
+  50DDC: add	byte ptr [bx + si], al
+  50DDE: add	byte ptr [bx + si], al
+  50DE0: add	byte ptr [bx + si], al
+  50DE2: add	byte ptr [bx + si], al
+  50DE4: add	byte ptr [bx + si], al
+  50DE6: add	byte ptr [bx + si], al
+  50DE8: add	byte ptr [bx + si], al
+  50DEA: add	byte ptr [bx + si], al
+  50DEC: add	byte ptr [bx + si], al
+  50DEE: add	byte ptr [bx + si], al
+  50DF0: add	byte ptr [bx + si], al
+  50DF2: add	byte ptr [bx + si], al
+  50DF4: add	byte ptr [bx + si], al
+  50DF6: add	byte ptr [bx + si], al
+  50DF8: add	byte ptr [bx + si], al
+  50DFA: add	byte ptr [bx + si], al
+  50DFC: add	byte ptr [bx + si], al
+  50DFE: add	byte ptr [bx + si], al
+  50E00: add	byte ptr [bx + si], al
+  50E02: test	al, 0x61
+  50E04: add	ax, word ptr [bx + si]
+  50E06: add	ax, word ptr [bx + si]
+  50E08: add	byte ptr [bx + si], al
+  50E0A: add	byte ptr [bx + si], al
+  50E0C: add	byte ptr [bx + si], al
+  50E0E: add	byte ptr [bx + si], al
+  50E10: add	byte ptr [bx + si], al
+  50E12: add	byte ptr [bx + si], al
+  50E14: add	byte ptr [bx + si], al
+  50E16: add	byte ptr [bx + si], al
+  50E18: add	byte ptr [bx + si], al
+  50E1A: add	byte ptr [bx + si], al
+  50E1C: add	byte ptr [bx + si], al
+  50E1E: add	byte ptr [bx + si], al
+  50E20: add	byte ptr [bx + si], al
+  50E22: add	byte ptr [bx + si], al
+  50E24: add	byte ptr [bx + si], al
+  50E26: add	byte ptr [bx + si], al
+  50E28: add	byte ptr [bx + si], al
+  50E2A: add	byte ptr [bx + si], al
+  50E2C: add	byte ptr [bx + si], al
+  50E2E: add	byte ptr [bx + si], al
+  50E30: add	byte ptr [bx + si], al
+  50E32: add	byte ptr [bx + si], al
+  50E34: add	byte ptr [bx + si], al
+  50E36: xor	byte ptr [di + 2], dh
+  50E39: add	byte ptr [si], al
+  50E3B: add	byte ptr [bx + si], al
+  50E3D: add	byte ptr [bx + si], al
+  50E3F: add	byte ptr [bx + si], al
+  50E41: add	byte ptr [bx + si], al
+  50E43: add	byte ptr [bx + si], al
+  50E45: add	byte ptr [bx + si], al
+  50E47: add	byte ptr [bx + si], al
+  50E49: add	byte ptr [bx + si], al
+  50E4B: add	byte ptr [bx + si], al
+  50E4D: add	byte ptr [bx + si], al
+  50E4F: add	byte ptr [bx + si], al
+  50E51: add	byte ptr [bx + si], al
+  50E53: add	byte ptr [bx + si], al
+  50E55: add	byte ptr [bx + si], al
+  50E57: add	byte ptr [bx + si], al
+  50E59: add	byte ptr [bx + si], al
+  50E5B: add	byte ptr [bx + si], al
+  50E5D: add	byte ptr [bx + si], al
+  50E5F: add	byte ptr [bx + si], al
+  50E61: add	byte ptr [bx + si], al
+  50E63: add	byte ptr [bx + si], al
+  50E65: add	byte ptr [bx + si], al
+  50E67: add	byte ptr [bx + si], al
+  50E69: add	byte ptr [bx + si - 0x64], al
+  50E6C: add	al, byte ptr [bx + si]
+  50E6E: add	al, 0
+  50E70: add	byte ptr [bx + si], al
+  50E72: add	byte ptr [bx + si], al
+  50E74: add	byte ptr [bx + si], al
+  50E76: add	byte ptr [bx + si], al
+  50E78: add	byte ptr [bx + si], al
+  50E7A: add	byte ptr [bx + si], al
+  50E7C: add	byte ptr [bx + si], al
+  50E7E: add	byte ptr [bx + si], al
+  50E80: add	byte ptr [bx + si], al
+  50E82: add	byte ptr [bx + si], al
+  50E84: add	byte ptr [bx + si], al
+  50E86: add	byte ptr [bx + si], al
+  50E88: add	byte ptr [bx + si], al
+  50E8A: add	byte ptr [bx + si], al
+  50E8C: add	byte ptr [bx + si], al
+  50E8E: add	byte ptr [bx + si], al
+  50E90: add	byte ptr [bx + si], al
+  50E92: add	byte ptr [bx + si], al
+  50E94: add	byte ptr [bx + si], al
+  50E96: add	byte ptr [bx + si], al
+  50E98: add	byte ptr [bx + si], al
+  50E9A: add	byte ptr [bx + si], al
+  50E9C: add	byte ptr [bx + si], al
+  50E9E: fadd	qword ptr [di]
+  50EA0: add	word ptr [bx + si], ax
+  50EA2: add	ax, word ptr [bx + si]
+  50EA4: add	byte ptr [bx + si], al
+  50EA6: add	byte ptr [bx + si], al
+  50EA8: add	byte ptr [bx + si], al
+  50EAA: add	byte ptr [bx + si], al
+  50EAC: add	byte ptr [bx + si], al
+  50EAE: add	byte ptr [bx + si], al
+  50EB0: add	byte ptr [bx + si], al
+  50EB2: add	byte ptr [bx + si], al
+  50EB4: add	byte ptr [bx + si], al
+  50EB6: add	byte ptr [bx + si], al
+  50EB8: add	byte ptr [bx + si], al
+  50EBA: add	byte ptr [bx + si], al
+  50EBC: add	byte ptr [bx + si], al
+  50EBE: add	byte ptr [bx + si], al
+  50EC0: add	byte ptr [bx + si], al
+  50EC2: add	byte ptr [bx + si], al
+  50EC4: add	byte ptr [bx + si], al
+  50EC6: add	byte ptr [bx + si], al
+  50EC8: add	byte ptr [bx + si], al
+  50ECA: add	byte ptr [bx + si], al
+  50ECC: add	byte ptr [bx + si], al
+  50ECE: add	byte ptr [bx + si], al
+  50ED0: add	byte ptr [bx + si], al
+  50ED2: adc	byte ptr [bx], ah
+  50ED4: or	al, byte ptr [bx + si]
+  50ED6: add	ax, word ptr [bx + si]
+  50ED8: add	byte ptr [bx + si], al
+  50EDA: add	byte ptr [bx + si], al
+  50EDC: add	byte ptr [bx + si], al
+  50EDE: add	byte ptr [bx + si], al
+  50EE0: add	byte ptr [bx + si], al
+  50EE2: add	byte ptr [bx + si], al
+  50EE4: add	byte ptr [bx + si], al
+  50EE6: add	byte ptr [bx + si], al
+  50EE8: add	byte ptr [bx + si], al
+  50EEA: add	byte ptr [bx + si], al
+  50EEC: add	byte ptr [bx + si], al
+  50EEE: add	byte ptr [bx + si], al
+  50EF0: add	byte ptr [bx + si], al
+  50EF2: add	byte ptr [bx + si], al
+  50EF4: add	byte ptr [bx + si], al
+  50EF6: add	byte ptr [bx + si], al
+  50EF8: add	byte ptr [bx + si], al
+  50EFA: add	byte ptr [bx + si], al
+  50EFC: add	byte ptr [bx + si], al
+  50EFE: add	byte ptr [bx + si], al
+  50F00: add	byte ptr [bx + si], al
+  50F02: add	byte ptr [bx + si], al
+  50F04: add	byte ptr [bx + si], al
+  50F06: call	0x5280c
+  50F09: add	byte ptr [bp + di], al
+  50F0B: add	byte ptr [bx + si], al
+  50F0D: add	byte ptr [bx + si], al
+  50F0F: add	byte ptr [bx + si], al
+  50F11: add	byte ptr [bx + si], al
+  50F13: add	byte ptr [bx + si], al
+  50F15: add	byte ptr [bx + si], al
+  50F17: add	byte ptr [bx + si], al
+  50F19: add	byte ptr [bx + si], al
+  50F1B: add	byte ptr [bx + si], al
+  50F1D: add	byte ptr [bx + si], al
+  50F1F: add	byte ptr [bx + si], al
+  50F21: add	byte ptr [bx + si], al
+  50F23: add	byte ptr [bx + si], al
+  50F25: add	byte ptr [bx + si], al
+  50F27: add	byte ptr [bx + si], al
+  50F29: add	byte ptr [bx + si], al
+  50F2B: add	byte ptr [bx + si], al
+  50F2D: add	byte ptr [bx + si], al
+  50F2F: add	byte ptr [bx + si], al
+  50F31: add	byte ptr [bx + si], al
+  50F33: add	byte ptr [bx + si], al
+  50F35: add	byte ptr [bx + si], dh
+  50F37: add	byte ptr [bx + di], al
+  50F39: add	byte ptr [di + 0x71], ah
+  50F3C: jne	0x50fa7
+  50F3E: jo	0x50f6e
+  50F40: arpl	word ptr [bx + si + 0x70], si
+  50F43: add	byte ptr [bp + 0x61], al
+  50F46: imul	bp, word ptr [si + 0x65], 0x2064
+  50F4B: je	0x50fbc
+  50F4D: and	byte ptr [bx + di + 0x64], ch
+  50F50: outsb	dx, byte ptr gs:[si]
+  50F52: je	0x50fbd
+  50F54: jns	0x50f77
+  50F57: imul	si, word ptr [si + 0x65], 0x6d
+  50F5C: push	es
+  50F5D: in	ax, dx
+  50F5E: xchg	cx, ax
+  50F5F: stosb	byte ptr es:[di], al
+
+=== FLOATING POINT OPS NEAR EXTRAS REGION ===
+  50E9E: fadd	qword ptr [di]
+  50F61: fist	word ptr [bx + di + 0x53f]

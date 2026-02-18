@@ -1,0 +1,295 @@
+======================================================================
+SCORCHED EARTH TERRAIN COLOR PALETTE ANALYSIS
+Binary: SCORCH.EXE (DOS, 415456 bytes)
+======================================================================
+
+PALETTE STRUCTURE
+----------------------------------------
+VGA 256-color mode (Fastgraph library)
+Terrain palette: DAC registers 120-149 (0x78-0x95)
+  30 color entries forming a depth gradient
+  DAC 149 = terrain surface (top)
+  DAC 120 = deepest underground
+  VGA 6-bit color: each R,G,B channel is 0-63
+
+Y-to-palette mapping formula:
+  palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
+
+KEY CODE LOCATIONS
+----------------------------------------
+Terrain palette function: file 0x03971F (CS=0x32C2, offset 0x00FF)
+Terrain type switch:      file 0x039951 (CS=0x32C2, offset 0x0331)
+Switch jump table:        file 0x03A038 (CS:0x0A18, 7 entries)
+Terrain type variable:    DS:0x5110
+fg_setcolor indirect:     DS:0xEF08
+fg_setdacs indirect:      DS:0xEEFC
+Base color table:         DS:0x5036 (file 0x05ADB6)
+FP constants:             DS:0x6258-0x6270
+  9.0, 10.0, 20.0, 63.0, 29.0, 31.0, 45.0
+Data segment base:        0x055D80 (paragraph 0x4F38)
+ranges.cpp debug string:  file 0x05BD5B
+
+======================================================================
+TERRAIN TYPE 0: BLUE ICE
+======================================================================
+Switch case at file 0x039956
+Method: setTerrainPalette(start=120, R=9, G=9, B=31)
+  Creates 16-step gradient from black to VGA(9,9,31)
+  Dark blue-gray ice palette
+
+Gradient (16 steps):
+  [ 0] DAC 120: VGA( 0, 0, 0) #000000
+  [ 1] DAC 121: VGA( 1, 1, 2) #040408
+  [ 2] DAC 122: VGA( 1, 1, 4) #040410
+  [ 3] DAC 123: VGA( 2, 2, 6) #080818
+  [ 4] DAC 124: VGA( 2, 2, 8) #080820
+  [ 5] DAC 125: VGA( 3, 3,10) #0C0C28
+  [ 6] DAC 126: VGA( 4, 4,12) #101031
+  [ 7] DAC 127: VGA( 4, 4,14) #101039
+  [ 8] DAC 128: VGA( 5, 5,17) #141445
+  [ 9] DAC 129: VGA( 5, 5,19) #14144D
+  [10] DAC 130: VGA( 6, 6,21) #181855
+  [11] DAC 131: VGA( 7, 7,23) #1C1C5D
+  [12] DAC 132: VGA( 7, 7,25) #1C1C65
+  [13] DAC 133: VGA( 8, 8,27) #20206D
+  [14] DAC 134: VGA( 8, 8,29) #202075
+  [15] DAC 135: VGA( 9, 9,31) #24247D
+
+======================================================================
+TERRAIN TYPE 1: SNOW/ICE GRADIENT
+======================================================================
+Switch case at file 0x039969
+Method: Direct palette loop di=0..29
+  fg_setcolor(di, R=29-di, G=29-di, B=63)
+  fg_setdacs(start=120, count=30)
+
+Gradient (30 steps):
+  [ 0] DAC 120: VGA(29,29,63) #7575FF (underground)
+  [ 1] DAC 121: VGA(28,28,63) #7171FF
+  [ 2] DAC 122: VGA(27,27,63) #6D6DFF
+  [ 3] DAC 123: VGA(26,26,63) #6969FF
+  [ 4] DAC 124: VGA(25,25,63) #6565FF
+  [ 5] DAC 125: VGA(24,24,63) #6161FF
+  [ 6] DAC 126: VGA(23,23,63) #5D5DFF
+  [ 7] DAC 127: VGA(22,22,63) #5959FF
+  [ 8] DAC 128: VGA(21,21,63) #5555FF
+  [ 9] DAC 129: VGA(20,20,63) #5151FF
+  [10] DAC 130: VGA(19,19,63) #4D4DFF
+  [11] DAC 131: VGA(18,18,63) #4949FF
+  [12] DAC 132: VGA(17,17,63) #4545FF
+  [13] DAC 133: VGA(16,16,63) #4141FF
+  [14] DAC 134: VGA(15,15,63) #3D3DFF
+  [15] DAC 135: VGA(14,14,63) #3939FF
+  [16] DAC 136: VGA(13,13,63) #3535FF
+  [17] DAC 137: VGA(12,12,63) #3131FF
+  [18] DAC 138: VGA(11,11,63) #2D2DFF
+  [19] DAC 139: VGA(10,10,63) #2828FF
+  [20] DAC 140: VGA( 9, 9,63) #2424FF
+  [21] DAC 141: VGA( 8, 8,63) #2020FF
+  [22] DAC 142: VGA( 7, 7,63) #1C1CFF
+  [23] DAC 143: VGA( 6, 6,63) #1818FF
+  [24] DAC 144: VGA( 5, 5,63) #1414FF
+  [25] DAC 145: VGA( 4, 4,63) #1010FF
+  [26] DAC 146: VGA( 3, 3,63) #0C0CFF
+  [27] DAC 147: VGA( 2, 2,63) #0808FF
+  [28] DAC 148: VGA( 1, 1,63) #0404FF
+  [29] DAC 149: VGA( 0, 0,63) #0000FF (surface)
+
+======================================================================
+TERRAIN TYPE 2: ROCK/GRAY
+======================================================================
+Switch case at file 0x0399C1
+Method: setTerrainPalette(120, R=5, G=5, B=10)
+  Then overwrite with loop di=0..28:
+  fg_setcolor(di, R=di*2+7, G=di*2+7, B=di*2+7)
+  fg_setdacs(start=121, count=29)
+  Followed by random color scatter for variation
+
+Gradient (29 steps, indices 121-149):
+  [ 0] DAC 121: VGA( 7, 7, 7) #1C1C1C (deep underground)
+  [ 1] DAC 122: VGA( 9, 9, 9) #242424
+  [ 2] DAC 123: VGA(11,11,11) #2D2D2D
+  [ 3] DAC 124: VGA(13,13,13) #353535
+  [ 4] DAC 125: VGA(15,15,15) #3D3D3D
+  [ 5] DAC 126: VGA(17,17,17) #454545
+  [ 6] DAC 127: VGA(19,19,19) #4D4D4D
+  [ 7] DAC 128: VGA(21,21,21) #555555
+  [ 8] DAC 129: VGA(23,23,23) #5D5D5D
+  [ 9] DAC 130: VGA(25,25,25) #656565
+  [10] DAC 131: VGA(27,27,27) #6D6D6D
+  [11] DAC 132: VGA(29,29,29) #757575
+  [12] DAC 133: VGA(31,31,31) #7D7D7D
+  [13] DAC 134: VGA(33,33,33) #868686
+  [14] DAC 135: VGA(35,35,35) #8E8E8E
+  [15] DAC 136: VGA(37,37,37) #969696
+  [16] DAC 137: VGA(39,39,39) #9E9E9E
+  [17] DAC 138: VGA(41,41,41) #A6A6A6
+  [18] DAC 139: VGA(43,43,43) #AEAEAE
+  [19] DAC 140: VGA(45,45,45) #B6B6B6
+  [20] DAC 141: VGA(47,47,47) #BEBEBE
+  [21] DAC 142: VGA(49,49,49) #C6C6C6
+  [22] DAC 143: VGA(51,51,51) #CECECE
+  [23] DAC 144: VGA(53,53,53) #D7D7D7
+  [24] DAC 145: VGA(55,55,55) #DFDFDF
+  [25] DAC 146: VGA(57,57,57) #E7E7E7
+  [26] DAC 147: VGA(59,59,59) #EFEFEF
+  [27] DAC 148: VGA(61,61,61) #F7F7F7
+  [28] DAC 149: VGA(63,63,63) #FFFFFF (surface)
+
+======================================================================
+TERRAIN TYPE 3: BLUE-GRAY (NIGHT/UNDERGROUND)
+======================================================================
+Switch case at file 0x039AEF
+Method: Two-part gradient
+  Loop 1 (di=0..9): fg_setcolor(di, R=di, G=di, B=di+30)
+  Loop 2 (di=10..29): fg_setcolor(di, R=(di-10)*2, G=(di-10)*2, B=(di-10)*2)
+  fg_setdacs(start=120, count=30)
+
+Gradient (30 steps):
+  [ 0] DAC 120: VGA( 0, 0,30) #000079 (deepest - dark blue)
+  [ 1] DAC 121: VGA( 1, 1,31) #04047D
+  [ 2] DAC 122: VGA( 2, 2,32) #080882
+  [ 3] DAC 123: VGA( 3, 3,33) #0C0C86
+  [ 4] DAC 124: VGA( 4, 4,34) #10108A
+  [ 5] DAC 125: VGA( 5, 5,35) #14148E
+  [ 6] DAC 126: VGA( 6, 6,36) #181892
+  [ 7] DAC 127: VGA( 7, 7,37) #1C1C96
+  [ 8] DAC 128: VGA( 8, 8,38) #20209A
+  [ 9] DAC 129: VGA( 9, 9,39) #24249E (transition)
+  [10] DAC 130: VGA( 0, 0, 0) #000000 (black boundary)
+  [11] DAC 131: VGA( 2, 2, 2) #080808
+  [12] DAC 132: VGA( 4, 4, 4) #101010
+  [13] DAC 133: VGA( 6, 6, 6) #181818
+  [14] DAC 134: VGA( 8, 8, 8) #202020
+  [15] DAC 135: VGA(10,10,10) #282828
+  [16] DAC 136: VGA(12,12,12) #313131
+  [17] DAC 137: VGA(14,14,14) #393939
+  [18] DAC 138: VGA(16,16,16) #414141
+  [19] DAC 139: VGA(18,18,18) #494949
+  [20] DAC 140: VGA(20,20,20) #515151
+  [21] DAC 141: VGA(22,22,22) #595959
+  [22] DAC 142: VGA(24,24,24) #616161
+  [23] DAC 143: VGA(26,26,26) #696969
+  [24] DAC 144: VGA(28,28,28) #717171
+  [25] DAC 145: VGA(30,30,30) #797979
+  [26] DAC 146: VGA(32,32,32) #828282
+  [27] DAC 147: VGA(34,34,34) #8A8A8A
+  [28] DAC 148: VGA(36,36,36) #929292
+  [29] DAC 149: VGA(38,38,38) #9A9A9A (surface - gray)
+
+======================================================================
+TERRAIN TYPE 4: DESERT/LAVA (YELLOW-RED)
+======================================================================
+Switch case at file 0x039C31
+Method: setColorGradient5(start=120, R=63, G=63, B=0, flag=1)
+  Base gradient: black to bright yellow VGA(63,63,0)
+  Then FP interpolation loops override specific ranges
+
+Loop 1 (di=0..9) - underground to mid-depth:
+  t1 = (9-di)/10, t2 = (1+di)/10
+  R = round(t1*63 + t2*63) [always ~63]
+  G = round(t1*63 + t2*20)
+  B = round(t2*20)
+  [ 0] DAC 120: VGA(63,59, 2) #FFEF08
+  [ 1] DAC 121: VGA(63,54, 4) #FFDB10
+  [ 2] DAC 122: VGA(63,50, 6) #FFCA18
+  [ 3] DAC 123: VGA(63,46, 8) #FFBA20
+  [ 4] DAC 124: VGA(63,42,10) #FFAA28
+  [ 5] DAC 125: VGA(63,37,12) #FF9631
+  [ 6] DAC 126: VGA(63,33,14) #FF8639
+  [ 7] DAC 127: VGA(63,29,16) #FF7541
+  [ 8] DAC 128: VGA(63,24,18) #FF6149
+  [ 9] DAC 129: VGA(63,20,20) #FF5151
+  (Loops 2-3 continue gradient through orange to dark red)
+
+======================================================================
+TERRAIN TYPE 5: VARIED/RANDOM EARTH TONES
+======================================================================
+Switch case at file 0x039E6A
+Method: FP gradient using random base color from table
+
+Base color table at DS:0x5036 (file 0x05ADB6):
+  6 entries, randomly selected at runtime:
+  [0] VGA(38,25,17) #9A6545 = Warm brown (DESERT/DIRT)
+  [1] VGA(54,36,28) #DB9271 = Light tan (SAND/CLAY)
+  [2] VGA(53,53,47) #D7D7BE = Silver gray (ROCK/STONE)
+  [3] VGA(20,62,20) #51FB51 = Bright green (GRASS/MEADOW)
+  [4] VGA( 9,35, 9) #248E24 = Dark green (FOREST)
+  [5] VGA(36,54,28) #92DB71 = Yellow-green (SAVANNA/FIELDS)
+
+Gradient formula per channel:
+  Color[di] = BaseChannel * (di + 8) / 45
+
+Example gradient for base color [3] VGA(20,62,20) GRASS:
+  [ 0] DAC 120: VGA( 4,11, 4) #102D10
+  [ 3] DAC 123: VGA( 5,15, 5) #143D14
+  [ 6] DAC 126: VGA( 6,19, 6) #184D18
+  [ 9] DAC 129: VGA( 8,23, 8) #205D20
+  [12] DAC 132: VGA( 9,28, 9) #247124
+  [15] DAC 135: VGA(10,32,10) #288228
+  [18] DAC 138: VGA(12,36,12) #319231
+  [21] DAC 141: VGA(13,40,13) #35A235
+  [24] DAC 144: VGA(14,44,14) #39B239
+  [27] DAC 147: VGA(16,48,16) #41C241
+
+======================================================================
+TERRAIN TYPE 6: SCANNED MOUNTAINS (.MTN FILES)
+======================================================================
+Switch case at file 0x039F30
+Method: Uses pre-scanned mountain image files
+  Palette colors extracted from scan, converted 8-bit to 6-bit VGA
+  Available .MTN files (at file offsets 0x05BCDA-0x05BD4F):
+    ice001.mtn, ice002.mtn, ice003.mtn
+    rock001.mtn through rock006.mtn
+    snow001.mtn
+  Conversion: VGA_value = 8bit_value >> 2 (divide by 4)
+  Colors stored at DS:0xDD4C (R), DS:0xDD4E (G), DS:0xDD50 (B)
+
+======================================================================
+SUMMARY: CONFIG MAPPING
+======================================================================
+Config: LAND1=%d, LAND2=%d in SCORCH.CFG
+  LAND1 = primary terrain type selection
+  LAND2 = alternate terrain type
+  When Random Land is enabled, random(6) selects 0-5
+
+  Value 0 = Blue Ice (dark blue gradient)
+  Value 1 = Snow/Ice (white-blue to pure blue)
+  Value 2 = Rock/Gray (grayscale with scatter)
+  Value 3 = Night/Underground (blue deep, gray surface)
+  Value 4 = Desert/Lava (yellow to red-brown)
+  Value 5 = Varied (random from 6 earth-tone base colors)
+  Value 6 = Scanned Mountain (.MTN files)
+
+  Type 5 base colors cover: brown, tan, gray, green,
+  dark green, and yellow-green themes
+
+======================================================================
+FASTGRAPH PALETTE FUNCTIONS
+======================================================================
+fg_setcolor (via [DS:0xEF08]):
+  Sets R,G,B for a single palette entry in buffer
+  C signature: fg_setcolor(int index, int R, int G, int B)
+
+fg_setdacs (via [DS:0xEEFC]):
+  Copies buffered palette entries to VGA DAC registers
+  C signature: fg_setdacs(int start, int count)
+
+setTerrainPalette (far call 0x456B:0x0005):
+  Creates 16-step gradient from black to specified color
+  C signature: setTerrainPalette(int start, int R, int G, int B)
+  Function at file 0x04C0B5
+
+setColorGradient5 (near call in CS:0x32C2):
+  Stores base RGB color and optionally creates gradient
+  C signature: setColorGradient5(int start, int R, int G, int B, int flag)
+  Function at file 0x03A046
+
+======================================================================
+VGA HARDWARE PALETTE I/O
+======================================================================
+Fastgraph palette routines at file offsets:
+  fg_getdacs: 0x0443C8 (reads from VGA port 0x3C7/0x3C9)
+  fg_setdacs: 0x04443A (writes to VGA port 0x3C8/0x3C9)
+  Palette buffer at segment:0x6268
+

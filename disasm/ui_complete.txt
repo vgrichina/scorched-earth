@@ -1,0 +1,1387 @@
+=== ALL STRINGS IN DATA REGION (0x055000-0x060000) ===
+  0x055049: 6$
+  0x05504E: 6-
+  0x055055: 69
+  0x05505E: &S
+  0x055062: _^]
+  0x055066: [ZYX
+  0x05506E: >1
+  0x055072: >-
+  0x055097: PQRS
+  0x05509C: UVW
+  0x0550A4: &S
+  0x0550BB: &P.
+  0x0550C9: PQ
+  0x0550F5: < u
+  0x0550FA: YX
+  0x055103: YX
+  0x05510E: !6
+  0x05511B: &S
+  0x05511F: _^]
+  0x055123: [ZYX6
+  0x055129: .a
+  0x055136: VW
+  0x055160: ^
+&
+  0x055199: _^
+  0x0551C5: xalloc
+  0x0551CF: sN
+  0x055207: xmsg
+  0x05521E: "VW
+  0x055246: tt
+  0x05525A: tP
+  0x055263: PPPP
+  0x05527A: YY
+  0x0552DC: _^
+  0x0552EA: sNTStringRef *
+  0x05531F: string::lengtherror
+  0x055335: sN
+  0x05536D: xalloc
+  0x055377: sN
+  0x0553AF: xmsg
+  0x0553E1: sN
+  0x0553E7: TStringRef
+  0x0553F5: sN
+  0x055421: TReference
+  0x05543B: VW
+  0x055460: tK
+  0x055470: u(
+  0x0554AB: YY
+  0x0554B5: _^
+  0x0554C0: (VW
+  0x0554DE: ;F
+  0x0554EC: u}3
+  0x0554F0: PPPP
+  0x0554FF: P3
+  0x055502: PP
+  0x055573: _^
+  0x05557E: (VW
+  0x05559C: ;F
+  0x0555AA: u}3
+  0x0555AE: PPPP
+  0x0555BD: P3
+  0x0555C0: PP
+  0x055631: _^
+  0x05563C: (VW
+  0x055657: ;F
+  0x055665: u}3
+  0x055669: PPPP
+  0x055678: P3
+  0x05567B: PP
+  0x0556EC: _^
+  0x0556F5: VW
+  0x055747: @P
+  0x05574A: @3
+  0x05576E: YY
+  0x0557D4: _^]
+  0x0557DE: VW
+  0x055803: t%
+  0x055811: 62
+  0x055815: YY
+  0x055828: YY
+  0x055832: _^
+  0x05583D: VW
+  0x055854: F
+@P
+  0x055868: +F
+  0x05586F: v'
+  0x055874: @P&
+  0x0558A0: _^
+  0x0558AB: VW
+  0x0558D0: +F
+  0x0558D7: v'
+  0x0558DC: @P&
+  0x055908: _^
+  0x055914: VW
+  0x055925: F
+&
+  0x05592F: @P&
+  0x055960: YY
+  0x05596A: _^
+  0x055975: VW
+  0x055990: +F
+  0x055995: H3
+  0x0559A8: X_^
+  0x0559B4: &VW
+  0x0559CC: +F
+  0x0559E2: ;F
+  0x0559FE: +F
+  0x055A05: v_&
+  0x055A0C: uX
+  0x055A11: @P
+  0x055A14: @3
+  0x055A36: YY
+  0x055A82: ;V
+  0x055A85: u;F
+  0x055A8F: ;F
+  0x055A92: t2
+  0x055A9B: +F
++F
+  0x055AA1: P&
+  0x055ACA: t>
+  0x055B03: QM
+  0x055B32: ;V
+  0x055B37: ;F
+  0x055B3A: t#
+  0x055B48: 62
+  0x055B4C: YY
+  0x055B67: _^
+  0x055B73: VW
+  0x055B84: _^
+  0x055B90: VW
+  0x055BA1: _^
+  0x055BAD: VW
+  0x055BBE: _^
+  0x055BCA: VW
+  0x055BDB: _^
+  0x055BE7: VW
+  0x055BF6: >~
+  0x055C05: _^
+  0x055C11: VW
+  0x055C22: _^
+  0x055C4E: string::lengtherror
+  0x055C64: sN
+  0x055C9C: xalloc
+  0x055CA6: sN
+  0x055CDE: xmsg
+  0x055D10: sN
+  0x055D16: string
+  0x055D50: string::outofrange
+  0x055D66: sN
+  0x055D84: NULL CHECK
+  0x055DA0: Borland C++ - Copyright 1993 Borland Intl.
+  0x055DCB: Divide error
+  0x055E12: %u
+  0x055E15: %4.4u
+  0x055E1B: %c.%ce%d
+  0x055E24: %4.4u
+  0x055E2C: %u
+  0x055E2F: %4.4u
+  0x055E3F: $tI
+  0x055E44: zD
+  0x055E48: HB
+  0x055E79: ?%d
+  0x055E7D: %d
+  0x055E83: MMMMMMMMMMMMMMM
+  0x055E95: %s:
+  0x055E99: %d
+  0x055E9C: $%ld/%d
+  0x055EAC: 8Og
+  0x055EB0: 8Ow
+  0x055EB4: 8O
+  0x055EB8: 8O
+  0x055EBC: 8O
+  0x055EC0: 8O
+  0x055EC4: 8O
+  0x055EC8: 8O
+  0x055ECC: 8OF
+  0x055ED0: 8O
+  0x055ED3: rt
+  0x055ED6: Register Scorch!
+  0x055EE7: Pay for Scorch!
+  0x055EF7: Support Shareware!
+  0x055F0A: Send a check to Sprig!
+  0x055F21: Buy now, play later!Scorch is Shareware!
+  0x055F4A: Don't forget to register!
+  0x055F64: What more do you want for $20?
+  0x055F83: Wow, only 20 bucks!
+  0x055F97: A registered user is a happy user... be happy!
+  0x055FC6: Registering shareware is cool.
+  0x055FE5: comments.cpp
+  0x055FF8: ,&A
+  0x055FFC: ,&
+  0x05601C: ]1A
+  0x056020: ]1
+  0x05602C: k;
+  0x056030: k;
+  0x056064: 8O
+  0x056068: 8O
+  0x05606C: 8O
+  0x056070: 8O
+  0x056074: 8O
+  0x056078: 8O
+  0x05607C: 8O
+  0x056080: Some dumb tank: %s
+  0x05609E: zDMAXPLAYERS
+  0x0560AB: MAXROUNDS
+  0x0560B5: SOUND
+  0x0560BB: FLY_SOUND
+  0x0560C5: GRAPHICS_MODE
+  0x0560D3: BIOS_KEYBOARD
+  0x0560E1: LOWMEM
+  0x0560E8: POINTER
+  0x0560F0: mouse
+  0x0560F6: joystick
+  0x0560FF: MOUSE_RATE
+  0x056111: @FIRE_DELAY
+  0x05611D: FALLING_DELAY
+  0x05612B: INTEREST_RATE
+  0x056141: ?333333
+  0x056149: ?INITIAL_CASH
+  0x056157: COMPUTERS_BUY
+  0x056165: FREE_MARKET
+  0x056171: SCORING
+  0x056179: AIR_VISCOSITY
+  0x05618F: FGRAVITY
+  0x0561A2: ASUSPEND_DIRT
+  0x0561B1: FALLING_TANKS
+  0x0561BF: EDGES_EXTEND
+  0x0561CC: ELASTIC
+  0x0561D4: SKY
+  0x0561D8: MAX_WIND
+  0x0561E1: CHANGING_WIND
+  0x0561EF: HOSTILE_ENVIRONMENT
+  0x056203: LAND1
+  0x056209: LAND2
+  0x05620F: FLATLAND
+  0x056218: RANDOM_LAND
+  0x056224: MTN_PERCENT
+  0x056233: BFAST_COMPUTERS
+  0x056243: TALKING_TANKS
+  0x056251: computers
+  0x05625B: all
+  0x05625F: TALK_PROBABILITY
+  0x056270: TALK_DELAY
+  0x05627B: ATTACK_COMMENTS
+  0x05628B: talk1.cfg
+  0x056295: DIE_COMMENTS
+  0x0562A2: talk2.cfg
+  0x0562AC: PLAY_MODE
+  0x0562B6: STATUS_BAR
+  0x0562C1: PLAY_ORDER
+  0x0562CC: TEAM_MODE
+  0x0562D6: ARMS
+  0x0562DB: BOMB_ICON
+  0x0562E5: TUNNELLING
+  0x0562F0: EXPLOSION_SCALE
+  0x056300: TRACE
+  0x056306: EXTRA_DIRT
+  0x056311: USELESS_ITEMS
+  0x05631F: DAMAGE_TANKS_ON_IMPACT
+  0x056339: ; scorch.cfg
+  0x056347: ; Configuration File for Scorched Earth Version %s
+  0x05637B: 1.50
+  0x056380: ; Copyright (c) 1991-1995 Wendell Hicken
+  0x0563AA: ; Feel free to copy and modify this file for your own use.
+  0x0563E9: ; Lines beginning with a semicolon (like this one) are comments.
+  0x05642B: ; Numbers in brackets, like [3] represent the default value of a given
+  0x056473: ; option, numbers like 2..10 represent the valid range (2 thru 10 inclusive)
+  0x0564C1: ; You don't need to know this, though, just use the Scorched Earth menus!
+  0x05650F: MAXPLAYERS=%d
+  0x05651E: MAXROUNDS=%d
+  0x05652C: SOUND=%s
+  0x056536: FLY_SOUND=%s
+  0x056544: GRAPHICS_MODE=%s
+  0x056556: BIOS_KEYBOARD=%s
+  0x056568: LOWMEM=%s
+  0x056573: POINTER=%s
+  0x05657F: mouse
+  0x056585: joystick
+  0x05658E: none
+  0x056593: MOUSE_RATE=%.2lf
+  0x0565A5: FIRE_DELAY=%d
+  0x0565B4: FALLING_DELAY=%d
+  0x0565C6: INTEREST_RATE=%lf
+  0x0565D9: INITIAL_CASH=%ld
+  0x0565EB: COMPUTERS_BUY=%s
+  0x0565FD: FREE_MARKET=%s
+  0x05660D: SCORING=%s
+  0x056619: AIR_VISCOSITY=%d
+  0x05662B: GRAVITY=%lf
+  0x056638: SUSPEND_DIRT=%d
+  0x056649: FALLING_TANKS=%s
+  0x05665B: EDGES_EXTEND=%d
+  0x05666C: ELASTIC=%s
+  0x056678: SKY=%s
+  0x056680: MAX_WIND=%d
+  0x05668D: CHANGING_WIND=%s
+  0x05669F: HOSTILE_ENVIRONMENT=%s
+  0x0566B7: LAND1=%d
+  0x0566C1: LAND2=%d
+  0x0566CB: FLATLAND=%s
+  0x0566D8: RANDOM_LAND=%s
+  0x0566E8: MTN_PERCENT=%f
+  0x0566F8: FAST_COMPUTERS=%s
+  0x05670B: TALKING_TANKS=%s
+  0x05671D: TALK_PROBABILITY=%d
+  0x056732: TALK_DELAY=%d
+  0x056741: ATTACK_COMMENTS=%s
+  0x056755: DIE_COMMENTS=%s
+  0x056766: PLAY_MODE=%s
+  0x056774: STATUS_BAR=%s
+  0x056783: PLAY_ORDER=%s
+  0x056792: TEAM_MODE=%s
+  0x0567A0: ARMS=%d
+  0x0567A9: BOMB_ICON=%s
+  0x0567B7: TUNNELLING=%s
+  0x0567C6: EXPLOSION_SCALE=%s
+  0x0567DA: TRACE=%s
+  0x0567E4: EXTRA_DIRT=%s
+  0x0567F3: USELESS_ITEMS=%s
+  0x056805: DAMAGE_TANKS_ON_IMPACT=%s
+  0x05682A: rt
+  0x05682D: at+
+  0x056833: .bak
+  0x056838: .bak
+  0x05683D: rt
+  0x056840: wt
+  0x056843: %s
+  0x056847: .bak
+  0x05684C: .bak
+  0x056851: w+t
+  0x05697D: Thank you for playing the shareware version of Scorched Earth.  If you enjoy
+  0x0569CD: this game (and don't we all?), you are encouraged to register it.
+  0x056A6D: Basic registration costs $20, and includes a disk with the registered
+  0x056ABD: version - including 25 new mountains and enabling the triple-turreted tank.
+  0x056B0D: Deluxe registration costs $30, and includes the above, plus a printed,
+  0x056B5D: illustrated copy of the manual.
+  0x056BFD: For more information, consult the files README and ORDER.FRM
+  0x056C9D: Scorch HQ can be reached at:
+  0x056D3D: Wendell Hicken                Internet  : whicken@itis.com
+  0x056D8D: P.O. Box 1215                 Ftp Site  : tower.itis.com/pub/scorch
+  0x056DDD: Whittier, CA 90609-1215       Web Site  : http://tower.itis.com/scorch
+  0x056ED0: %s
+  0x056ED8: %s%*s
+  0x056EEC: %s%*s
+  0x056F00: %s%*s
+  0x056F14: %*s - %s
+  0x056FEB: =(
+  0x05701F: =K
+  0x05725B: /-
+  0x05728E: v/
+  0x0572C2: v/
+  0x0572F6: v/
+  0x05732A: v/-
+  0x057426: nA
+  0x0575C6: (#
+  0x0575CE: p'
+  0x057836: 0u
+  0x05793A: equip.cpp
+  0x057944: Failed to identify item
+  0x05799C: %d
+  0x05799F: %d
+  0x0579A2: %d
+  0x0579A5: %2d
+  0x0579A9: 99
+  0x0579AC: %s: %d
+  0x0579B5: %s: %d
+  0x0579BC: %d
+  0x0579BF: ~s
+  0x0579C2: 1000
+  0x0579C7: extras.cpp
+  0x0579D2: %2d
+  0x0579D6: (%s)
+  0x0579DB: %d
+  0x0579DE: %4d
+  0x0579E2: %d
+  0x0579EC: HC
+  0x057A19: @t
+  0x057A1C: //
+  0x057A25: ?BogoMips: %ld %ld
+  0x057A39: Getting MIPS
+  0x057A4B: Bd=%lf  FireDelay=%d  WarheadsLeft=%d
+  0x057A74: HB
+  0x057A78: B{
+  0x057A81: ?done
+  0x057A8F: ?R
+  0x057A97: ?\
+  0x057A9C: (\
+  0x057AAD: $tI
+  0x057AB2: zD
+  0x057AD6: @?
+  0x057ADF: @ffffff
+  0x057AEC: MbP?
+  0x057AFC: FIREWALL_FATAL
+  0x057B0B: ****************************************
+  0x057B35: ** %d firewall%s triggered!
+  0x057B52: was
+  0x057B57: s were
+  0x057B5E: ****************************************
+  0x057B88: ### FIREWALL: Exception caught at "%s", line %ld.
+  0x057BBB: ### FIREWALL: Exception caught at "%s", line %ld.
+  0x057BEE: %s
+  0x057BFC: Bad category %s: must start with alphabetic char
+  0x057C2E: ### DEBUG INFO:
+  0x057C3F: %s
+  0x057C43: Unable to allocate memory.
+  0x057C63: Bad category %s: must start with alphabetic char
+  0x057C95: Unable to allocate memory.
+  0x057CB4: scorch.dbg
+  0x057CBF: scorch.dbg
+  0x057CCA: wt
+  0x057CCD: DEBUG_OPT
+  0x057CE1: A?
+  0x057D05: $8O
+  0x057D09: $8O
+  0x057D0D: $8O*$8O7$8O?$8OI$8ON$8OW$8Ob$8Og$8Ot$8O{$8O
+  0x057D39: $8O
+  0x057D3D: $8O
+  0x057D41: $8O
+  0x057D45: $8O
+  0x057D49: $8O
+  0x057D4D: $8O
+  0x057D51: $8O
+  0x057D55: $8O
+  0x057D59: $8O
+  0x057D5D: $8O
+  0x057D61: $8O
+  0x057D65: %8O
+  0x057D69: %8O
+  0x057D6D: %8O%%8O-%8O;%8OE%8OO%8O[%8Og%8Os%8O~%8O
+  0x057D95: %8O
+  0x057D99: %8O
+  0x057D9D: %8O
+  0x057DA1: %8O
+  0x057DA5: %8O
+  0x057DA9: %8O
+  0x057DAD: %8O
+  0x057DB1: %8O
+  0x057DB5: %8O
+  0x057DB9: %8O
+  0x057DBD: %8O&8O
+  0x057DC5: &8O &8O0&8O?&8OL&8OY&8Oc&8Ot&8O
+  0x057DE5: &8O
+  0x057DE9: &8O
+  0x057DED: &8O
+  0x057DF1: &8O
+  0x057DF5: &8O
+  0x057DF9: &8O
+  0x057DFD: &8O
+  0x057E01: &8O
+  0x057E05: &8O
+  0x057E09: &8O
+  0x057E0D: &8O
+  0x057E11: &8O
+  0x057E15: '8O
+  0x057E19: '8O
+  0x057E1D: '8O
+  0x057E21: '8O#'8O.'8O6'8O?'8OH'8OP'8OY'8O]'8Ob'8Ok'8Oo'8Or'8Ox'8O
+  0x057E59: '8O
+  0x057E5D: '8O
+  0x057E61: '8O
+  0x057E65: '8O
+  0x057E69: '8O
+  0x057E6D: '8O
+  0x057E71: '8O
+  0x057E75: '8O
+  0x057E79: '8O
+  0x057E7D: '8O
+  0x057E81: '8O
+  0x057E85: '8O
+  0x057E89: '8O
+  0x057E8D: '8O
+  0x057E91: '8O
+  0x057E95: '8O
+  0x057E99: '8O
+  0x057E9D: '8O
+  0x057EA1: (8O
+  0x057EA5: (8O
+  0x057EA9: (8O'(8O.(8O8(8OA(8OK(8OX(8Of(8Ot(8O
+  0x057ECD: (8O
+  0x057ED1: (8O
+  0x057ED5: (8O
+  0x057ED9: (8O
+  0x057EDD: (8O
+  0x057EE1: (8O
+  0x057EE5: (8O
+  0x057EE9: (8O
+  0x057EED: (8O
+  0x057EF1: (8O
+  0x057EF5: )8O
+  0x057EF9: )8O/)8O?)8ON)8O[)8Oj)8Ov)8O~)8O
+  0x057F19: )8O
+  0x057F1D: )8O
+  0x057F21: )8O
+  0x057F25: )8O
+  0x057F29: )8O
+  0x057F2D: )8O
+  0x057F31: )8O
+  0x057F35: )8O
+  0x057F39: )8O
+  0x057F3D: *8O
+  0x057F41: *8O%*8O0*8O<*8OK*8OX*8Od*8Oo*8Ow*8O
+  0x057F65: *8O
+  0x057F69: *8O
+  0x057F6D: *8O
+  0x057F71: *8O
+  0x057F75: *8O
+  0x057F79: *8O
+  0x057F7D: *8O
+  0x057F81: *8O
+  0x057F85: *8O
+  0x057F89: *8O
+  0x057F8D: *8O
+  0x057F91: *8O
+  0x057F95: +8O
+  0x057F99: +8O
+  0x057F9D: +8O
+  0x057FA1: +8O"+8O.+8O<+8OG+8OR+8Oc+8Ou+8O
+  0x057FC1: +8O
+  0x057FC5: +8O
+  0x057FC9: +8O
+  0x057FCD: +8O
+  0x057FD1: +8O
+  0x057FD5: +8O
+  0x057FD9: +8O
+  0x057FDD: +8O
+  0x057FE1: ,8O
+  0x057FE5: ,8O+,8O;,8OA,8OI,8OW,8O],8On,8Oz,8O
+  0x058009: ,8O
+  0x05800D: ,8O
+  0x058011: ,8O
+  0x058015: ,8O
+  0x058019: ,8O
+  0x05801D: ,8O
+  0x058021: ,8O
+  0x058025: ,8O
+  0x058029: ,8O
+  0x05802D: ,8O
+  0x058031: ,8O
+  0x058035: -8O
+  0x058039: -8O!-8O+-8O/-8O5-8O>-8OH-8OU-8Oe-8Oz-8O
+  0x058061: -8O
+  0x058065: -8O
+  0x058069: -8O
+  0x05806D: -8O
+  0x058071: -8O
+  0x058075: -8O
+  0x058079: -8O
+  0x05807D: -8O
+  0x058081: -8O
+  0x058085: -8O
+  0x058089: -8O
+  0x05808D: .8O
+  0x058091: .8O
+  0x058095: .8O&.8O*.8O9.8OA.8OH.8OM.8O[.8Og.8Oq.8O{.8O
+  0x0580C1: .8O
+  0x0580C5: .8O
+  0x0580C9: .8O
+  0x0580CD: .8O
+  0x0580D1: .8O
+  0x0580D5: .8O
+  0x0580D9: .8O
+  0x0580DD: .8O
+  0x0580E1: .8O
+  0x0580E5: .8O
+  0x0580E9: .8O
+  0x0580ED: /8O
+  0x0580F1: /8O%/8O)/8O//8O9/8ON/8O]/8Ow/8O
+  0x058111: /8O
+  0x058115: /8O
+  0x058119: /8O
+  0x05811D: /8O
+  0x058121: /8O
+  0x058125: /8O
+  0x058129: 08O
+  0x05812D: 08O-08OG08OX08Os08O
+  0x058141: 08O
+  0x058145: 08O
+  0x058149: 08O
+  0x05814D: 08O
+  0x058151: 08O
+  0x058155: 18O)18OB18OJ18OX18On18O
+  0x05816D: 18O
+  0x058171: 18O
+  0x058175: 18O
+  0x058179: 18O
+  0x05817D: 18O
+  0x058181: 18O
+  0x058185: 18OTeleporter
+  0x058193: Jump Jets
+  0x05819D: Popcorn Bomb
+  0x0581AA: Baby Missile
+  0x0581B7: Missile
+  0x0581BF: Baby Nuke
+  0x0581C9: Nuke
+  0x0581CE: LeapFrog
+  0x0581D7: Funky Bomb
+  0x0581E2: MIRV
+  0x0581E7: Death's Head
+  0x0581F4: Napalm
+  0x0581FB: Hot Napalm
+  0x058206: Tracer
+  0x05820D: Smoke Tracer
+  0x05821A: Baby Roller
+  0x058226: Roller
+  0x05822D: Heavy Roller
+  0x05823A: Plasma Blast
+  0x058247: Riot Charge
+  0x058253: Riot Blast
+  0x05825E: Riot Bomb
+  0x058268: Heavy Riot Bomb
+  0x058278: Baby Digger
+  0x058284: Digger
+  0x05828B: Heavy Digger
+  0x058298: Baby Sandhog
+  0x0582A5: Sandhog
+  0x0582AD: Heavy Sandhog
+  0x0582BB: Dirt Clod
+  0x0582C5: Dirt Ball
+  0x0582CF: Ton of Dirt
+  0x0582DB: Liquid Dirt
+  0x0582E7: Dirt Charge
+  0x0582F3: Dirt Tower
+  0x0582FE: Earth Disrupter
+  0x05830E: Laser
+  0x058314: Plasma Laser
+  0x058321: Heat Guidance
+  0x05832F: Bal Guidance
+  0x05833C: Horz Guidance
+  0x05834A: Vert Guidance
+  0x058358: Lazy Boy
+  0x058361: Parachute
+  0x05836B: Battery
+  0x058373: ~Batteries:
+  0x05837F: Mag Deflector
+  0x05838D: Shield
+  0x058394: Warp Shield
+  0x0583A0: Teleport Shield
+  0x0583B0: Flicker Shield
+  0x0583BF: Force Shield
+  0x0583CC: Heavy Shield
+  0x0583D9: Super Mag
+  0x0583E3: Patriot Missiles
+  0x0583F4: Auto Defense
+  0x058401: Fuel Tank
+  0x05840B: Contact Trigger
+  0x05841B: Scorched Earth
+  0x05842A: The Mother of All Games
+  0x058442: Moron
+  0x058448: Shooter
+  0x058450: Poolshark
+  0x05845A: Tosser
+  0x058461: Chooser
+  0x058469: Spoiler
+  0x058471: Cyborg
+  0x058478: Unknown
+  0x058480: Sentient
+  0x058489: Sentient?
+  0x058493: ~Moron
+  0x05849A: S~hooter
+  0x0584A3: ~Poolshark
+  0x0584AE: ~Tosser
+  0x0584B6: ~Chooser
+  0x0584BF: ~Spoiler
+  0x0584C8: C~yborg
+  0x0584D0: ~Unknown
+  0x0584D9: $%s
+  0x0584DD: Cash
+  0x0584E2: Rankings
+  0x0584EB: Off
+  0x0584EF: On
+  0x0584F2: Basic
+  0x0584F8: Greedy
+  0x0584FF: Erratic
+  0x058507: Random
+  0x05850E: Wrap-around
+  0x05851A: Padded
+  0x058521: Rubber
+  0x058528: Spring
+  0x05852F: Concrete
+  0x058538: Small
+  0x05853E: Big
+  0x058542: Invisible
+  0x05854C: Normal
+  0x058553: Medium
+  0x05855A: Large
+  0x058560: Standard
+  0x058569: Vel
+  0x05856D: Pos
+  0x058571: Corporate
+  0x05857B: Vicious
+  0x058583: Sequential
+  0x05858E: Simultaneous
+  0x05859B: Synchronous
+  0x0585A7: ~Start
+  0x0585AE: ~Players:
+  0x0585B8: ~Rounds:
+  0x0585C1: S~ound...
+  0x0585CB: ~Hardware...
+  0x0585D8: ~Economics...
+  0x0585E6: ~Landscape...
+  0x0585F4: Ph~ysics...
+  0x058600: Play Op~tions...
+  0x058611: ~Weapons...
+  0x05861D: Save ~Changes
+  0x05862B: ~Sound:
+  0x058633: ~Flight Sounds:
+  0x058643: ~Graphics Mode:
+  0x058653: ~Bios Keyboard
+  0x058662: ~Small Memory
+  0x058670: ~Mouse Enabled
+  0x05867F: ~Firing Delay:
+  0x05868E: ~Hardware Delay:
+  0x05869F: ~Interest Rate:
+  0x0586AF: ~Cash at Start:
+  0x0586BF: Computers ~Buy
+  0x0586CE: ~Free Market
+  0x0586DB: ~Scoring Mode:
+  0x0586EA: ~Bumpiness:
+  0x0586F6: S~lope:
+  0x0586FE: ~Flatten Peaks
+  0x05870D: ~Random Land
+  0x05871A: ~Air Viscosity:
+  0x05872A: ~Gravity:
+  0x058734: ~Borders Extend:
+  0x058745: ~Effect of Walls:
+  0x058757: ~Suspend Dirt:
+  0x058766: ~Sky:
+  0x05876C: ~Max. Wind:
+  0x058778: ~Changing Wind
+  0x058787: Ta~lking Tanks:
+  0x058797: ~Attack File:
+  0x0587A5: ~Die File:
+  0x0587B0: Tanks ~Fall
+  0x0587BC: ~Impact Damage
+  0x0587CB: ~Arms Level:
+  0x0587D8: ~Bomb Icon:
+  0x0587E4: ~Tunneling
+  0x0587EF: ~Scale:
+  0x0587F7: Trace ~Paths
+  0x058804: ~Extra Dirt
+  0x058810: ~Useless Items
+  0x05881F: Final Scoring
+  0x05882D: Initializing code... one moment.
+  0x05884E: Player
+  0x058855: ~Computer
+  0x05885F: ~Person
+  0x058867: Name
+  0x05886C: ~Name
+  0x058872: ~Type
+  0x058878: Power
+  0x05887E: Angle
+  0x058884: Wind
+  0x058889: No Wind
+  0x058891: deployed
+  0x05889A: passive
+  0x0588A2: System Menu
+  0x0588AE: ~Clear Screen
+  0x0588BC: ~Mass Kill
+  0x0588C7: ~Quit Game
+  0x0588D2: Reassign Players
+  0x0588E3: Reassign ~Players
+  0x0588F5: Reassign ~Teams
+  0x058905: Save ~Game
+  0x058910: ~Restore Game
+  0x05891E: ~New Game
+  0x058928: Do you want to retreat?
+  0x058940: ~Yes
+  0x058945: ~No
+  0x058949: Do you want to quit?
+  0x05895E: Do you really want to restart the game?
+  0x058986: Mass kill everyone?
+  0x05899A: %s rounds remain
+  0x0589AB: 1 round remains
+  0x0589BB: Score
+  0x0589C1: Weapons
+  0x0589C9: Miscellaneous
+  0x0589D7: ~Done
+  0x0589DD: Remaining Power:
+  0x0589EE: Energy Left
+  0x0589FA: None
+  0x0589FF: Guidance
+  0x058A08: ~Fuel Remaining:
+  0x058A19: ~Hostile Environment
+  0x058A2E: ~Language
+  0x058A38: Status ~Bar
+  0x058A44: ~Icon Bar
+  0x058A4E: Choose Target
+  0x058A5C: Mass Kill
+  0x058A66: No Winner
+  0x058A70: Inventory
+  0x058A7A: Losers-First
+  0x058A87: Winners-First
+  0x058A95: Round-Robin
+  0x058AA1: Computers
+  0x058AAB: All
+  0x058AAF: Mouse
+  0x058AB5: Joystick
+  0x058ABE: ~Pointer:
+  0x058AC8: ~Mouse Rate:
+  0x058AD5: ~Joystick Rate:
+  0x058AE5: Joystick ~Threshold:
+  0x058AFA: Falling ~Delay:
+  0x058B0A: ~Calibrate Joystick
+  0x058B1E: ~Fast Computers
+  0x058B2E: Talk ~Probability:
+  0x058B41: ~Mode:
+  0x058B48: Play ~Order:
+  0x058B55: ~Teams:
+  0x058B5D: Cash Left:
+  0x058B68: Plain
+  0x058B6E: Shaded
+  0x058B75: Stars
+  0x058B7B: Storm
+  0x058B81: Sunset
+  0x058B88: Black
+  0x058B8E: Preparing Next Level...
+  0x058BA6: ~Ok
+  0x058BAA: NO KIBITZING!!
+  0x058BB9: ~Update
+  0x058BC1: Update
+  0x058BC8: Fuel
+  0x058BCD: Identify Tank
+  0x058BDB: ~Parachutes
+  0x058BE7: ~Triggers
+  0x058BF1: ~Guidance
+  0x058BFB: Description
+  0x058C07: Amount in stock
+  0x058C17: ~Quantity to sell:
+  0x058C2A: Offer
+  0x058C30: Sell Equipment
+  0x058C3F: ~Accept
+  0x058C47: ~Reject
+  0x058C4F: Configure Teams
+  0x058C5F: Earned interest
+  0x058C6F: ~Inventory
+  0x058C7A: Max
+  0x058C7E: Shields
+  0x058C86: Batteries to discharge:
+  0x058C9E: Engage
+  0x058CA5: ~Go
+  0x058CA9: ~Quit
+  0x058CAF: New ~Game
+  0x058CB9: Saving Configuration
+  0x058CCE: Please Wait...
+  0x058CDD: Internal Error... sorry!
+  0x058CF7: Out of memory... needed %ld byte%s.
+  0x058D1C: Automatic Defense System
+  0x058D35: ~Energy Left
+  0x058D42: ~Launch
+  0x058D4A: Unable to open file "%s".
+  0x058D64: Thanks for registering!
+  0x058D7C: Walls
+  0x058D82: %d of %d rounds fought.
+  0x058D9A: Calibrate Joystick
+  0x058DAD: Center joystick and press
+  0x058DC7: the fire button.
+  0x058DD8: (Press any key to cancel.)
+  0x058DF3: You seriously want to disgrace
+  0x058E12: and humiliate yourself
+  0x058E29: by retreating?
+  0x058E38: ~File:
+  0x058E3F: File "%s" exists.  Delete it?
+  0x058E5D: Error trying to rename file "%s" to "%s"!
+  0x058E87: Error trying to create file "%s"!
+  0x058EA9: File "%s" doesn't exist!
+  0x058EC2: ~Cancel
+  0x058ECA: Error Message
+  0x058ED8: Save Game in Progress
+  0x058EEE: Restore a Previous Game
+  0x058F06: ~Save
+  0x058F0C: ~Restore
+  0x058F15: "%s" is not a saved game.
+  0x058F2F: File "%s" was created by a different version.
+  0x058F5D: Version
+  0x058F65: (of %d)
+  0x058F6D: Cavern
+  0x058F9A: HB
+  0x058FA0: MbP?
+  0x058FA9: `jF
+  0x058FB5: @n
+  0x05AD16: icons.cpp
+  0x05AD20: icons.cpp
+  0x05AD2A: icons.cpp
+  0x05AD34: icons.cpp
+  0x05AD3E: icons.cpp
+  0x05AD4A: %s: %d
+  0x05AD51: %s: %s
+  0x05AD58: Team %d
+  0x05AD8E: %s %d %s
+  0x05AD97: ~S
+  0x05AD9A: ~I
+  0x05AD9E: ~I
+  0x05ADA1: %s:
+  0x05ADDA: %s: %d
+  0x05ADE1: %s: %d
+  0x05ADE8: %s
+  0x05ADF2: :"
+  0x05ADFA: D,b:"w:"
+  0x05AE06: :"
+  0x05AE0C: h
+:"
+  0x05AE12: :"
+  0x05AE16: :"2:"
+  0x05AE26: :"
+  0x05AE2A: :"
+  0x05AE38: @@n
+  0x05AE44: pA
+  0x05AE48: zD
+  0x05AF2A: ASGARD
+  0x05AF31: frondheim
+  0x05AF3B: ragnarok
+  0x05AF44: scorch.cfg
+  0x05AF4F: %s %s Copyright (c) 1991-1995 Wendell Hicken
+  0x05AF7D: 1.50
+  0x05AF82: mayhem
+  0x05AF89: nofloat
+  0x05AF92: <<Press any key>>
+  0x05AFC8: r#]
+  0x05AFCE: L@
+  0x05AFD6: @?
+  0x05AFDE: @@ffffff
+  0x05AFEF: ?scorch.mkt
+  0x05AFFB: rb
+  0x05AFFE: scorch.mkt
+  0x05B009: scorch.mkt
+  0x05B014: ab
+  0x05B120: %s: %d
+  0x05B127: %s: %d
+  0x05B12F: T8O
+  0x05B133: T8O
+  0x05B137: T8O
+  0x05B13B: T8O
+  0x05B13F: T8O
+  0x05B143: T8O
+  0x05B147: T8O
+  0x05B14B: T8O
+  0x05B14F: T8O
+  0x05B153: T8O
+  0x05B157: T8O
+  0x05B15B: T8O
+  0x05B15F: T8O
+  0x05B163: U8O
+  0x05B167: U8O
+  0x05B16B: U8O
+  0x05B16F: U8O
+  0x05B173: U8O U8O$U8O)U8O-U8O3U8O9U8O>U8ODU8OKU8OSU8OXU8O_U8OhU8OoU8OvU8O{U8O
+  0x05B1B7: U8O
+  0x05B1BB: U8O
+  0x05B1BF: U8O
+  0x05B1C3: U8O
+  0x05B1C7: U8O
+  0x05B1CB: U8O
+  0x05B1CF: U8O
+  0x05B1D3: U8O
+  0x05B1D7: U8O
+  0x05B1DB: U8O
+  0x05B1DF: U8O
+  0x05B1E3: U8O
+  0x05B1E7: U8O
+  0x05B1EB: U8O
+  0x05B1EF: U8O
+  0x05B1F3: U8O
+  0x05B1F7: U8O
+  0x05B1FB: V8OV8O
+  0x05B203: V8O
+  0x05B207: V8O*V8O1V8O8V8O?V8OHV8ONV8OTV8OYV8OaV8OgV8OoV8OwV8OBob
+  0x05B23E: Joe
+  0x05B242: Ralph
+  0x05B248: Fred
+  0x05B24D: Max
+  0x05B251: George
+  0x05B258: Wolfgang
+  0x05B261: Pepe
+  0x05B266: Ronald
+  0x05B26D: Arnold
+  0x05B274: Chuck
+  0x05B27A: Doug
+  0x05B27F: Edward
+  0x05B286: Hank
+  0x05B28B: Jacque
+  0x05B292: Lou
+  0x05B296: Norm
+  0x05B29B: Otto
+  0x05B2A0: Ted
+  0x05B2A4: Ajax
+  0x05B2A9: Sam
+  0x05B2AD: Frank
+  0x05B2B3: Bubba
+  0x05B2B9: Biff
+  0x05B2BE: Leroy
+  0x05B2C4: Newton
+  0x05B2CB: Galileo
+  0x05B2D3: Bach
+  0x05B2D8: Mozart
+  0x05B2DF: Gilligan
+  0x05B2E8: Saddam
+  0x05B2EF: Atilla
+  0x05B2F6: Tito
+  0x05B2FB: Castro
+  0x05B302: Khadafi
+  0x05B30A: Amin
+  0x05B30F: Cleopatra
+  0x05B319: Mussolini
+  0x05B323: Napolean
+  0x05B32C: Juan
+  0x05B331: Barbarella
+  0x05B33C: Antoinette
+  0x05B347: Helen
+  0x05B34D: Elizabeth
+  0x05B357: Mary
+  0x05B35C: Diane
+  0x05B362: Zoe
+  0x05B366: Persephone
+  0x05B371: Esther
+  0x05B378: Rose
+  0x05B37D: Mata Hari
+  0x05B387: Moria
+  0x05B38D: Bethsheba
+  0x05B397: Jezebel
+  0x05B39F: Guineverre
+  0x05B3AA: Godiva
+  0x05B3B1: Medusa
+  0x05B3B8: Elvira
+  0x05B3BF: Roseanne
+  0x05B3C8: Sonja
+  0x05B3CE: Charo
+  0x05B3D4: Cher
+  0x05B3D9: Madonna
+  0x05B3E1: Grace
+  0x05B3E7: Bubbles
+  0x05B3EF: Tiffany
+  0x05B3F7: Angie
+  0x05B408: HB
+  0x05B4B2: play.cpp
+  0x05B4BB: Current weapon <= 0 in TankPlays
+  0x05B4DC: scorch.pcx
+  0x05B4EC: %s:
+  0x05B4F0: %s:
+  0x05B4F4: %s:
+  0x05B4F8: 8888
+  0x05B4FE: 99
+  0x05B503: MMMMMMMMMMMMMMM
+  0x05B515: 8888
+  0x05B51B: 99
+  0x05B51F: 99
+  0x05B523: 100%
+  0x05B529: 99
+  0x05B52D: 999
+  0x05B532: %s:
+  0x05B536: %4d
+  0x05B53A: %s:
+  0x05B53E: %2d
+  0x05B542: %s
+  0x05B545: %d: %s
+  0x05B54C: %s:
+  0x05B550: %2d
+  0x05B554: %2d
+  0x05B558: %s
+  0x05B55B: %d: %s
+  0x05B5A7: ?Joe
+  0x05B5AC: %4d
+  0x05B5B3: B%4ld
+  0x05B5B9: player.cpp
+  0x05B5C4: player.cpp
+  0x05B5D0: %2d
+  0x05B5D4: player.cpp
+  0x05B5E5: X8O4Y8OLY8O
+  0x05B5F1: Y8O
+  0x05B5F5: Y8O
+  0x05B5F9: Y8O
+  0x05B5FD: Y8O
+  0x05B601: Y8O
+  0x05B605: Z8O
+  0x05B609: Z8O
+  0x05B60D: Z8Ob[8Oo[8O
+  0x05B619: [8O
+  0x05B61D: [8O
+  0x05B621: [8O
+  0x05B625: \8Ov\8O
+  0x05B62D: \8O
+  0x05B631: \8O
+  0x05B635: ]8OS]8Ob]8O
+  0x05B641: ]8O
+  0x05B645: ]8O(^8O6^8O`^8Oo^8O
+  0x05B659: ^8OThere's many a boy here today who looks on war as all glory,
+but, boys, it is all hell.
+  0x05B6B4: Gen. William T. Sherman
+  0x05B6CC: The essence of war is violence.  Moderation in war is imbecility.
+  0x05B70E: Fisher
+  0x05B715: War is the science of destruction.
+  0x05B738: John Abbott
+  0x05B744: Providence is always on the side of the big battalions.
+  0x05B77C: Sevigne
+  0x05B784: War is a matter of vital importance to the State; the province of
+life or death; the road to survival or ruin.  It is mandatory that
+it be throughly studied.
+  0x05B822: Sun Tzu
+  0x05B82A: War should be the only study of a prince.  He should consider
+peace only as a breathing-time, which gives him leisure to
+contrive, and furnishes as ability to execute, military plans.
+  0x05B8E2: Macchiavelli
+  0x05B8EF: Not with dreams but with blood and iron,
+Shall a nation be moulded at last.
+  0x05B93B: Swinburne
+  0x05B945: No one can guarantee success in war, but only deserve it.
+  0x05B97F: Winston Churchill
+  0x05B991: The grim fact is that we prepare for war like precocious giants
+and for peace like retarded pygmies.
+  0x05B9F6: Lester Pearson
+  0x05BA05: We cannot live by power, and a culture that seeks to live
+by it becomes brutal and sterile.  But we can die without it.
+  0x05BA7D: Max Lerner
+  0x05BA88: No man is wise enough, nor good enough to be trusted with
+unlimited power.
+  0x05BAD3: Charles Colton
+  0x05BAE2: Nothing good ever comes of violence.
+  0x05BB07: Martin Luther
+  0x05BB15: Give me the money that has been spent in war, and ... I will
+clothe every man, woman and child in attire of which kings and
+queens would be proud.
+  0x05BBA8: Henry Richard
+  0x05BBB6: That mad game the world so loves to play.
+  0x05BBE0: Jonathon Swift
+  0x05BBEF: Nearly all men can stand adversity, but if you want to test a man's
+character, give him power.
+  0x05BC4E: Abraham Lincoln
+  0x05BC80: MbP?Z_8O
+  0x05BC8C: e_8O
+  0x05BC94: p_8O
+  0x05BC9C: {_8O
+  0x05BCA5: _8O
+  0x05BCAD: _8O
+  0x05BCB5: _8O
+  0x05BCBD: _8O'
+  0x05BCC5: _8O
+  0x05BCCD: _8O>
+  0x05BCDA: ice001.mtn
+  0x05BCE5: ice002.mtn
+  0x05BCF0: ice003.mtn
+  0x05BCFB: rock001.mtn
+  0x05BD07: rock002.mtn
+  0x05BD13: rock003.mtn
+  0x05BD1F: rock004.mtn
+  0x05BD2B: rock005.mtn
+  0x05BD37: rock006.mtn
+  0x05BD43: snow001.mtn
+  0x05BD4F: rb
+  0x05BD52: *.mtn
+  0x05BD58: rb
+  0x05BD5B: ranges.cpp
+  0x05BD66: bad case in find_mtn_file
+  0x05BD80: N mtn files: %d
+  0x05BD91: N mtn files: %d
+  0x05BDA4: 9 tanks
+  0x05BDAC: #%d
+  0x05BDB0: %d tank%s
+  0x05BDBD: %d
+  0x05BDC2: Player Rankings
+  0x05BDD2: #%d
+  0x05BDD6: %d
+  0x05BDDB: ~Teams
+  0x05BDE3: Team Rankings
+  0x05BDF1: ~Players
+  0x05BDFA: ~Teams
+  0x05BE01: ~Players
+  0x05BE0A: T~ype
+  0x05BE10: T~ype
+  0x05BE16: ~Players
+  0x05BE1F: ~Teams
+  0x05BE28: Minimum
+  0x05BE30: 1~0
+  0x05BE34: ~%d
+  0x05BE70: 333333
+  0x05BE77: ?$
+  0x05BE87: ?333333
+  0x05BE9E: HB$a8Oscorch
+  0x05BEAB: ab
+  0x05BEAE: rb
+  0x05BEB2: score.cpp
+  0x05BECB: ?%s: %s
+  0x05BED3: %s: %d
+  0x05BEDA: shark.cpp
+  0x05BEE4: r#]
+  0x05BEEA: L@
+  0x05BF4C: la8O|a8O
+  0x05BF55: a8O
+  0x05BF59: a8O
+  0x05BF5D: a8O
+  0x05BF61: a8O
+  0x05BF66: shields.cpp
+  0x05BF72: shields.cpp
+  0x05BF7E: %s activating %s
+  0x05BF90: r#]
+  0x05BF96: L@
+  0x05BFE6: |B
+  0x05BFF2: 4B
+  0x05C09A: Too many drivers in SubMenu.
+  0x05C0CE: zD{
+  0x05C0D7: ?333333
+  0x05C0E5: $tI
+  0x05C103: @~Percent Scanned Mountains:
+  0x05C123: @Graphics mode changed!
+  0x05C13E: Copyright (c) 1991-1995 Wendell Hicken
+  0x05C165: Registered Version
+  0x05C178: TED
+  0x05C17D: Registered Version
+  0x05C190: TED
+  0x05C195: Copyright (c) 1991-1995 Wendell Hicken
+  0x05C1BC: Copyright (c) 1991-1995
+  0x05C1D4: Wendell Hicken
+  0x05C1E3: %s %s
+  0x05C1E9: 1.50
+  0x05C1EE: %d
+  0x05C1F1: %d%%
+  0x05C1F6: %d
+  0x05C1F9: %3d
+  0x05C1FD: %2d
+  0x05C204: %d
+  0x05C207: %d
+  0x05C20A: %d
+  0x05C210: %s
+  0x05C285: ccc
+  0x05C2F4: ccc
+  0x05C354: ccc
+  0x05C3BD: ccc
+  0x05C408: ccc
+  0x05C43E: ccc
+  0x05C4AD: ccc
+  0x05C4B1: g8O
+  0x05C4BF: d8O
+  0x05C4C3: g8O
+  0x05C4D0: @f8O
+  0x05C4D5: g8O
+  0x05C4E2: we8O
+  0x05C4E7: g8O
+  0x05C4F5: e8O
+  0x05C4F9: g8O
+  0x05C507: e8O
+  0x05C50B: g8O
+  0x05C519: f8O
+  0x05C51D: g8O
+  0x05C52B: f8O
+  0x05C530: DT
+  0x05C533: DAT
+  0x05C537: DST
+  0x05C53B: DST2
+  0x05C540: DVJT
+  0x05C545: DH
+  0x05C548: MT
+  0x05C54C: P5
+  0x05C553: ?team.cpp
+  0x05C55D: team.cpp
+  0x05C566: team.cpp
+  0x05C56F: %d
+  0x05C572: Team %d
+  0x05C57A: team.cpp
+  0x05C583: team.cpp
+  0x05C58C: Team X
+  0x05C59E: %s: %s
+  0x05C5A5: Mountains: %s
+  0x05C5B3: %s: %s
+  0x05C8E7: m8O
+  0x05C8FA: ~>
+  0x05C8FE: ~>
+  0x05C90B: =;
+  0x05C916: ~>
+  0x05C91A: ~>
+  0x05C91E: ~>h
+  0x05C922: ~>
+  0x05C926: ~>
+  0x05C92B: m8O
+  0x05C93E: ~>
+  0x05C942: ~>
+  0x05C94F: =;
+  0x05C95A: ~>
+  0x05C95E: ~>
+  0x05C962: ~>h
+  0x05C966: ~>
+  0x05C96A: ~>
+  0x05C96F: m8O
+  0x05C982: ~>
+  0x05C986: ~>
+  0x05C993: =;
+  0x05C99E: ~>
+  0x05C9A2: ~>
+  0x05C9A6: ~>h
+  0x05C9AA: ~>
+  0x05C9AE: ~>
+  0x05C9B3: m8O
+  0x05C9C6: ~>
+  0x05C9CA: ~>
+  0x05C9D7: =;
+  0x05C9E2: ~>
+  0x05C9E6: ~>
+  0x05C9EA: ~>h
+  0x05C9EE: ~>
+  0x05C9F2: ~>
+  0x05C9F7: m8Oh
+  0x05CA0A: n=J
+  0x05CA0E: n=}
+  0x05CA12: n=
+  0x05CA1B: =;
+  0x05CA26: n=
+  0x05CA2A: n=q
+  0x05CA2E: n=>
+  0x05CA32: n=
+  0x05CA36: n=
+  0x05CA3B: m8O
+  0x05CA4E: ~>
+  0x05CA52: ~>
+  0x05CA5F: =;
+  0x05CA6A: ~>
+  0x05CA6E: ~>
+  0x05CA72: ~>h
+  0x05CA76: ~>
+  0x05CA7A: ~>
+  0x05CA7F: m8O
+  0x05CA92: ~>
+  0x05CA96: ~>
+  0x05CAA3: =;
+  0x05CAAE: ~>
+  0x05CAB2: ~>
+  0x05CAB6: ~>h
+  0x05CABA: ~>
+  0x05CABE: ~>
+  0x05CAC3: n8O
+  0x05CAD6: ~>
+  0x05CADA: ~>
+  0x05CAE7: =;
+  0x05CAF2: ~>
+  0x05CAF6: ~>
+  0x05CAFA: ~>h
+  0x05CAFE: ~>
+  0x05CB02: ~>
+  0x05CB07: n8O
+  0x05CB1A: ~>
+  0x05CB1E: ~>
+  0x05CB2B: =;
+  0x05CB36: ~>
+  0x05CB3A: ~>
+  0x05CB3E: ~>h
+  0x05CB42: ~>
+  0x05CB46: ~>
+  0x05CB4C: 320x200
+  0x05CB54: 320x240
+  0x05CB5C: 320x400
+  0x05CB64: 320x480
+  0x05CB6C: 360x480
+  0x05CB74: 640x400
+  0x05CB7C: 640x480
+  0x05CB84: 800x600
+  0x05CB8C: 1024x768
+  0x05CB97: n8O0123456789
+  0x05CBE8: scorch.dbg
+  0x05CBF3: wt
+  0x05CBF6: %s
+  0x05CBFD: Unable to initialize svga graphics mode: %s.
+  0x05CC2C: Unable to initialize graphics mode: %s.
+  0x05CC62: wb
+  0x05CC65: rb
+  0x05CC68: !"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnopqrstuvwxyz[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+  0x05CCE8: cueaaaaceeeiiiaae
+  0x05CCFA: aooouuyou
+  0x05CD08: aiounn
+  0x05CD79: ?%.*lf
+  0x05CD80: %.*lf
+  0x05CD8B: Bad arg to MenuSlider: %d (0..%d)
+  0x05CDAD: %c
+  0x05F26C: Buffer passed to dotext too long!
+  0x05F738: Fastgraph V4.02
+  0x05FCFC: UU
+  0x05FD06: ""33DDUUffww
+  0x05FD52: 8O
+  0x05FD56: 8O
+  0x05FD5A: 8O
+  0x05FD5E: 8O
+  0x05FD62: 8O
+
+=== SKY TYPE STRINGS ===
+  'Sunset' at 0x058B81
+  'Random' at 0x058507
+
+=== LAND/TERRAIN TYPE STRINGS ===
+  'mudwbqvdc�' at 0x061896
+  'Dirt Clod' at 0x0582BB
+  'Sandhog' at 0x05829D

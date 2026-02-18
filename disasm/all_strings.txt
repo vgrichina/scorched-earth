@@ -1,0 +1,1896 @@
+1e47 #8O~#8Oz#8Ov#8Or#8On#8Oj#8Of#8Ob#8O^#8OZ#8OV#8OR#8ON#8OJ#8OF#8OB#8O>#8O:#8O6#8O2#8O.#8O*#8O&#8O"#8O
+1f47 "8O~"8Oz"8Ov"8Or"8On"8Oj"8Of"8Ob"8O^"8OZ"8OV"8OR"8ON"8OJ"8OF"8OB"8O>"8O:"8O6"8O2"8O."8O*"8O&"8O""8O
+2047 !8O~!8Oz!8Ov!8Or!8On!8Oj!8Of!8Ob!8O^!8OZ!8OV!8OR!8ON!8OJ!8OF!8OB!8O>!8O:!8O6!8O2!8O.!8O*!8O&!8O"!8O
+2147  8O~ 8Oz 8Ov 8Or 8On 8Oj 8Of 8Ob 8O^ 8OZ 8OV 8OR 8ON 8OJ 8OF 8OB 8O> 8O: 8O6 8O2 8O. 8O* 8O& 8O" 8O
+2893 :"~:"{:"Z:"T:"5:",:"
+28bf P8O~P8OzP8OrP8On
+2fcf T8O|T8OxT8OtT8OpT8OlT8OhT8OdT8O`T8O\T8OXT8OTT8OPT8OLT8OHT8ODT8O@T8O<T8O8T8O4T8O0T8O,T8O(T8O$T8O T8O
+303f T8OT8O
+3877 X8O~X8OzX8OvX8OrX8OnX8OjX8OfX8O
+3994 D,N_8OF_8O>_8O6_8O._8O&_8O
+40e9 0"a8O
+4f53 g8Ozg8Ovg8Ohg8Odg8OVg8ORg8ODg8O@g8O2g8O
+510f L:nL:`L:;L:
+5427 m8O~m8Ozm8Ovm8Orm8Onm8Ojm8Ofm8Obm8O^m8OZm8OVm8ODm8O>m8O:m8O6m8O2m8O.m8O*m8O&m8O"m8O
+54ef l8Oxl8Orl8Onl8Ojl8Ofl8Obl8O^l8OZl8OVl8ORl8ONl8OJl8OFl8O4l8O.l8O*l8O&l8O"l8O
+55b7 k8O~k8Ozk8Ohk8OV
+5c2c 8OC-
+5d54 8OYb
+5ffc sN6sN
+6a3a CC&8
+6b16 4/X.
+6c3a t&8g
+6d63 =87u
+6d7f tdTY;
+7159 +-K}
+7165 00=c
+7201 N|i<+t
+7209 <-u5
+7214 N|V
+7249 t2<9w+<0r',0
+731c <euR
+7321 N|]
+7331 YY<+t
+733f N|?
+734f YY<9w
+742e N|s<Nuo
+7445 N|\<FuX
+7470 N|1<Au-
+763d ?EKQ
+7a15 #F=
+7a5e PPPP
+7c0e #F=@Cs
+7c5e #F=@Cs
+7ddb #F=@Cs
+7fe6 PSQR
+8004 Y]_^
+800a ZY[X
+8049 YY_^]
+805f YY_^]
+80e0  BYYP
+80fc VW_^
+8154 Y_^]
+85d6 PPPP
+87bc string
+87f6 xalloc
+8885 xmsg
+88a4 Y_^]
+890e YY_^]
+8a50 !_^]
+8a67 !_^]
+8ea2 #0#K#g#u#
+8eb6 #<#W#g#u#U
+9162 m&x&
+91c8 u3SQR
+9638 (7)>)C)
+9640 (l)J)N)R)
+9adf fXf3
+9b7a 0t.&
+9c5a 0_^]
+9dc2 0_^]
+9f23 0_^]
+a184 PSQR
+a201 ZY[X
+a206 PSQR
+a273 ZY[X
+a278 PSQR
+a2e5 ZY[X
+a2ea PSQR
+a357 ZY[X
+a35c PSQR
+a3d1 ZY[X
+a4af x8P3
+a7e5 P"r;
+a7fb 8"PR
+a811 8"PR
+a9cd YY_^]
+aa1b Y_^]
+aa4e Y_^]
+aa92 !r1RP
+ab6a PPPP&
+abd9 &9Guz
+abf4 uc&9Gu]&
+ac2e GRP&
+ae0b ?+u%
+b1fa F+F
+b47c ;Fr
+b482 F_^
+b4f6 GRP&
+b55d YY_^]
+b66a YY_^
+b818 !_^]
+bf1c F@=
+c0b8 Fu"
+c31e H_^]
+c4df _^]
+c67e YYPR3
+c7af wsul
+c84b F@=
+c92d F+F
+c98c F_^
+cb04 PPPP
+cb11 gaP3
+cbd0 xalloc
+cc5f xmsg
+ce63 YY_^]
+ce8c PPPP
+ce99 `cP3
+cf07 ;Vu
+cf9f XZ_^
+cfcd xmsg
+cfe9 string *
+d018 string
+d06b ;Vu
+d314 &;Wu
+d42d G ;V
+d450 YY_^]
+d6bf ^YY
+d7f3 VYY
+d805 ^YY
+d849 NmZmcmtm
+d860 mBnBnBnBn
+d874 n"n2n
+d882 l(l7lKl`lpl
+d890 l9m9m9m9m
+d8a6 m%mU
+d8f9 F t
+da32 o,o:oLo^oioqo
+da48 o*p*p*p*p
+da97 F t
+dfb2 VW_^
+e028 ;Fu
+e08a VW_^
+e08f PQRSTUVW
+e31a ;V"r
+e321 ;F r
+e505 _^][[ZYX
+ebbb G$;F
+ebc7 G*;F
+ecb5 YY_^
+ed6b **BCCxh1U
+fb00 G_^
+fbe5 YY_^]
+fc2d @_^]
+fcbe YY_^]
+fec4 F;V
+fec9 u};F
+100fc Bad_cast
+10110 Bad_typeid
+10126 typeinfo *
+10164 typeinfo
+104a1 zVW_^
+10621 ;F~
+10685 ;F~
+106d5 F+F
+10914 w79N
+10919 w2;^
+10923 w(9V
+10b86 I,"t
+10b8c "<\u
+10c22 _wX_^]
+10cac B_^]
+10cbc Stack overflow!
+10d18 VW_^
+10d78 VW_^
+10dec KrYY
+10e47 VW_^
+10fea MpYY
+11096 VW9&
+11345 VW9&
+11475 G;>@
+114bf VW9&
+1195c arbint
+11c38 VW9&
+11daa VW9&
+12268 VW9&
+124ae VW9&
+1297c VW9&
+12d40 VW9&
+13074 ;Vu
+131e8 VW9&
+13f3d VW9&
+14044 VW9&
+1423e arbint *
+1453b t ;>@
+1455c P;>8
+1456f =;>@
+14574 |;96B
+1457b 5;6<
+1478e VW9&
+1487f BF;6
+148e5 7F;6
+14cc8 VW9&
+14d8e t@;6b
+14da9 &;6d
+14fbe j-j-j-V
+14fd7 j<j<j<V
+15020 /<Yj
+1503e VW9&
+154d5 VW9&
+158f0 VW9&
+1594a ;F|
+15afa VW9&
+15d59 6 #j
+15d61 E2Ph
+15d8b 6`#j
+15dc1 6x"j
+15e09 GL;F
+1606c VW9&
+160d7 j?j?j
+160f3 j?j?j?j
+16140 j j?j
+1615c jjj?j
+161c5 j-j-j-j
+161d4 j<j<j<j
+161e3 j-j-j-j
+16562 VW9&
+16694 VW9&
+167b9 NF;6
+16829 VW9&
+17f54 VW9&
+180e5 &9?~
+18287 FHP
+1829c FHP
+182df FHP
+18301 VW9&
+18535 CommentGenerator
+18557 VW9&
+185e2 4j(h
+18906 Q&;G4u
+1893c Q&;G2~
+18961 Q&;G2u
+18973 Q&;G
+1899c Q&;G6u
+193e9 VW9&
+19459 VW9&
+1962c 6&nF;6
+19ed9 F;6Nb~
+1a86e VW9&
+1b1b1 tej=
+1b41f tZj=
+1b68e VW9&
+1b80e VW9&
+1b9b1 69?~
+1b9d0 69?u.
+1bbd5 tDj(h
+1bc4e };6B
+1c218 VW9&
+1c23b YF;6
+1c333 NF;6
+1c447 jPjhjPV
+1c45e !F;v
+1c485 VW9&
+1c657 86Zn
+1c78c t&;6<
+1c888 t';6B
+1cbdb  :"
+1cc00  :"
+1cc11 qEF;v
+1ce02 VW9&
+1cf2b >XQdt
+1cf36 u#jd
+1d189 VW9&
+1d2c0 VW9&
+1d5b0  F;6
+1d823 >XQdu
+1dbb9 VW9&
+1df69 VW9&
+1dffa T;6B
+1e00f ?;6B
+1e12e j-j?
+1e2e7 VW9&
+1e309 F+F
+1e6c2 VW9&
+1e946 6*nj
+1e964 GJ@P
+1eb24 Q&;G*t
+1edb4 VW9&
+1eefd 6|"j
+1ef52 68 j
+1f07c jYj_
+1f0f5 68#jYj
+1f1ac #j0j
+1f33b VW9&
+1f433 la;V
+1f4aa la;V
+1f769  "RP
+1f7df 6*nj
+1f7ff GJ@P
+1fb9f ;~~
+1fba4 3~1~3~
+1fcc2 ;F~
+1fd0d VW9&
+1fd74 VW9&
+1fd8b F+F
+1fdfd F+F
+1fe48 F;v~
+1ff03 vWV
+1ff20 vWV
+1ff91 VW9&
+1ffcd ;~~
+1ffe0 VW9&
+1ffee F+F
+200b0 F;v~
+200be VW9&
+2015c VW9&
+202fa VW9&
+2046c VW9&
+205e0 VW9&
+208e4 &;G,~/j
+208f7 j?j?j?
+2097a +Y;F
+20bea VW9&
+20c3d VW9&
+20c98 G;>8
+20cd5 F;68
+20ceb VW9&
+20d45 7GF;6vQv
+20dbd  :"
+20ed1 VW9&
+20f15 N;6@
+20f56 N;6@
+20f67 VW9&
+21196 VW9&
+211f1 p'u$
+21294 qEj?j?j?h
+21607 VW9&
+21648 G;>|
+219b4 YF;6|
+219c3 VW9&
+21a76 GNt(
+220ef GRt-V
+2211f YF;6|
+221ae 6*nW
+221c0 6*nW
+221d2 6*nW
+22327 uh;>8
+2235e \WV
+22394 &WV
+225ca ;;6B
+225d5 ~/;6B
+225e2 ;6<
+226b0 GL0
+22720 &9wDt
+22812 &9wD~
+2288f GNt?
+2289f &9wDu-
+2297a |';6B
+22980 |!;6<
+2332b VW9&
+237a8 G*;V
+24041 VW9&
+2414c VW9&
+24288 YF;v
+24539 VW9&
+24772 v9&
+24898 VW9&
+2490b +Y+F
+24c22 j<h
+24cc3 VW9&
+24e24 ;>B
+24e7c >*nxuVW
+24e8f 6*nVW
+24f37 G*;V
+24fd3 VW9&
+251b8 &;T@u
+251be &;D>u
+25241 &;T@u
+25247 &;D>u
+25439 GF;F
+2555a &+G2
+25e15 8>.2
+25e2a 8>62
+25f16 ,2;v
+25f1e ,2;F
+25f3b VW9&
+25f49 F+F
+25f82 =F;6,2|
+25f8b F+F
+2604e =G;>,2|
+260e0 =G;>,2|
+26114 VW9&
+26495 VW9&
+26527 VW9&
+267e2 G0@P
+26861 u=Vjdj
+268ce 6,#j
+26a39 6<#j
+26a8d 6x"j
+26b6c VW9&
+26c16 VW9&
+26d13 gH&9
+26e38 L:_^
+26e74 VW9&
+26f9b GJ@P
+2743c VW9&
+275af gH&9G
+27754 VW9&
+277e9 VW9&
+27832 VW9&
+27c01 VW9&
+2800f VW9&
+2813a 6x"j
+2853d j?j?j?V
+28595 VW9&
+285ce j?j?j?V
+285dd j?j?j?V
+287af Player
+288b2 ;60Pt6
+2898e PSQR
+28a7b ZY[X
+28e9c VW9&
+28eaa 6ZQj
+28eba ZQ96ZQu
+28f10 F;6<
+28f21 VW9&
+28f2e j?j(j(jW
+28fe9 h:"h
+290ac VW9&
+29112 6*nV
+29124 6*nVW
+29134 6*nV
+29282 VW9&
+29316 6*nV
+29328 6*nVW
+29338 6*nV
+29458 ZQjd
+2946f ZQjd
+29477 +Y=(
+29523 j2j2j2
+29538 j?j?j
+29541 j?j?j?h
+2957b rQjd
+29586 nQjd
+29726 v9&
+2976e tjx
+2980c VW9&
+2981c F+F
+29881 &;G}
+298c5 FH;
+29aae ScannedMountain
+29aec LandGenerator
+29b4e DefaultLand
+29c8b :;6B
+29e66 au';
+2a019 A;>@
+2a01e |7;>8
+2a178 j<j<j
+2a22a VW9&
+2a431 VW9&
+2a685 kEYj
+2a6ce j-j-j-
+2a6e0 j7j7j7
+2a6f2 j?j?j?
+2a714 j?j(j(h
+2a725 j?j(j(jW
+2a735 j2j2j2h
+2a746 j2j2j2h
+2a757 j?j?j
+2ac06 VW9&
+2acfb VW9&
+2ae2a  :"
+2ae40 F;68
+2ae57 VW9&
+2b339 VW9&
+2b449 &9w0t
+2b475 VW9&
+2b53e v/u$
+2b5b1 Pjdjd
+2b5c7 PWWjdjd
+2b728 hL:ha
+2b759 hL:h
+2b79e Player[10]
+2b7b7 Team[10]
+2b7e6 Team
+2ba36 F;6
+2bb40 F;6
+2bbd1 8&`R
+2bc33 8&`R
+2bd8d VW9&
+2be2f j?j?j
+2be3e j+j?j
+2be4d j5j5j
+2be5c j?j?j
+2be6b j?j?j
+2be7a j?j?j
+2c0fa O;>@
+2c14f qEYj
+2c1f4 O;>@
+2c223 VW9&
+2c298 j?j?j?j
+2c2e8 VW9&
+2c456 ;6B
+2c594 uWV
+2c75d VW9&
+2c805 Yj(h
+2c819 YF;v
+2c98d VW9&
+2ccb8  G;~
+2cd12 VW9&
+2cf1d +Y@k
+2cf95 VW9&
+2d4b7 VW9&
+2d745 VW9&
+2d79e Q&9w
+2d8dd VW9&
+2d9bc >~V(|
+2d9c3 .~V(j
+2da04 VW9&
+2daec  :"
+2dc18  :"
+2dfd0 VW9&
+2e10d VW9&
+2e14b jdjd
+2e166 jdjd
+2e181 6l#jijj
+2e1cc 6*njv
+2e1df 6*nh
+2e1f2 6*nh
+2e206 6*nh
+2e242 6p#h
+2e593 hp'h
+2e59b hp'h
+2e601 Yj(h
+2e651 hp'h
+2f2dd hi(h
+2f554 VW9&
+2f589 h;Wj
+2f7e4 PG;>
+2fbce VW9&
+2fec1 VW9&
+30535 VW9&
+307c6 >XQdu
+30996 ujdj
+309d1 Hj(h
+30a3e ujdj
+30a59 VW9&
+30a6c ?G;>
+30aab &9?t
+30aba &9?t
+30af3 VW9&
+30b0b F;6R
+30cbb ;Vu
+31737 uZ;F
+3194d 460X
+31e43 VW9&
+323de  RPj
+32479 VW9&
+3252b &;G0t
+32552 &;G0t
+32583 VW9&
+325b5 Q&+G
+325c8 Q&+W
+325dd Q&+W
+325f0 Q&+\
+3260b Q&+G 
+3261e Q&+\ R
+3263b VW9&
+3292b  G;~
+32998 VW9&
+32e48 VW9&
+32eef F+F
+331c0 F+F
+331e3  :"
+3332a F+F
+3334d  :"
+334ba VW9&
+33652 VW9&
+33695 &97}
+336a5 `Qu/j
+336cd &97}
+336d7 7G;>
+336f7 &97}
+33746 &97}
+33750 7G;>
+3376c VW9&
+337c8 VW9&
+33936 VW9&
+33b67 VW9&
+33b9b `QuO
+33bc0 GJHP
+33e57 ;`RP
+33fc7 VW9&
+341ba B`Pj
+34435 `Qu'
+344f1 6t#j
+3452c h[`j
+34758 hq`j
+347b0 6t#j
+34a21 VW9&
+34cca VW9&
+34e64 F;6:
+34e8a F;6>
+34f81 6x#j
+34faf 6|#j
+35364 QuR;
+356fe VW9&
+357b4 VW9&
+35842 hv.hW
+3588d 64"j
+358db _ &)
+358ed _ &)
+358f2 NF;6
+359f3 #j!j
+35a19 6P"j
+35a48 6T"j
+35b62 ;6B
+35bbd ;6B
+35bee VW9&
+35c0d Dj?j?j?h
+35c1f j<j<j<h
+35cae j(j(j(h
+35fce VW9&
+36027 VW9&
+3609b ~9&
+36115 PH;F
+36171 VW9&
+362aa m;6B
+362e8 xuWV
+3644d hv/h
+364fd hv/h
+3684f VW9&
+36973 u];6B
+36cd9 j-j(
+3701f u%j(h
+37156 t"j(h
+371d2 u%j(h
+37408 =F;6
+37477 VW9&
+3763c ;Vu
+37666 ;Vu
+376f9 ;Vu
+37774 ;Vu
+37d42 6L#j
+37e1c 6D#j5j
+37e47 6P#j
+37e76 6T#j
+37fe0 VW9&
+3805f GF;6@
+3866b ;>@
+38705 ;>@
+38769 VW9&
+38859 ;Vu
+38b52 VW9&
+38e04 2Zu)
+38ea3 VW9&
+39081 VW9&
+39116 2j?j?j?
+39269 VW9&
+393b6 Q&;G4tb
+393cc &+G4
+39429 Q&;G2~
+39450 Q&;G2u
+39723 VW9&
+39751 Dbu#
+39848 G;>>
+399b7 G;>8
+39a70 G;>8
+39a9d G;><
+39b0a PWWW
+39b84 G;>8
+39bb1 G;><
+39c49 j?j?jx
+39c63 4.Xb
+39c68 46\b
+39cda 4.Xb
+39cdf 46\b
+39d63 4.Xb
+39d68 46\b
+39e0e G;>8
+39e3b G;><
+39e97 46pb
+39f26 G;>8
+39fe7 G;>8
+3a013 G;>8
+3a09c VW9&
+3a0f3 j(jn
+3a14d j(jn
+3a225 F;68
+3a238 v9&
+3a267 VW9&
+3a313 F;68
+3a343 F;6<
+3a3a1 ~9&
+3a444 DxPW
+3a46d PVVV
+3a4ea F;68
+3a51a F;6<
+3a5ab v9&
+3a64e j?j?jx
+3a668 4.Xb
+3a66d 46\b
+3a6df 4.Xb
+3a6e4 46\b
+3a768 4.Xb
+3a76d 46\b
+3a816 F;68
+3a846 F;6<
+3a883 v9&
+3a933 46pb
+3a9c5 F;68
+3a9d8 v9&
+3aacc F;68
+3aafb F;68
+3ab0e v9&
+3abac jxVW
+3ae1f HbtA3
+3ae41 F;6>
+3b009 VW9&
+3b03a @;6B
+3b251 hQ4h
+3b506 hQ4h
+3b52e VW9&
+3b687 VW9&
+3ba83 VW9&
+3baf6 j2jn
+3bb3f 6X!j
+3bb5b 6FQh
+3bb9e 6`!j
+3bbb4 6.Ph
+3bdfd 6x!j
+3be7b 6^Qh
+3bea6 6JQh
+3bed8 6HQh
+3bfed 4.xc
+3c023 6bQh
+3c0b9 6VQh
+3c0ec Nb@P
+3c1a1 6<Qh
+3c295 6rQh
+3c2c1 6PQh
+3c3a2 6BQh
+3c4bf 2jh
+3c5c3 6:Qh
+3c620 6hQh
+3ca0f 46|c
+3ca6d 4.xc
+3ca8d 4.xc
+3cf87 &nt
+3cfd5 VW9&
+3cffe GN+F
+3d04c F;6^
+3d144 VW9&
+3d1f8 6,!j
+3d2fa 68!j
+3d336 6<!j
+3d372 6@!j
+3d3ae 6H!j
+3d3ea 6D!j
+3d426 6L!j
+3d462 6P!j
+3d49e 6T!j
+3d4f6 GL;F
+3df55 VW9&
+3e0ee G;>,
+3e11a VW9&
+3e1d6 VW9&
+3e3c0 F;6,
+3e444 hU7h
+3e464 hU7h
+3e484 hU7h
+3e4a4 hU7h
+3e4c4 hU7h
+3e4e4 hU7h
+3e504 hU7h
+3e524 hU7h
+3e544 hU7h
+3e562 hU7h
+3e5ad hU7h
+3e609 VW9&
+3ebb6 i|N;6<
+3ec3c VW9&
+3ecf9 YG;~
+3ed0c VW9&
+3ed48 j?j?h
+3ee0c F;6>
+3ee13 G;>@
+3ee21 PVVV
+3ef62 VW9&
+3f248 ,;6<
+3f24e &9>@
+3f254  ;>8
+3f294 *;6<
+3f29a $9>@
+3f2e0 j?j?j?h
+3f2f1 hU8h
+3f2f9 hU8h)
+3f4fc VW9&
+3f546 6$"j
+3f589 6("j
+3f5b7 6,"j
+3f5e9 68"j
+3f61c 6<"j
+3f6aa _ &9
+3f6ea 6@"j
+3f717 6D"j
+3f748 6H"j
+3f77a 60"j
+3f93f VW9&
+3f98e j5Vj
+3fa1e 6P"j
+3fa4d 6T"j
+3faa9 VW9&
+3fae4 F;6<
+3faeb G;>8
+3fb2c v9&
+403fe ~9&
+4050e au^;
+4058a au:;
+40751 ~9&
+408bb VW9&
+40ade P96B
+40afe t/;6B
+40b56 C96B
+40b6a t.;6B
+40bc6 N96B
+40be4 t-;6B
+40c1c VW9&
+40ecc VW9&
+40f55 GF;6
+410d4 PF;6
+410e5 VW9&
+4120b &9G0}
+41251 F;6
+413a1 &9G0}
+414a9 &9G0}
+4150a VW9&
+41582 6X#j
+41639 -hL:h>
+41675 hL:h
+416a9 \WhL:h
+416c6 \WhL:h
+41748 hL:h
+41e03 VW9&
+41e83 VW9&
+41f11 Q&9w
+41f90 PSQR
+41fd4 ZY[X
+42094 hY;h
+420a4 hY;hI
+42121 &+G2
+421b2 VW9&
+42501 VW9&
+42537 &9W,u
+4253d &9G*u
+425ba F;6@
+425cf VW9&
+425fa &;6<
+4261f DF;v
+42640 (;6B
+427bc &+GD
+42883 VW9&
+42892 j-j?h
+42f62 u>Vh
+42fd0 6$#j
+4312f VW9&
+4314f F+F
+43373 VW9&
+43407 hp<h
+43433 hp<h
+43450 VW9&
+434eb  :"
+43509 F;6<
+43566  :"
+43584 N;6B
+435c7  :"
+4361b  :"
+43694 VW9&
+4371f VW9&
+437bf F;6<
+43821 N;6B
+438fa VW9&
+43a0b F;6<
+43a4d N;6B
+43ace VW9&
+43e24 Yj(h
+4407c Yj(h
+4423b +Ns
+44364 +Ns
+44425 FG[X
+444cd FHP
+44550 FHP
+445a3 FHP
+44640 FHPWV
+44830 F+F
+45310 IY;v
+45323 ;~~
+45352 ~;v
+455de F+F
+45704 F;v~
+45745 F+F
+45782 u>;F
+458a7 F;v~
+45a47 F+F
+45a7e G;~~
+45b10 Gt0
+461b3 GH;F
+461ca GL;F
+461e1 GJ;F
+461f8 GN;F
+462c6 G;F
+46410 GTtI
+475a5 _ &+GJP
+475ca _ &+GHP
+47c98 GJHP
+48631 ~+>(njZ
+48818 _ &+GH
+48848 &+GHPV
+48867 ~6jZ
+48ed1 ~jZ
+4929c _ &9OL~
+492c2 _ &9
+49375 _ &9
+493d6 _ &9OL~
+4946e _ &9OL~
+494bb &+GL
+4950b &+GL
+4957e _ &9wL~
+495a4 _ &9OH}
+49947 _ &+GH
+4996e _ &+GH
+49bf0 ;F~ 
+49c30 ;F}
+49f25 _ &9
+4a06d j-j-j-
+4a0f5 tQ;v
+4a3e3 _ &+GH+
+4a436 &+GH
+4a488 _ &+GH
+4a4c9 ;F~
+4a519 ;F|f
+4a5e0 ;Fu
+4a687 FHPV
+4ab2c h-pWV
+4abb6 GNHP
+4abeb GJ@P
+4ac55 GNHP
+4ac8a GJ@P
+4acef j-j-j-
+4ad74 GNHP
+4ada9 GJ@P
+4b228 6*nWV
+4b3ca 6*nWV
+4b902 p_^]
+4b922 ;60pt
+4b929 60p^]
+4ba44 2pu63
+4bbb0 6pu
+4bdd7 _FY]
+4bf38 ;>4pu
+4ddc0 x#S$
+4ddfb O[G2
+4de89 x#S$
+4dec4 O[O2
+4dfdf =Gt"
+4e161 Gt,2
+4e1fc ZX& 
+4e2fa ZX& 
+4e639 Nt'
+4e6b1 vWV
+4e6e2 t N"
+4e749 ZY^+v
+4e849 r2Ju
+4e88e ZXJu
+4e8e8 vWVR
+4e907 ZVQR
+4e90f t"N"
+4e975 r(It
+4e97e ZY^+v
+4e9b0 ZXIt
+4ea2a r'Ju
+4eac8 8tI<
+4f04e [XVW
+4f114 _^@<
+4f8d9 & 'B
+4fc98 Nt%
+4fd76 _+>d
+4fe9e r4Ju
+4fee5 ZXJu
+4ff99 _+>d
+4ffa3 Nta
+5005a r)Ju
+50294 OO;>l
+503bc ZXNu
+50482 rNu
+50c6a <!t(< uP
+50ce1 <2t3
+50d7d <_uz
+50d8e Kt*Kt
+50d94 KtDKKu`
+50e02 ?wuA&
+50e0b fu9&
+50f50 7Vu/
+50fd4 VG&9
+50fde A=&9
+5103c @t.J
+5113e u.@< r
+51149 <Zt#<zt
+52402 ZY[^
+52441 VSQR
+52546 ZY[^
+525a4 ->@2
+52733 LtJ{H
+529c5 $0<HT`lx
+52fd7 |{;N
+5308b |d;^
+531fa _^]
+53f5e t4+^
+54016 $"""""
+5411a WUUUUUU
+54127 23333
+541ec VWVWV
+542f6 xUUUUUU
+54302 &#"""""
+543e7 _^]
+54406 hUUUUUU
+54413 433333
+544d0 VWRQSP
+54500 uVWW
+5453a tVV
+546ab @}8=
+547ce |WVW
+549a7 |8-<
+54a6f %a&c&
+54b09 PQRS
+54c3b  PSRQ
+54c43 PSRQ
+54c4c PSQ
+54c54 PSRQ
+54c5c PSRQ
+54ded $|$w$
+54ed5 U%Z%g%g%
+54ee1 g%g%
+54efd _%g%g%g%
+54f11 g%g%
+55066 [ZYX
+55097 PQRS
+55123 [ZYX6
+551c5 xalloc
+55207 xmsg
+55263 PPPP
+552ea sNTStringRef *
+5531f string::lengtherror
+5536d xalloc
+553af xmsg
+553e7 TStringRef
+55421 TReference
+554f0 PPPP
+555ae PPPP
+55669 PPPP
+55a8f ;Ft2
+55a9e +FP&
+55c4e string::lengtherror
+55c9c xalloc
+55cde xmsg
+55d16 string
+55d50 string::outofrange
+55d84 NULL CHECK
+55da0 Borland C++ - Copyright 1993 Borland Intl.
+55dcb Divide error
+55e15 %4.4u
+55e1b %c.%ce%d
+55e24 %4.4u
+55e2f %4.4u
+55e83 MMMMMMMMMMMMMMM
+55e9c $%ld/%d
+55ed6 Register Scorch!
+55ee7 Pay for Scorch!
+55ef7 Support Shareware!
+55f0a Send a check to Sprig!
+55f21 Buy now, play later!Scorch is Shareware!
+55f4a Don't forget to register!
+55f64 What more do you want for $20?
+55f83 Wow, only 20 bucks!
+55f97 A registered user is a happy user... be happy!
+55fc6 Registering shareware is cool.
+55fe5 comments.cpp
+56080 Some dumb tank: %s
+5609e zDMAXPLAYERS
+560ab MAXROUNDS
+560b5 SOUND
+560bb FLY_SOUND
+560c5 GRAPHICS_MODE
+560d3 BIOS_KEYBOARD
+560e1 LOWMEM
+560e8 POINTER
+560f0 mouse
+560f6 joystick
+560ff MOUSE_RATE
+56111 @FIRE_DELAY
+5611d FALLING_DELAY
+5612b INTEREST_RATE
+56141 ?333333
+56149 ?INITIAL_CASH
+56157 COMPUTERS_BUY
+56165 FREE_MARKET
+56171 SCORING
+56179 AIR_VISCOSITY
+5618f FGRAVITY
+561a2  ASUSPEND_DIRT
+561b1 FALLING_TANKS
+561bf EDGES_EXTEND
+561cc ELASTIC
+561d8 MAX_WIND
+561e1 CHANGING_WIND
+561ef HOSTILE_ENVIRONMENT
+56203 LAND1
+56209 LAND2
+5620f FLATLAND
+56218 RANDOM_LAND
+56224 MTN_PERCENT
+56233 BFAST_COMPUTERS
+56243 TALKING_TANKS
+56251 computers
+5625f TALK_PROBABILITY
+56270 TALK_DELAY
+5627b ATTACK_COMMENTS
+5628b talk1.cfg
+56295 DIE_COMMENTS
+562a2 talk2.cfg
+562ac PLAY_MODE
+562b6 STATUS_BAR
+562c1 PLAY_ORDER
+562cc TEAM_MODE
+562d6 ARMS
+562db BOMB_ICON
+562e5 TUNNELLING
+562f0 EXPLOSION_SCALE
+56300 TRACE
+56306 EXTRA_DIRT
+56311 USELESS_ITEMS
+5631f DAMAGE_TANKS_ON_IMPACT
+56339 ; scorch.cfg
+56347 ; Configuration File for Scorched Earth Version %s
+5637b 1.50
+56380 ; Copyright (c) 1991-1995 Wendell Hicken
+563aa ; Feel free to copy and modify this file for your own use.
+563e9 ; Lines beginning with a semicolon (like this one) are comments.
+5642b ; Numbers in brackets, like [3] represent the default value of a given
+56473 ; option, numbers like 2..10 represent the valid range (2 thru 10 inclusive)
+564c1 ; You don't need to know this, though, just use the Scorched Earth menus!
+5650f MAXPLAYERS=%d
+5651e MAXROUNDS=%d
+5652c SOUND=%s
+56536 FLY_SOUND=%s
+56544 GRAPHICS_MODE=%s
+56556 BIOS_KEYBOARD=%s
+56568 LOWMEM=%s
+56573 POINTER=%s
+5657f mouse
+56585 joystick
+5658e none
+56593 MOUSE_RATE=%.2lf
+565a5 FIRE_DELAY=%d
+565b4 FALLING_DELAY=%d
+565c6 INTEREST_RATE=%lf
+565d9 INITIAL_CASH=%ld
+565eb COMPUTERS_BUY=%s
+565fd FREE_MARKET=%s
+5660d SCORING=%s
+56619 AIR_VISCOSITY=%d
+5662b GRAVITY=%lf
+56638 SUSPEND_DIRT=%d
+56649 FALLING_TANKS=%s
+5665b EDGES_EXTEND=%d
+5666c ELASTIC=%s
+56678 SKY=%s
+56680 MAX_WIND=%d
+5668d CHANGING_WIND=%s
+5669f HOSTILE_ENVIRONMENT=%s
+566b7 LAND1=%d
+566c1 LAND2=%d
+566cb FLATLAND=%s
+566d8 RANDOM_LAND=%s
+566e8 MTN_PERCENT=%f
+566f8 FAST_COMPUTERS=%s
+5670b TALKING_TANKS=%s
+5671d TALK_PROBABILITY=%d
+56732 TALK_DELAY=%d
+56741 ATTACK_COMMENTS=%s
+56755 DIE_COMMENTS=%s
+56766 PLAY_MODE=%s
+56774 STATUS_BAR=%s
+56783 PLAY_ORDER=%s
+56792 TEAM_MODE=%s
+567a0 ARMS=%d
+567a9 BOMB_ICON=%s
+567b7 TUNNELLING=%s
+567c6 EXPLOSION_SCALE=%s
+567da TRACE=%s
+567e4 EXTRA_DIRT=%s
+567f3 USELESS_ITEMS=%s
+56805 DAMAGE_TANKS_ON_IMPACT=%s
+56833 .bak
+56838 .bak
+56847 .bak
+5684c .bak
+5697d  Thank you for playing the shareware version of Scorched Earth.  If you enjoy 
+569cd  this game (and don't we all?), you are encouraged to register it.            
+56a1d                                                                               
+56a6d  Basic registration costs $20, and includes a disk with the registered        
+56abd  version - including 25 new mountains and enabling the triple-turreted tank.  
+56b0d  Deluxe registration costs $30, and includes the above, plus a printed,       
+56b5d  illustrated copy of the manual.                                              
+56bad                                                                               
+56bfd  For more information, consult the files README and ORDER.FRM                 
+56c9d  Scorch HQ can be reached at:                                                 
+56ced                                                                               
+56d3d       Wendell Hicken                Internet  : whicken@itis.com              
+56d8d       P.O. Box 1215                 Ftp Site  : tower.itis.com/pub/scorch     
+56ddd       Whittier, CA 90609-1215       Web Site  : http://tower.itis.com/scorch  
+56e2d                                                                               
+56e7c     
+56ec8     
+56ed3     
+56ed8   %s%*s 
+56ee1     
+56ee7     
+56eec   %s%*s 
+56ef5     
+56efb     
+56f00   %s%*s 
+56f09     
+56f0f     
+56f14  %*s - %s   
+56f21     
+56f27     
+5793a equip.cpp
+57944 Failed to identify item
+579ac %s: %d
+579b5 %s: %d
+579c2 1000
+579c7 extras.cpp
+579d6 (%s)
+57a25 ?BogoMips: %ld %ld
+57a39 Getting MIPS
+57a4b Bd=%lf  FireDelay=%d  WarheadsLeft=%d 
+57a81 ?done
+57adf @ffffff
+57aec MbP?
+57afc FIREWALL_FATAL
+57b0b ****************************************
+57b35 ** %d firewall%s triggered!
+57b52  was
+57b57 s were
+57b5e ****************************************
+57b88 ### FIREWALL: Exception caught at "%s", line %ld.
+57bbb ### FIREWALL: Exception caught at "%s", line %ld.
+57bee           %s
+57bfc Bad category %s: must start with alphabetic char
+57c2e ### DEBUG INFO: 
+57c43 Unable to allocate memory.
+57c63 Bad category %s: must start with alphabetic char
+57c95 Unable to allocate memory.
+57cb4 scorch.dbg
+57cbf scorch.dbg
+57ccd DEBUG_OPT
+57d0d $8O*$8O7$8O?$8OI$8ON$8OW$8Ob$8Og$8Ot$8O{$8O
+57d6d %8O%%8O-%8O;%8OE%8OO%8O[%8Og%8Os%8O~%8O
+57dc5 &8O &8O0&8O?&8OL&8OY&8Oc&8Ot&8O
+57e21 '8O#'8O.'8O6'8O?'8OH'8OP'8OY'8O]'8Ob'8Ok'8Oo'8Or'8Ox'8O
+57ea9 (8O'(8O.(8O8(8OA(8OK(8OX(8Of(8Ot(8O
+57ef9 )8O/)8O?)8ON)8O[)8Oj)8Ov)8O~)8O
+57f41 *8O%*8O0*8O<*8OK*8OX*8Od*8Oo*8Ow*8O
+57fa1 +8O"+8O.+8O<+8OG+8OR+8Oc+8Ou+8O
+57fe5 ,8O+,8O;,8OA,8OI,8OW,8O],8On,8Oz,8O
+58039 -8O!-8O+-8O/-8O5-8O>-8OH-8OU-8Oe-8Oz-8O
+58095 .8O&.8O*.8O9.8OA.8OH.8OM.8O[.8Og.8Oq.8O{.8O
+580f1 /8O%/8O)/8O//8O9/8ON/8O]/8Ow/8O
+5812d 08O-08OG08OX08Os08O
+58155 18O)18OB18OJ18OX18On18O
+58185 18OTeleporter
+58193 Jump Jets
+5819d Popcorn Bomb
+581aa Baby Missile
+581b7 Missile
+581bf Baby Nuke
+581c9 Nuke
+581ce LeapFrog
+581d7 Funky Bomb
+581e2 MIRV
+581e7 Death's Head
+581f4 Napalm
+581fb Hot Napalm
+58206 Tracer
+5820d Smoke Tracer
+5821a Baby Roller
+58226 Roller
+5822d Heavy Roller
+5823a Plasma Blast
+58247 Riot Charge
+58253 Riot Blast
+5825e Riot Bomb
+58268 Heavy Riot Bomb
+58278 Baby Digger
+58284 Digger
+5828b Heavy Digger
+58298 Baby Sandhog
+582a5 Sandhog
+582ad Heavy Sandhog
+582bb Dirt Clod
+582c5 Dirt Ball
+582cf Ton of Dirt
+582db Liquid Dirt
+582e7 Dirt Charge
+582f3 Dirt Tower
+582fe Earth Disrupter
+5830e Laser
+58314 Plasma Laser
+58321 Heat Guidance
+5832f Bal Guidance
+5833c Horz Guidance
+5834a Vert Guidance
+58358 Lazy Boy
+58361 Parachute
+5836b Battery
+58373 ~Batteries:
+5837f Mag Deflector
+5838d Shield
+58394 Warp Shield
+583a0 Teleport Shield
+583b0 Flicker Shield
+583bf Force Shield
+583cc Heavy Shield
+583d9 Super Mag
+583e3 Patriot Missiles
+583f4 Auto Defense
+58401 Fuel Tank
+5840b Contact Trigger
+5841b Scorched Earth
+5842a The Mother of All Games
+58442 Moron
+58448 Shooter
+58450 Poolshark
+5845a Tosser
+58461 Chooser
+58469 Spoiler
+58471 Cyborg
+58478 Unknown
+58480 Sentient
+58489 Sentient?
+58493 ~Moron
+5849a S~hooter
+584a3 ~Poolshark
+584ae ~Tosser
+584b6 ~Chooser
+584bf ~Spoiler
+584c8 C~yborg
+584d0 ~Unknown
+584dd Cash
+584e2 Rankings
+584f2 Basic
+584f8 Greedy
+584ff Erratic
+58507 Random
+5850e Wrap-around
+5851a Padded
+58521 Rubber
+58528 Spring
+5852f Concrete
+58538 Small
+58542 Invisible
+5854c Normal
+58553 Medium
+5855a Large
+58560 Standard
+58571 Corporate
+5857b Vicious
+58583 Sequential
+5858e Simultaneous
+5859b Synchronous
+585a7 ~Start
+585ae ~Players:
+585b8 ~Rounds:
+585c1 S~ound...
+585cb ~Hardware...
+585d8 ~Economics...
+585e6 ~Landscape...
+585f4 Ph~ysics...
+58600 Play Op~tions...
+58611 ~Weapons...
+5861d Save ~Changes
+5862b ~Sound:
+58633 ~Flight Sounds:
+58643 ~Graphics Mode:
+58653 ~Bios Keyboard
+58662 ~Small Memory
+58670 ~Mouse Enabled
+5867f ~Firing Delay:
+5868e ~Hardware Delay:
+5869f ~Interest Rate:
+586af ~Cash at Start:
+586bf Computers ~Buy
+586ce ~Free Market
+586db ~Scoring Mode:
+586ea ~Bumpiness:
+586f6 S~lope:
+586fe ~Flatten Peaks
+5870d ~Random Land
+5871a ~Air Viscosity:
+5872a ~Gravity:
+58734 ~Borders Extend:
+58745 ~Effect of Walls:
+58757 ~Suspend Dirt:
+58766 ~Sky:
+5876c ~Max. Wind:
+58778 ~Changing Wind
+58787 Ta~lking Tanks:
+58797 ~Attack File:
+587a5 ~Die File:
+587b0 Tanks ~Fall
+587bc ~Impact Damage
+587cb ~Arms Level:
+587d8 ~Bomb Icon:
+587e4 ~Tunneling
+587ef ~Scale:
+587f7 Trace ~Paths
+58804 ~Extra Dirt
+58810 ~Useless Items
+5881f Final Scoring
+5882d Initializing code... one moment.
+5884e Player
+58855 ~Computer
+5885f ~Person
+58867 Name
+5886c ~Name
+58872 ~Type
+58878 Power
+5887e Angle
+58884 Wind
+58889 No Wind
+58891 deployed
+5889a passive
+588a2 System Menu
+588ae ~Clear Screen
+588bc ~Mass Kill
+588c7 ~Quit Game
+588d2 Reassign Players
+588e3 Reassign ~Players
+588f5 Reassign ~Teams
+58905 Save ~Game
+58910 ~Restore Game
+5891e ~New Game
+58928 Do you want to retreat?
+58940 ~Yes
+58949 Do you want to quit?
+5895e Do you really want to restart the game?
+58986 Mass kill everyone?
+5899a %s rounds remain
+589ab 1 round remains
+589bb Score
+589c1 Weapons
+589c9 Miscellaneous
+589d7 ~Done
+589dd Remaining Power:
+589ee Energy Left
+589fa None
+589ff Guidance
+58a08 ~Fuel Remaining:
+58a19 ~Hostile Environment
+58a2e ~Language
+58a38 Status ~Bar
+58a44 ~Icon Bar
+58a4e Choose Target
+58a5c Mass Kill
+58a66 No Winner
+58a70 Inventory
+58a7a Losers-First
+58a87 Winners-First
+58a95 Round-Robin
+58aa1 Computers
+58aaf Mouse
+58ab5 Joystick
+58abe ~Pointer:
+58ac8 ~Mouse Rate:
+58ad5 ~Joystick Rate:
+58ae5 Joystick ~Threshold:
+58afa Falling ~Delay:
+58b0a ~Calibrate Joystick
+58b1e ~Fast Computers
+58b2e Talk ~Probability:
+58b41 ~Mode:
+58b48 Play ~Order:
+58b55 ~Teams:
+58b5d Cash Left:
+58b68 Plain
+58b6e Shaded
+58b75 Stars
+58b7b Storm
+58b81 Sunset
+58b88 Black
+58b8e Preparing Next Level...
+58baa NO KIBITZING!!
+58bb9 ~Update
+58bc1 Update
+58bc8 Fuel
+58bcd Identify Tank
+58bdb ~Parachutes
+58be7 ~Triggers
+58bf1 ~Guidance
+58bfb Description
+58c07 Amount in stock
+58c17 ~Quantity to sell:
+58c2a Offer
+58c30 Sell Equipment
+58c3f ~Accept
+58c47 ~Reject
+58c4f Configure Teams
+58c5f Earned interest
+58c6f ~Inventory
+58c7e Shields
+58c86 Batteries to discharge:
+58c9e Engage
+58ca9 ~Quit
+58caf New ~Game
+58cb9 Saving Configuration
+58cce Please Wait...
+58cdd Internal Error... sorry!
+58cf7 Out of memory... needed %ld byte%s.
+58d1c Automatic Defense System
+58d35 ~Energy Left
+58d42 ~Launch
+58d4a Unable to open file "%s".
+58d64 Thanks for registering!
+58d7c Walls
+58d82 %d of %d rounds fought.
+58d9a Calibrate Joystick
+58dad Center joystick and press
+58dc7 the fire button.
+58dd8 (Press any key to cancel.)
+58df3 You seriously want to disgrace
+58e12 and humiliate yourself
+58e29 by retreating?
+58e38 ~File:
+58e3f File "%s" exists.  Delete it?
+58e5d Error trying to rename file "%s" to "%s"!
+58e87 Error trying to create file "%s"!
+58ea9 File "%s" doesn't exist!
+58ec2 ~Cancel
+58eca Error Message
+58ed8 Save Game in Progress
+58eee Restore a Previous Game
+58f06 ~Save
+58f0c ~Restore
+58f15 "%s" is not a saved game.
+58f2f File "%s" was created by a different version.
+58f5d Version
+58f65 (of %d)
+58f6d Cavern
+58fa0 MbP?
+5ad16 icons.cpp
+5ad20 icons.cpp
+5ad2a icons.cpp
+5ad34 icons.cpp
+5ad3e icons.cpp
+5ad4a %s: %d
+5ad51 %s: %s
+5ad58 Team %d
+5ad8e %s %d %s
+5adda %s: %d
+5ade1 %s: %d
+5af2a ASGARD
+5af31 frondheim
+5af3b ragnarok
+5af44 scorch.cfg
+5af4f %s %s Copyright (c) 1991-1995 Wendell Hicken
+5af7d 1.50
+5af82 mayhem
+5af89 nofloat
+5af92 <<Press any key>>
+5afb6                  
+5afde @@ffffff
+5afef ?scorch.mkt
+5affe scorch.mkt
+5b009 scorch.mkt
+5b120 %s: %d
+5b127 %s: %d
+5b173 U8O U8O$U8O)U8O-U8O3U8O9U8O>U8ODU8OKU8OSU8OXU8O_U8OhU8OoU8OvU8O{U8O
+5b207 V8O*V8O1V8O8V8O?V8OHV8ONV8OTV8OYV8OaV8OgV8OoV8OwV8OBob
+5b242 Ralph
+5b248 Fred
+5b251 George
+5b258 Wolfgang
+5b261 Pepe
+5b266 Ronald
+5b26d Arnold
+5b274 Chuck
+5b27a Doug
+5b27f Edward
+5b286 Hank
+5b28b Jacque
+5b296 Norm
+5b29b Otto
+5b2a4 Ajax
+5b2ad Frank
+5b2b3 Bubba
+5b2b9 Biff
+5b2be Leroy
+5b2c4 Newton
+5b2cb Galileo
+5b2d3 Bach
+5b2d8 Mozart
+5b2df Gilligan
+5b2e8 Saddam
+5b2ef Atilla
+5b2f6 Tito
+5b2fb Castro
+5b302 Khadafi
+5b30a Amin
+5b30f Cleopatra
+5b319 Mussolini
+5b323 Napolean
+5b32c Juan
+5b331 Barbarella
+5b33c Antoinette
+5b347 Helen
+5b34d Elizabeth
+5b357 Mary
+5b35c Diane
+5b366 Persephone
+5b371 Esther
+5b378 Rose
+5b37d Mata Hari
+5b387 Moria
+5b38d Bethsheba
+5b397 Jezebel
+5b39f Guineverre
+5b3aa Godiva
+5b3b1 Medusa
+5b3b8 Elvira
+5b3bf Roseanne
+5b3c8 Sonja
+5b3ce Charo
+5b3d4 Cher
+5b3d9 Madonna
+5b3e1 Grace
+5b3e7 Bubbles
+5b3ef Tiffany
+5b3f7 Angie
+5b4b2 play.cpp
+5b4bb Current weapon <= 0 in TankPlays
+5b4dc scorch.pcx
+5b4f8 8888 
+5b4fe 99  
+5b503 MMMMMMMMMMMMMMM
+5b515 8888 
+5b523 100% 
+5b52d 999 
+5b545 %d: %s
+5b55b %d: %s
+5b5a7 ?Joe
+5b5b3 B%4ld
+5b5b9 player.cpp
+5b5c4 player.cpp
+5b5d4 player.cpp
+5b5e5 X8O4Y8OLY8O
+5b60d Z8Ob[8Oo[8O
+5b625 \8Ov\8O
+5b635 ]8OS]8Ob]8O
+5b645 ]8O(^8O6^8O`^8Oo^8O
+5b659 ^8OThere's many a boy here today who looks on war as all glory,
+5b699 but, boys, it is all hell.
+5b6b4 Gen. William T. Sherman
+5b6cc The essence of war is violence.  Moderation in war is imbecility.
+5b70e Fisher
+5b715 War is the science of destruction.
+5b738 John Abbott
+5b744 Providence is always on the side of the big battalions.
+5b77c Sevigne
+5b784 War is a matter of vital importance to the State; the province of
+5b7c6 life or death; the road to survival or ruin.  It is mandatory that
+5b809 it be throughly studied.
+5b822 Sun Tzu
+5b82a War should be the only study of a prince.  He should consider
+5b868 peace only as a breathing-time, which gives him leisure to
+5b8a3 contrive, and furnishes as ability to execute, military plans.
+5b8e2 Macchiavelli
+5b8ef Not with dreams but with blood and iron,
+5b918 Shall a nation be moulded at last.
+5b93b Swinburne
+5b945 No one can guarantee success in war, but only deserve it.
+5b97f Winston Churchill
+5b991 The grim fact is that we prepare for war like precocious giants
+5b9d1 and for peace like retarded pygmies.
+5b9f6 Lester Pearson
+5ba05 We cannot live by power, and a culture that seeks to live
+5ba3f by it becomes brutal and sterile.  But we can die without it.
+5ba7d Max Lerner
+5ba88 No man is wise enough, nor good enough to be trusted with
+5bac2 unlimited power.
+5bad3 Charles Colton
+5bae2 Nothing good ever comes of violence.
+5bb07 Martin Luther
+5bb15 Give me the money that has been spent in war, and ... I will
+5bb52 clothe every man, woman and child in attire of which kings and
+5bb91 queens would be proud.
+5bba8 Henry Richard
+5bbb6 That mad game the world so loves to play.
+5bbe0 Jonathon Swift
+5bbef Nearly all men can stand adversity, but if you want to test a man's
+5bc33 character, give him power.
+5bc4e Abraham Lincoln
+5bc80 MbP?Z_8O
+5bc8c e_8O
+5bc94 p_8O
+5bc9c {_8O
+5bcad _8O 
+5bcbd _8O'
+5bccd _8O>
+5bcda ice001.mtn
+5bce5 ice002.mtn
+5bcf0 ice003.mtn
+5bcfb rock001.mtn
+5bd07 rock002.mtn
+5bd13 rock003.mtn
+5bd1f rock004.mtn
+5bd2b rock005.mtn
+5bd37 rock006.mtn
+5bd43 snow001.mtn
+5bd52 *.mtn
+5bd5b ranges.cpp
+5bd66 bad case in find_mtn_file
+5bd80 N mtn files: %d
+5bd91 N mtn files: %d
+5bda4 9 tanks
+5bdb0 %d tank%s
+5bdc2 Player Rankings
+5bddb ~Teams
+5bde3 Team Rankings
+5bdf1 ~Players
+5bdfa ~Teams
+5be01 ~Players
+5be0a T~ype
+5be10 T~ype
+5be16 ~Players
+5be1f ~Teams
+5be28 Minimum
+5be70 333333
+5be87 ?333333
+5be9e HB$a8Oscorch
+5beb2 score.cpp
+5becb ?%s: %s
+5bed3 %s: %d
+5beda shark.cpp
+5bf4c la8O|a8O
+5bf66 shields.cpp
+5bf72 shields.cpp
+5bf7e %s activating %s
+5c09a Too many drivers in SubMenu.
+5c0d7 ?333333
+5c103 @~Percent Scanned Mountains:
+5c123 @Graphics mode changed!
+5c13e Copyright (c) 1991-1995 Wendell Hicken
+5c165 Registered Version
+5c17d Registered Version
+5c195 Copyright (c) 1991-1995 Wendell Hicken
+5c1bc Copyright (c) 1991-1995
+5c1d4 Wendell Hicken
+5c1e3 %s %s
+5c1e9 1.50
+5c1f1 %d%%
+5c4d0 @f8O
+5c4e2 we8O
+5c53b DST2
+5c540 DVJT
+5c553 ?team.cpp
+5c55d team.cpp
+5c566 team.cpp
+5c572 Team %d
+5c57a team.cpp
+5c583 team.cpp
+5c58c Team X
+5c59e %s: %s
+5c5a5 Mountains: %s
+5c5b3 %s: %s
+5c9f7 m8Oh
+5cb06 n8O
+5cb4c 320x200
+5cb54 320x240
+5cb5c 320x400
+5cb64 320x480
+5cb6c 360x480
+5cb74 640x400
+5cb7c 640x480
+5cb84 800x600
+5cb8c 1024x768
+5cb97 n8O0123456789
+5cbe8 scorch.dbg
+5cbfd Unable to initialize svga graphics mode: %s.
+5cc2c Unable to initialize graphics mode: %s.
+5cc68                                  !"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnopqrstuvwxyz[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+5cce8 cueaaaaceeeiiiaae
+5ccfa aooouuyou
+5cd08 aiounn
+5cd18                                                 
+5cd5f          
+5cd79 ?%.*lf
+5cd80 %.*lf
+5cd8b Bad arg to MenuSlider: %d (0..%d)
+5f26c Buffer passed to dotext too long!
+5f738 Fastgraph V4.02
+5fd06 ""33DDUUffww
+61859 A@SW@V@w
+61862 VQMBLw
+6186f @WDRQCJv
+61878 W@GPWb
+6188c QMBLW\UJf
+61896 mudwbqvdc
+618ca UUUUU
+61af0 AHEAD
+61af6 761295520
+61b05 qt`abcqtabc
+61b17 TUabcdTU)*,1+0x
+61b2f jrxy|~jr
+61b38 _\`X]-.08d7~\^
+61b47 j_^_\bX]
+61b56 STYRVaSTYRV^_
+61b6b X]^_\`X]
+61b74 ikmjl\]
+61b7d [_\]^b[_
+61b89 )7/.08)7fgijbe
+61bec 8ODOMAIN
+61bf5 SING
+61bfa OVERFLOW
+61c03 UNDERFLOW
+61c0d TLOSS
+61c13 PLOSS
+61c5a 8ODomain
+61c63 Denormal
+61c6c Divide by 0
+61c78 Overflow
+61c81 Underflow
+61c8b Partial loss of precision
+61ca5 Stack fault
+61cb1 Floating point error: %s.
+61d54 sqrt
+61d8e %s: %s error
+61dba atan2
+61dc0 Abnormal program termination
+61fc4 ),(((((),(((
+61fe8 *(((
+6200e .$$$
+6201e Out of memory
+6202c Pure virtual function called
+62049 Pure virtual function called
+6206b          !!!!!                  
+6208c @@@@@@@@@@@@@@@
+620a5 @@@@@@@
+620c6 @@@@@@
+620e6 @@@@ 
+621a8 (null)
+62434 Error 0
+6243c Invalid function number
+62454 No such file or directory
+6246e Path not found
+6247d Too many open files
+62491 Permission denied
+624a3 Bad file number
+624b3 Memory arena trashed
+624c8 Not enough memory
+624da Invalid memory block address
+624f7 Invalid environment
+6250b Invalid format
+6251a Invalid access code
+6252e Invalid data
+6253c No such device
+6254b Attempted to remove current directory
+62571 Not same device
+62581 No more files
+6258f Invalid argument
+625a0 Arg list too big
+625b1 Exec format error
+625c3 Cross-device link
+625df Math argument
+625ed Result too large
+625fe File already exists
+62612 Possible deadlock
+6262f Unknown error
+6266c 8OPF
+62680 <notype>
+62689 **BCCxh1
+626a3 COMPAQ
+626aa print scanf : floating point formats not linked
+62702 String reference out of range
+62720 String reference out of range
+6273e String reference out of range
+6278b  n:"

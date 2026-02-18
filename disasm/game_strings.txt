@@ -1,0 +1,121 @@
+287af Player
+29aae ScannedMountain
+2b79e Player[10]
+5609e zDMAXPLAYERS
+56111 @FIRE_DELAY
+5618f FGRAVITY
+561a2  ASUSPEND_DIRT
+561d8 MAX_WIND
+561e1 CHANGING_WIND
+562db BOMB_ICON
+562f0 EXPLOSION_SCALE
+56306 EXTRA_DIRT
+5631f DAMAGE_TANKS_ON_IMPACT
+5650f MAXPLAYERS=%d
+565a5 FIRE_DELAY=%d
+5662b GRAVITY=%lf
+56638 SUSPEND_DIRT=%d
+56680 MAX_WIND=%d
+5668d CHANGING_WIND=%s
+567a9 BOMB_ICON=%s
+567c6 EXPLOSION_SCALE=%s
+567e4 EXTRA_DIRT=%s
+56805 DAMAGE_TANKS_ON_IMPACT=%s
+56abd  version - including 25 new mountains and enabling the triple-turreted tank.  
+57a4b Bd=%lf  FireDelay=%d  WarheadsLeft=%d 
+57afc FIREWALL_FATAL
+57b35 ** %d firewall%s triggered!
+57b88 ### FIREWALL: Exception caught at "%s", line %ld.
+57bbb ### FIREWALL: Exception caught at "%s", line %ld.
+58185 18OTeleporter
+58193 Jump Jets
+5819d Popcorn Bomb
+581aa Baby Missile
+581b7 Missile
+581bf Baby Nuke
+581ce LeapFrog
+581d7 Funky Bomb
+581e7 Death's Head
+581f4 Napalm
+581fb Hot Napalm
+58206 Tracer
+5820d Smoke Tracer
+5821a Baby Roller
+58226 Roller
+5822d Heavy Roller
+5823a Plasma Blast
+58247 Riot Charge
+58253 Riot Blast
+5825e Riot Bomb
+58268 Heavy Riot Bomb
+58278 Baby Digger
+58284 Digger
+5828b Heavy Digger
+58298 Baby Sandhog
+582a5 Sandhog
+582ad Heavy Sandhog
+582bb Dirt Clod
+582c5 Dirt Ball
+582cf Ton of Dirt
+582db Liquid Dirt
+582e7 Dirt Charge
+582f3 Dirt Tower
+58314 Plasma Laser
+58321 Heat Guidance
+5832f Bal Guidance
+5833c Horz Guidance
+5834a Vert Guidance
+58361 Parachute
+5836b Battery
+5837f Mag Deflector
+5838d Shield
+58394 Warp Shield
+583a0 Teleport Shield
+583b0 Flicker Shield
+583bf Force Shield
+583cc Heavy Shield
+583d9 Super Mag
+583e3 Patriot Missiles
+583f4 Auto Defense
+58401 Fuel Tank
+5840b Contact Trigger
+585ae ~Players:
+58611 ~Weapons...
+5872a ~Gravity:
+58757 ~Suspend Dirt:
+5876c ~Max. Wind:
+58778 ~Changing Wind
+587bc ~Impact Damage
+587d8 ~Bomb Icon:
+58804 ~Extra Dirt
+5884e Player
+58889 No Wind
+588d2 Reassign Players
+588e3 Reassign ~Players
+589c1 Weapons
+589dd Remaining Power:
+589ee Energy Left
+589ff Guidance
+58a08 ~Fuel Remaining:
+58bdb ~Parachutes
+58bf1 ~Guidance
+58c7e Shields
+58d35 ~Energy Left
+58dc7 the fire button.
+5b4bb Current weapon <= 0 in TankPlays
+5b5b9 player.cpp
+5b5c4 player.cpp
+5b5d4 player.cpp
+5b7c6 life or death; the road to survival or ruin.  It is mandatory that
+5ba05 We cannot live by power, and a culture that seeks to live
+5bac2 unlimited power.
+5bc33 character, give him power.
+5bdc2 Player Rankings
+5bdf1 ~Players
+5be01 ~Players
+5be16 ~Players
+5beb2 score.cpp
+5bf66 shields.cpp
+5bf72 shields.cpp
+5c103 @~Percent Scanned Mountains:
+5c5a5 Mountains: %s

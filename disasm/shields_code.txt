@@ -1,0 +1,24 @@
+=== DISASSEMBLY NEAR shields.cpp ===
+
+=== SHIELD-RELATED STRINGS ===
+  'Shield' at 0x05838D
+  'Shield' at 0x058399
+  'Shield' at 0x0583A9
+  'Shield' at 0x0583B8
+  'Shield' at 0x0583C5
+  'Shield' at 0x0583D2
+  'Shields' at 0x058C7E
+  'shields.cpp' at 0x05BF66
+  'shields.cpp' at 0x05BF72
+  'Energy Left' at 0x0589EE
+  'Energy Left' at 0x058D36
+  'Deflector' at 0x058383
+  'Warp Shield' at 0x058394
+  'Teleporter' at 0x058188
+  'Teleport Shield' at 0x0583A0
+  'Flicker Shield' at 0x0583B0
+  'Mag Deflector' at 0x05837F
+  'Mag' at 0x0583DF
+  'mage' at 0x0587C6
+  'Patriot Missiles' at 0x0583E3
+  'Force Shield' at 0x0583BF

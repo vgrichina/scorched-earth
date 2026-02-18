@@ -1,0 +1,28 @@
+=== EXPLOSION-RELATED STRINGS ===
+  'Damage' at 0x0587C4
+  'FireDelay=%d  WarheadsLeft=%d ' at 0x057A53
+  'WarheadsLeft=%d ' at 0x057A61
+  'fire button.' at 0x058DCB
+  'burne' at 0x05B93F
+
+=== CODE NEAR extras.cpp (0x0579C7) - FULL DISASSEMBLY ===
+  50E9E: fadd	qword ptr [di]
+
+=== GRAVITY/WIND CONFIG STRINGS ===
+  'GRAVITY' at 0x056190
+  'AIR_VISCOSITY' at 0x056179
+  'MAX_WIND' at 0x0561D8
+  'CHANGING_WIND' at 0x0561E1
+  'FIRE_DELAY' at 0x056112
+  'FALLING_DELAY' at 0x05611D
+  'FALLING_TANKS' at 0x0561B1
+  'EDGES_EXTEND' at 0x0561BF
+  'ELASTIC' at 0x0561CC
+
+=== WALL/ELASTIC TYPE STRINGS ===
+  'Concrete' at 0x05852F
+  'Padded' at 0x05851A
+  'Rubber' at 0x058521
+  'Spring' at 0x058528
+  'Wrap-around' at 0x05850E
+  'Erratic' at 0x0584FF

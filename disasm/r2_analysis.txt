@@ -1,0 +1,77 @@
+[35mWARN:[0m Relocs has not been applied. Please use `-e bin.relocs.apply=true` or `-e bin.cache=true` next time
+arch     x86
+binsz    415456
+bintype  mz
+bits     16
+canary   false
+injprot  false
+class    MZ
+crypto   false
+endian   little
+havecode true
+laddr    0x0
+linenum  false
+lsyms    false
+machine  i386
+nx       false
+os       DOS
+pic      false
+relocs   false
+sanitize false
+static   true
+stripped false
+subsys   DOS
+va       true
+[33mINFO:[0m Analyze all flags starting with sym. and entry0 (aa)
+[33mINFO:[0m Analyze imports (af@@@i)
+[33mINFO:[0m Analyze entrypoint (af@ entry0)
+[33mINFO:[0m Analyze symbols (af@@@s)
+[33mINFO:[0m Analyze all functions arguments/locals (afva@@F)
+[33mINFO:[0m Analyze function calls (aac)
+[33mINFO:[0m Analyze len bytes of instructions for references (aar)
+[33mINFO:[0m Finding and parsing C++ vtables (avrr)
+[33mINFO:[0m Analyzing methods (af @@ method.*)
+[33mINFO:[0m Recovering local variables (afva@@@F)
+[33mINFO:[0m Type matching analysis for all functions (aaft)
+[33mINFO:[0m Propagate noreturn information (aanr)
+[33mINFO:[0m Use -AA or aaaa to perform additional experimental analysis
+0x00000000    2      8 entry0
+0x0005280c    1      7 fcn.0005280c
+0x00054b83    1     38 fcn.00054b83
+0x00054eac  644   3285 fcn.00054eac
+0x00054e3c   35    164 fcn.00054e3c
+0x00029a98    7    153 fcn.00029a98
+0x00002d8e    1    111 fcn.00002d8e
+0x00002d82    1      6 fcn.00002d82
+0x00002d88    1      6 fcn.00002d88
+0x00001c5a    8     81 fcn.00001c5a
+0x00002dfd    1     20 fcn.00002dfd
+0x00005902    4     33 fcn.00005902
+0x0004ecf2    7    230 fcn.0004ecf2
+0x0004edd8    4     96 fcn.0004edd8
+0x00003236    5     41 fcn.00003236
+0x00001639    1     22 fcn.00001639
+0x0004e819    9    201 fcn.0004e819
+0x00006295    6    167 fcn.00006295
+0x0004ea35    6    134 fcn.0004ea35
+0x000074af    1     89 fcn.000074af
+0x00007180   19    795 fcn.00007180
+0x0004ef70    1     63 fcn.0004ef70
+0x00003340   16    126 fcn.00003340
+0x000060ef    1    120 fcn.000060ef
+0x00006360    8    171 fcn.00006360
+0x00004d07    3     36 fcn.00004d07
+0x000034a7   14    123 fcn.000034a7
+0x0004ef0e    3     98 fcn.0004ef0e
+0x00004dc5    1     37 fcn.00004dc5
+0x00004d73   11     82 fcn.00004d73
+0x00004d51    1     34 fcn.00004d51
+0x00004d2b    6     38 fcn.00004d2b
+0x0004e6c9    7     99 fcn.0004e6c9
+0x0004ce13    1     24 fcn.0004ce13
+0x0004bfd2   18    132 fcn.0004bfd2
+0x0004cdfd    1     22 fcn.0004cdfd
+0x0004c313   14    225 fcn.0004c313
+0x0004ce2b    1     28 fcn.0004ce2b
+0x0004c81a   11    111 fcn.0004c81a
+0x0004c44a   67    973 fcn.0004c44a

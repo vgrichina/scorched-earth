@@ -1,0 +1,777 @@
+================================================================================
+SCORCHED EARTH v1.5 - AI TRAJECTORY SOLVER ANALYSIS
+================================================================================
+Binary: SCORCH.EXE (415,456 bytes, June 1995)
+Borland C++ 1993 large model with INT 34h-3Dh FPU emulation
+Data segment base: 0x055D80 (paragraph 0x4F38), Header: 0x6A00 bytes
+
+IMPORTANT: This binary uses Borland's software FPU emulation, encoding all
+floating-point operations as INT 34h through INT 3Eh software interrupts:
+  INT 34h = DC xx (fadd/fmul/fcomp qword)    INT 39h = D9 xx (fld/fst dword)
+  INT 35h = D8 xx (fadd/fmul dword)           INT 3Ah = DB xx (fild dword)
+  INT 36h = DA xx (fiadd/fimul dword int)      INT 3Bh = DF xx (fild/fistp word)
+  INT 37h = DE xx (fiadd/fimul word int)       INT 3Ch = D8 xx (near-data FPU)
+  INT 38h = DD xx (fld/fst qword)              INT 3Dh = 9B (fwait)
+  INT 3Eh = D9 xx (special: fabs,fsin,fcos,fsqrt,fptan,fld1,etc.)
+
+================================================================================
+SECTION 1: AI TYPE SYSTEM
+================================================================================
+
+AI Type Names (DS:0x26C2):
+  0 = Moron        4 = Chooser      8 = Sentient
+  1 = Shooter      5 = Spoiler      
+  2 = Poolshark    6 = Cyborg       
+  3 = Tosser       7 = Unknown      
+
+AI Type Variables:
+  DS:0x5156 = Original AI type (from player config)
+  DS:0x5154 = Effective AI type (randomized for Cyborg/Unknown)
+  
+Randomization: Cyborg(6) and Unknown(7) get randomized to types 0-5 at
+the start of each turn (random(6) -> store to DS:0x5154).
+
+================================================================================
+SECTION 2: AI DISPATCH VTABLE
+================================================================================
+
+Static AI vtable at DS:0x027A (16 bytes per type, 4 far pointers each):
+  [do_turn_func, post_turn_func, cleanup_func, init_func]
+
+Type 0 (Moron):     do_turn = 262C:0241  (file 0x2CF01)  seg=moron.cpp?
+Type 1 (Shooter):   do_turn = 320D:007E  (file 0x38B4E)  seg=shoot.cpp?
+Type 2 (Poolshark): do_turn = 315D:000C  (file 0x37FDC)  seg=shark.cpp
+Type 3 (Tosser):    do_turn = 3B6B:0007  (file 0x420B7)  seg=toss.cpp?
+Type 4 (Chooser):   do_turn = 1132:000F  (file 0x17D2F)  seg=choose.cpp?
+Type 5 (Spoiler):   do_turn = 34B2:0163  (file 0x3B683)  seg=spoil.cpp?
+Type 6 (Cyborg):    do_turn = 14C8:03E3  (file 0x1BA63)  seg=cyborg.cpp?
+Type 7 (Unknown):   do_turn = 4F38:02xx  (file 0x560xx)  seg=data
+Type 8 (Sentient):  do_turn = 4F38:02xx  (file 0x560xx)  seg=data
+
+Post-turn functions follow the same pattern.
+Init function = 11B5:05F7 for types 0-5, different for types 6-8.
+
+Dispatch Mechanism:
+  The main game loop (at ~file 0x29280) copies the current AI's vtable
+  entry to runtime slots DS:EF0C/EF10/EF14, then calls through them:
+    CALL FAR [DS:EF0C]  = do_turn
+    CALL FAR [DS:EF10]  = post_turn
+    CALL FAR [DS:EF14]  = init/other
+
+================================================================================
+SECTION 3: AI HANDLER CHARACTERISTICS
+================================================================================
+
+Handler analysis (random() calls, FPU ops, trajectory_sim, atan2 usage):
+
+  Moron (262C):     4 random(), 0 FPU,   0 traj_sim, 0 atan2
+    -> Pure random: picks random angle and power
+
+  Shooter (320D):   0 random(), 7 FPU,   1 traj_sim, 1 atan2
+    -> Computes angle to target, iteratively adjusts via simulation
+
+  Poolshark (315D): 1 random(), 20 FPU,  0 traj_sim, 1 atan2
+    -> Delegates to Shooter for most types; has special Tosser/Chooser path
+
+  Tosser (3B6B):    1 random(), 36 FPU,  1 traj_sim, 0 atan2
+    -> Uses trajectory simulation with some randomness
+
+  Chooser (1132):   4 random(), 0 FPU,   0 traj_sim, 0 atan2
+    -> Picks targets randomly, possibly with weapon selection
+
+  Spoiler (34B2):   1 random(), 64 FPU,  0 traj_sim, 0 atan2
+    -> Heavy FPU but no trajectory sim - targets the leader analytically
+
+  Cyborg (14C8):    3 random(), 16 FPU,  0 traj_sim, 0 atan2
+    -> Randomized to use another AI type's behavior each turn
+
+================================================================================
+SECTION 4: SHARK.CPP CODE SEGMENT (POOLSHARK AI)
+================================================================================
+
+Code segment: 0x315D (file 0x37FD0 - 0x38310, 832 bytes)
+String reference: "shark.cpp" at DS:0x615A (file 0x5BEDA)
+Assert reference: file 0x38072 (seg offset 0x00A2) - line 32
+
+Functions in segment 0x315D:
+  315D:000C - Main do_turn handler (ENTER 0x1E = 30 bytes locals)
+  315D:0241 - Post-turn handler (ENTER 0x08 = 8 bytes locals)
+
+315D:000C Control Flow:
+
+  if (effective_ai_type == 0) {  // Moron
+      ShooterAI(player);          // Call 320D:007E 
+      return;
+  }
+  if (effective_ai_type == 3) goto complex_solver;  // Tosser
+  if (effective_ai_type == 4) goto complex_solver;  // Chooser
+  // Fall through for types 1,2,5 (Shooter, Poolshark, Spoiler)
+  ShooterAI(player);              // Call 320D:007E
+  return;
+
+complex_solver:  // offset 0x48
+  // Load player data via LES BX, [BP+6]
+  prev_target = player->target_ptr;  // [bx+0xAE:0xB0]
+  if (prev_target == NULL) goto assert_fail;
+  if (prev_target->alive_flag != 0) goto skip_search;
+  
+  // Search for nearest target
+  player->counter_38 = 0;
+  count = 0;
+  for (i = 0; i < num_players; i++) {
+      player_entry = player_list[i * 2 + player_base];
+      if (player_entry->alive_flag == 0) count++;
+  }
+  assert(count >= 2, "shark.cpp", 32);
+  
+  best = random(count);  // Call 2BF9:048B
+  best -= ...;           // Adjust
+  
+  // Iterate through player list to find target
+  // Uses walk-list function 2A16:1648
+  ...
+  
+  // Check if we already had this target
+  if (player->prev_target_x == player->x && 
+      player->prev_target_y == player->y) {
+      goto recalc_needed;
+  }
+  
+  // FPU section: compute angle and distance to new target
+  // Uses: fild, fmul qword [DS:0x320C] (pi/180), atan2, etc.
+  
+  dx = target->x - player->x;                    // fild [bp-0x16]
+  dy_raw = target->y - DS:0x40EF;                // adjusted y
+  total_dy = (target->y - DS:0x40EF) + (dx * 2); // combined offset
+  
+  player->target_ptr = target;
+  player->power = (player->max_power * player->something) / 10;
+  
+  // Compute angle using FPU
+  fld [bp-0x14]                // load angle intermediate
+  fstp [bp-0x2A]               // store for atan2 arg
+  // ... more FPU setup ...
+  call atan2(dy, dx)           // 0000:1421
+  result_angle *= 180.0/pi;    // fmul [DS:0x6164] via call 0000:14DF
+  
+  player->turret_angle = result_angle;
+  
+  // Store previous target position
+  player->prev_target_x = target->x;
+  player->prev_target_y = target->y;
+  
+  // Call utility to finalize shot
+  call 11B5:0ABC(player);
+  return;
+
+315D:0241 (post_turn handler):
+  // Checks AI type for 0, 3, 4 (same pattern)
+  // Loads target info
+  // Increments retry counter (player->counter_38)
+  // If counter > 4, resets target to NULL (re-search next turn)
+  // Checks proximity: if target below terrain, reset
+  // If shots keep missing (counter_32 >= 90), reset target
+  // Decrements/adjusts based on shot result
+
+
+================================================================================
+SECTION 5: SHOOTER AI (320D:007E) - THE CORE SOLVER
+================================================================================
+
+Code segment: 0x320D (file 0x38AD0 - 0x38E90, 960 bytes)
+Main function: 320D:007E (ENTER 0x3A = 58 bytes locals)
+
+This is the most important AI function - it's used directly by Shooter (type 1)
+and delegated to by Poolshark for most effective AI types.
+
+Algorithm (reconstructed from binary analysis):
+
+
+function ShooterAI(far *player) {
+    // ENTER 0x3A: 58 bytes of local variables
+    // bp-2 to bp-0x3A
+    
+    // Variables:
+    // si = player loop counter
+    // di = direction flag
+    // bp-0x02: saved player seg:off
+    // bp-0x0E: trajectory result
+    // bp-0x10: temp for FPU conversions
+    // bp-0x30 to bp-0x3A: FPU workspace
+    
+    // OUTER LOOP: iterate over all players as potential targets
+    for (si = 0; si < DS:0x50D4 /*num_players*/; si++) {
+        
+        // INNER LOOPS at 320D:00C7 and 320D:00EB
+        // These iterate through the player list structure
+        // Skip dead players, skip self
+        // player_list is accessed via far pointer arithmetic
+        
+        target = find_valid_target(si);
+        if (target == self) continue;
+        if (target->alive == 0) continue;
+        
+        // Store target reference
+        player->target_ptr = target;     // [bx+0xAE], [bx+0xB0]
+        
+        // Compute power
+        power_raw = player->field_A4 * player->field_A2;
+        player->power_34 = power_raw / 10;  // using long_mul (0000:17A6)
+        
+        // COMPUTE ANGLE TO TARGET
+        // At 320D:028C:
+        dy = player->y - target->y + 2;     // y inverted, +2 pixel bias
+        dx = target->x - player->x;
+        
+        // Convert to floating point for atan2
+        fild word [bp-16]           // load dx
+        fstp dword [bp-70]          // push as FPU arg
+        fild word [bp-16]           // load dy  
+        fstp dword [bp-78]          // push as FPU arg
+        
+        angle_rad = atan2(dy, dx);          // call 0000:1421
+        angle_deg = angle_rad * 57.29578;   // * 180/pi (DS:0x6210)
+                                            // via fmul helper 0000:14DF
+        
+        player->turret_angle = (int)angle_deg;  // [bx+0x32]
+        
+        // TRAJECTORY ADJUSTMENT LOOP
+        // Main loop: 320D:02E3 to 320D:0369
+        do {
+            // Call trajectory simulator
+            // Push args: mode=1, target.y, target.x, player far ptr
+            result = TrajectorySimulate(player, 
+                                       target->x,    // [target+0x0E]
+                                       target->y,    // [target+0x10]
+                                       1);           // mode flag
+            // call 1E50:05E9 (the big trajectory sim function)
+            
+            if (result < 0) {
+                // MISS - adjust turret angle by 1 degree
+                if (player->turret_angle < 90) {
+                    player->turret_angle++;     // try steeper
+                } else {
+                    player->turret_angle--;     // try shallower
+                }
+            }
+            
+            // Check for vertical shot deadlock
+            if (player->turret_angle == 90) {
+                // Straight up = impossible to hit this target
+                // Mark target as temporarily "dead" in a slot
+                target_slot->alive_flag = 1;
+                
+                // RECURSE to try another target
+                ShooterAI(player);  // near call at 320D:035A
+                return;
+            }
+            
+        } while (result <= 0);  // keep adjusting until hit
+        
+        // Success! Shot found
+        call utility_11B5(player);  // finalize shot parameters
+        return;
+    }
+    
+    // No valid target found - fall back to random shot
+    TosserAI(player);  // call 3B6B:0007
+}
+
+KEY INSIGHT: The Shooter AI uses a simple iterative approach:
+1. Compute angle-to-target via atan2
+2. Simulate trajectory at that angle
+3. If miss: adjust angle by +/-1 degree
+4. Repeat until hit or angle reaches 90 degrees
+5. If stuck at 90: try next target (recursive)
+6. If no targets: random shot (Tosser fallback)
+
+The power is set ONCE based on a formula, NOT iterated.
+Only the angle is adjusted. This makes it relatively simple but effective.
+
+
+================================================================================
+SECTION 6: TRAJECTORY SIMULATION (1E50:05E9)
+================================================================================
+
+Code segment: 0x1E50 (file 0x24F00 - 0x26110, 4624 bytes, 481 FPU ops!)
+Function: 1E50:05E9 (ENTER 0x64 = 100 bytes of local variables)
+This is the CORE physics simulation engine.
+
+Function Signature (reconstructed):
+  int TrajectorySimulate(far *player, int target_x, int target_y, int mode)
+
+Called by:
+  - Shooter AI (320D:007E) - iterative angle adjustment
+  - Tosser AI (3B6B:0007) - with random parameters
+  - Various other AI handlers
+
+Sub-functions in segment 0x1E50:
+  1E50:0001 (4 locals)    - helper/wrapper
+  1E50:00CF (54 locals)   - extended simulation?
+  1E50:05E9 (100 locals)  - MAIN trajectory simulator
+  1E50:07FD (15 locals)   - trig helper
+  1E50:0825 (15 locals)   - trig helper
+  1E50:0941 (15 locals)   - math helper
+  1E50:099C (50 locals)   - secondary sim function
+  1E50:0B97 (15 locals)   - helper
+  1E50:0BB0 (15 locals)   - helper
+  1E50:0C30 (50 locals)   - another sim variant
+  1E50:0EE9 (32 locals)   - distance/hit detection
+  1E50:1037 (16 locals)   - final helper
+
+Math library calls from trajectory simulator:
+  sin()  at 0000:1204 (uses native FSIN instruction)
+  cos()  at 0000:13D1 (uses native FCOS instruction)
+  tan()  at 0000:04DC (uses FPTAN instruction)
+  atan2()at 0000:1421 (uses FPATAN instruction)
+  ldexp()at 0000:0FC8 (scale by power of 2)
+
+Physics Constants Used:
+
+  DS:0x320C =          0.017453293  [06 ed 91 aa 46 df 91 3f]  pi/180 (degrees to radians conversion)
+  DS:0x321C =                0.001  [fc a9 f1 d2 4d 62 50 3f]  time step (dt = 0.001 seconds)
+  DS:0x322E =              3.14159  [6e 86 1b f0 f9 21 09 40]  pi
+  DS:0x3236 =              6.28318  [6e 86 1b f0 f9 21 19 40]  2*pi
+  DS:0x3242 =          2.000000469  [00 00 00 3f 00 00 00 40]  2.0 (doubling factor)
+  DS:0x6164 =          57.29577951  [72 23 5d 1a dc a5 4c 40]  180/pi (radians to degrees conversion)
+  DS:0x6210 =          57.29577951  [72 23 5d 1a dc a5 4c 40]  180/pi (duplicate, used by Shooter)
+  DS:0x0314 =          0.017453293  [06 ed 91 aa 46 df 91 3f]  pi/180 (another copy)
+
+Game Physics Config Variables:
+  DS:0x512A = 0.2    (double) - air viscosity / drag coefficient
+  DS:0x5178 = 1.0    (double) - gravity multiplier
+  DS:0x5190 = 0.05   (double) - wind factor?
+
+Player Struct Fields (accessed by trajectory sim):
+  [player+0x02] = power/weapon value
+  [player+0x04] = power multiplier
+  [player+0x06] = max power?
+  [player+0x0E] = x position (pixels)
+  [player+0x10] = y position (pixels)
+  [player+0x32] = turret angle (degrees, word)
+  [player+0x34] = power level
+  [player+0x7A] = alive flag (0=alive)
+  [player+0x8E] = ?
+  [player+0x90] = ?
+  [player+0x94] = max power (for trajectory calc)
+  [player+0xA0] = dx/velocity component?
+  [player+0xA2] = some factor
+  [player+0xA4] = weapon/ammo info
+  [player+0xAE] = target pointer (far ptr low word)
+  [player+0xB0] = target pointer (far ptr high word)
+
+Trajectory Simulation Algorithm (from disassembly of 1E50:05E9):
+
+  The function takes player position, angle, power, and target coordinates.
+  It performs a step-by-step projectile simulation:
+
+  1. INITIAL SETUP (1E50:05E9-0x0640):
+     - Check player.turret_angle against 90 (vertical)
+     - If angle > 90: direction = -1 (shooting left)
+     - If angle <= 90: direction = +1 (shooting right)
+     - max_power_factor = DS:0x515A / DS:0x3208
+     - step_size = DS:0x512A (0.2, air resistance factor)
+
+  2. ANGLE CONVERSION (1E50:0661-0x066E):
+     - angle_rad = player.turret_angle * (pi/180)  [DS:0x320C]
+     
+  3. VELOCITY COMPUTATION (1E50:067D-0x070B):
+     - vy = sin(angle_rad) * power * power_scale
+     - vx = cos(angle_rad) * power * power_scale * direction
+
+  4. MAIN SIMULATION LOOP:
+     - For each time step:
+       a. Apply gravity: vy -= gravity * dt
+       b. Apply wind: vx += wind * dt  
+       c. Apply air resistance: vx *= (1 - drag), vy *= (1 - drag)
+       d. Update position: x += vx * dt, y += vy * dt
+       e. Check terrain collision
+       f. Check if projectile went off-screen
+       g. Check proximity to target
+     
+  5. HIT DETECTION:
+     - Compare final position with target_x, target_y
+     - Return positive value if hit, negative if miss
+     - The sign indicates overshoot/undershoot for the caller's adjustment
+
+  Key: The simulation uses real physics with:
+  - Parabolic trajectory modified by air resistance
+  - Wind effects (from game config DS:0xE4DC area)
+  - Terrain collision detection
+  - Configurable gravity (DS:0x5178) and drag (DS:0x512A)
+
+
+================================================================================
+SECTION 7: DETAILED FPU DISASSEMBLY OF TRAJECTORY CORE
+================================================================================
+
+1E50:05E9 - First 200 instructions (trajectory simulation):
+
+  05F4: CALL 9A05:7751
+  0602: jg 0x0636
+  0605: jge 0x060C
+  060A: JMP SHORT 0x0623
+  0611: jg 0x0645
+  0614: jle 0x061B
+  0619: JMP SHORT 0x0623
+  0629: fild word [bp-100]                        
+  062D: fpu_dc_6 qword [DS:0x3208]                  ; divisor
+  0632: fstp dword [bp-80]                        
+  0636: fld dword [DS:0x512A]                       ; = 0.2 (drag)
+  063B: fstp dword [bp-72]                        
+  063F: fwait                                     
+  0646: jg 0x067A
+  0649: jg 0x0654
+  0652: JMP SHORT 0x065E
+  0661: fild word [bp-100]                        
+  0665: fisttp qword [DS:0x320C]                    ; = pi/180
+  066A: fstp dword [bp-24]                        
+  066E: fwait                                     
+  0670: fld dword [bp-24]                         
+  0677: fstp dword [bp-112]                       
+  067B: fwait                                     
+  067D: CALL sin()
+  068F: fild word [bp-100]                        
+  0693: fcmovne st(1)                             
+  06A7: fild word [bp-100]                        
+  06AB: fpu_db_4 st(1)                            
+  06AE: fstp dword [bp-56]                        
+  06B2: fwait                                     
+  06BE: fild word [bp-100]                        
+  06C2: fisttp qword [DS:0x320C]                    ; = pi/180
+  06CA: fstp dword [bp-112]                       
+  06CE: fwait                                     
+  06D0: CALL cos()
+  06E2: fild word [bp-100]                        
+  06E6: fcmovne st(1)                             
+  0700: fild word [bp-100]                        
+  0704: fcmovnb st(1)                             
+  0707: fstp dword [bp-48]                        
+  070B: fwait                                     
+  0713: fild word [bp-100]                        
+  0717: frstor qword [bp-48]                      
+  071B: fstp dword [bp-8]                         
+  071F: fld dword [bp-8]                          
+  0723: fsubr st(6)                               
+  0726: fpu_db_3 st(1)                            
+  0729: fstcw dword [bp-100]                      
+  072D: fwait                                     
+  0735: fld dword [DS:0x3200]                       ; adjustment
+  073A: fisttp qword [bp-8]                       
+  073E: fstp dword [bp-8]                         
+  0742: fld dword [DS:0x3200]                       ; adjustment
+  0747: fisttp qword [bp-80]                      
+  074B: fstp dword [bp-80]                        
+  074F: fwait                                     
+  0757: fild word [bp-100]                        
+  075B: fldcw qword [bp-56]                       
+  075F: fstp dword [bp-16]                        
+  0763: fld dword [DS:0x6E5A]                       ; = BSS (wind?)
+  0768: fnstsw qword [bp-8]                       
+  076C: fstp dword [bp-8]                         
+  0770: fld dword [bp-80]                         
+  0774: fsubr st(6)                               
+  0777: fpu_db_3 st(1)                            
+  077A: fstcw dword [bp-100]                      
+  077E: fwait                                     
+  0784: jnz 0x0789
+  0786: JMP 0x0878
+  0789: fld dword [bp-8]                          
+  078D: fsubr st(6)                               
+  0790: fpu_db_3 st(1)                            
+  0793: fstcw dword [bp-100]                      
+  0797: fwait                                     
+  079D: jnz 0x07A2
+  079F: JMP 0x0878
+  07A2: fld dword [bp-80]                         
+  07A6: fsave qword [bp-72]                       
+  07AD: fstp dword [bp-112]                       
+  07B1: fwait                                     
+  07B3: CALL tan()
+  07BB: fstp dword [bp-32]                        
+  07BF: fld dword [bp-16]                         
+  07C3: fsave qword [bp-8]                        
+  07CA: fstp dword [bp-112]                       
+  07CE: fwait                                     
+  07D0: CALL tan()
+  07D8: frstor qword [bp-32]                      
+  07DC: fstp dword [bp-96]                        
+  07E0: fld dword [bp-8]                          
+  07E4: fisttp qword [bp-8]                       
+  07E8: fld dword [bp-16]                         
+  07EC: fisttp qword [bp-16]                      
+  07F0: fcmovnb st(1)                             
+  07F6: fstp dword [bp-112]                       
+  07FA: fwait                                     
+  07FC: CALL ldexp()
+  0804: fstp dword [bp-88]                        
+  0808: fld dword [bp-72]                         
+  080C: fisttp qword [bp-72]                      
+  0810: fld dword [bp-80]                         
+  0814: fisttp qword [bp-80]                      
+  0818: fcmovnb st(1)                             
+  081E: fstp dword [bp-112]                       
+  0822: fwait                                     
+  0824: CALL ldexp()
+  082C: fstp dword [bp-72]                        
+  0830: fld dword [bp-24]                         
+  0834: frstor qword [bp-32]                      
+  0838: fstp dword [bp-24]                        
+  083C: fld dword [bp-96]                         
+  0843: fstp dword [bp-112]                       
+  0847: fwait                                     
+  0849: CALL cos()
+  0851: fisttp qword [bp-88]                      
+  0855: fstp dword [bp-8]                         
+  0859: fld dword [bp-96]                         
+  0860: fstp dword [bp-112]                       
+  0864: fwait                                     
+  0866: CALL sin()
+  086E: fisttp qword [bp-88]                      
+  0872: fstp dword [bp-16]                        
+  0876: fwait                                     
+  0878: fld dword [bp-24]                         
+  087F: fstp dword [bp-112]                       
+  0883: fwait                                     
+  0885: CALL cos()
+  088D: fstp dword [bp-40]                        
+  0891: fld dword [bp-40]                         
+  0895: fisttp qword [bp-40]                      
+  0899: fstp dword [bp-40]                        
+  089D: fld dword [bp-24]                         
+  08A4: fstp dword [bp-112]                       
+  08A8: fwait                                     
+  08AA: CALL 0000:1254
+  08B2: fisttp qword [bp-8]                       
+  08B6: frstor qword [bp-16]                      
+  08BA: fadd dword [DS:0x3214]                    
+  08BF: fisttp qword [bp-40]                      
+  08C3: fcmovne st(1)                             
+  08C6: fstp dword [bp-88]                        
+  08CA: fld dword [bp-88]                         
+  08CE: fsubr st(6)                               
+  08D1: fpu_db_3 st(1)                            
+  08D4: fstcw dword [bp-100]                      
+  08D8: fwait                                     
+  08DE: jnz 0x08F4
+  08E2: jnz 0x08EE
+
+  (Total FPU instructions in first 0x300 bytes: 122)
+
+================================================================================
+SECTION 8: POOLSHARK SPECIFIC ANALYSIS - COMPLEX PATH
+================================================================================
+
+The "complex solver" path at 315D:0048 (for Tosser/Chooser effective types)
+performs the following operations:
+
+  1. LOAD PREVIOUS TARGET (offset 0x48-0x66):
+     prev_target = player->target_ptr;   // far ptr at [player+0xAE:0xB0]
+     if (prev_target != NULL && prev_target->alive) {
+         goto use_existing_target;
+     }
+
+  2. TARGET SEARCH (offset 0x070-0x0FE):
+     player->counter_38 = 0;             // reset retry counter
+     alive_count = 0;
+     for (each player in list) {
+         if (player->alive) alive_count++;
+     }
+     assert(alive_count >= 2, "shark.cpp", line 32);
+     
+     target_idx = random(alive_count);    // random target selection
+     // Walk player list to find the target_idx'th alive player
+     // Uses function 2A16:1648 (player list walker)
+
+  3. POSITION CHECK (offset 0x010D-0x012A):
+     // Check if target has moved since last turn
+     if (player->saved_target_x == player->current_x &&
+         player->saved_target_y == player->current_y) {
+         goto recalculate;  // target hasn't moved, recalc
+     }
+
+  4. ANGLE COMPUTATION (offset 0x0130-0x020A):
+     // Heavy FPU section - computes precise angle to target
+     
+     dx = (float)(target->x - player->x);           // fild, convert
+     dy_adj = (float)(target->y - DS:0x40EF_adj);   // adjusted y coord
+     
+     // Multiple angle calculations with trigonometry:
+     fild dx
+     fild dy  
+     fmul [DS:0x320C]   // * pi/180 (but this is already radians?)
+     
+     // The angle computation is more sophisticated than Shooter's:
+     // It uses the distance and height difference to compute
+     // an optimal angle considering the parabolic trajectory
+     
+     ratio = dx / total_distance;
+     angle = intermediate_calc using FPU chain;
+     
+     // Final conversion and storage:
+     fld [result]
+     fmul qword [DS:0x6164]    // * 180/pi = convert to degrees
+     fstp -> player->turret_angle
+
+  5. SAVE AND FINALIZE (offset 0x0210-0x023D):
+     player->saved_target_x = target->x;
+     player->saved_target_y = target->y;
+     call 11B5:0ABC(player);   // utility to finalize
+     return;
+
+KEY DIFFERENCES from Shooter AI:
+  - Poolshark picks a RANDOM target (Shooter iterates all)
+  - Poolshark computes angle analytically (Shooter uses iterative simulation)
+  - Poolshark does NOT call TrajectorySimulate - it trusts its math
+  - Poolshark saves previous target state for efficiency
+  - Poolshark has a retry counter (resets after 4 failed attempts)
+  - Poolshark is actually LESS accurate than Shooter in many cases
+    because it doesn't verify with simulation!
+
+
+================================================================================
+SECTION 9: AI DIFFICULTY AND ACCURACY SUMMARY
+================================================================================
+
+Based on the analysis, here is how each AI type computes its shots:
+
+MORON (Type 0):
+  - Picks completely random angle (0-180) and power (0-max)
+  - No targeting, no simulation
+  - 4 random() calls: angle, power, and 2 more for variation
+
+SHOOTER (Type 1):
+  - Computes angle to nearest valid target via atan2()
+  - Simulates trajectory at computed angle
+  - Iteratively adjusts angle +/-1 degree until hit
+  - Fixed power computation (no power iteration)
+  - Falls back to Tosser if no target reachable
+  - Most reliable AI for actually hitting targets
+
+POOLSHARK (Type 2):
+  - For effective types 0,1,2,5: delegates to Shooter algorithm
+  - For effective types 3,4 (Tosser/Chooser path):
+    * Picks random target from alive players
+    * Computes angle analytically using atan2 + trig
+    * Does NOT verify with trajectory simulation
+    * Saves target state between turns
+    * Retries up to 4 times, then picks new target
+  - Name "Poolshark" is misleading - it's not the smartest AI
+
+TOSSER (Type 3):
+  - Has trajectory simulation capability
+  - Uses some randomness in target selection
+  - 36 FPU operations suggest analytical angle computation
+  - Verifies with one trajectory simulation call
+
+CHOOSER (Type 4):
+  - Target picker with random selection
+  - 4 random() calls for various choices
+  - No trajectory simulation - relies on heuristics
+  - Likely picks weapon and target independently
+
+SPOILER (Type 5):
+  - Most FPU-heavy handler (64 ops)
+  - Targets the leading player specifically
+  - No trajectory simulation - uses pure analytical computation
+  - Designed to take down the winner
+
+CYBORG (Type 6):
+  - Randomizes to one of types 0-5 each turn
+  - Uses that type's complete algorithm
+  - "Jack of all trades" - unpredictable
+
+UNKNOWN (Type 7):
+  - Similar randomization to Cyborg
+  - May have additional special behavior in 4F38 segment
+
+SENTIENT (Type 8):
+  - Uses 4F38 segment functions (data segment area)
+  - Likely the most advanced AI
+  - Needs further analysis of 4F38 segment code
+
+================================================================================
+SECTION 10: KEY DATA STRUCTURES
+================================================================================
+
+Player Struct (approx 0xCA bytes, accessed via far pointer):
+  +0x00: unknown
+  +0x02: power value (word)
+  +0x04: power multiplier (word)
+  +0x06: max power (word)
+  +0x08-0x0C: unknown
+  +0x0E: x position (word, pixels)
+  +0x10: y position (word, pixels)
+  +0x12-0x14: unknown (possibly angle/velocity)
+  +0x16-0x18: function pointers?
+  +0x32: turret angle (word, degrees 0-180)
+  +0x34: power level (word)
+  +0x38: counter (retry count for Poolshark)
+  +0x7A: alive flag (0 = alive)
+  +0x8E: unknown
+  +0x90: unknown  
+  +0x94: max power for trajectory calc
+  +0xA0: dx or velocity
+  +0xA2: factor
+  +0xA4: weapon/ammo
+  +0xAE: target far ptr (low word)
+  +0xB0: target far ptr (high word)
+
+AI Dispatch Variables (BSS):
+  DS:0xEF0C: current do_turn function (far ptr)
+  DS:0xEF10: current post_turn function (far ptr)
+  DS:0xEF14: current init function (far ptr)
+  DS:0xEF38: parameter x1 (screen coord)
+  DS:0xEF3C: parameter y1 (screen coord)
+  DS:0xEF40: parameter x2 (screen coord)
+  DS:0xEF42: parameter y2 (screen coord)
+
+Game Config:
+  DS:0x50D4: number of players (word)
+  DS:0x5154: effective AI type (word)
+  DS:0x5156: original AI type (word)
+  DS:0x510E: is_shooter flag (1 if type==Shooter)
+  DS:0x512A: air viscosity = 0.2 (double)
+  DS:0x5178: gravity = 1.0 (double)
+  DS:0x5190: wind factor = 0.05 (double)
+
+Physics Constants (in .data segment):
+  DS:0x0314: pi/180 = 0.017453293 (double)
+  DS:0x320C: pi/180 = 0.017453293 (double, duplicate)
+  DS:0x321C: 0.001 (double, time step)
+  DS:0x322E: pi = 3.14159 (double)
+  DS:0x3236: 2*pi = 6.28318 (double)
+  DS:0x6164: 180/pi = 57.29577951 (double, used by Poolshark)
+  DS:0x6210: 180/pi = 57.29577951 (double, used by Shooter)
+
+================================================================================
+SECTION 11: FILE OFFSET REFERENCE MAP
+================================================================================
+
+Code Segments:
+  0x2CF01  Moron AI handler (seg 262C)
+  0x38B4E  Shooter AI handler (seg 320D) - MAIN SOLVER
+  0x37FDC  Poolshark AI handler (seg 315D) - shark.cpp
+  0x420B7  Tosser AI handler (seg 3B6B)
+  0x17D2F  Chooser AI handler (seg 1132)
+  0x3B683  Spoiler AI handler (seg 34B2)
+  0x1BA63  Cyborg AI handler (seg 14C8)
+  0x254E9  TrajectorySimulate (seg 1E50:05E9) - 481 FPU ops
+  0x07C04  sin() (seg 0000:1204)
+  0x07DD1  cos() (seg 0000:13D1)
+  0x06EDC  tan() (seg 0000:04DC)
+  0x07E21  atan2() (seg 0000:1421)
+
+Data:
+  0x5BEDA  "shark.cpp" string (DS:0x615A)
+  0x58442  AI type name strings (DS:0x26C2)
+  0x55DFA  AI vtable (DS:0x027A, 16 bytes/type)
+  0x5BF44  Float: pi/180 (DS:0x320C)
+  0x5BF5C  Float: 0.001 time step (DS:0x321C)
+  0x5BF66  Float: pi (DS:0x322E)
+  0x5BF6E  Float: 2*pi (DS:0x3236)
+
+================================================================================
+END OF ANALYSIS
+================================================================================
+

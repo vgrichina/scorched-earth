@@ -1,0 +1,443 @@
+=============================================================================
+SCORCHED EARTH - EXPLOSION / DAMAGE SYSTEM ANALYSIS
+=============================================================================
+Binary: SCORCH.EXE (415,456 bytes)
+Source file: extras.cpp (based on debug string at DS:0x1C47)
+Analysis date: 2026-02-17
+
+=============================================================================
+1. EXECUTABLE STRUCTURE
+=============================================================================
+
+Format: MZ DOS executable (pure real-mode, no overlays)
+Header size: 0x6A00 (27,136 bytes, includes 6,136 relocations)
+Load module: 0x6A00 to 0x656DF (388,320 bytes)
+
+KEY SEGMENTS:
+  CS=0x0000  (file base 0x06A00) - first code segment (startup/runtime)
+  ...many code segments for individual .cpp files...
+  DS=0x4F38  (file base 0x55D80) - main data segment (DGROUP)
+  SS=0x5EBA  (file base 0x655A0) - stack segment
+
+The game uses Borland C++ 1993 LARGE memory model:
+  - Each .cpp file has its own code segment
+  - Far calls (lcall seg:offset) between modules  
+  - Shared data segment (DS=0x4F38)
+  - FPU emulation via INT 34h-3Dh (Borland 8087 emulation layer)
+
+BORLAND FPU EMULATION:
+  INT 34h = DC xx (e.g., fsub/fcomp with qword operand)
+  INT 35h = D8 xx (fadd/fmul/fsub/fcomp with dword operand)  
+  INT 36h = DA xx (fiadd/fimul etc. with dword int operand)
+  INT 37h = DE xx (fiadd/fimul etc. with word int operand)
+  INT 38h = DD xx (fld/fst qword, fstsw etc.)
+  INT 39h = D9 xx (fld/fst dword, fldcw etc.)
+  INT 3Ah = DB xx (fild dword, fcmov etc.)
+  INT 3Bh = DF xx (fild word, fistp word)
+  INT 3Ch = D8 xx (near-data segment override FPU ops)
+  INT 3Dh = 9B    (fwait)
+
+=============================================================================
+2. EXTRAS.CPP DATA REGION (DS:0x1C00 - DS:0x1E10)
+=============================================================================
+
+STRINGS:
+  DS:0x1C1B: "%d"                   - format for integer display
+  DS:0x1C22: "%2d"                  - 2-digit integer format
+  DS:0x1C28: "%s: %d"               - name: value format
+  DS:0x1C42: "1000"                 - constant string
+  DS:0x1C47: "extras.cpp"           - __FILE__ debug string
+  DS:0x1C52: "%2d"                  - 2-digit format
+  DS:0x1C56: "(%s)"                 - parenthesized string format
+  DS:0x1CA5: "BogoMips: %ld %ld\n"  - performance benchmark output
+  DS:0x1CB9: "Getting MIPS\n"       - benchmark status
+  DS:0x1CCB: "Bd=%lf  FireDelay=%d  WarheadsLeft=%d " - DEBUG printf
+  DS:0x1D02: "done\n"               - completion message
+  DS:0x1D7C: "FIREWALL_FATAL"       - firewall death event name
+  DS:0x1DB5: "** %d firewall%s triggered!\n" - firewall message
+  DS:0x1DD2: " was"                 - singular
+  DS:0x1DD7: "s were"               - plural
+
+FLOATING-POINT CONSTANTS (doubles, 8 bytes each):
+  DS:0x1CC8: 100.0                  - float 100.0 (as 4-byte: 00 00 C8 42)
+  DS:0x1D08: 0.0174532930           - PI/180 (degrees to radians conversion)
+  DS:0x1D10: 1.02                   - 102% multiplier
+  DS:0x1D18: 0.98                   - 98% multiplier
+  DS:0x1D20: 5000.0                 - float constant (max distance?)
+  DS:0x1D28: 1.825                  - coefficient
+  DS:0x1D2C: 1000000.0              - large float (squared distance?)
+  DS:0x1D30: 1000.0                 - float constant  
+  DS:0x1D38: -1.875                 - negative coefficient (as double)
+  DS:0x1D40: -1.75                  - negative coefficient (as double)
+  DS:0x1D48: -2.0                   - negative coefficient (as double)
+  DS:0x1D50: -3.140625 / 0.75       - as double: 0.0004882816
+  DS:0x1D58: 2000.0 / 2.0           - as double: 2.0000005139
+  DS:0x1D60: 0.7                    - damage falloff coefficient (as double)
+  DS:0x1D68: 0.001                  - epsilon/threshold (as double)
+
+=============================================================================
+3. CODE STRUCTURE - EXPLOSION HANDLING
+=============================================================================
+
+The extras.cpp code is primarily in code segment 0x1A4A (file base 0x20EA0).
+This segment spans file offsets 0x20EA0 to 0x23AAF (~11 KB of code).
+
+MAJOR FUNCTIONS IN THIS SEGMENT:
+
+  FUNC_1: file 0x20EAD (seg offset 0x000D) -- MAIN EXPLOSION HANDLER
+    Size: ~2.7 KB (0x20EAD to 0x21B24)
+    Contains: FireDelay debug printf, warhead management,
+              player iteration, weapon selection, damage application
+    
+  FUNC_2: file 0x21B25 (seg offset 0x0A85) -- EXPLOSION PALETTE SETUP
+    Size: ~100 bytes
+    Iterates over 8 palette entries (si = 0..7)
+    Sets explosion colors: white (0x3F,0x3F,0x3F) for index 5,
+                          grey (0x1E,0x1E,0x1E) for index 7,
+                          player colors for others
+
+  FUNC_3: file 0x21B92 (seg offset 0x0AF2) -- EXPLOSION ANIMATION LOOP
+    Size: ~250 bytes
+    Iterates palette indices with modulo 8 division (idiv 8)
+    Sets colors for explosion visual effect
+
+  FUNC_4: file 0x21CF4 (seg offset 0x0C54) -- SQRT/DISTANCE HELPER
+    Contains: INT 35h (D8 E8 = fsub?) - floating point subtraction
+    Called for distance calculations
+
+  FUNC_5: file 0x21D09 (seg offset 0x0C69) -- CONFIG LOADER
+    Copies 8 double-precision values from config area [0x209C..0x20BA]
+    into game state variables [0x4FE6..0x5004]
+    These are the physics/damage parameters
+
+  FUNC_6: file 0x21DD5 (seg offset 0x0D35) -- COORDINATE TRANSFORM
+    Subtracts explosion center coordinates from player position
+    Clamps results to [-max, +max] range (uses value from [0x6E44])
+    Handles both X and Y coordinates
+
+  FUNC_7: file 0x21E66 (seg offset 0x0DC6) -- EXPLOSION STATE SWAP
+    Saves/restores explosion state pointer (far pointer at [0xD0B4])
+
+  FUNC_8: file 0x228DB -- EXPLOSION VISUAL EFFECT
+    Draws explosion rectangles using indirect calls through [0xEF0C]/[0xEF10]
+    Sets up 3 nested rectangle outlines at radius+3, radius+1, radius+2
+    Handles explosion color based on palette index [0x5154] (switch 0..5)
+
+  FUNC_9: file 0x22BDF -- CORE EXPLOSION DAMAGE FUNCTION
+    Size: ~2.5 KB (0x22BDF to ~0x23200)
+    Contains the heaviest FPU code (93 FPU emulation calls)
+    This is where distance-based damage is calculated
+
+=============================================================================
+4. MAIN EXPLOSION HANDLER (FUNC_1) - DETAILED ANALYSIS
+=============================================================================
+
+File offset: 0x20EAD (seg 0x1A4A:0x000D)
+
+The function signature appears to be:
+  far int DoExplosion(void* weaponData, int explosionType)
+  
+Parameters:
+  [bp+6], [bp+8]  = far pointer to weapon/projectile data structure
+  [bp-2]          = local far ptr high word
+  [bp-4]          = local far ptr low word
+
+KEY VARIABLES (in DS segment):
+  [0xD0AC] = explosion type/phase (0=initial, 1=secondary, 2=final)
+  [0xD0A0] = far ptr to player array (low word)
+  [0xD0A2] = far ptr to player array (high word)  
+  [0xD0A4] = far ptr to second player array
+  [0xD09E] = current player index being processed
+  [0xD09C] = target player index
+  [0xD09A] = attacker player index
+  [0xD08C] = selected weapon/result index
+  [0xD08A] = current animation frame (starts at 0x49 = 73)
+  [0x5182] = far ptr to current explosion data structure
+  [0x500C] = "has extra data" flag
+  [0x5188] = game mode flag (1 = special mode)
+
+PLAYER STRUCTURE (accessed via es:[bx+offset]):
+  +0x00: field_00      (word)
+  +0x04: field_04      (word) - compared for max distance
+  +0x06: field_06      (word) - position related
+  +0x0C: weapon_type   (word) - set to 0x73 = 115
+  +0x0E: health/damage (word) - player health or current weapon index
+  +0x14: func_ptr_lo   (word) - far pointer to handler function
+  +0x16: func_ptr_hi   (word) - segment of handler
+  +0x18: string_ptr_lo (word) - far pointer to string (weapon name?)
+  +0x1A: sound_index   (word) - sound effect index
+  +0x1C: callback_lo   (word) - far pointer to callback
+  +0x1E: callback_hi   (word) - segment of callback  
+  +0x20: nested_ptr_lo (word) - far pointer to sub-structure
+  +0x22: current_frame (word) - animation frame counter
+  +0x24: palette_index (word) - explosion color palette index
+  +0x4A: energy/shield (word) - decremented by 0x10/0x11 on explosion
+  +0xA0: sub_index     (word) - index into sub-array
+  +0xAE: field_AE      (word) - cleared to 0 after explosion
+  +0xB0: field_B0      (word) - cleared to 0 after explosion
+  +0xB6: collision_lo  (word) - far pointer to collision data
+  +0xB8: collision_hi  (word)
+
+EXPLOSION FLOW:
+  1. Initialize: set [0x500C]=1, [0xD08A]=0x49, [0x5006]=1
+  2. Check if explosion type [0xD0AC] is 0 or non-zero
+  3. For type 0: iterate players, find closest targets
+  4. For type 1: handle secondary explosion (e.g., MIRV split)
+  5. For type 2: handle final explosion cleanup
+  6. Call weapon selection menu (lcall 0x3f19:0x3DFA) to pick target
+  7. Subtract energy from target: es:[bx+0x4A] -= 0x11 (=17 points)
+  8. Set damage on target's health field es:[bx+0x0E]
+  9. Handle palette/color cycling for explosion visual
+  10. Push 0x0A (10) and call library function for explosion radius
+
+DEBUG PRINTF (at file 0x210E6):
+  push ds
+  push 0x1CCC               ; "d=%lf  FireDelay=%d  WarheadsLeft=%d "
+  [INT 3Dh = fwait]
+  lcall 0x3E60:0x000D        ; _printf (far call)
+  add sp, 0x10               ; clean up 16 bytes of args
+  
+  This prints: the current BogoDelay value (double), FireDelay counter,
+  and WarheadsLeft counter. Used during the explosion animation loop.
+
+=============================================================================
+5. DAMAGE FORMULA ANALYSIS
+=============================================================================
+
+The damage calculation uses Borland's FPU emulation (INT 34h-3Dh).
+The core algorithm appears to be:
+
+DISTANCE CALCULATION:
+  The game calculates distance from explosion center to each player using
+  coordinate differences and floating-point operations.
+
+  FUNC_6 (file 0x21DD5) does the coordinate transform:
+    dx = player.x - explosion_center.x  (sub from [0x6E56])
+    dy = player.y - explosion_center.y  (sub from [0x6E58])
+    
+  Clamped to +-[0x6E44] (max displacement)
+  If |dx| > max: set to -5 (flag: out of range)
+  If within range and equals max: set to 5  
+  Otherwise: set to 0
+
+ENERGY SUBTRACTION:
+  At file 0x216E3:  sub es:[bx+0x4A], 0x11  (subtract 17 from energy/shield)
+  At file 0x21876:  sub es:[bx+0x4A], 0x10  (subtract 16 from energy/shield)
+  
+  This suggests two explosion radii - inner (17 damage) and outer (16 damage).
+
+FPU DAMAGE CALCULATION SEQUENCE (file 0x21AAD - 0x21B94):
+  Based on the INT 3Ch (near-data FPU) and INT 34h patterns:
+
+  1. FLD [explosion_data+offset]        ; load explosion parameter
+  2. FLD [target_data+offset]            ; load target distance
+  3. FSUB/FCOMP                          ; compare or subtract
+  4. FSTSW AX / SAHF / conditional jump  ; branch on FPU comparison
+  
+  The pattern repeats for X and Y coordinates separately.
+  
+  Key operations identified:
+  - INT 3Ch DD 47 1C = FLD qword [bx+0x1C]  (load double from structure)
+  - INT 3Ch DC 4F xx = FMUL qword [bx+xx]   (multiply)
+  - INT 3Ch DD 5F xx = FST/FSTP qword [bx+xx] (store result)
+  - INT 34h 1E 2C xx = FCOMP qword [xxxx]   (compare and pop)
+  - INT 34h 0E A2 xx = FMUL qword [xxxx]    (multiply by constant)
+  - INT 34h 06 30 xx = FADD qword [xxxx]    (add constant)
+
+DAMAGE CONSTANTS:
+  The following constants are used in the damage formula:
+  
+  0.0174532930 (PI/180) - degree to radian conversion for angle-based damage
+  1.02 / 0.98           - damage scaling factors (102% / 98%)
+  5000.0                - maximum effective distance (squared?)
+  1000000.0             - distance squared threshold
+  0.7                   - damage falloff coefficient
+  0.001                 - minimum damage threshold
+  -1.875, -1.75, -2.0   - damage curve coefficients
+  100.0                 - base damage (or percentage)
+  1000.0                - scaling factor
+
+INFERRED DAMAGE FORMULA:
+  Based on the constants and FPU operation patterns, the damage formula
+  appears to be:
+  
+    distance = sqrt(dx*dx + dy*dy)
+    
+    if distance > max_radius:
+        damage = 0
+    else:
+        normalized = distance / max_radius
+        damage = base_damage * (1.0 - normalized^coeff)
+        
+  Where:
+    base_damage = weapon's damage value (from weapon table)
+    max_radius  = weapon's blast radius
+    coeff       = falloff exponent (likely 0.7 or related to the constants)
+    
+  The 1.02/0.98 constants suggest a +-2% randomization of damage.
+  The -1.875/-1.75/-2.0 constants may be polynomial coefficients for
+  a more complex damage falloff curve.
+
+=============================================================================
+6. EXPLOSION TYPES AND WEAPON SELECTION
+=============================================================================
+
+The explosion handler uses [0xD0AC] to track the explosion type/phase:
+
+  Type 0: Single explosion (standard weapons)
+    - Finds closest player target
+    - Sets frame counter, palette
+    - Applies damage directly
+    
+  Type 1: Multi-warhead explosion (MIRV, etc.)
+    - Iterates 6 sub-warheads (loop: si=0..5, cmp si,6)
+    - Each warhead gets target from array at [bx-0x2F72]
+    - Sets individual warhead damage from structure field +0x0E
+    - Uses imul bx, bx, 0xC (12-byte sub-structure stride)
+    
+  Type 2: Special explosion
+    - Different handling path (jump at 0x218CE)
+    - Uses 8 explosion particles (loop: di=0..7, cmp di,8)
+    - Particles distributed at 1/3 intervals (idiv 3)
+    - Each particle offset = (di/3)*radius + 0x14
+
+WEAPON SELECTION MENUS:
+  The code calls several library functions for weapon targeting:
+    lcall 0x3f19:0x3DFA  - select target from menu (returns player index)
+    lcall 0x3f19:0x30BE  - select target with additional params
+    lcall 0x3f19:0x3A81  - select target (8 players mode)
+    lcall 0x3f19:0x2A9B  - menu with damage/distance params
+
+  Player count: up to 8 players (cmp di/si, 8 loops)
+  Sub-warheads: up to 6 per MIRV (cmp si, 6 loops)
+
+=============================================================================
+7. FIREWALL SYSTEM  
+=============================================================================
+
+The "FIREWALL_FATAL" string at DS:0x1D7C indicates a firewall defense system.
+Related strings:
+  "** %d firewall%s triggered!" - notification message
+  " was" / "s were"            - singular/plural grammar
+
+The firewall appears to be a defensive item that:
+  1. Intercepts incoming projectiles
+  2. Triggers a fatal response (kills the attacker or nullifies damage)
+  3. Can trigger multiple times (plural form exists)
+  4. Has an associated counter displayed in the message
+
+=============================================================================
+8. BOGODELAYED EXPLOSION TIMING
+=============================================================================
+
+The debug string "Bd=%lf  FireDelay=%d  WarheadsLeft=%d" reveals:
+
+  Bd (BogoDelta):     A floating-point timing value based on CPU speed
+                      calibration (BogoMips-style). This scales explosion
+                      animation speed to be independent of CPU speed.
+                      
+  FireDelay:          Integer counter for delay between successive
+                      warhead firings (e.g., in MIRV weapons).
+                      
+  WarheadsLeft:       Integer counter of remaining warheads to detonate
+                      in multi-warhead weapons.
+
+The "Getting MIPS" and "BogoMips: %ld %ld" strings show the game
+performs a CPU speed benchmark at startup, similar to Linux's BogoMIPS,
+to calibrate timing for explosion animations and physics.
+
+=============================================================================
+9. PHYSICS CONFIGURATION
+=============================================================================
+
+FUNC_5 (file 0x21D09) loads 8 double-precision physics parameters:
+  [0x4FE6] = parameter 1 (from [0x209C])
+  [0x4FEA] = parameter 2 (from [0x20A0])
+  [0x4FEE] = parameter 3 (from [0x20A4])
+  [0x4FF2] = parameter 4 (from [0x20A8])
+  [0x4FF6] = parameter 5 (from [0x20AC])
+  [0x4FFA] = parameter 6 (from [0x20B0])
+  [0x4FFE] = parameter 7 (from [0x20B4])
+  [0x5002] = parameter 8 (from [0x20B8])
+
+These likely correspond to the config strings found elsewhere:
+  GRAVITY, AIR_VISCOSITY, MAX_WIND, CHANGING_WIND,
+  FIRE_DELAY, FALLING_DELAY, FALLING_TANKS, EDGES_EXTEND
+
+=============================================================================
+10. PALETTE AND VISUAL EFFECTS
+=============================================================================
+
+Explosion color palette (8 entries, indices 0-7):
+  Index 5: RGB(0x3F, 0x3F, 0x3F) = bright white (explosion flash)
+  Index 7: RGB(0x1E, 0x1E, 0x1E) = medium grey (smoke/debris)
+  Other indices: use player-specific colors from structure +0x1C/+0x1E/+0x20
+
+The explosion animation cycles through these palette entries:
+  - Uses modulo 8 (idiv bx where bx=8) for palette cycling
+  - Special handling for indices 5 and 7 (flash and smoke)
+  - Other indices show the attacking player's colors
+
+Color values passed as 3 arguments (R, G, B) to palette function
+via indirect far call through [0xEF08].
+
+=============================================================================
+11. CROSS-REFERENCES TO LIBRARY FUNCTIONS  
+=============================================================================
+
+Segment 0x3F19 (Borland C runtime + game library):
+  0x3F19:0x019C - memory management / buffer setup
+  0x3F19:0x024C - free/deallocate memory
+  0x3F19:0x045D - display/render function
+  0x3F19:0x2862 - UI draw with params (damage display?)
+  0x3F19:0x2A9B - menu/selection with distance params
+  0x3F19:0x30BE - player selection (6-player mode)
+  0x3F19:0x333B - player selection (per-warhead)
+  0x3F19:0x3781 - copy/move far memory
+  0x3F19:0x3A81 - player selection (8-player mode)
+  0x3F19:0x3D91 - setup explosion state
+  0x3F19:0x3DFA - target selection with full params
+  0x3F19:0x4695 - damage application function
+  0x3F19:0x4808 - array copy/setup function
+  0x3F19:0x4D6A - cleanup/finalize
+
+Segment 0x2A16 (game logic):
+  0x2A16:0x09BF - player interaction handler
+  0x2A16:0x1606 - linked list iterator
+
+Segment 0x2BF9 (utility):
+  0x2BF9:0x048B - random number generator (called with push max_val)
+  0x2BF9:0x00F7 - random float generation
+
+Segment 0x21E6 (display):
+  0x21E6:0x0039 - delay/vsync function (called with push 0/1)
+
+Segment 0x32C2 (graphics):
+  0x32C2:0x0A26 - set palette entry with flash
+
+=============================================================================
+12. SUMMARY
+=============================================================================
+
+The Scorched Earth explosion/damage system in extras.cpp implements:
+
+1. A multi-phase explosion model (single, multi-warhead, special)
+2. Distance-based damage using floating-point calculations
+3. CPU-speed-calibrated animation timing (BogoMIPS-style)
+4. Up to 8 players and 6 sub-warheads per MIRV
+5. Firewall defensive system that can intercept explosions
+6. Visual palette cycling (8 colors: flash, smoke, player colors)
+7. Energy/shield subtraction (17 for inner blast, 16 for outer)
+8. Configurable physics parameters (8 doubles from config file)
+9. Damage randomization (1.02/0.98 = +/-2% variation)
+10. Falloff curve using polynomial coefficients (-1.875, -1.75, -2.0)
+
+The damage formula is distance-based with a polynomial falloff curve,
+modified by weapon-specific base damage and blast radius values.
+The game uses Borland C++'s INT 34h-3Dh FPU emulation layer for all
+floating-point operations, making the code appear unusual in disassembly
+but actually implementing standard IEEE 754 double-precision math.
+
+=============================================================================
+END OF ANALYSIS
+=============================================================================

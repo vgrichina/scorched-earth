@@ -1,0 +1,188 @@
+==========================================================================================
+SCORCHED EARTH v1.50 - ACCESSORY/SHIELD PRICE ANALYSIS
+Binary: SCORCH.EXE (16-bit DOS MZ executable)
+Analysis tool: radare2 + Python
+==========================================================================================
+
+EXECUTIVE SUMMARY
+----------------------------------------
+Items 35-49 have CLEAN struct data with reliable prices.
+Items 50-56 have CORRUPTED struct data -- their price/bundle/arms fields
+overlap with the 'equip.cpp\0Failed to identify item\0' debug string
+and other format strings/floating-point constants.
+
+The game code reads prices from struct offset +4 ([bx + 0x11FA]) and does
+NOT have any runtime override or separate price table for items 50-56.
+This means items 50-56 have GARBAGE prices in the binary.
+
+==========================================================================================
+MEMORY LAYOUT
+==========================================================================================
+
+Data segment base:     file offset 0x055D80
+Weapon struct array:   file offset 0x056F76  (DS:0x11F6)
+Struct stride:         52 bytes (0x34)
+Struct index mapping:  struct_idx = weapon_index - 2
+                       (weapons 0='Jump Jets', 1='Popcorn Bomb' have no struct)
+
+Struct field layout (each entry = 52 bytes):
+  Offset  DS addr   Size  Field
+  ------  --------  ----  -----
+  +0x00   0x11F6    2B    name_ptr_offset (far ptr to name string, low word)
+  +0x02   0x11F8    2B    name_ptr_segment (far ptr to name string, high word)
+  +0x04   0x11FA    2B    price (uint16)
+  +0x06   0x11FC    2B    bundle_size (uint16)
+  +0x08   0x11FE    2B    arms_level (uint16)
+  +0x0A   0x1200    2B    bhvType (uint16)
+  +0x0C   0x1202    2B    bhvSub (uint16)
+  +0x0E   0x1204    2B    param (uint16)
+  +0x10   0x1206    2B    runtime field (cleared/set by init code)
+  +0x12   0x1208    2B    behavior fn ptr offset (set by init code)
+  +0x14   0x120A    2B    behavior fn data (set by init code)
+  +0x16   0x120C    2B    behavior fn ptr 2 (set by init code)
+  +0x18 to +0x33    ...   additional fields (zeros for most items)
+
+Key data overlaps:
+  Item 50 struct starts at file offset 0x057936
+  Item 50 price field at  file offset 0x05793A = equip.cpp string!
+  equip.cpp string at     file offset 0x05793A (confirmed)
+
+==========================================================================================
+CLEAN ACCESSORY/SHIELD DATA (Items 35-49)
+==========================================================================================
+
+Idx Name                   Price Bundle  Arms  File Offset  Hex Price
+---------------------------------------------------------------------------
+ 35 Laser                  10000      6     2  0x5762A  1027
+ 36 Plasma Laser           10000      2     2  0x5765E  1027
+ 37 Heat Guidance          15000      5     1  0x57692  983A
+ 38 Bal Guidance           20000      5     1  0x576C6  204E
+ 39 Horz Guidance          20000      2     3  0x576FA  204E
+ 40 Vert Guidance          10000      8     2  0x5772E  1027
+ 41 Lazy Boy                5000     10     2  0x57762  8813
+ 42 Parachute              10000      2     2  0x57796  1027
+ 43 Battery                20000      3     3  0x577CA  204E
+ 44 ~Batteries:            25000      3     3  0x577FE  A861
+ 45 Mag Deflector          30000      2     4  0x57832  3075
+ 46 Shield                 40000      2     4  0x57866  409C
+ 47 Warp Shield             1500      1     3  0x5789A  DC05
+ 48 Teleport Shield        10000     10     3  0x578CE  1027
+ 49 Flicker Shield          1000     25     3  0x57902  E803
+
+Notes on clean items:
+  - All have bhvType=0, bhvSub=0, param=0 (non-projectile/accessory type)
+  - 'Arms' field likely indicates the 'arms level' tier for purchasing
+  - '~Batteries:' is a special entry (display-only label, not purchasable item)
+  - Laser (10000) and Plasma Laser (10000) are guidance-class accessories
+  - Shield (40000) is the most expensive clean item
+  - Flicker Shield (1000) and Warp Shield (1500) are cheapest shields
+
+==========================================================================================
+CORRUPTED ITEMS (50-56) - Overlapping with Debug Strings
+==========================================================================================
+
+Idx Name                  Raw Price      Hex         Decoded ASCII  File Offset
+--------------------------------------------------------------------------------
+ 50 Force Shield              29029     6571                 b'eq'  0x57936
+ 51 Heavy Shield                134     8600           b'\x86\x00'  0x5796A
+ 52 Super Mag                 25637     2564                 b'%d'  0x5799E
+ 53 Patriot Missiles           9512     2825                 b'(%'  0x579D2
+ 54 Auto Defense               7028     741B              b't\x1b'  0x57A06
+ 55 Fuel Tank                 26478     6E67                 b'ng'  0x57A3A
+ 56 Contact Trigger               0     0000           b'\x00\x00'  0x57A6E
+
+What the struct data actually contains for corrupted items:
+
+  Item 50 (Force Shield)    bytes = 'equip.cpp\0Failed to identify item\0...'
+  Item 51 (Heavy Shield)    bytes = continuation of string data + boundary data
+  Item 52 (Super Mag)       bytes = format strings: '%d', '%d', '%2d', '99', '%s: %d'...
+  Item 53 (Patriot Missiles)bytes = format strings: '%2d', '(%s)', '%d', '%4d'...
+  Item 54 (Auto Defense)    bytes = floating-point constants (doubles)
+  Item 55 (Fuel Tank)       bytes = 'etting MIPS\n' + debug strings
+  Item 56 (Contact Trigger) bytes = '%d ' + float constants + 'done\n'...
+
+==========================================================================================
+CODE ANALYSIS - EQUIP INITIALIZATION (equip.cpp)
+==========================================================================================
+
+Key functions in the equip system:
+
+  0x16B32  findWeaponByNameAndClearFlag(far_ptr name)
+           Searches struct array for matching name, clears field at struct+0x20
+           Returns struct index or -1
+
+  0x16B7B  findWeaponByName(far_ptr name)
+           Searches struct array for matching name (checks bhvType|bhvSub != 0)
+           Returns struct index or -1 (with assert on failure)
+           Assert: push 'Failed to identify item', push line 0x37=55, push 'equip.cpp'
+
+  0x16BD4  equipInit()
+           Main initialization function. Builds equipment category mapping.
+           Loop: si=0 to [0x1BB6], bx = si * 0x34
+             Check [bx+0x1200]|[bx+0x1202] != 0 -> skip non-accessories
+           Stores first free index at [0xE4F0], count at [0xE4F2]
+           Then calls findWeaponByName for each equipment category:
+
+    Smoke Tracer         -> [0xD546] at 0x16C2B  (Tracer category header)
+    Heat Guidance        -> [0xD54A] at 0x16C44  (Guidance systems)
+    Bal Guidance         -> [0xD54C] at 0x16C56
+    Horz Guidance        -> [0xD54E] at 0x16C68
+    Vert Guidance        -> [0xD550] at 0x16C7A
+    Lazy Boy             -> [0xD552] at 0x16C8C
+    Parachute            -> [0xD554] at 0x16C9E  (Accessories)
+    Battery              -> [0xD556] at 0x16CB0
+    Mag Deflector        -> [0xD558] at 0x16CC2  (Defense items)
+    Shield               -> [0xD55A] at 0x16CD4
+    Force Shield         -> [0xD55C] at 0x16CE6  (** CORRUPTED struct **)
+    Heavy Shield         -> [0xD55E] at 0x16CF8  (** CORRUPTED struct **)
+    Super Mag            -> [0xD560] at 0x16D0A  (** CORRUPTED struct **)
+    Auto Defense         -> [0xD562] at 0x16D1C  (** CORRUPTED struct **)
+    Fuel Tank            -> [0xD564] at 0x16D2E  (** CORRUPTED struct **)
+    Contact Trigger      -> [0xD566] at 0x16D40  (** CORRUPTED struct **)
+
+  After name lookups, the code stores struct indices into object fields
+  at es:[bx+0x0E] for each equipment category object.
+
+  Then it looks up MIRV and Death's Head (at 0x16D80-0x16DE0) and writes
+  behavior function pointers into their struct entries at offsets +0x12, +0x14, +0x16.
+
+Price access pattern (7 references found in code):
+  mov ax, word [bx + 0x11FA]  ; read price field
+  Code locations: 0x24E21, 0x24F45, 0x24F6E, 0x24FAE, 0x25210, 0x0DCF2, 0x0DD46
+  None of these locations write/override the price field.
+
+==========================================================================================
+CONCLUSIONS
+==========================================================================================
+
+1. Items 35-49 have valid, reliable prices in the weapon struct array.
+
+2. Items 50-56 (Force Shield through Contact Trigger) have CORRUPTED
+   price/bundle/arms data because the Borland C++ linker placed the
+   'equip.cpp' debug filename string and 'Failed to identify item'
+   assert message at the same file offset as these struct entries.
+
+3. The game code reads prices ONLY from the struct price field
+   ([bx + 0x11FA]) with no fallback or override mechanism.
+
+4. This is a DATA LAYOUT BUG in Scorched Earth v1.50: the linker
+   overlaid debug/assert strings on top of the end of the weapon
+   struct array, corrupting the last 7 entries.
+
+5. ACTUAL prices for items 50-56 cannot be determined from this binary
+   alone. They would need to be found from:
+   - A different version of the binary without this overlap
+   - Source code or documentation
+   - Runtime memory dump from a debugger
+   - Comparison with known game behavior
+
+6. LIKELY INTENDED PRICES (based on game design patterns and item ordering):
+   These are educated guesses based on the shield/accessory price curve:
+   Force Shield:    ~50000-60000 (above Shield at 40000, top-tier shield)
+   Heavy Shield:    ~80000-100000 (heaviest shield)
+   Super Mag:       ~50000 (enhanced Mag Deflector at 30000)
+   Patriot Missiles: ~20000-30000 (defensive system)
+   Auto Defense:    ~15000-20000 (auto-fire system)
+   Fuel Tank:       ~5000-10000 (movement aid)
+   Contact Trigger: ~1000-5000 (weapon modifier)
+

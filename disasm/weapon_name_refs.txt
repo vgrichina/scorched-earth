@@ -1,0 +1,50 @@
+=== WEAPON NAME DATA SEGMENT OFFSETS ===
+  Jump Jets           : file=0x058193 ds_off=0x2413
+    Referenced at: 0x057D08
+  Popcorn Bomb        : file=0x05819D ds_off=0x241D
+    Referenced at: 0x054AB6, 0x057D0C
+  Baby Missile        : file=0x0581AA ds_off=0x242A
+    Referenced at: 0x054E27, 0x057D10
+  Missile             : file=0x0581B7 ds_off=0x2437
+    Referenced at: 0x057D14
+  Baby Nuke           : file=0x0581BF ds_off=0x243F
+    Referenced at: 0x057D18, 0x05BE77
+  Nuke                : file=0x0581C9 ds_off=0x2449
+    Referenced at: 0x0535DE, 0x057D1C
+  LeapFrog            : file=0x0581CE ds_off=0x244E
+    Referenced at: 0x057D20
+  Funky Bomb          : file=0x0581D7 ds_off=0x2457
+    Referenced at: 0x045477, 0x04966B, 0x057D24
+  MIRV                : file=0x0581E2 ds_off=0x2462
+    Referenced at: 0x057D28
+  Death's Head        : file=0x0581E7 ds_off=0x2467
+    Referenced at: 0x057D2C
+  Napalm              : file=0x0581F4 ds_off=0x2474
+    Referenced at: 0x00D218, 0x012FBA, 0x02385B, 0x02D713, 0x03EB77, 0x04714A, 0x04F5DC, 0x0510C1, 0x052DC8, 0x053560, 0x057D30
+  Hot Napalm          : file=0x0581FB ds_off=0x247B
+    Referenced at: 0x057D34
+  Tracer              : file=0x058206 ds_off=0x2486
+    Referenced at: 0x016A78, 0x01A564, 0x01A5B2, 0x026E8D, 0x057D38
+  Smoke Tracer        : file=0x05820D ds_off=0x248D
+    Referenced at: 0x057D3C
+
+=== FINDING EXACT NUKE STRING ===
+  'Nuke' at 0x0581C4
+    Context: 6C 65 00 4D 69 73 73 69 6C 65 00 42 61 62 79 20 4E 75 6B 65 00 4E 75 6B 65 00 4C 65 61 70 46 72
+  'Nuke' at 0x0581C9
+    Context: 73 73 69 6C 65 00 42 61 62 79 20 4E 75 6B 65 00 4E 75 6B 65 00 4C 65 61 70 46 72 6F 67 00 46 75
+
+=== BYTES BETWEEN WEAPON NAMES ===
+  After 'Jump Jets': no gap (names contiguous)
+  After 'Popcorn Bomb': no gap (names contiguous)
+  After 'Baby Missile': no gap (names contiguous)
+  After 'Missile': no gap (names contiguous)
+  After 'Baby Nuke': no gap (names contiguous)
+  After 'Nuke': no gap (names contiguous)
+  After 'LeapFrog': no gap (names contiguous)
+  After 'Funky Bomb': no gap (names contiguous)
+  After 'MIRV': no gap (names contiguous)
+  After 'Death's Head': no gap (names contiguous)
+  After 'Napalm': no gap (names contiguous)
+  After 'Hot Napalm': no gap (names contiguous)
+  After 'Tracer': no gap (names contiguous)

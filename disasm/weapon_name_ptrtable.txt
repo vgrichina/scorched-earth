@@ -1,0 +1,125 @@
+=== WEAPON NAME POINTER TABLE at 0x057D08 ===
+  [ 0] 0x057D08: 4F38:2413 -> file 0x058193 = 'Jump Jets'
+  [ 1] 0x057D0C: 4F38:241D -> file 0x05819D = 'Popcorn Bomb'
+  [ 2] 0x057D10: 4F38:242A -> file 0x0581AA = 'Baby Missile'
+  [ 3] 0x057D14: 4F38:2437 -> file 0x0581B7 = 'Missile'
+  [ 4] 0x057D18: 4F38:243F -> file 0x0581BF = 'Baby Nuke'
+  [ 5] 0x057D1C: 4F38:2449 -> file 0x0581C9 = 'Nuke'
+  [ 6] 0x057D20: 4F38:244E -> file 0x0581CE = 'LeapFrog'
+  [ 7] 0x057D24: 4F38:2457 -> file 0x0581D7 = 'Funky Bomb'
+  [ 8] 0x057D28: 4F38:2462 -> file 0x0581E2 = 'MIRV'
+  [ 9] 0x057D2C: 4F38:2467 -> file 0x0581E7 = 'Death's Head'
+  [10] 0x057D30: 4F38:2474 -> file 0x0581F4 = 'Napalm'
+  [11] 0x057D34: 4F38:247B -> file 0x0581FB = 'Hot Napalm'
+  [12] 0x057D38: 4F38:2486 -> file 0x058206 = 'Tracer'
+  [13] 0x057D3C: 4F38:248D -> file 0x05820D = 'Smoke Tracer'
+  [14] 0x057D40: 4F38:249A -> file 0x05821A = 'Baby Roller'
+  [15] 0x057D44: 4F38:24A6 -> file 0x058226 = 'Roller'
+  [16] 0x057D48: 4F38:24AD -> file 0x05822D = 'Heavy Roller'
+  [17] 0x057D4C: 4F38:24BA -> file 0x05823A = 'Plasma Blast'
+  [18] 0x057D50: 4F38:24C7 -> file 0x058247 = 'Riot Charge'
+  [19] 0x057D54: 4F38:24D3 -> file 0x058253 = 'Riot Blast'
+  [20] 0x057D58: 4F38:24DE -> file 0x05825E = 'Riot Bomb'
+  [21] 0x057D5C: 4F38:24E8 -> file 0x058268 = 'Heavy Riot Bomb'
+  [22] 0x057D60: 4F38:24F8 -> file 0x058278 = 'Baby Digger'
+  [23] 0x057D64: 4F38:2504 -> file 0x058284 = 'Digger'
+  [24] 0x057D68: 4F38:250B -> file 0x05828B = 'Heavy Digger'
+  [25] 0x057D6C: 4F38:2518 -> file 0x058298 = 'Baby Sandhog'
+  [26] 0x057D70: 4F38:2525 -> file 0x0582A5 = 'Sandhog'
+  [27] 0x057D74: 4F38:252D -> file 0x0582AD = 'Heavy Sandhog'
+  [28] 0x057D78: 4F38:253B -> file 0x0582BB = 'Dirt Clod'
+  [29] 0x057D7C: 4F38:2545 -> file 0x0582C5 = 'Dirt Ball'
+  [30] 0x057D80: 4F38:254F -> file 0x0582CF = 'Ton of Dirt'
+  [31] 0x057D84: 4F38:255B -> file 0x0582DB = 'Liquid Dirt'
+  [32] 0x057D88: 4F38:2567 -> file 0x0582E7 = 'Dirt Charge'
+  [33] 0x057D8C: 4F38:2573 -> file 0x0582F3 = 'Dirt Tower'
+  [34] 0x057D90: 4F38:257E -> file 0x0582FE = 'Earth Disrupter'
+  [35] 0x057D94: 4F38:258E -> file 0x05830E = 'Laser'
+  [36] 0x057D98: 4F38:2594 -> file 0x058314 = 'Plasma Laser'
+  [37] 0x057D9C: 4F38:25A1 -> file 0x058321 = 'Heat Guidance'
+  [38] 0x057DA0: 4F38:25AF -> file 0x05832F = 'Bal Guidance'
+  [39] 0x057DA4: 4F38:25BC -> file 0x05833C = 'Horz Guidance'
+  [40] 0x057DA8: 4F38:25CA -> file 0x05834A = 'Vert Guidance'
+  [41] 0x057DAC: 4F38:25D8 -> file 0x058358 = 'Lazy Boy'
+  [42] 0x057DB0: 4F38:25E1 -> file 0x058361 = 'Parachute'
+  [43] 0x057DB4: 4F38:25EB -> file 0x05836B = 'Battery'
+  [44] 0x057DB8: 4F38:25F3 -> file 0x058373 = '~Batteries:'
+  [45] 0x057DBC: 4F38:25FF -> file 0x05837F = 'Mag Deflector'
+  [46] 0x057DC0: 4F38:260D -> file 0x05838D = 'Shield'
+  [47] 0x057DC4: 4F38:2614 -> file 0x058394 = 'Warp Shield'
+  [48] 0x057DC8: 4F38:2620 -> file 0x0583A0 = 'Teleport Shield'
+  [49] 0x057DCC: 4F38:2630 -> file 0x0583B0 = 'Flicker Shield'
+  [50] 0x057DD0: 4F38:263F -> file 0x0583BF = 'Force Shield'
+  [51] 0x057DD4: 4F38:264C -> file 0x0583CC = 'Heavy Shield'
+  [52] 0x057DD8: 4F38:2659 -> file 0x0583D9 = 'Super Mag'
+  [53] 0x057DDC: 4F38:2663 -> file 0x0583E3 = 'Patriot Missiles'
+  [54] 0x057DE0: 4F38:2674 -> file 0x0583F4 = 'Auto Defense'
+  [55] 0x057DE4: 4F38:2681 -> file 0x058401 = 'Fuel Tank'
+  [56] 0x057DE8: 4F38:268B -> file 0x05840B = 'Contact Trigger'
+  [57] 0x057DEC: 4F38:269B -> file 0x05841B = 'Scorched Earth'
+  [58] 0x057DF0: 4F38:26AA -> file 0x05842A = 'The Mother of All Games'
+  [59] 0x057DF4: 4F38:26C2 -> file 0x058442 = 'Moron'
+
+Total weapon name entries: 60
+
+=== CORRECT WEAPON ORDER (by struct index) ===
+  Struct index  0: Jump Jets
+  Struct index  1: Popcorn Bomb
+  Struct index  2: Baby Missile
+  Struct index  3: Missile
+  Struct index  4: Baby Nuke
+  Struct index  5: Nuke
+  Struct index  6: LeapFrog
+  Struct index  7: Funky Bomb
+  Struct index  8: MIRV
+  Struct index  9: Death's Head
+  Struct index 10: Napalm
+  Struct index 11: Hot Napalm
+  Struct index 12: Tracer
+  Struct index 13: Smoke Tracer
+  Struct index 14: Baby Roller
+  Struct index 15: Roller
+  Struct index 16: Heavy Roller
+  Struct index 17: Plasma Blast
+  Struct index 18: Riot Charge
+  Struct index 19: Riot Blast
+  Struct index 20: Riot Bomb
+  Struct index 21: Heavy Riot Bomb
+  Struct index 22: Baby Digger
+  Struct index 23: Digger
+  Struct index 24: Heavy Digger
+  Struct index 25: Baby Sandhog
+  Struct index 26: Sandhog
+  Struct index 27: Heavy Sandhog
+  Struct index 28: Dirt Clod
+  Struct index 29: Dirt Ball
+  Struct index 30: Ton of Dirt
+  Struct index 31: Liquid Dirt
+  Struct index 32: Dirt Charge
+  Struct index 33: Dirt Tower
+  Struct index 34: Earth Disrupter
+  Struct index 35: Laser
+  Struct index 36: Plasma Laser
+  Struct index 37: Heat Guidance
+  Struct index 38: Bal Guidance
+  Struct index 39: Horz Guidance
+  Struct index 40: Vert Guidance
+  Struct index 41: Lazy Boy
+  Struct index 42: Parachute
+  Struct index 43: Battery
+  Struct index 44: ~Batteries:
+  Struct index 45: Mag Deflector
+  Struct index 46: Shield
+  Struct index 47: Warp Shield
+  Struct index 48: Teleport Shield
+  Struct index 49: Flicker Shield
+  Struct index 50: Force Shield
+  Struct index 51: Heavy Shield
+  Struct index 52: Super Mag
+  Struct index 53: Patriot Missiles
+  Struct index 54: Auto Defense
+  Struct index 55: Fuel Tank
+  Struct index 56: Contact Trigger
+  Struct index 57: Scorched Earth
+  Struct index 58: The Mother of All Games
+  Struct index 59: Moron

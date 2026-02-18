@@ -1,0 +1,146 @@
+=== WEAPON/ITEM POINTER TABLE at 0x058000 ===
+  Entry   0: 0x058000 -> 4F38:2C6E
+  Entry   1: 0x058004 -> 4F38:2C7A
+  Entry   2: 0x058008 -> 4F38:2C7F
+  Entry   3: 0x05800C -> 4F38:2C88
+  Entry   4: 0x058010 -> 4F38:2C99
+  Entry   5: 0x058014 -> 4F38:2CAE
+  Entry   6: 0x058018 -> 4F38:2CB8
+  Entry   7: 0x05801C -> 4F38:2CC4
+  Entry   8: 0x058020 -> 4F38:2CCE
+  Entry   9: 0x058024 -> 4F38:2CDC
+  Entry  10: 0x058028 -> 4F38:2CE6
+  Entry  11: 0x05802C -> 4F38:2CF0
+  Entry  12: 0x058030 -> 4F38:2CFA
+  Entry  13: 0x058034 -> 4F38:2D07
+  Entry  14: 0x058038 -> 4F38:2D15
+  Entry  15: 0x05803C -> 4F38:2D21
+  Entry  16: 0x058040 -> 4F38:2D2B
+  Entry  17: 0x058044 -> 4F38:2D2F
+  Entry  18: 0x058048 -> 4F38:2D35
+  Entry  19: 0x05804C -> 4F38:2D3E
+  Entry  20: 0x058050 -> 4F38:2D48
+  Entry  21: 0x058054 -> 4F38:2D55
+  Entry  22: 0x058058 -> 4F38:2D65
+  Entry  23: 0x05805C -> 4F38:2D7A
+  Entry  24: 0x058060 -> 4F38:2D8A
+  Entry  25: 0x058064 -> 4F38:2D9E
+  Entry  26: 0x058068 -> 4F38:2DAE
+  Entry  27: 0x05806C -> 4F38:2DC1
+  Entry  28: 0x058070 -> 4F38:2DC8
+  Entry  29: 0x058074 -> 4F38:2DD5
+  Entry  30: 0x058078 -> 4F38:2DDD
+  Entry  31: 0x05807C -> 4F38:2DE8
+  Entry  32: 0x058080 -> 4F38:2DEE
+  Entry  33: 0x058084 -> 4F38:2DF5
+  Entry  34: 0x058088 -> 4F38:2DFB
+  Entry  35: 0x05808C -> 4F38:2E01
+  Entry  36: 0x058090 -> 4F38:2E08
+  Entry  37: 0x058094 -> 4F38:2E0E
+  Entry  38: 0x058098 -> 4F38:2E26
+  Entry  39: 0x05809C -> 4F38:2E2A
+  Entry  40: 0x0580A0 -> 4F38:2E39
+  Entry  41: 0x0580A4 -> 4F38:2E41
+  Entry  42: 0x0580A8 -> 4F38:2E48
+  Entry  43: 0x0580AC -> 4F38:2E4D
+  Entry  44: 0x0580B0 -> 4F38:2E5B
+  Entry  45: 0x0580B4 -> 4F38:2E67
+  Entry  46: 0x0580B8 -> 4F38:2E71
+  Entry  47: 0x0580BC -> 4F38:2E7B
+  Entry  48: 0x0580C0 -> 4F38:2E87
+  Entry  49: 0x0580C4 -> 4F38:2E97
+  Entry  50: 0x0580C8 -> 4F38:2EAA
+  Entry  51: 0x0580CC -> 4F38:2EB0
+  Entry  52: 0x0580D0 -> 4F38:2EBF
+  Entry  53: 0x0580D4 -> 4F38:2EC7
+  Entry  54: 0x0580D8 -> 4F38:2ECF
+  Entry  55: 0x0580DC -> 4F38:2EDF
+  Entry  56: 0x0580E0 -> 4F38:2EEF
+  Entry  57: 0x0580E4 -> 4F38:2EFA
+  Entry  58: 0x0580E8 -> 4F38:2EFE
+  Entry  59: 0x0580EC -> 4F38:2F06
+  Entry  60: 0x0580F0 -> 4F38:2F1E
+  Entry  61: 0x0580F4 -> 4F38:2F25
+  Entry  62: 0x0580F8 -> 4F38:2F29
+  Entry  63: 0x0580FC -> 4F38:2F2F
+  Entry  64: 0x058100 -> 4F38:2F39
+  Entry  65: 0x058104 -> 4F38:2F4E
+  Entry  66: 0x058108 -> 4F38:2F5D
+  Entry  67: 0x05810C -> 4F38:2F77
+  Entry  68: 0x058110 -> 4F38:2F9C
+  Entry  69: 0x058114 -> 4F38:2FB5
+  Entry  70: 0x058118 -> 4F38:2FC2
+  Entry  71: 0x05811C -> 4F38:2FCA
+  Entry  72: 0x058120 -> 4F38:2FE4
+  Entry  73: 0x058124 -> 4F38:2FFC
+  Entry  74: 0x058128 -> 4F38:3002
+  Entry  75: 0x05812C -> 4F38:301A
+  Entry  76: 0x058130 -> 4F38:302D
+  Entry  77: 0x058134 -> 4F38:3047
+  Entry  78: 0x058138 -> 4F38:3058
+  Entry  79: 0x05813C -> 4F38:3073
+  Entry  80: 0x058140 -> 4F38:3092
+  Entry  81: 0x058144 -> 4F38:30A9
+  Entry  82: 0x058148 -> 4F38:30B8
+  Entry  83: 0x05814C -> 4F38:30BF
+  Entry  84: 0x058150 -> 4F38:30DD
+  Entry  85: 0x058154 -> 4F38:3107
+  Entry  86: 0x058158 -> 4F38:3129
+  Entry  87: 0x05815C -> 4F38:3142
+  Entry  88: 0x058160 -> 4F38:314A
+  Entry  89: 0x058164 -> 4F38:3158
+  Entry  90: 0x058168 -> 4F38:316E
+  Entry  91: 0x05816C -> 4F38:3186
+  Entry  92: 0x058170 -> 4F38:318C
+  Entry  93: 0x058174 -> 4F38:3195
+  Entry  94: 0x058178 -> 4F38:31AF
+  Entry  95: 0x05817C -> 4F38:31DD
+  Entry  96: 0x058180 -> 4F38:31E5
+  Entry  97: 0x058184 -> 4F38:31ED
+  Entry 98: 0x058188 -> 656C:6554 (segment mismatch, end of table)
+
+Total entries: 98
+
+=== MZ HEADER ===
+  Header paragraphs: 1696 (0x06A0) = 27136 bytes
+  Relocations: 6136
+  Reloc table offset: 0x003E
+  Initial CS:IP = 0000:0000
+  Initial SS:SP = 5EBA:0080
+  Pages: 812, last page bytes: 224
+
+  Code file start: 0x006A00
+  If data seg 0x4F38 is at file offset: header + 0x4F38*16 = 0x055D80
+  Data segment file base: 0x055D80
+
+=== RESOLVING FIRST FEW POINTERS ===
+  Ptr 0: seg:off=4F38:2C6E -> file 0x0589EE
+    Data: 45 6E 65 72 67 79 20 4C 65 66 74 00 4E 6F 6E 65 00 47 75 69 64 61 6E 63 65 00 7E 46 75 65 6C 20
+    ASCII: Energy Left.None.Guidance.~Fuel 
+  Ptr 1: seg:off=4F38:2C7A -> file 0x0589FA
+    Data: 4E 6F 6E 65 00 47 75 69 64 61 6E 63 65 00 7E 46 75 65 6C 20 52 65 6D 61 69 6E 69 6E 67 3A 00 7E
+    ASCII: None.Guidance.~Fuel Remaining:.~
+  Ptr 2: seg:off=4F38:2C7F -> file 0x0589FF
+    Data: 47 75 69 64 61 6E 63 65 00 7E 46 75 65 6C 20 52 65 6D 61 69 6E 69 6E 67 3A 00 7E 48 6F 73 74 69
+    ASCII: Guidance.~Fuel Remaining:.~Hosti
+  Ptr 3: seg:off=4F38:2C88 -> file 0x058A08
+    Data: 7E 46 75 65 6C 20 52 65 6D 61 69 6E 69 6E 67 3A 00 7E 48 6F 73 74 69 6C 65 20 45 6E 76 69 72 6F
+    ASCII: ~Fuel Remaining:.~Hostile Enviro
+  Ptr 4: seg:off=4F38:2C99 -> file 0x058A19
+    Data: 7E 48 6F 73 74 69 6C 65 20 45 6E 76 69 72 6F 6E 6D 65 6E 74 00 7E 4C 61 6E 67 75 61 67 65 00 53
+    ASCII: ~Hostile Environment.~Language.S
+  Ptr 5: seg:off=4F38:2CAE -> file 0x058A2E
+    Data: 7E 4C 61 6E 67 75 61 67 65 00 53 74 61 74 75 73 20 7E 42 61 72 00 7E 49 63 6F 6E 20 42 61 72 00
+    ASCII: ~Language.Status ~Bar.~Icon Bar.
+  Ptr 6: seg:off=4F38:2CB8 -> file 0x058A38
+    Data: 53 74 61 74 75 73 20 7E 42 61 72 00 7E 49 63 6F 6E 20 42 61 72 00 43 68 6F 6F 73 65 20 54 61 72
+    ASCII: Status ~Bar.~Icon Bar.Choose Tar
+  Ptr 7: seg:off=4F38:2CC4 -> file 0x058A44
+    Data: 7E 49 63 6F 6E 20 42 61 72 00 43 68 6F 6F 73 65 20 54 61 72 67 65 74 00 4D 61 73 73 20 4B 69 6C
+    ASCII: ~Icon Bar.Choose Target.Mass Kil
+  Ptr 8: seg:off=4F38:2CCE -> file 0x058A4E
+    Data: 43 68 6F 6F 73 65 20 54 61 72 67 65 74 00 4D 61 73 73 20 4B 69 6C 6C 00 4E 6F 20 57 69 6E 6E 65
+    ASCII: Choose Target.Mass Kill.No Winne
+  Ptr 9: seg:off=4F38:2CDC -> file 0x058A5C
+    Data: 4D 61 73 73 20 4B 69 6C 6C 00 4E 6F 20 57 69 6E 6E 65 72 00 49 6E 76 65 6E 74 6F 72 79 00 4C 6F
+    ASCII: Mass Kill.No Winner.Inventory.Lo

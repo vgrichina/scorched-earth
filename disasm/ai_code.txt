@@ -1,0 +1,23 @@
+shark.cpp at: 0x05BEDA
+  'Moron' at 0x058442
+  'Shooter' at 0x058448
+  'Poolshark' at 0x058450
+  'Chooser' at 0x058461
+  'Spoiler' at 0x058469
+  'Cyborg' at 0x058471
+  'Sentient' at 0x058480
+
+=== FPU INSTRUCTIONS NEAR shark.cpp (AI trajectory solver) ===
+
+  Total FPU instructions: 0
+
+=== ANGLE CONSTANTS ===
+
+=== SEARCHING FOR AI NOISE PATTERNS ===
+
+score.cpp at: 0x05BEB2
+player.cpp at: 0x05B5B9
+shields.cpp at: 0x05BF66
+comments.cpp at: 0x055FE5
+equip.cpp at: 0x05793A
+play.cpp at: 0x05B4B2

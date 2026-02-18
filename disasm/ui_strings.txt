@@ -1,0 +1,342 @@
+=== ALL UI / DISPLAY STRINGS ===
+  0x055F21: Buy now, play later!Scorch is Shareware!
+  0x055F4A: Don't forget to register!
+  0x055F83: Wow, only 20 bucks!
+  0x05609E: zDMAXPLAYERS
+  0x0560AB: MAXROUNDS
+  0x0560C5: GRAPHICS_MODE
+  0x056111: @FIRE_DELAY
+  0x056149: ?INITIAL_CASH
+  0x056157: COMPUTERS_BUY
+  0x0561CC: ELASTIC
+  0x0561D4: SKY
+  0x0561D8: MAX_WIND
+  0x0561E1: CHANGING_WIND
+  0x0561EF: HOSTILE_ENVIRONMENT
+  0x056218: RANDOM_LAND
+  0x056233: BFAST_COMPUTERS
+  0x056251: computers
+  0x0562AC: PLAY_MODE
+  0x0562B6: STATUS_BAR
+  0x0562CC: TEAM_MODE
+  0x0562D6: ARMS
+  0x0562DB: BOMB_ICON
+  0x0562F0: EXPLOSION_SCALE
+  0x05631F: DAMAGE_TANKS_ON_IMPACT
+  0x056347: ; Configuration File for Scorched Earth Version %s
+  0x0563E9: ; Lines beginning with a semicolon (like this one) are comments.
+  0x056473: ; option, numbers like 2..10 represent the valid range (2 thru 10 inclusive)
+  0x0564C1: ; You don't need to know this, though, just use the Scorched Earth menus!
+  0x05650F: MAXPLAYERS=%d
+  0x05651E: MAXROUNDS=%d
+  0x056544: GRAPHICS_MODE=%s
+  0x05658E: none
+  0x0565A5: FIRE_DELAY=%d
+  0x0565D9: INITIAL_CASH=%ld
+  0x0565EB: COMPUTERS_BUY=%s
+  0x05666C: ELASTIC=%s
+  0x056678: SKY=%s
+  0x056680: MAX_WIND=%d
+  0x05668D: CHANGING_WIND=%s
+  0x05669F: HOSTILE_ENVIRONMENT=%s
+  0x0566D8: RANDOM_LAND=%s
+  0x0566F8: FAST_COMPUTERS=%s
+  0x056766: PLAY_MODE=%s
+  0x056774: STATUS_BAR=%s
+  0x056792: TEAM_MODE=%s
+  0x0567A0: ARMS=%d
+  0x0567A9: BOMB_ICON=%s
+  0x0567C6: EXPLOSION_SCALE=%s
+  0x056805: DAMAGE_TANKS_ON_IMPACT=%s
+  0x05697D: Thank you for playing the shareware version of Scorched Earth.  If you enjoy
+  0x0569CD: this game (and don't we all?), you are encouraged to register it.
+  0x056A6D: Basic registration costs $20, and includes a disk with the registered
+  0x056ABD: version - including 25 new mountains and enabling the triple-turreted tank.
+  0x056B0D: Deluxe registration costs $30, and includes the above, plus a printed,
+  0x056BFD: For more information, consult the files README and ORDER.FRM
+  0x057A4B: Bd=%lf  FireDelay=%d  WarheadsLeft=%d
+  0x057A81: ?done
+  0x057AFC: FIREWALL_FATAL
+  0x057B35: ** %d firewall%s triggered!
+  0x057B88: ### FIREWALL: Exception caught at "%s", line %ld.
+  0x057BBB: ### FIREWALL: Exception caught at "%s", line %ld.
+  0x057BFC: Bad category %s: must start with alphabetic char
+  0x057C63: Bad category %s: must start with alphabetic char
+  0x057D0D: $8O*$8O7$8O?$8OI$8ON$8OW$8Ob$8Og$8Ot$8O{$8O
+  0x057D6D: %8O%%8O-%8O;%8OE%8OO%8O[%8Og%8Os%8O~%8O
+  0x057E21: '8O#'8O.'8O6'8O?'8OH'8OP'8OY'8O]'8Ob'8Ok'8Oo'8Or'8Ox'8O
+  0x057EA9: (8O'(8O.(8O8(8OA(8OK(8OX(8Of(8Ot(8O
+  0x057EF9: )8O/)8O?)8ON)8O[)8Oj)8Ov)8O~)8O
+  0x057F41: *8O%*8O0*8O<*8OK*8OX*8Od*8Oo*8Ow*8O
+  0x057FE5: ,8O+,8O;,8OA,8OI,8OW,8O],8On,8Oz,8O
+  0x0580F1: /8O%/8O)/8O//8O9/8ON/8O]/8Ow/8O
+  0x058155: 18O)18OB18OJ18OX18On18O
+  0x05820D: Smoke Tracer
+  0x0582CF: Ton of Dirt
+  0x0582FE: Earth Disrupter
+  0x058373: ~Batteries:
+  0x05838D: Shield
+  0x058394: Warp Shield
+  0x0583A0: Teleport Shield
+  0x0583B0: Flicker Shield
+  0x0583BF: Force Shield
+  0x0583CC: Heavy Shield
+  0x0583F4: Auto Defense
+  0x058401: Fuel Tank
+  0x05840B: Contact Trigger
+  0x05841B: Scorched Earth
+  0x05842A: The Mother of All Games
+  0x058442: Moron
+  0x058448: Shooter
+  0x058450: Poolshark
+  0x058461: Chooser
+  0x058469: Spoiler
+  0x058471: Cyborg
+  0x058478: Unknown
+  0x058480: Sentient
+  0x058489: Sentient?
+  0x058493: ~Moron
+  0x05849A: S~hooter
+  0x0584A3: ~Poolshark
+  0x0584AE: ~Tosser
+  0x0584B6: ~Chooser
+  0x0584BF: ~Spoiler
+  0x0584C8: C~yborg
+  0x0584D0: ~Unknown
+  0x0584DD: Cash
+  0x0584E2: Rankings
+  0x0584EB: Off
+  0x058507: Random
+  0x05850E: Wrap-around
+  0x05852F: Concrete
+  0x05854C: Normal
+  0x058560: Standard
+  0x058571: Corporate
+  0x058583: Sequential
+  0x05858E: Simultaneous
+  0x05859B: Synchronous
+  0x0585A7: ~Start
+  0x0585AE: ~Players:
+  0x0585B8: ~Rounds:
+  0x0585C1: S~ound...
+  0x0585CB: ~Hardware...
+  0x0585D8: ~Economics...
+  0x0585E6: ~Landscape...
+  0x0585F4: Ph~ysics...
+  0x058600: Play Op~tions...
+  0x058611: ~Weapons...
+  0x05861D: Save ~Changes
+  0x05862B: ~Sound:
+  0x058633: ~Flight Sounds:
+  0x058643: ~Graphics Mode:
+  0x058653: ~Bios Keyboard
+  0x058662: ~Small Memory
+  0x058670: ~Mouse Enabled
+  0x05867F: ~Firing Delay:
+  0x05868E: ~Hardware Delay:
+  0x05869F: ~Interest Rate:
+  0x0586AF: ~Cash at Start:
+  0x0586BF: Computers ~Buy
+  0x0586CE: ~Free Market
+  0x0586DB: ~Scoring Mode:
+  0x0586EA: ~Bumpiness:
+  0x0586F6: S~lope:
+  0x0586FE: ~Flatten Peaks
+  0x05870D: ~Random Land
+  0x05871A: ~Air Viscosity:
+  0x05872A: ~Gravity:
+  0x058734: ~Borders Extend:
+  0x058745: ~Effect of Walls:
+  0x058757: ~Suspend Dirt:
+  0x058766: ~Sky:
+  0x05876C: ~Max. Wind:
+  0x058778: ~Changing Wind
+  0x058787: Ta~lking Tanks:
+  0x058797: ~Attack File:
+  0x0587A5: ~Die File:
+  0x0587B0: Tanks ~Fall
+  0x0587BC: ~Impact Damage
+  0x0587CB: ~Arms Level:
+  0x0587D8: ~Bomb Icon:
+  0x0587E4: ~Tunneling
+  0x0587EF: ~Scale:
+  0x0587F7: Trace ~Paths
+  0x058804: ~Extra Dirt
+  0x058810: ~Useless Items
+  0x05882D: Initializing code... one moment.
+  0x05884E: Player
+  0x058855: ~Computer
+  0x05885F: ~Person
+  0x05886C: ~Name
+  0x058872: ~Type
+  0x058878: Power
+  0x05887E: Angle
+  0x058884: Wind
+  0x058889: No Wind
+  0x0588A2: System Menu
+  0x0588AE: ~Clear Screen
+  0x0588BC: ~Mass Kill
+  0x0588C7: ~Quit Game
+  0x0588D2: Reassign Players
+  0x0588E3: Reassign ~Players
+  0x0588F5: Reassign ~Teams
+  0x058905: Save ~Game
+  0x058910: ~Restore Game
+  0x05891E: ~New Game
+  0x058940: ~Yes
+  0x058945: ~No
+  0x058949: Do you want to quit?
+  0x05895E: Do you really want to restart the game?
+  0x058986: Mass kill everyone?
+  0x05899A: %s rounds remain
+  0x0589AB: 1 round remains
+  0x0589BB: Score
+  0x0589C1: Weapons
+  0x0589D7: ~Done
+  0x0589DD: Remaining Power:
+  0x0589EE: Energy Left
+  0x0589FA: None
+  0x058A08: ~Fuel Remaining:
+  0x058A19: ~Hostile Environment
+  0x058A2E: ~Language
+  0x058A38: Status ~Bar
+  0x058A44: ~Icon Bar
+  0x058A4E: Choose Target
+  0x058A66: No Winner
+  0x058A70: Inventory
+  0x058A7A: Losers-First
+  0x058A87: Winners-First
+  0x058A95: Round-Robin
+  0x058AA1: Computers
+  0x058ABE: ~Pointer:
+  0x058AC8: ~Mouse Rate:
+  0x058AD5: ~Joystick Rate:
+  0x058AE5: Joystick ~Threshold:
+  0x058AFA: Falling ~Delay:
+  0x058B0A: ~Calibrate Joystick
+  0x058B1E: ~Fast Computers
+  0x058B2E: Talk ~Probability:
+  0x058B41: ~Mode:
+  0x058B48: Play ~Order:
+  0x058B55: ~Teams:
+  0x058B5D: Cash Left:
+  0x058B8E: Preparing Next Level...
+  0x058BA6: ~Ok
+  0x058BAA: NO KIBITZING!!
+  0x058BB9: ~Update
+  0x058BC8: Fuel
+  0x058BDB: ~Parachutes
+  0x058BE7: ~Triggers
+  0x058BF1: ~Guidance
+  0x058BFB: Description
+  0x058C17: ~Quantity to sell:
+  0x058C2A: Offer
+  0x058C30: Sell Equipment
+  0x058C3F: ~Accept
+  0x058C47: ~Reject
+  0x058C4F: Configure Teams
+  0x058C6F: ~Inventory
+  0x058C7E: Shields
+  0x058CA5: ~Go
+  0x058CA9: ~Quit
+  0x058CAF: New ~Game
+  0x058CB9: Saving Configuration
+  0x058D1C: Automatic Defense System
+  0x058D35: ~Energy Left
+  0x058D42: ~Launch
+  0x058D7C: Walls
+  0x058D82: %d of %d rounds fought.
+  0x058DAD: Center joystick and press
+  0x058DC7: the fire button.
+  0x058DD8: (Press any key to cancel.)
+  0x058E38: ~File:
+  0x058EC2: ~Cancel
+  0x058ED8: Save Game in Progress
+  0x058EEE: Restore a Previous Game
+  0x058F06: ~Save
+  0x058F0C: ~Restore
+  0x058F15: "%s" is not a saved game.
+  0x058F2F: File "%s" was created by a different version.
+  0x058F5D: Version
+  0x05AD16: icons.cpp
+  0x05AD20: icons.cpp
+  0x05AD2A: icons.cpp
+  0x05AD34: icons.cpp
+  0x05AD3E: icons.cpp
+  0x05AF31: frondheim
+  0x05AF3B: ragnarok
+  0x05AF89: nofloat
+  0x05AF92: <<Press any key>>
+  0x05B173: U8O U8O$U8O)U8O-U8O3U8O9U8O>U8ODU8OKU8OSU8OXU8O_U8OhU8OoU8OvU8O{U8O
+  0x05B207: V8O*V8O1V8O8V8O?V8OHV8ONV8OTV8OYV8OaV8OgV8OoV8OwV8OBob
+  0x05B266: Ronald
+  0x05B26D: Arnold
+  0x05B296: Norm
+  0x05B2AD: Frank
+  0x05B2C4: Newton
+  0x05B331: Barbarella
+  0x05B366: Persephone
+  0x05B3C8: Sonja
+  0x05B3D9: Madonna
+  0x05B4BB: Current weapon <= 0 in TankPlays
+  0x05B5B9: player.cpp
+  0x05B5C4: player.cpp
+  0x05B5D4: player.cpp
+  0x05B659: ^8OThere's many a boy here today who looks on war as all glory,
+but, boys, it is all hell.
+  0x05B6CC: The essence of war is violence.  Moderation in war is imbecility.
+  0x05B715: War is the science of destruction.
+  0x05B744: Providence is always on the side of the big battalions.
+  0x05B82A: War should be the only study of a prince.  He should consider
+peace only as a breathing-time, which gives him leisure to
+  0x05B8EF: Not with dreams but with blood and iron,
+Shall a nation be moulded at last.
+  0x05B945: No one can guarantee success in war, but only deserve it.
+  0x05B97F: Winston Churchill
+  0x05B9F6: Lester Pearson
+  0x05BA05: We cannot live by power, and a culture that seeks to live
+by it becomes brutal and sterile.  But we can die without it.
+  0x05BA88: No man is wise enough, nor good enough to be trusted with
+unlimited power.
+  0x05BAD3: Charles Colton
+  0x05BAE2: Nothing good ever comes of violence.
+  0x05BB15: Give me the money that has been spent in war, and ... I will
+clothe every man, woman and child in attire of which kings 
+  0x05BBB6: That mad game the world so loves to play.
+  0x05BBE0: Jonathon Swift
+  0x05BBEF: Nearly all men can stand adversity, but if you want to test a man's
+character, give him power.
+  0x05BD43: snow001.mtn
+  0x05BDC2: Player Rankings
+  0x05BDDB: ~Teams
+  0x05BDE3: Team Rankings
+  0x05BDF1: ~Players
+  0x05BDFA: ~Teams
+  0x05BE01: ~Players
+  0x05BE0A: T~ype
+  0x05BE10: T~ype
+  0x05BE16: ~Players
+  0x05BE1F: ~Teams
+  0x05BE30: 1~0
+  0x05BE34: ~%d
+  0x05BEB2: score.cpp
+  0x05BF66: shields.cpp
+  0x05BF72: shields.cpp
+  0x05C09A: Too many drivers in SubMenu.
+  0x05C103: @~Percent Scanned Mountains:
+  0x05C123: @Graphics mode changed!
+  0x05C165: Registered Version
+  0x05C17D: Registered Version
+  0x05C91E: ~>h
+  0x05C962: ~>h
+  0x05C9A6: ~>h
+  0x05C9EA: ~>h
+  0x05CA72: ~>h
+  0x05CAB6: ~>h
+  0x05CAFA: ~>h
+  0x05CB3E: ~>h
+  0x05CBFD: Unable to initialize svga graphics mode: %s.
+  0x05CC2C: Unable to initialize graphics mode: %s.
+  0x05CC68: !"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnopqrstuvwxyz[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+  0x05CD8B: Bad arg to MenuSlider: %d (0..%d)
+  0x05F26C: Buffer passed to dotext too long!
