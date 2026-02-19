@@ -116,6 +116,7 @@ body {
   align-items: center;
   flex: 1;
   width: 100%;
+  position: relative;
 }
 
 #game-wrap.active {
@@ -127,6 +128,40 @@ body {
   image-rendering: crisp-edges;
   width: min(960px, 100vw);
   height: min(600px, calc(100vw * 200 / 320));
+}
+
+/* ===== Fullscreen Toggle Button ===== */
+
+#fs-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #aaa;
+  border: 1px solid rgba(100, 100, 100, 0.4);
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+#game-wrap:hover #fs-toggle,
+#fs-toggle:focus {
+  opacity: 1;
+}
+
+#fs-toggle:active {
+  background: rgba(255, 102, 0, 0.4);
+  color: #fff;
 }
 
 /* ===== Mobile Touch Controls ===== */
@@ -248,5 +283,136 @@ body {
 @media (hover: hover) and (pointer: fine) {
   #touch-controls.active {
     display: none;
+  }
+}
+
+/* ===== Fullscreen Mode ===== */
+
+body.fullscreen {
+  background: #000;
+}
+
+body.fullscreen #game-wrap {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+body.fullscreen #screen {
+  /* Fill viewport while maintaining 320:200 (8:5) aspect ratio */
+  width: min(100vw, calc(100vh * 320 / 200));
+  height: min(100vh, calc(100vw * 200 / 320));
+  width: min(100vw, calc(100dvh * 320 / 200));
+  height: min(100dvh, calc(100vw * 200 / 320));
+}
+
+body.fullscreen #touch-controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: rgba(12, 12, 12, 0.85);
+}
+
+body.fullscreen #fs-toggle {
+  opacity: 0.6;
+}
+
+/* ===== Landing Fullscreen Button ===== */
+
+#start-fs-btn {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.85rem;
+  padding: 0.5rem 1.5rem;
+  background: transparent;
+  color: #888;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  margin-top: 0.8rem;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#start-fs-btn:hover {
+  background: #1a1a1a;
+  color: #ccc;
+  border-color: #888;
+}
+
+#start-fs-btn:active {
+  background: #333;
+  color: #fff;
+}
+
+/* ===== Mobile Landscape ===== */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Landscape phone: canvas fills height, controls beside it */
+  body.fullscreen #game-wrap {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  body.fullscreen #screen {
+    width: min(100vw, calc(100vh * 320 / 200));
+    height: 100vh;
+    width: min(100vw, calc(100dvh * 320 / 200));
+    height: 100dvh;
+  }
+
+  /* In landscape fullscreen, overlay touch controls at bottom */
+  body.fullscreen #touch-controls.active {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 3px 10px;
+    padding-bottom: max(3px, env(safe-area-inset-bottom));
+    background: rgba(12, 12, 12, 0.7);
+  }
+
+  /* Non-fullscreen landscape mobile */
+  #screen {
+    width: auto;
+    height: min(100vh, calc(100vw * 200 / 320));
+    height: min(100dvh, calc(100vw * 200 / 320));
+  }
+
+  #touch-controls.active {
+    display: flex;
+    padding: 3px 10px;
+  }
+
+  .tc-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    min-width: 40px;
+  }
+
+  .tc-fire {
+    padding: 14px 20px;
+    min-width: 60px;
+    min-height: 60px;
+    font-size: 1rem;
+  }
+
+  .tc-sm {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Mobile: always show fs-toggle since no hover */
+@media (hover: none) and (pointer: coarse) {
+  #fs-toggle {
+    opacity: 0.6;
+    width: 36px;
+    height: 36px;
   }
 }

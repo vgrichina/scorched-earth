@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Scorched Earth v1.50</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -19,6 +19,7 @@
         and rebuilt for the web.
       </p>
       <button id="start-btn">START GAME</button>
+      <button id="start-fs-btn">START FULLSCREEN</button>
       <div class="controls-info">
         <p><kbd>&larr;</kbd><kbd>&rarr;</kbd> Angle
         &nbsp;&nbsp;<kbd>&uarr;</kbd><kbd>&darr;</kbd> Power
@@ -31,6 +32,7 @@
   <!-- Game Canvas -->
   <div id="game-wrap">
     <canvas id="screen" width="320" height="200"></canvas>
+    <button id="fs-toggle" title="Toggle fullscreen">&#x26F6;</button>
   </div>
 
   <!-- Mobile Touch Controls -->
@@ -53,13 +55,77 @@
   </div>
 
   <script>
+    // Fullscreen helpers
+    function enterFullscreen() {
+      var el = document.documentElement;
+      var rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (rfs) {
+        rfs.call(el).then(function() {
+          // Try to lock orientation to landscape on mobile
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(function() {});
+          }
+        }).catch(function() {});
+      }
+    }
+
+    function exitFullscreen() {
+      var efs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+      if (efs && (document.fullscreenElement || document.webkitFullscreenElement)) {
+        efs.call(document).catch(function() {});
+      }
+    }
+
+    function isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+
+    function toggleFullscreen() {
+      if (isFullscreen()) {
+        exitFullscreen();
+      } else {
+        enterFullscreen();
+      }
+    }
+
+    // Update body class on fullscreen change
+    function onFullscreenChange() {
+      if (isFullscreen()) {
+        document.body.classList.add('fullscreen');
+      } else {
+        document.body.classList.remove('fullscreen');
+        // Unlock orientation when leaving fullscreen
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
     // Landing page → game transition
-    document.getElementById('start-btn').addEventListener('click', function() {
+    function startGame(goFullscreen) {
       document.getElementById('landing').style.display = 'none';
       document.getElementById('game-wrap').classList.add('active');
       document.getElementById('touch-controls').classList.add('active');
-      // Focus canvas area so keyboard works immediately
       document.body.focus();
+      if (goFullscreen) {
+        enterFullscreen();
+      }
+    }
+
+    document.getElementById('start-btn').addEventListener('click', function() {
+      startGame(false);
+    });
+
+    document.getElementById('start-fs-btn').addEventListener('click', function() {
+      startGame(true);
+    });
+
+    // Fullscreen toggle button during gameplay
+    document.getElementById('fs-toggle').addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleFullscreen();
     });
 
     // Touch controls — simulate keyboard events
