@@ -2474,6 +2474,74 @@ The terrain generation system lives in `ranges.cpp` (code segment 0x2CBF, file b
 | 5 | **Castle** | 0x39BCC | Ramparts + slope or V-shape | Varied |
 | 6 | **Cavern** | 0x39CC0 | Mountains + slope (underground) | 3-band gradient |
 
+### drawColumn — Per-Column Terrain Renderer (file 0x29720)
+
+Called from the random walk kernel for each column. Draws terrain from the current height to the screen edge.
+
+```c
+// drawColumn(LandGenerator *this, int screen_x, int y_height)
+// file 0x29720, segment 22D2
+
+void drawColumn(LandGenerator *this, int screen_seg, int col, int y) {
+    // Clamp y to [start_bound, end_bound + 20]
+    if (y < this->start_col) y = this->start_col;
+    if (y > this->end_col + 20) y = this->end_col + 20;
+
+    if (terrain_type == 0) {
+        // TYPE 0 (Flat): single-color vertical line
+        draw_vline(col, y, end_bound, 120);   // palette 120 = terrain base
+    } else {
+        // ALL OTHER TYPES: per-pixel rendering loop
+        for (int row = y; row <= end_bound; row++) {
+            setTerrainPixel(col, row);    // 0x32C2:0x1519
+        }
+    }
+
+    // Draw sky/ground boundary line with color 0x50 (palette 80 = sky base)
+    draw_vline(col, end_bound, y - 1, 80);
+}
+```
+
+### setTerrainPixel — Per-Pixel Color Function (file 0x3AB39)
+
+7-way dispatch on terrain_type (DS:0x5110). Determines palette index for each individual terrain pixel.
+
+```c
+// setTerrainPixel(int x, int y) — file 0x3AB39, segment 3413
+void setTerrainPixel(int x, int y) {
+    switch (terrain_type) {
+    case 0: // Flat: solid palette 120
+        fg_setpixel(x, y, 120);
+        break;
+
+    case 2: // Rolling/Rock/Gray: bitmap + aux_array texture
+        // bitmap_array[x] has per-column bitmask (1 bit per row)
+        bit = bitmap_array[x][y / 8] & (1 << (y & 7));
+        if (!bit) {
+            fg_setpixel(x, y, 120);    // base terrain
+        } else {
+            remainder = abs((aux_height[y] * x) % 30);
+            color_offset = remainder - height_array[y];
+            if (color_offset < 1)
+                fg_setpixel(x, y, 120);
+            else
+                fg_setpixel(x, y, color_offset + 120);  // 120-149 range
+        }
+        break;
+
+    case 1: // Slope (Snow/Ice) — [handler at 0x3AB68, jmp 0x1b7]
+    case 3: // MTN/Night — uses bitmap_array + different formula
+    case 4: // Desert/V-shaped — similar bitmap + aux approach
+    case 5: // Castle/Varied
+    case 6: // Cavern — 3-band gradient
+        // [TODO: decode remaining type-specific handlers]
+        break;
+    }
+}
+```
+
+**Key insight**: Type 2 (Rolling) uses a **textured pattern** dependent on both X and Y via random per-row data (`aux_height[y] * x % 30`), NOT a simple Y-only depth gradient. This creates the rocky/scattered appearance.
+
 ### Height Generation Kernel: Random Walk (file 0x29808)
 
 ```c
