@@ -1340,7 +1340,7 @@ Current player index at DS:E4DA.
 | +0x0C | 8 | f64 | fpu_slot_0C | FPU store target. INT 3Ch FSTP. Likely step_y or velocity_y |
 | +0x14 | 8 | f64 | world_x | Float64 world X. Loaded/stored via INT 3Ch FLD/FSTP. AI trajectory uses this |
 | +0x1C | 8 | f64 | world_y | Float64 world Y. FLD qword [bx+0x1C] in damage_formula.txt |
-| +0x24 | 2 | int16 | guidance_type | Guidance/weapon mode. Compared to DS:D54E/D550. Set to 0 when consumed |
+| +0x24 | 2 | int16 | guidance_type | Guidance type (single value, not bitmask). Checked at 0x2263D per physics step in cascading if-else: Horz (DS:D54E) → Vert (DS:D550) → Heat (DS:D54A). Set to 0 when consumed (one-shot per flight). See "Guidance System" section. |
 | +0x26 | 2 | int16 | weapon_index | Weapon type index. Read at extras 0x22114 to index weapon struct table |
 | +0x28 | 2 | int16 | blast_radius | Explosion radius. Set from sub+0xA0 + 0x6E, or default 0x78 (120) |
 | +0x2A | 4 | fptr | sub_ptr | Far pointer to own sub-struct. `les bx,[es:bx+0x2a]` to follow |
@@ -1524,6 +1524,69 @@ The game displays random war quotes between rounds. **Pointer table** at 0x05B5E
 **Note**: Quote 5 contains a typo — "throughly" instead of "thoroughly" — faithful to the original binary.
 
 **Intermediate files**: `disasm/war_quotes.txt`
+
+---
+
+## Guidance System — extras.cpp (VERIFIED)
+
+Guidance is checked per physics step at file 0x2263D. It uses a **single int16** in the player struct (+0x24), not a bitmask. Only one guidance type can be active per flight. The check is a cascading if-else that evaluates types in priority order.
+
+### Per-Step Guidance Check (file 0x2263D)
+
+```
+if (player->guidance_type == 0) skip;
+
+if (guidance_type == DS:D54E [Horz Guidance]):
+  if (proj_target_Y == current_Y):
+    correction = call 0x3bac:0x22c(Y, X, player_idx)
+    if (correction != 0):
+      guidance_type = 0  // consumed
+      callback = 0x1E50:0x0C30
+      wind_x = correction; wind_y = 0; fire_mode = 1
+
+elif (guidance_type == DS:D550 [Vert Guidance]):
+  if (proj_target_X == current_X):
+    guidance_type = 0  // consumed
+    callback = 0x1E50:0x099C
+    wind_x = 0; wind_y = (target_Y > Y) ? -1 : +1; fire_mode = 1
+
+elif (guidance_type == DS:D54A [Heat Guidance]):
+  result = call 0x1E50:0x0001(X, Y)  // shark.cpp heat_seek
+  if (result != 0):
+    guidance_type = 0  // consumed
+    callback = 0x1E50:0x099C
+    wind_x = (target_X > X) ? -1 : +1
+    wind_y = (target_Y > Y) ? -1 : +1
+    fire_mode = 2
+```
+
+### Key Behaviors
+
+- **Single-type**: Only one guidance type stored per flight (player struct +0x24)
+- **One-shot**: guidance_type set to 0 when triggered — applies ONCE per flight
+- **Trigger conditions**: Each type has a spatial condition that must be met before activating
+- **Priority order**: Horz → Vert → Heat (cascading if-else, first match wins)
+- **Callback installation**: When triggered, installs a far function pointer at +0x4C/+0x4E (segment 0x1E50 = shark.cpp), sets wind correction vector at +0x66/+0x68, and fire_mode at +0x6A
+- **Bal Guidance override**: At fire_weapon 0x3070C, if weapon == DS:D54C (Bal Guidance), it is replaced with DS:D548 (Earth Disrupter). Bal Guidance is intentionally non-functional as a guidance mode.
+
+### DS Offset Cross-Reference
+
+| DS Offset | Item |
+|-----------|------|
+| DS:0xD54A | Heat Guidance (weapon index) |
+| DS:0xD54C | Bal Guidance (weapon index, overridden at fire) |
+| DS:0xD54E | Horz Guidance (weapon index) |
+| DS:0xD550 | Vert Guidance (weapon index) |
+
+### JS Implementation Differences
+
+The web port (`behaviors.js:applyGuidance()`) differs in all respects:
+1. Checks `inventory[GUIDANCE.X] > 0` for ALL types independently (stacking)
+2. Applies corrections continuously every frame (not one-shot)
+3. Never consumes ammo
+4. Directly modifies velocity instead of installing callbacks
+
+**Intermediate files**: Plan transcript from laser/MAYHEM investigation session.
 
 ---
 

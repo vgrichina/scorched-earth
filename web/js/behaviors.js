@@ -13,6 +13,10 @@ import { setPixel, getPixel } from './framebuffer.js';
 import { players } from './tank.js';
 
 // Guidance weapon indices
+// BUG: EXE differs — Bal Guidance (idx 38) is intentionally non-functional in EXE.
+// At fire_weapon 0x3070C: if weapon == DS:D54C (Bal Guidance), replaces with
+// DS:D548 (Earth Disrupter). Bal Guidance can never be used as a fire mode.
+// JS never implements Bal Guidance behavior at all (defined here but no code path).
 const GUIDANCE = { HEAT: 37, BAL: 38, HORZ: 39, VERT: 40 };
 const GUIDANCE_STRENGTH = 2.0;  // correction per second (0.04 per-step / dt=0.02)
 
@@ -334,6 +338,26 @@ function bhvFunky(proj, weapon) {
 
 // --- Guidance system: steer projectile during flight ---
 // Called each physics step. Checks if attacker has guidance items and applies correction.
+//
+// BUG: EXE differs — guidance is fundamentally different in the original:
+//   EXE (extras.cpp 0x2263D): player+0x24 = guidance_type, a SINGLE int16 (not bitmask).
+//   Checked per-step in cascading if-else: Horz (DS:D54E) → Vert (DS:D550) → Heat (DS:D54A).
+//   Each has a TRIGGER CONDITION:
+//     Horz: fires when proj_Y == target_Y (horizontal alignment)
+//     Vert: fires when proj_X == target_X (vertical alignment)
+//     Heat: fires via shark.cpp proximity check
+//   When triggered: guidance_type = 0 (CONSUMED), callback installed at +0x4C/+0x4E,
+//     wind correction set at +0x66/+0x68, fire_mode set at +0x6A.
+//   Guidance applies ONCE per flight — a one-time course correction, not continuous steering.
+//   Ammo is consumed at fire time (set into player+0x24), not checked per-step.
+//
+//   JS implementation differs in ALL of these ways:
+//     1. Checks inventory[GUIDANCE.X] > 0 for ALL guidance types independently (stacks)
+//     2. All active guidance applies simultaneously every frame (continuous, not one-shot)
+//     3. Never consumed — ammo never decremented
+//     4. Directly modifies velocity continuously instead of one-time correction
+//
+//   See REVERSE_ENGINEERING.md "Guidance System" section for full EXE pseudocode.
 export function applyGuidance(proj) {
   if (proj.isNapalmParticle || proj.isSubWarhead || proj.rolling) return;
 

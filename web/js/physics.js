@@ -195,6 +195,8 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // 7. Collision detection via pixel color (only when on-screen and below HUD)
   // EXE: fire_weapon at file 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12)
   // EXE: pixel-based collision — player colors 0-79, terrain >= 105
+  // EXE VERIFIED: thresholds (>0 && <80 = tank, >=105 = terrain) match EXE collision
+  // checks in extras.cpp projectile step. Sky/HUD pixels (0, 80-104) pass through.
   // Skip first 2 steps (grace period) to clear barrel/body pixels at low power
   if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= 15 && sy < config.screenHeight) {
     const pixel = getPixelFn(sx, sy);

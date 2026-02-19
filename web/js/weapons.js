@@ -233,6 +233,8 @@ export function createInventory() {
 
 // Get the next weapon with ammo in inventory, cycling forward
 // EXE: weapon_cycle at file 0x30910 — wraps at DS:E4F0 (accessory boundary)
+// EXE VERIFIED: wrapping at LAST_WEAPON (34) matches EXE DS:E4F0 boundary.
+// EXE: accessories (laser, guidance, shields) cannot be selected via cycling.
 export function cycleWeapon(inventory, currentIdx, direction) {
   const start = currentIdx;
   let idx = currentIdx;

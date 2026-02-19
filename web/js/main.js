@@ -56,6 +56,9 @@ function startGame() {
   game.state = STATE.AIM;
 }
 
+// EXE VERIFIED: full world repaint before gameTick ensures clean framebuffer
+// for pixel-based collision detection. Laser sight pixels never enter the FB
+// during gameTick — they are drawn as overlays AFTER physics/collision runs.
 function redrawWorld() {
   drawSky();
   drawTerrain();
@@ -137,6 +140,9 @@ const LASER_ANGLE_STEP = 0.3;  // EXE: DS:6108 ~0.3 rad per animation frame
 //     bresenham_line(old, new, pixel_callback_at_0x36271);
 //     angle_rad += ~0.3_rad;
 //   }
+// EXE VERIFIED: Laser/Plasma Laser have NULL behavior pointers (0x0000:0x0000).
+// No per-turn ammo consumption found in any EXE code path. They are purely visual
+// accessories checked by inventory count but never decremented during AIM phase.
 function drawLaserSight(player) {
   if (!player.alive) return;
   // EXE: checks player inventory for Laser (idx 35) or Plasma Laser (idx 36)
@@ -321,7 +327,7 @@ function gameLoop() {
   drawHud(player, game.wind, game.round);
   drawAllProjectiles();
 
-  // Draw laser sight during AIM state for human players
+  // EXE VERIFIED: laser drawn during AIM phase only (draw_laser_sight at 0x36321)
   if (game.state === STATE.AIM && player.alive) {
     drawLaserSight(player);
   }
@@ -336,6 +342,9 @@ function gameLoop() {
 }
 
 // MAYHEM cheat: global key listener for the sequence
+// BUG: EXE differs — EXE sets ALL weapon types 1-47 to 99 UNCONDITIONALLY at round
+// init (RE doc line 516). JS only fills empty slots (inventory[w] === 0), so items
+// already owned keep their current count instead of being topped up to 99.
 window.addEventListener('keydown', (e) => {
   if (e.code === MAYHEM_SEQ[mayhemIdx]) {
     mayhemIdx++;

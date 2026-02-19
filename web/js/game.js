@@ -163,6 +163,14 @@ function handleAimInput(player) {
 // Fire the weapon
 // EXE: fire_weapon at file 0x30652 — computes barrel tip from icons.cpp geometry
 // EXE: decrements ammo in player struct, switches to Baby Missile if depleted
+//
+// BUG: EXE differs — two missing interactions in this JS implementation:
+//   1. Super Mag per-shot decrement (EXE 0x306A8): if sub+0x2A != 0 (Super Mag active),
+//      decrements inventory[DS:D566] (Super Mag ammo). Deactivates when depleted.
+//      JS does not track or decrement Super Mag ammo per shot.
+//   2. Shield consume on fire (EXE 0x30668): calls shield_consume (0x1144:0x361) before
+//      launching if active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
+//      JS has no equivalent per-fire shield interaction.
 function fireWeapon(player) {
   // EXE: barrel tip = dome center + BARREL_LENGTH (12) in angle direction (icons.cpp)
   const barrelLength = 12;
@@ -173,6 +181,8 @@ function fireWeapon(player) {
 
   const weaponIdx = player.selectedWeapon;
 
+  // EXE VERIFIED: ammo decrement at fire_weapon 0x30683; fallback to Baby Missile
+  // at 0x3078E when depleted. Matches this JS implementation.
   // Decrement ammo (unless infinite = -1)
   if (player.inventory[weaponIdx] > 0) {
     player.inventory[weaponIdx]--;
