@@ -245,6 +245,19 @@ function setupSystemColors() {
   setEntry(BLACK, 0, 0, 0);
 }
 
+// --- Laser sight palette (VGA 253-254) ---
+// RE: draw_laser_sight at file 0x36321, DS:EC4E holds draw color
+// Standard Laser: DS:EC4E = 0x78 (green) — RE index 120 overlaps terrain palette,
+//   so we remap to 253 to avoid conflict with terrain gradient at 120-149.
+// Plasma Laser: DS:EC4E = 0xFE (bright white) — index 254.
+// Both entries must be explicitly set; palette6.fill(0) leaves them black.
+export const LASER_GREEN = 253;
+export const LASER_WHITE = 254;
+function setupLaserPalette() {
+  setEntry(LASER_GREEN, 0, 48, 0);    // green targeting line (RE: 0x78)
+  setEntry(LASER_WHITE, 63, 63, 63);  // bright white targeting line (RE: 0xFE)
+}
+
 // Initialize entire palette
 export function initPalette(terrainType, skyType) {
   // Clear all to black
@@ -256,6 +269,7 @@ export function initPalette(terrainType, skyType) {
   setupExplosionPalette();
   setupWallPalette();
   setupSystemColors();
+  setupLaserPalette();
 
   updatePalette32();
 }

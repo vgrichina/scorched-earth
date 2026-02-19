@@ -187,7 +187,8 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   }
 
   // 7. Collision detection via pixel color (only when on-screen and below HUD)
-  // Skip first 2 steps to clear barrel/body area (spawn grace period)
+  // RE: fire_weapon at 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12).
+  // Skip first 2 steps to clear barrel/body pixels and prevent self-collision at low power.
   if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= 15 && sy < config.screenHeight) {
     const pixel = getPixelFn(sx, sy);
 

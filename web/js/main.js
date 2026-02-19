@@ -3,7 +3,7 @@
 
 import { config } from './config.js';
 import { initFramebuffer, blit, setPixel, getPixel, fillRect } from './framebuffer.js';
-import { initPalette, BLACK } from './palette.js';
+import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
 import { generateTerrain, drawSky, drawTerrain } from './terrain.js';
 import { placeTanks, drawAllTanks, players } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
@@ -108,10 +108,10 @@ const laserState = {
 };
 const LASER_ANGLE_STEP = 0.3;  // radians per frame (RE: DS:6108 ~0.3 rad)
 
-// Draw laser sight line from barrel tip (RE: segment 0x2F76:0x01C1)
-// Original sweeps from old angle to new angle in ~0.3 rad steps
-// Standard Laser: green (0x78=120), blends with terrain
-// Plasma Laser: white (0xFE=254), overwrites background
+// Draw laser sight line from barrel tip (RE: draw_laser_sight at file 0x36321, segment 0x2F76:0x01C1)
+// Original sweeps from old angle to new angle in ~0.3 rad steps (DS:6108)
+// Standard Laser: green (RE: DS:EC4E=0x78, remapped to palette 253 to avoid terrain overlap)
+// Plasma Laser: white (RE: DS:EC4E=0xFE, palette 254)
 function drawLaserSight(player) {
   if (!player.alive) return;
   // Check if player has Laser (idx 35) or Plasma Laser (idx 36)
@@ -119,9 +119,9 @@ function drawLaserSight(player) {
   const hasPlasma = player.inventory[WPN.PLASMA_LASER] > 0;
   if (!hasLaser && !hasPlasma) return;
 
-  // Plasma takes priority (RE: type==1 check)
+  // Plasma takes priority (RE: type==1 check at 0x36321)
   const isPlasma = hasPlasma;
-  const color = isPlasma ? 254 : 120;  // RE: 0xFE white vs 0x78 green
+  const color = isPlasma ? LASER_WHITE : LASER_GREEN;  // RE: DS:EC4E = 0xFE vs 0x78
 
   const targetAngleRad = player.angle * Math.PI / 180;
 
@@ -155,13 +155,16 @@ function drawLaserSight(player) {
   const endX = Math.round(player.x + Math.cos(angleRad) * maxDist);
   const endY = Math.round(domeTopY - Math.sin(angleRad) * maxDist);
 
+  // RE: per-pixel callback at 0x36271 (0x2F76:0x0111)
+  // Standard laser: EC4C=0xFE (skip 254 pixels), EC4E=0x78 (terrain blend draws through terrain)
+  // Plasma laser: EC4C=-1 (no skip mask), EC4E=0xFE (fg_point overwrites all)
   bresenhamLine(startX, startY, endX, endY, (x, y) => {
     if (x >= 0 && x < config.screenWidth && y >= 0 && y < config.screenHeight) {
       if (!isPlasma) {
-        // Standard laser: terrain blend mode (RE: EC4E == 0x78)
-        // Skip pixels matching 254 (RE: EC4C mask) and terrain pixels >= 105
+        // RE: "If EC4C != -1: skip pixels matching EC4C" — skip LASER_WHITE (0xFE) pixels
+        // RE: "If EC4E == 0x78: terrain blend (0x32C2:0x1519)" — draws through terrain
         const existing = getPixel(x, y);
-        if (existing === 254 || existing >= 105) return;
+        if (existing === LASER_WHITE) return;
       }
       setPixel(x, y, color);
     }
