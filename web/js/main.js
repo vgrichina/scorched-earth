@@ -6,7 +6,7 @@
 import { config } from './config.js';
 import { initFramebuffer, blit, setPixel, getPixel, fillRect } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
-import { generateTerrain, drawSky, drawTerrain } from './terrain.js';
+import { generateTerrain, drawSky, drawTerrain, initSkyBackground } from './terrain.js';
 import { placeTanks, drawAllTanks, players } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
@@ -29,6 +29,7 @@ function init() {
 
   // Set up palette for title screen (default terrain/sky)
   initPalette(config.landType, config.skyType);
+  initSkyBackground();
 
   // Start in title screen state
   game.state = STATE.TITLE;
@@ -40,6 +41,7 @@ function init() {
 function startGame() {
   // Re-init palette with configured types
   initPalette(config.landType, config.skyType);
+  initSkyBackground();
   generateTerrain();
   generateWind();
   placeTanks(config.numPlayers);

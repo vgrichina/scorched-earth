@@ -9,7 +9,7 @@
 // EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
 import { config } from './config.js';
-import { setPixel, getPixel } from './framebuffer.js';
+import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
 import { terrain } from './terrain.js';
 import { players } from './tank.js';
 
@@ -32,7 +32,7 @@ export function createCrater(cx, cy, radius) {
       // Only remove terrain pixels (>= 105) and non-player pixels
       if (pixel >= 105) {
         // Replace with sky color based on Y position (80-103 range)
-        const skyIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+        const skyIdx = getBackgroundColor(y);
         setPixel(x, y, skyIdx);
       }
     }
@@ -102,7 +102,7 @@ export function createTunnel(cx, cy, depth, goesDown) {
       if (x < 0 || x >= config.screenWidth) continue;
       const pixel = getPixel(x, y);
       if (pixel >= 105) {
-        const skyIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+        const skyIdx = getBackgroundColor(y);
         setPixel(x, y, skyIdx);
       }
     }
@@ -128,7 +128,7 @@ export function applyDisrupter(cx, cy, radius) {
       if (pixel >= 105) {
         if (y !== writeY) {
           // Move this terrain pixel down
-          const skyIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+          const skyIdx = getBackgroundColor(y);
           setPixel(x, y, skyIdx);
           setPixel(x, writeY, pixel);
         }
@@ -139,7 +139,7 @@ export function applyDisrupter(cx, cy, radius) {
     for (let y = writeY; y >= 15; y--) {
       const pixel = getPixel(x, y);
       if (pixel >= 105) {
-        const skyIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+        const skyIdx = getBackgroundColor(y);
         setPixel(x, y, skyIdx);
       }
     }

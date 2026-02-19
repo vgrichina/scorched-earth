@@ -2,9 +2,11 @@
 // EXE: VGA Mode 13h — linear 320×200 framebuffer at segment A000h
 // EXE: uses Fastgraph V4.02 library for VGA pixel operations
 // EXE: pixel values are palette indices (0-255) into the VGA DAC
-// Web: 320×200 Uint8Array of palette indices, blitted to canvas via palette32 lookup
+// Web: 320×200 Uint8Array of palette indices, blitted to canvas via:
+//   WebGL — index texture + palette texture, fragment shader does DAC lookup on GPU
+//   Canvas2D fallback — CPU loop maps indices through palette32 LUT to ImageData
 
-import { palette32, updatePalette32 } from './palette.js';
+import { palette32 } from './palette.js';
 import { config } from './config.js';
 
 const WIDTH = config.screenWidth;   // 320
@@ -13,17 +15,129 @@ const HEIGHT = config.screenHeight; // 200
 // The indexed pixel buffer (VGA VRAM equivalent)
 export const pixels = new Uint8Array(WIDTH * HEIGHT);
 
-// Canvas rendering
+// VGA DAC background emulation — per-row default palette index
+// In VGA hardware, every VRAM byte always maps to a DAC color. There is no
+// "unfilled" pixel. This table stores the sky gradient palette index per
+// scanline, enabling clearToBackground() to reset the entire framebuffer
+// in a single memcpy — equivalent to every VGA pixel always having a color.
+const background = new Uint8Array(HEIGHT);
+const backgroundBuffer = new Uint8Array(WIDTH * HEIGHT);
+
+// Uint8 view of palette32 for WebGL texture upload (ABGR Uint32 → RGBA bytes on LE)
+const paletteBytes = new Uint8Array(palette32.buffer);
+
+// Canvas2D fallback state
 let ctx = null;
 let imageData = null;
 let buf32 = null;
 
+// WebGL state
+let gl = null;
+let indexTexture = null;
+let paletteTexture = null;
+
 export function initFramebuffer(canvas) {
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
-  ctx = canvas.getContext('2d');
-  imageData = ctx.createImageData(WIDTH, HEIGHT);
-  buf32 = new Uint32Array(imageData.data.buffer);
+
+  // Try WebGL for GPU-accelerated palette lookup (VGA DAC emulation on GPU)
+  gl = canvas.getContext('webgl', { alpha: false, antialias: false });
+  if (gl) {
+    initWebGL();
+  } else {
+    // Fallback to Canvas2D palette lookup
+    ctx = canvas.getContext('2d');
+    imageData = ctx.createImageData(WIDTH, HEIGHT);
+    buf32 = new Uint32Array(imageData.data.buffer);
+  }
+}
+
+function initWebGL() {
+  // Vertex shader: fullscreen quad, flip Y for screen coords
+  const vsrc =
+    'attribute vec2 a_pos;' +
+    'varying vec2 v_uv;' +
+    'void main(){' +
+    '  gl_Position=vec4(a_pos,0,1);' +
+    '  v_uv=vec2((a_pos.x+1.0)/2.0,(1.0-a_pos.y)/2.0);' +
+    '}';
+
+  // Fragment shader: sample index texture, look up color in palette texture
+  // Index texture is LUMINANCE (single byte / 255.0), palette is 256×1 RGBA
+  const fsrc =
+    'precision mediump float;' +
+    'varying vec2 v_uv;' +
+    'uniform sampler2D u_idx;' +
+    'uniform sampler2D u_pal;' +
+    'void main(){' +
+    '  float i=texture2D(u_idx,v_uv).r;' +
+    '  gl_FragColor=texture2D(u_pal,vec2((i*255.0+0.5)/256.0,0.5));' +
+    '}';
+
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, vsrc);
+  gl.compileShader(vs);
+
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, fsrc);
+  gl.compileShader(fs);
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  // Fullscreen quad (triangle strip: BL, BR, TL, TR)
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  // Index texture: 320×200 LUMINANCE, updated every frame
+  indexTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, indexTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(gl.getUniformLocation(prog, 'u_idx'), 0);
+
+  // Palette texture: 256×1 RGBA (VGA DAC equivalent)
+  paletteTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(gl.getUniformLocation(prog, 'u_pal'), 1);
+
+  gl.viewport(0, 0, WIDTH, HEIGHT);
+}
+
+// Set per-row background palette indices (sky gradient)
+// Called once when sky type is configured; the mapping from screen row
+// to palette index (80-103) is independent of the palette RGB values.
+export function setBackground(rowColors) {
+  background.set(rowColors);
+  for (let y = 0; y < HEIGHT; y++) {
+    backgroundBuffer.fill(rowColors[y], y * WIDTH, (y + 1) * WIDTH);
+  }
+}
+
+// Get background palette index for a screen row (used by crater/tunnel fill)
+export function getBackgroundColor(y) {
+  return background[y];
+}
+
+// Clear framebuffer to per-row background colors
+// Single memcpy — equivalent to VGA VRAM always having a valid DAC index
+export function clearToBackground() {
+  pixels.set(backgroundBuffer);
 }
 
 // Set a single pixel by palette index
@@ -73,10 +187,26 @@ export function clear(colorIndex) {
   pixels.fill(colorIndex);
 }
 
-// Blit indexed framebuffer to canvas using palette32 lookup
+// Blit indexed framebuffer to canvas
+// WebGL: upload index+palette textures, GPU does palette lookup in fragment shader
+// Canvas2D: CPU loop maps palette indices to RGBA via palette32 LUT
 export function blit() {
-  for (let i = 0; i < WIDTH * HEIGHT; i++) {
-    buf32[i] = palette32[pixels[i]];
+  if (gl) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, indexTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, WIDTH, HEIGHT, 0,
+      gl.LUMINANCE, gl.UNSIGNED_BYTE, pixels);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0,
+      gl.RGBA, gl.UNSIGNED_BYTE, paletteBytes);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  } else {
+    for (let i = 0; i < WIDTH * HEIGHT; i++) {
+      buf32[i] = palette32[pixels[i]];
+    }
+    ctx.putImageData(imageData, 0, 0);
   }
-  ctx.putImageData(imageData, 0, 0);
 }

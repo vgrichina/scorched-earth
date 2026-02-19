@@ -8,7 +8,7 @@
 
 import { random, clamp } from './utils.js';
 import { config } from './config.js';
-import { setPixel, hline } from './framebuffer.js';
+import { setPixel, hline, setBackground, clearToBackground } from './framebuffer.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
 export const terrain = new Uint16Array(config.screenWidth);
@@ -240,16 +240,26 @@ function generateRolling(width, yStart, yEnd) {
   }
 }
 
+// Precompute per-row sky gradient palette indices into framebuffer background table.
+// Called once when sky type changes. The row→palette index mapping (80-103) is
+// independent of the palette RGB values — those are set by setupSkyPalette().
+// This enables clearToBackground() to fill the entire framebuffer in a single
+// memcpy, emulating VGA hardware where every pixel always has a valid DAC color.
+export function initSkyBackground() {
+  const rowColors = new Uint8Array(config.screenHeight);
+  for (let y = 0; y < config.screenHeight; y++) {
+    rowColors[y] = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+  }
+  setBackground(rowColors);
+}
+
 // Draw sky (VGA 80-103 mapped to screen rows)
 // Supports: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function drawSky() {
   const width = config.screenWidth;
 
-  // Base gradient fill (all sky types use the palette gradient)
-  for (let y = 0; y < config.screenHeight; y++) {
-    const palIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
-    hline(0, width - 1, y, palIdx);
-  }
+  // Base gradient fill from precomputed background table (single memcpy)
+  clearToBackground();
 
   // Stars: scatter white pixels
   if (config.skyType === 2) {
