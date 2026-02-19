@@ -16,7 +16,7 @@ import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyDisrupter } from './explosions.js';
 import { isKeyDown, consumeKey } from './input.js';
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
-import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance } from './behaviors.js';
+import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
@@ -164,13 +164,10 @@ function handleAimInput(player) {
 // EXE: fire_weapon at file 0x30652 — computes barrel tip from icons.cpp geometry
 // EXE: decrements ammo in player struct, switches to Baby Missile if depleted
 //
-// BUG: EXE differs — two missing interactions in this JS implementation:
-//   1. Super Mag per-shot decrement (EXE 0x306A8): if sub+0x2A != 0 (Super Mag active),
-//      decrements inventory[DS:D566] (Super Mag ammo). Deactivates when depleted.
-//      JS does not track or decrement Super Mag ammo per shot.
-//   2. Shield consume on fire (EXE 0x30668): calls shield_consume (0x1144:0x361) before
-//      launching if active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
-//      JS has no equivalent per-fire shield interaction.
+// BUG: EXE differs — shield consume on fire not yet implemented:
+//   EXE 0x30668: calls shield_consume (0x1144:0x361) before launching if
+//   active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
+//   JS has no equivalent per-fire shield interaction.
 function fireWeapon(player) {
   // EXE: barrel tip = dome center + BARREL_LENGTH (12) in angle direction (icons.cpp)
   const barrelLength = 12;
@@ -179,7 +176,11 @@ function fireWeapon(player) {
   const startX = player.x + Math.cos(angleRad) * barrelLength;
   const startY = domeTopY - Math.sin(angleRad) * barrelLength;
 
-  const weaponIdx = player.selectedWeapon;
+  let weaponIdx = player.selectedWeapon;
+
+  // EXE: fire_weapon 0x3070C — Bal Guidance (DS:D54C, idx 38) replaced with
+  // Earth Disrupter (DS:D548, idx 34). Bal Guidance is intentionally non-fireable.
+  if (weaponIdx === 38) weaponIdx = WPN.EARTH_DISRUPTER;
 
   // EXE VERIFIED: ammo decrement at fire_weapon 0x30683; fallback to Baby Missile
   // at 0x3078E when depleted. Matches this JS implementation.
@@ -192,8 +193,25 @@ function fireWeapon(player) {
     }
   }
 
+  // EXE: fire_weapon 0x306A8 — Super Mag (idx 52) ammo decremented per shot.
+  // Super Mag is not a shield; it deflects projectiles via physics (not yet implemented).
+  // When ammo depleted, the deflection deactivates.
+  const SUPER_MAG_IDX = 52;
+  if (player.inventory[SUPER_MAG_IDX] > 0) {
+    player.inventory[SUPER_MAG_IDX]--;
+  }
+
+  // EXE: guidance_type set on projectile at fire time, ammo consumed
+  const guidanceType = selectGuidanceType(player);
+
   clearProjectiles();
   launchProjectile(startX, startY, player.angle, player.power, weaponIdx, player.index);
+
+  // Set guidance type on the newly launched projectile
+  if (guidanceType && projectiles.length > 0) {
+    projectiles[projectiles.length - 1].guidanceType = guidanceType;
+  }
+
   game.state = STATE.FLIGHT;
 }
 

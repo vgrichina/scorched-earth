@@ -13,12 +13,10 @@ import { setPixel, getPixel } from './framebuffer.js';
 import { players } from './tank.js';
 
 // Guidance weapon indices
-// BUG: EXE differs — Bal Guidance (idx 38) is intentionally non-functional in EXE.
-// At fire_weapon 0x3070C: if weapon == DS:D54C (Bal Guidance), replaces with
-// DS:D548 (Earth Disrupter). Bal Guidance can never be used as a fire mode.
-// JS never implements Bal Guidance behavior at all (defined here but no code path).
+// EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
+// 0x3070C — handled in game.js fireWeapon(). Bal Guidance is not a valid guidance type.
 const GUIDANCE = { HEAT: 37, BAL: 38, HORZ: 39, VERT: 40 };
-const GUIDANCE_STRENGTH = 2.0;  // correction per second (0.04 per-step / dt=0.02)
+const GUIDANCE_STRENGTH = 2.0;  // correction magnitude per step (applied via wind_x/wind_y)
 
 // Behavior dispatch — called when a projectile hits something
 // Returns: { explode: bool, radius: number, spawn: projectile[], dirtAdd: bool, skipDamage: bool }
@@ -336,77 +334,113 @@ function bhvFunky(proj, weapon) {
   return { explode: true, radius: 15, spawn, dirtAdd: false, skipDamage: false };
 }
 
-// --- Guidance system: steer projectile during flight ---
-// Called each physics step. Checks if attacker has guidance items and applies correction.
+// --- Guidance system: one-shot course correction during flight ---
+// EXE VERIFIED: extras.cpp 0x2263D — single-type, one-shot, consumed model.
+// See REVERSE_ENGINEERING.md "Guidance System" section for full EXE pseudocode.
 //
-// BUG: EXE differs — guidance is fundamentally different in the original:
-//   EXE (extras.cpp 0x2263D): player+0x24 = guidance_type, a SINGLE int16 (not bitmask).
-//   Checked per-step in cascading if-else: Horz (DS:D54E) → Vert (DS:D550) → Heat (DS:D54A).
-//   Each has a TRIGGER CONDITION:
-//     Horz: fires when proj_Y == target_Y (horizontal alignment)
-//     Vert: fires when proj_X == target_X (vertical alignment)
-//     Heat: fires via shark.cpp proximity check
-//   When triggered: guidance_type = 0 (CONSUMED), callback installed at +0x4C/+0x4E,
-//     wind correction set at +0x66/+0x68, fire_mode set at +0x6A.
-//   Guidance applies ONCE per flight — a one-time course correction, not continuous steering.
-//   Ammo is consumed at fire time (set into player+0x24), not checked per-step.
-//
-//   JS implementation differs in ALL of these ways:
-//     1. Checks inventory[GUIDANCE.X] > 0 for ALL guidance types independently (stacks)
-//     2. All active guidance applies simultaneously every frame (continuous, not one-shot)
-//     3. Never consumed — ammo never decremented
-//     4. Directly modifies velocity continuously instead of one-time correction
-//
-//   See REVERSE_ENGINEERING.md "Guidance System" section for full EXE pseudocode.
+// At fire time: selectGuidanceType() picks highest-priority guidance the player
+// has ammo for (Horz > Vert > Heat), decrements ammo, returns type constant.
+// Per step: applyGuidance() checks spatial trigger condition for the stored type.
+// On trigger: computes correction vector, stores as persistent wind_x/wind_y on
+// the projectile, and sets guidanceType = 0 (consumed). After trigger, the
+// correction vector is applied each step (EXE installs callback at +0x4C/+0x4E).
+
+const HEAT_PROXIMITY = 60;  // pixel radius for heat-seek trigger
+
+// Select which guidance type to use at fire time. Consumes 1 ammo.
+// EXE: priority order matches cascading if-else: Horz → Vert → Heat
+// Returns: GUIDANCE constant or 0 (none)
+export function selectGuidanceType(player) {
+  // Priority: Horz > Vert > Heat (matches EXE cascading if-else order)
+  if (player.inventory[GUIDANCE.HORZ] > 0) {
+    player.inventory[GUIDANCE.HORZ]--;
+    return GUIDANCE.HORZ;
+  }
+  if (player.inventory[GUIDANCE.VERT] > 0) {
+    player.inventory[GUIDANCE.VERT]--;
+    return GUIDANCE.VERT;
+  }
+  if (player.inventory[GUIDANCE.HEAT] > 0) {
+    player.inventory[GUIDANCE.HEAT]--;
+    return GUIDANCE.HEAT;
+  }
+  return 0;
+}
+
+// Find nearest enemy tank position for guidance targeting
+function findNearestEnemy(proj) {
+  const attacker = players[proj.attackerIdx];
+  let bestDist = Infinity;
+  let targetX = proj.x, targetY = proj.y;
+  for (const p of players) {
+    if (p === attacker || !p.alive) continue;
+    const dx = p.x - proj.x;
+    const dy = (p.y - 4) - proj.y;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      targetX = p.x;
+      targetY = p.y - 4;
+    }
+  }
+  return bestDist < Infinity ? { x: targetX, y: targetY } : null;
+}
+
+// Called each physics step. Checks trigger condition and applies one-shot correction.
+// EXE: per-step check at extras.cpp 0x2263D
 export function applyGuidance(proj) {
   if (proj.isNapalmParticle || proj.isSubWarhead || proj.rolling) return;
 
-  const attacker = players[proj.attackerIdx];
-  if (!attacker) return;
-
-  // Heat Guidance: steer toward nearest enemy tank
-  if (attacker.inventory[GUIDANCE.HEAT] > 0) {
-    let bestDist = Infinity;
-    let targetX = proj.x, targetY = proj.y;
-    for (const p of players) {
-      if (p === attacker || !p.alive) continue;
-      const dx = p.x - proj.x;
-      const dy = (p.y - 4) - proj.y;  // aim at tank center
-      const dist = dx * dx + dy * dy;
-      if (dist < bestDist) {
-        bestDist = dist;
-        targetX = p.x;
-        targetY = p.y - 4;
-      }
-    }
-    if (bestDist < Infinity) {
-      const dx = targetX - proj.x;
-      const dy = targetY - proj.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 1) {
-        proj.vx += (dx / dist) * GUIDANCE_STRENGTH;
-        proj.vy -= (dy / dist) * GUIDANCE_STRENGTH;  // screen y inverted
-      }
-    }
+  // After trigger: apply persistent correction vector each step
+  // EXE: callback at +0x4C applies wind_x/wind_y correction per step
+  if (proj.guidanceCorrX !== undefined) {
+    proj.vx += proj.guidanceCorrX * GUIDANCE_STRENGTH;
+    proj.vy += proj.guidanceCorrY * GUIDANCE_STRENGTH;
+    return;
   }
 
-  // Horizontal Guidance: eliminate horizontal drift
-  if (attacker.inventory[GUIDANCE.HORZ] > 0) {
-    // Store original aim direction on first call
-    if (proj.guidanceOrigVx === undefined) {
-      proj.guidanceOrigVx = proj.vx;
-    }
-    const drift = proj.vx - proj.guidanceOrigVx;
-    proj.vx -= drift * GUIDANCE_STRENGTH * 2;
-  }
+  // No guidance or already consumed
+  if (!proj.guidanceType) return;
 
-  // Vertical Guidance: eliminate vertical drift
-  if (attacker.inventory[GUIDANCE.VERT] > 0) {
-    if (proj.guidanceOrigVy === undefined) {
-      proj.guidanceOrigVy = proj.vy;
+  const target = findNearestEnemy(proj);
+  if (!target) return;
+
+  const px = Math.round(proj.x);
+  const py = Math.round(proj.y);
+  const tx = Math.round(target.x);
+  const ty = Math.round(target.y);
+
+  // EXE: cascading if-else check per type
+  if (proj.guidanceType === GUIDANCE.HORZ) {
+    // Horz Guidance: triggers when projectile Y == target Y (horizontal alignment)
+    // EXE: if (proj_target_Y == current_Y) → compute horizontal correction
+    if (Math.abs(py - ty) <= 2) {
+      const dx = target.x - proj.x;
+      if (Math.abs(dx) > 1) {
+        proj.guidanceCorrX = Math.sign(dx);
+        proj.guidanceCorrY = 0;
+        proj.guidanceType = 0;  // consumed
+      }
     }
-    const drift = proj.vy - proj.guidanceOrigVy;
-    proj.vy -= drift * GUIDANCE_STRENGTH * 2;
+  } else if (proj.guidanceType === GUIDANCE.VERT) {
+    // Vert Guidance: triggers when projectile X == target X (vertical alignment)
+    // EXE: if (proj_target_X == current_X) → apply vertical correction
+    if (Math.abs(px - tx) <= 2) {
+      proj.guidanceCorrX = 0;
+      proj.guidanceCorrY = (target.y > proj.y) ? -1 : 1;  // screen y inverted
+      proj.guidanceType = 0;  // consumed
+    }
+  } else if (proj.guidanceType === GUIDANCE.HEAT) {
+    // Heat Guidance: triggers via proximity check
+    // EXE: call shark.cpp heat_seek — triggers when close to any enemy
+    const dx = target.x - proj.x;
+    const dy = target.y - proj.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < HEAT_PROXIMITY) {
+      proj.guidanceCorrX = Math.sign(dx);
+      proj.guidanceCorrY = (target.y > proj.y) ? -1 : 1;  // screen y inverted
+      proj.guidanceType = 0;  // consumed
+    }
   }
 }
 

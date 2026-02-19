@@ -1578,13 +1578,11 @@ elif (guidance_type == DS:D54A [Heat Guidance]):
 | DS:0xD54E | Horz Guidance (weapon index) |
 | DS:0xD550 | Vert Guidance (weapon index) |
 
-### JS Implementation Differences
+### JS Implementation
 
-The web port (`behaviors.js:applyGuidance()`) differs in all respects:
-1. Checks `inventory[GUIDANCE.X] > 0` for ALL types independently (stacking)
-2. Applies corrections continuously every frame (not one-shot)
-3. Never consumes ammo
-4. Directly modifies velocity instead of installing callbacks
+The web port (`behaviors.js`) now implements the EXE model:
+- `selectGuidanceType()`: at fire time, picks highest-priority guidance (Horz > Vert > Heat), decrements ammo, returns type constant. Called from `game.js:fireWeapon()`.
+- `applyGuidance()`: per-step check with spatial trigger conditions. On trigger, computes persistent correction vector (wind_x/wind_y) and consumes guidance. After trigger, correction applied each step.
 
 **Intermediate files**: Plan transcript from laser/MAYHEM investigation session.
 

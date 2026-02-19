@@ -342,20 +342,16 @@ function gameLoop() {
 }
 
 // MAYHEM cheat: global key listener for the sequence
-// BUG: EXE differs — EXE sets ALL weapon types 1-47 to 99 UNCONDITIONALLY at round
-// init (RE doc line 516). JS only fills empty slots (inventory[w] === 0), so items
-// already owned keep their current count instead of being topped up to 99.
+// EXE VERIFIED: sets ALL weapon types to 99 unconditionally (RE doc line 516)
 window.addEventListener('keydown', (e) => {
   if (e.code === MAYHEM_SEQ[mayhemIdx]) {
     mayhemIdx++;
     if (mayhemIdx >= MAYHEM_SEQ.length) {
       mayhemIdx = 0;
-      // Unlock all weapons for all players
+      // EXE: sets ALL weapon types to 99 unconditionally
       for (const p of players) {
         for (let w = 2; w < p.inventory.length; w++) {
-          if (p.inventory[w] === 0) {
-            p.inventory[w] = 99;
-          }
+          p.inventory[w] = 99;
         }
       }
     }
