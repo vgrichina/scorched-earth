@@ -1,0 +1,126 @@
+Terrain Generation Algorithm — Scorched Earth v1.50
+===================================================
+Reverse-engineered from ranges.cpp (code segment 0x2CBF, file base ~0x33690)
+FPU decoder: python3 disasm/fpu_decode.py earth/SCORCH.EXE <start> <end> -c -f
+
+=== ENTRY POINT ===
+File 0x3971F (CS=32C2:00FF or 32D1:000F)
+  enter word 0x2a, byte 0x0    ; 42 bytes local vars
+  Stack frame: bp-0x2 = previous terrain type, bp-0x4..bp-0x2a = locals
+
+=== INITIALIZATION ===
+1. Save previous terrain type:
+   mov ax,[DS:5110] -> mov [bp-0x2],ax
+
+2. Compute height_range:
+   mov ax,[DS:EF38]    ; screen_max_y
+   sub ax,[DS:EF40]    ; screen_min_y
+   mov [DS:ECB8],ax    ; height_range = max_y - min_y
+
+3. Allocate height array:
+   push ((DS:EF3A + 1) * 2)    ; screen_width+1 words
+   call far malloc
+   mov [DS:6244],dx    ; segment
+   mov [DS:6242],ax    ; offset
+   -> Far pointer to word array: height[column]
+
+4. Allocate bitmap array:
+   push ((DS:EF3E + 1) * 4)    ; max_x+1 dwords
+   call far malloc
+   mov [DS:6248],dx
+   mov [DS:6246],ax
+   -> Far pointer to array of far pointers (bitmap row ptrs)
+   Each row: malloc(DS:ECBA) where ECBA = (EF3A+9)/8+1
+
+5. Allocate aux height array:
+   push ((DS:EF3A + 1) * 2)
+   call far malloc
+   mov [DS:6240],dx
+   mov [DS:623E],ax
+   -> Auxiliary height array (used by some terrain types)
+
+=== TERRAIN TYPE SELECTION ===
+If DS:5176 (RANDOM_LAND):
+   push 6; call random    ; random(6) -> type 0-5
+   mov [DS:5110],ax
+   ; Also: LAND2=rand(2), numPeaks=rand(100), LAND1=rand(100)
+
+If DS:621A == 0 (no .mtn files) and type == 5 (cavern/mtn):
+   Reroll: push 5; call random  ; pick 0-4 instead
+
+Cavern flag:
+   If type == 5: mov word [DS:50D8], 1    ; cavern mode ON
+   Else:         mov word [DS:50D8], 0    ; cavern mode OFF
+
+=== 7-WAY JUMP TABLE DISPATCH ===
+At file 0x39951:
+   mov bx,[DS:5110]    ; terrain_type (0-6)
+   shl bx,1            ; bx = type * 2
+   jmp word near [cs:bx+0x0A18]   ; jump table at CS:0x0A18
+
+Jump table at file ~0x3A118 (7 word entries, one per terrain type).
+Each entry is a near offset within CS (ranges.cpp code segment).
+
+=== TYPE 0: FLAT (Blue Ice) ===
+- Palette: setTerrainPalette(120, 0x1F, 0x9, 0x9, 0x78)
+- Height: all columns set to same value (flat line)
+
+=== TYPE 1: SLOPE (Snow/Ice) ===
+- Palette: gradient di=0..29: R=29-di, G=29-di, B=63
+- Height: height[di] = (EF38-di)*0x1D/ECB8 + 0x78  (linear slope)
+
+=== TYPE 2: ROLLING (Rock/Gray) ===
+- Palette: (0x0A, 0x5, 0x5, 0x78), gray ramp di=0..29: R=G=B=2*di+7
+- Aux array: random(0x7D00) per column
+- Height: LandGenerator + slope: 0x1E - (EF38-i)*0x1D/ECB8
+
+=== TYPE 3: MTN (ScannedMountain) ===
+- srand(1.0 * 1.8)
+- Mountain loop: height=rand(20)+30, spacing=rand(20)+15
+- mountain_draw at 0x43ACA (Bresenham ellipse)
+
+=== TYPE 4: V-SHAPED (Desert/Lava) ===
+- center=(EF40+EF38)/2, half_range=(EF38-EF40)/2
+- height[i] = abs(i-center)*29/half_range + 120
+
+=== TYPE 5: CASTLE ===
+- Black bars 0..0x68, rampart gradient
+- If cavern: underground V-shape; else: linear slope
+
+=== TYPE 6: CAVERN ===
+- DS:50D8=1, 3-band palette, mountains + slope
+
+=== PALETTE GRADIENT (Types 3, 5, 6) ===
+Band 1 (0-9):  t=(9-i)/10; R=inv_t*20, G=t*63+inv_t*20, B=t*63+inv_t*63
+Band 2 (10-19): t=(9-i)/10; R=t*20+inv_t*63, G=t*20+inv_t*29, B=t*63+inv_t*29
+Band 3 (20-28): t=(9-i)/10; R=t*63+inv_t*31, G=t*29+inv_t*9, B=t*29+inv_t*9
+
+=== LANDGENERATOR CLASS ===
+Object: +0 vtable, +2 flag, +4 start_col, +6 end_col, +8 direction,
+        +A flat_chance(20), +C bump_chance(20), +E flatten_peaks(0)
+DefaultLand constructor at 0x2990B.
+
+=== HEIGHT KERNEL: RANDOM WALK (0x29808) ===
+walk_delta=0; y=random(range-60)+start+40
+Loop: drawColumn; if rand(100)<flat_chance: nop;
+      else: delta=rand(3)-1; if rand(100)<bump: delta*=2
+      if flatten_peaks && |delta|>3: delta=0
+      y+=delta; clamp [start+40, end-1] with bounce
+      col+=direction; break at bounds
+
+=== KEY DS VARIABLES ===
+DS:5110  terrain_type       DS:516E  numPeaks (20)
+DS:5170  LAND1/bumpiness    DS:5172  LAND2/slope
+DS:5174  FLATLAND (1000)    DS:5176  RANDOM_LAND
+DS:5178  MTN_PERCENT (1.0)  DS:50D8  cavern_flag
+DS:6242  height_array       DS:6246  bitmap_array
+DS:623E  aux_height_array   DS:ECB8  height_range
+DS:6250  FP 1.8  DS:6258  FP 9.0  DS:625C  FP 10.0
+DS:6260  FP 20.0 DS:6264  FP 63.0 DS:6268  FP 29.0
+DS:626C  FP 31.0 DS:6270  FP 45.0 DS:6E5A  FP 1.0
+
+=== KEY FUNCTION OFFSETS ===
+0x3971F  Main entry          0x39951  Jump dispatch
+0x29808  Random walk kernel   0x2990B  DefaultLand ctor
+0x43ACA  Mountain draw        0x32E1B  random(max)
+0x446D9  srand(seed)          0x29558  RANDOM_LAND init

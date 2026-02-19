@@ -1,0 +1,142 @@
+== Physics Timestep (dt) and Wind System — VERIFIED from disassembly ==
+
+=================================================================
+CRITICAL FINDING: dt is ADAPTIVE, not a fixed constant
+=================================================================
+
+dt is calibrated to CPU speed via a MIPS benchmark at startup.
+Fallback value: 0.02
+
+== CPU Calibration: get_mips_count() (file 0x20F63) ==
+
+Debug strings: "Getting MIPS." at DS:0x1C9C, "BogoMips: %ld %ld" at DS:0x1CA5
+Runs timing loops at startup, stores result at DS:1C86 (u32)
+
+== Physics Setup: setup_physics_constants() (file 0x21064) ==
+
+Called before each firing sequence:
+
+  d = (float)FIRE_DELAY * (float)mips / ((float)num_projectiles * 100.0);
+
+  if (d > 0) {
+      dt           = 1.0 / (50.0 * d);          // DS:CEAC
+      gravity_step = 50.0 * GRAVITY / d;         // DS:CE9C
+      wind_step    = (float)wind / (d * 40.0);   // DS:CEA4
+  } else {
+      dt           = 0.02;                       // fallback (DS:1CFA)
+      gravity_step = 50.0 * GRAVITY;
+      wind_step    = (float)wind / 40.0;
+  }
+
+dt is inversely proportional to CPU speed — faster machines get smaller dt
+(finer simulation steps). Gravity and wind are pre-scaled so the loop
+adds them directly without further multiplication.
+
+== Simulation Loop (file 0x21A80-0x21D09) ==
+
+Per-step, per-projectile:
+
+  void sim_step(projectile_t *proj) {
+      // 1. Speed limit (DS:1CA2 = 1.5 speed-squared threshold)
+      double speed_sq = proj->vx * proj->vx + proj->vy * proj->vy;
+      if (speed_sq > 1.5) {
+          double speed = sqrt(speed_sq);
+          proj->vx /= speed;
+          proj->vy /= speed;
+      }
+
+      // 2. Position update (screen Y inverted)
+      proj->x += proj->vx * dt;
+      proj->y -= proj->vy * dt;      // FSUBR: y = y - vy*dt
+
+      // 3. Air viscosity — MULTIPLICATIVE damping (NOT differential)
+      proj->vx *= viscosity_factor;   // DS:5178
+      proj->vy *= viscosity_factor;
+
+      // 4. Gravity (pre-scaled, screen coords)
+      proj->vy -= gravity_step;       // DS:CE9C
+
+      // 5. Wind (horizontal only, pre-scaled)
+      proj->vx += wind_step;          // DS:CEA4
+  }
+
+Projectile sub-struct fields (via ES:BX):
+  +0x04 = f64 vx
+  +0x0C = f64 vy
+  +0x14 = f64 x
+  +0x1C = f64 y
+
+CORRECTION: The previously documented formula:
+  vx += (wind - air_viscosity * vx) * dt
+is WRONG. The real implementation uses:
+  - Multiplicative viscosity damping: vx *= factor
+  - Pre-scaled gravity/wind steps added directly
+  - Position update BEFORE velocity update
+
+== Air Viscosity (file 0x19B60) ==
+
+Config value (0-20) converted to multiplicative factor:
+
+  DS:5178 = 1.0 - (double)AIR_VISCOSITY / 10000.0
+  // value 0  -> 1.000 (no damping)
+  // value 20 -> 0.998 (max damping)
+
+NOT the differential equation vx += -visc * vx * dt.
+It is multiplicative: vx *= factor per step.
+
+== Wind Generation (round start, file 0x2943A) ==
+
+Center-biased distribution with random doubling:
+
+  int generate_wind(int max_wind) {
+      int wind = random(max_wind / 2) - max_wind / 4;  // [-max/4, +max/4)
+      if (random(100) < 20)  wind *= 2;   // 20% chance
+      if (random(100) < 40)  wind *= 2;   // 40% chance (independent)
+      return wind;
+  }
+
+Distribution:
+  - 48% neither doubling → small wind
+  - 12% first only → moderate
+  - 32% second only → moderate-strong
+  - 8% both → extreme (up to full MAX_WIND)
+
+Wind is HORIZONTAL ONLY — wind_y is always set to 0 (file 0x226D3).
+
+== Changing Wind (per-turn update, file 0x28E99) ==
+
+When CHANGING_WIND=On, random walk each turn:
+
+  void update_wind(int *wind, int max_wind_limit) {
+      int delta = random(11) - 5;    // [-5, +5]
+      *wind += delta;
+      *wind = clamp(*wind, -max_wind_limit, +max_wind_limit);
+  }
+
+Changes each TURN (not each shot). Small random steps, clamped to MAX_WIND.
+CHANGING_WIND flag stored at DS:50FA, loaded from config at file 0x19FAC.
+
+== Key DS Offsets ==
+
+| DS Offset | Type | Purpose                              |
+|-----------|------|--------------------------------------|
+| DS:CEAC   | f64  | dt (adaptive timestep)               |
+| DS:CE9C   | f64  | gravity_step (pre-scaled)            |
+| DS:CEA4   | f64  | wind_step (pre-scaled)               |
+| DS:5140   | i16  | FIRE_DELAY (default 100)             |
+| DS:5152   | i16  | CHANGING_WIND flag                   |
+| DS:515C   | i16  | MAX_WIND (0-200)                     |
+| DS:5178   | f64  | viscosity factor                     |
+| DS:1C86   | u32  | MIPS count                           |
+| DS:1CFA   | f64  | 0.02 (fallback dt)                   |
+| DS:1CA2   | f32  | 1.5 (speed-sq limit)                 |
+
+== FPU Decoder Bug ==
+
+fpu_decode.py maps INT 3Ch to opcode D8 (line 38), but INT 3Ch actually
+encodes an ES: segment override prefix + the real FPU opcode byte
+(DD for load/store, DC for arithmetic).
+Pattern: CD 3C [DD|DC] [modrm] [disp]
+This causes all player sub-struct field accesses in the simulation loop
+to be garbled as "fcomp st5". All 24 INT 3Ch instances were manually
+decoded for this analysis.

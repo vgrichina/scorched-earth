@@ -556,19 +556,107 @@ EDGES_EXTEND=75         # World extends beyond screen edges
 ELASTIC=None            # Wall bounce behavior
 ```
 
-### Projectile Trajectory (Euler Integration)
+### Projectile Physics — VERIFIED from disassembly
 
-```
-// Initial velocity from player input:
-vx = power * cos(angle)
-vy = power * sin(angle)
+#### Adaptive Timestep (dt)
 
-// Per simulation timestep:
-vx += (wind - air_viscosity * vx) * dt
-vy += gravity * dt
-x  += vx * dt
-y  += vy * dt
+**dt is NOT a fixed constant** — it is calibrated to CPU speed via a MIPS benchmark at startup. The fallback value is **0.02**.
+
+CPU calibration (`get_mips_count()`, file 0x20F63) runs timing loops at startup, stores result at DS:1C86. Before each firing sequence, `setup_physics_constants()` (file 0x21064) computes:
+
+```c
+d = (float)FIRE_DELAY * (float)mips / ((float)num_projectiles * 100.0);
+
+if (d > 0) {
+    dt           = 1.0 / (50.0 * d);          // DS:CEAC
+    gravity_step = 50.0 * GRAVITY / d;         // DS:CE9C
+    wind_step    = (float)wind / (d * 40.0);   // DS:CEA4
+} else {
+    dt           = 0.02;                       // fallback (DS:1CFA)
+    gravity_step = 50.0 * GRAVITY;
+    wind_step    = (float)wind / 40.0;
+}
 ```
+
+#### Simulation Loop (file 0x21A80-0x21D09)
+
+Per-step, per-projectile. **Note**: viscosity is multiplicative damping, NOT the differential form previously documented.
+
+```c
+void sim_step(projectile_t *proj) {
+    // 1. Speed limit (DS:1CA2 = 1.5 speed-squared threshold)
+    double speed_sq = proj->vx * proj->vx + proj->vy * proj->vy;
+    if (speed_sq > 1.5) {
+        double speed = sqrt(speed_sq);
+        proj->vx /= speed;
+        proj->vy /= speed;
+    }
+
+    // 2. Position update (screen Y inverted)
+    proj->x += proj->vx * dt;       // DS:CEAC
+    proj->y -= proj->vy * dt;       // FSUBR: y = y - vy*dt
+
+    // 3. Air viscosity — MULTIPLICATIVE damping
+    proj->vx *= viscosity_factor;    // DS:5178
+    proj->vy *= viscosity_factor;
+
+    // 4. Gravity (pre-scaled, screen coords)
+    proj->vy -= gravity_step;        // DS:CE9C
+
+    // 5. Wind (horizontal only, pre-scaled)
+    proj->vx += wind_step;           // DS:CEA4
+}
+```
+
+Projectile sub-struct fields (via ES:BX): `+0x04`=f64 vx, `+0x0C`=f64 vy, `+0x14`=f64 x, `+0x1C`=f64 y.
+
+#### Air Viscosity (file 0x19B60)
+
+Config value (0-20) converted to per-step multiplicative factor:
+```
+DS:5178 = 1.0 - (double)AIR_VISCOSITY / 10000.0
+// value 0  → 1.000 (no damping)
+// value 20 → 0.998 (max damping per step)
+```
+
+#### Wind System — VERIFIED from disassembly
+
+**Wind is horizontal only** — `wind_y` always set to 0 (file 0x226D3).
+
+**Generation** (round start, file 0x2943A) — center-biased with random doubling:
+```c
+int generate_wind(int max_wind) {
+    int wind = random(max_wind / 2) - max_wind / 4;  // [-max/4, +max/4)
+    if (random(100) < 20)  wind *= 2;   // 20% chance double
+    if (random(100) < 40)  wind *= 2;   // 40% chance double (independent)
+    return wind;
+}
+// Distribution: 48% small, 12% moderate, 32% strong, 8% extreme
+```
+
+**Changing wind** (per-turn, file 0x28E99) — random walk when `CHANGING_WIND=On`:
+```c
+void update_wind(int *wind, int max_wind_limit) {
+    int delta = random(11) - 5;    // [-5, +5]
+    *wind += delta;
+    *wind = clamp(*wind, -max_wind_limit, +max_wind_limit);
+}
+```
+
+#### Physics DS Offsets
+
+| DS Offset | Type | Purpose |
+|-----------|------|---------|
+| DS:CEAC | f64 | dt (adaptive timestep) |
+| DS:CE9C | f64 | gravity_step (pre-scaled) |
+| DS:CEA4 | f64 | wind_step (pre-scaled) |
+| DS:5140 | i16 | FIRE_DELAY (default 100) |
+| DS:5152 | i16 | CHANGING_WIND flag |
+| DS:515C | i16 | MAX_WIND (0-200) |
+| DS:5178 | f64 | viscosity factor |
+| DS:1C86 | u32 | MIPS count |
+| DS:1CFA | f64 | 0.02 (fallback dt) |
+| DS:1CA2 | f32 | 1.5 (speed-sq limit) |
 
 ### Key Float Constants (from binary)
 
@@ -589,12 +677,12 @@ y  += vy * dt
 - INT 39h = D9 xx (fld/fst dword)
 - INT 3Ah = DB xx (fild dword)
 - INT 3Bh = DF xx (fild/fistp word)
-- INT 3Ch = D8 xx (near-data segment FPU ops)
+- INT 3Ch = ES: prefix + DD/DC (player sub-struct FPU ops — **fpu_decode.py bug**: maps to D8, should be ES:DD/DC)
 - INT 3Dh = 9B (fwait)
 
 A **PI/180 constant (0.0174532930)** was found at DS:0x1D08, confirming the game does use degree-to-radian conversion for trig — it was just hidden behind the INT emulation layer.
 
-**Intermediate files**: `disasm/float_constants.txt`, `disasm/explosion_physics.txt`, `disasm/damage_formula.txt`
+**Intermediate files**: `disasm/float_constants.txt`, `disasm/explosion_physics.txt`, `disasm/damage_formula.txt`, `disasm/physics_timestep_wind_analysis.txt`
 
 ### Wall Types (ELASTIC setting)
 
@@ -1795,12 +1883,40 @@ Tank rendering in Scorched Earth v1.50 is implemented primarily in `icons.cpp` (
 
 ### Tank Color Scheme
 
-- **Tank body pixel colors**: 0x50-0x68 (80-104), 8 colors per player
-- **Player index from color**: `pixel_color / 8`
-- **Sky/background threshold**: color >= 0x69 (105)
+- **Tank body pixel colors**: VGA 0-79 (0x00-0x4F), 8 colors per player
+- **Player base VGA index**: `player_index * 8` (stored at sub-struct +0x1A)
+- **Player index from pixel**: `pixel_value / 8` (integer division)
+- **Tank collision threshold**: pixel < 0x50 (80) = tank body hit
+- **Sky/background threshold**: color >= 0x69 (105) = solid ground
 - **Special boundary colors**: 0x96 (150) and 0xA9 (169) — wall/obstacle detection
 - **Tank hit marker**: 0xC8 (200) — drawn on top of damaged tank pixels
 - **Dome gradient**: Uses 3 separate color globals (0xEF26, 0xEF2E, 0xEF30, 0xEF32)
+
+#### Per-player 8-Color Gradient (file 0x28540)
+```
+Slot 0: (base_R/5, base_G/5, base_B/5)      — darkest
+Slot 1: (base_R*2/5, base_G*2/5, base_B*2/5) — dark
+Slot 2: (base_R*3/5, base_G*3/5, base_B*3/5) — medium
+Slot 3: (base_R*4/5, base_G*4/5, base_B*4/5) — light
+Slot 4: (base_R, base_G, base_B)              — full color
+Slot 5: (63, 63, 63)                           — white flash
+Slot 6: (base_R, base_G, base_B)              — base color
+Slot 7: (30, 30, 30)                           — grey smoke
+```
+
+#### 10 Player Default Base Colors (DS:0x57E2)
+| Player | Color | R | G | B |
+|--------|-------|---|---|---|
+| 0 | Red | 63 | 10 | 10 |
+| 1 | Lime Green | 35 | 55 | 10 |
+| 2 | Purple | 40 | 20 | 63 |
+| 3 | Yellow | 63 | 63 | 10 |
+| 4 | Cyan | 10 | 63 | 63 |
+| 5 | Magenta | 63 | 10 | 63 |
+| 6 | White | 60 | 60 | 60 |
+| 7 | Orange | 63 | 40 | 20 |
+| 8 | Sea Green | 20 | 63 | 40 |
+| 9 | Blue | 0 | 0 | 63 |
 
 ### Turret Dome — Pixel-by-Pixel Pattern (file offset 0x2694C)
 
@@ -1996,7 +2112,7 @@ player_struct = DS:0xD568 + player_index * 0xCA
 if (player_struct == current_player):
     return  // skip self
 
-if (pixel >= 0x50 && pixel <= 0x68):  // color range 80-104
+if (pixel < 0x50):  // color range 0-79 = tank pixels
     return 1  // hit a tank!
 
 fg_point(x, y, 0xC8)  // draw hit marker (color 200)
@@ -2013,8 +2129,8 @@ fg_point(x, y, 0xC8)  // draw hit marker (color 200)
 | Tank treads (virtual viewer) | 50 | 20 | Below body in virtual coords |
 | Barrel max length | ~400 steps | 1 | Iterative pixel-by-pixel drawing |
 | Barrel bounding margin | 91 (X) | 51 (Y) | Redraw region around waypoints |
-| Tank pixel color range | N/A | N/A | Colors 80-104 (0x50-0x68) |
-| Players (max) | N/A | N/A | 8 colors per player, color/8 = index |
+| Tank pixel color range | N/A | N/A | VGA 0-79 (8 per player, player_index*8) |
+| Players (max) | N/A | N/A | 10 players, pixel/8 = player index |
 
 ### Key Function Addresses (file offsets)
 
@@ -2337,6 +2453,271 @@ Teams enabled/disabled via DS:0x5148. When teams are disabled, kill bounty incre
 | `same_team` | 0x324ED | `lcall 0x2A16:0x198D` |
 | `add_cash` | 0x3161E | `lcall 0x2A16:0xABE` (6 call sites) |
 | `set_cash` | 0x316CE | Near call from add_cash |
+
+---
+
+## Terrain Generation Algorithm — ranges.cpp (VERIFIED from disassembly)
+
+### Overview
+
+The terrain generation system lives in `ranges.cpp` (code segment 0x2CBF, file base ~0x33690). Main entry point at file **0x3971F**. The core height generation algorithm is a **random walk with momentum** — not midpoint displacement or sine sums. A 7-way jump table dispatches terrain type-specific handlers.
+
+### 7 Terrain Types
+
+| Type | Name | Handler Offset | Height Method | Palette Theme |
+|------|------|---------------|---------------|---------------|
+| 0 | **Flat** | 0x39959 | Constant height | Blue Ice (31,9,9) |
+| 1 | **Slope** | 0x3997B | Linear slope L-to-R | Snow/Ice (29,29,63→0,0,63) |
+| 2 | **Rolling** | 0x399E2 | LandGenerator + random aux | Rock/Gray (7,7,7→63,63,63) |
+| 3 | **MTN** | 0x39A66 | ScannedMountain from .mtn files | Night gray |
+| 4 | **V-Shaped** | 0x39AB8 | Symmetric V centered | Desert/Lava |
+| 5 | **Castle** | 0x39BCC | Ramparts + slope or V-shape | Varied |
+| 6 | **Cavern** | 0x39CC0 | Mountains + slope (underground) | 3-band gradient |
+
+### Height Generation Kernel: Random Walk (file 0x29808)
+
+```c
+int walk_delta = 0;
+int y = random(y_end - y_start - 60) + y_start + 40;
+int current_col = this->start_col;
+
+while (true) {
+    drawColumn(this, screen_seg, current_col, y);
+
+    if (random(100) < this->flat_chance) {    // 20% default: maintain trajectory
+        // no change to walk_delta
+    } else {
+        walk_delta = random(3) - 1;           // {-1, 0, +1}
+        if (random(100) < this->bump_chance)  // 20% default: amplify
+            walk_delta *= 2;                  // {-2, 0, +2}
+    }
+
+    if (this->flatten_peaks && (walk_delta < -3 || walk_delta > 3))
+        walk_delta = 0;                       // suppress extreme slopes
+
+    y += walk_delta;
+
+    // Clamp with bounce-back
+    if (y < y_start + 40) { y = y_start + 40; if (walk_delta < 0) walk_delta = 1; }
+    if (y > y_end - 1)    { y = y_end - 1;    if (walk_delta > 0) walk_delta = 0; }
+
+    current_col += this->direction;
+    if (direction == +1 && current_col > end_col) break;
+    if (direction == -1 && current_col < start_col) break;
+}
+```
+
+**Key properties**: Momentum (walk_delta persists), flat_chance creates plateaus, bump_chance creates ridges, no smoothing pass — single-pass generation.
+
+### LandGenerator Object Layout (16 bytes)
+
+| Offset | Field | Default | Purpose |
+|--------|-------|---------|---------|
+| +0x00 | vtable (far) | DS:5078 | DefaultLand vtable |
+| +0x04 | start_col | left bound | Starting column |
+| +0x06 | end_col | right bound | Ending column |
+| +0x08 | direction | +1 | L-to-R (+1) or R-to-L (-1) |
+| +0x0A | flat_chance | 20 | % chance of maintaining delta |
+| +0x0C | bump_chance | 20 | % chance of doubling delta |
+| +0x0E | flatten_peaks | 0 | Clamp extreme deltas to ±3 |
+
+### LAND1/LAND2 Parameter Mapping
+
+| Variable | DS Offset | Range | Default | Purpose |
+|----------|-----------|-------|---------|---------|
+| LAND1 (bumpiness) | DS:5170 | 0-100 | 20 | Terrain roughness |
+| LAND2 (slope) | DS:5172 | 0-1 | 0 | Adds slope component |
+| numPeaks | DS:516E | 0-100 | 20 | Mountain count (type 3) |
+| FLATLAND | DS:5174 | - | 1000 | Flat terrain param |
+| RANDOM_LAND | DS:5176 | 0-1 | 0 | Randomize each round |
+| MTN_PERCENT | DS:5178 | double | 1.0 | Mountain amplitude scale |
+
+**RANDOM_LAND** (file 0x29558): Each round randomizes LAND2=rand(2), numPeaks=rand(100), LAND1=rand(100).
+
+### 3-Band Sky Palette (Types 3, 5, 6)
+
+```c
+// Band 1 (entries 0-9): blue-green sky
+for (i = 0; i < 10; i++) {
+    t = (9.0 - i) / 10.0; inv_t = 1.0 - t;
+    R = inv_t * 20; G = t * 63 + inv_t * 20; B = t * 63 + inv_t * 63;
+}
+// Band 2 (entries 10-19): transition to warm
+for (i = 0; i < 10; i++) {
+    t = (9.0 - i) / 10.0; inv_t = 1.0 - t;
+    R = t * 20 + inv_t * 63; G = t * 20 + inv_t * 29; B = t * 63 + inv_t * 29;
+}
+// Band 3 (entries 20-28): warm earth tones
+for (i = 0; i < 9; i++) {
+    t = (9.0 - i) / 10.0; inv_t = 1.0 - t;
+    R = t * 63 + inv_t * 31; G = t * 29 + inv_t * 9; B = t * 29 + inv_t * 9;
+}
+```
+
+### Mountain Drawing (file 0x43ACA)
+
+Bresenham-like octant stepping for mountain silhouettes. Used by type 3 (MTN):
+```c
+srand(1.0 * 1.8);
+current_x = 0;
+while (current_x < screen_width) {
+    int mtn_height = random(20) + 30;   // 30-50 pixels
+    int spacing = random(20) + 15;       // 15-35 pixel gap
+    mountain_draw(current_x, start_y, mtn_height, column_callback);
+    current_x += spacing;
+}
+```
+
+**Intermediate files**: `disasm/terrain_generation_analysis.txt`
+
+---
+
+## VGA Palette System (VERIFIED from disassembly)
+
+### Full 256-Entry VGA Palette Map
+
+| VGA Range | Count | Purpose |
+|-----------|-------|---------|
+| 0-79 | 80 | Tank colors (10 players × 8 colors each) |
+| 80-104 | 25 | Buffer zone / dynamic effects |
+| 81-85 | 5 | Explosion player cycling palette (attacker gradient) |
+| 105+ | — | Terrain threshold (pixel ≥ 0x69 = solid ground) |
+| 120-149 | 30 | Terrain palette (surface-to-underground gradient) |
+| 130-149 | 20 | Storm sky overwrites (alternating grey for lightning) |
+| 150 | 1 | Wall/obstacle boundary marker |
+| 169 | 1 | Wall/obstacle boundary marker |
+| 170-199 | 30 | Explosion fire palette (red/orange/yellow) |
+| 200 | 1 | Tank hit marker pixel |
+| 254 | 1 | Napalm fire particle color |
+
+### Explosion Player Palette (VGA 81-85, file 0x23F63)
+
+5-entry gradient based on attacker's base color:
+```
+for si = 0 to 4:
+    R = (si + 1) * attacker_base_R / 6
+    G = (si + 1) * attacker_base_G / 6
+    B = (si + 1) * attacker_base_B / 6
+fg_setdacs(81, 5)
+```
+Attacker colors loaded from DS:0xDD4C (R), DS:0xDD4E (G), DS:0xDD50 (B).
+
+### Explosion Fire Palette (VGA 170-199, file 0x23FBC)
+
+30 entries in 3 groups of 10 (all use VGA 6-bit values 0-63):
+
+| Group | VGA Range | Name | R | G | B |
+|-------|-----------|------|---|---|---|
+| 1 | 170-179 | Dark Red Fire | si×2+43 | si+10 | si+10 |
+| 2 | 180-189 | Orange Fire | si×2+43 | si×2+10 | si+10 |
+| 3 | 190-199 | Yellow Fire | si×2+43 | si×2+43 | si+10 |
+
+(si = 0..9 within each group)
+All groups share R ramp (43-61). Green distinguishes: low=red, medium=orange, high=yellow.
+
+### Underground/Black Mode (file 0x39F90)
+
+When cavern_flag (DS:0x50D8) is set:
+```
+for di = 0 to 103: fg_setcolor(di, 0, 0, 0)
+fg_setdacs(0, 104)  // blacks out VGA 0-103
+```
+
+### Fastgraph V4.02 Function Pointer Table
+
+| DS Offset | Function | Purpose |
+|-----------|----------|---------|
+| DS:0xEEF4 | fg_getpixel | Read pixel color at (x,y) |
+| DS:0xEEF8 | fg_setpixel/fg_getmap | Set pixel / read bitmap |
+| DS:0xEEFC | fg_setdacs | Write palette buffer to VGA DAC |
+| DS:0xEF00 | fg_getdacs | Read VGA DAC to palette buffer |
+| DS:0xEF04 | fg_drect | Draw filled rectangle |
+| DS:0xEF08 | fg_setcolor | Set single palette buffer entry (index, R, G, B) |
+| DS:0xEF0C | fg_text | Draw text string |
+| DS:0xEF14 | fg_rect | Draw rectangle outline |
+
+Palette buffer at DS:0x6862 (256×3 = 768 bytes): `buffer[index*3] = R, [+1] = G, [+2] = B`.
+
+**Intermediate files**: `disasm/vga_palette_analysis.txt`
+
+---
+
+## Keyboard & Input System (VERIFIED from disassembly)
+
+### Input Architecture
+
+Three input modes controlled by DS:0x5030:
+- **0/2**: Direct keyboard polling (INT 9h handler, default)
+- **1**: Mouse mode (click regions + INT 9h callback)
+
+BIOS keyboard flag (DS:0x502E): 0=custom INT 9h (default), 1=BIOS INT 16h.
+
+### INT 9h Custom Handler (file 0x2898E)
+
+- Reads scan code from port 0x60
+- Key state array at DS:0xD1BE (128 words: 1=pressed, 0=released)
+- Modifier flags at DS:0xD0B2: bit 0=RShift, 1=LShift, 2=Ctrl, 3=Alt
+- Last scan code stored at DS:0xD0B8
+
+### Main Game Loop Key Dispatch (file 0x2F78A)
+
+80-entry switch table at 28B3:0x5DB (file 0x2FB0B).
+Actions 2-81 (scan code = action in direct mode):
+
+| Key | Scan | Action | Function |
+|-----|------|--------|----------|
+| Space | 0x39 | 10 | FIRE / Autopilot |
+| = | 0x0D | 13 | FIRE (direct) |
+| Enter | 0x1C | 28 | SURRENDER / Pass turn |
+| S | 0x1F | 31 | POWER ADJUST (shift=down, no shift=up) |
+| G | 0x22 | 34 | CHANGE DEFENSE (toggle shield) |
+| H | 0x23 | 35 | TOGGLE SOUND |
+| Z | 0x2C | 44 | WEAPON CYCLE |
+| V | 0x2F | 47 | GUIDED MISSILE steer right |
+| M | 0x32 | 50 | AI AIM & FIRE (autopilot) |
+| N | 0x31 | 49 | DISPLAY TOGGLE |
+| F9 | 0x43 | 67 | SYSTEM MENU |
+| F10 | 0x44 | 68 | INVENTORY / Guided steer left |
+| PgUp | 0x49 | 73 | WEAPON CYCLE |
+| 1-0 | 0x02-0x0B | 2-11 | Select/view player 1-10 |
+
+Arrow keys go to default handler — angle/power via continuous key-state polling of DS:0xD1BE array.
+
+### Input Timing
+
+| Mode | Repeat Delay | Timer Ticks |
+|------|-------------|-------------|
+| Normal (no modifier) | ~0.82s | 15 ticks @ 18.2 Hz |
+| Shift held | ~1.65s | 30 ticks @ 18.2 Hz |
+| Alt held | Immediate | No throttle |
+
+Angle adjustment: ±1° (fine), ±15° (coarse).
+
+### Mouse Click Regions (DS:0x56AE)
+
+12-byte entries: `{x1, y1, x2, y2, left_action, right_action}`.
+Count at DS:0xEA10. Populated at runtime based on HUD positions.
+
+### Key Config Values
+
+| Variable | DS Offset | Default | Purpose |
+|----------|-----------|---------|---------|
+| MOUSE_RATE | DS:0x6BF8 | 0.50 | Mouse sensitivity (pixels → angle/power) |
+| FIRE_DELAY | DS:0x515C | 200 | Delay before projectile launch |
+| BIOS_KEYBOARD | DS:0x502E | 0 | Use BIOS INT 16h instead of custom handler |
+
+### HUD Layout (file 0x2FBCA)
+
+Two rows of status information:
+- **Row 1** (y = DS:0x518E): Player name, Power bar (62px wide), Angle
+- **Row 2** (y + 12px): Weapon name, Weapon bar, Wind display
+- Bar height: 6 pixels
+- Left margin: 5 pixels
+- Width check: extra elements shown when screen_width > 320 (DS:0xEF3E > 0x140)
+
+HUD strings: "Power" (DS:0x2AF8), "Angle" (DS:0x2AFE), "Wind" (DS:0x2B04), "No Wind" (DS:0x2B09)
+
+**Intermediate files**: `disasm/keyboard_input_analysis.txt`
 
 ---
 

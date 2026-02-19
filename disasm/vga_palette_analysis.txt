@@ -1,0 +1,307 @@
+==============================================================================
+Scorched Earth v1.50 -- VGA Palette and Color System Reverse Engineering
+==============================================================================
+Binary: earth/SCORCH.EXE (MZ, 415,456 bytes, header 0x6A00)
+DS base: 0x4F38 (file 0x055D80)
+
+==============================================================================
+1. VGA PALETTE MAP (256 entries, 6-bit DAC per channel)
+==============================================================================
+
+  Range        Count  Purpose
+  -----------  -----  ------------------------------------------
+  VGA 0-79       80   Tank colors (10 players x 8 colors each)
+  VGA 80-104     25   Buffer zone / dynamic effects
+    VGA 81-85     5   Explosion player cycling palette
+  VGA 105+            Terrain threshold (pixel >= 0x69 = solid ground)
+  VGA 120-149    30   Terrain palette (surface-to-underground gradient)
+  VGA 130-149    20   Storm sky overwrites (alternating grey for lightning)
+  VGA 150              Wall/obstacle boundary marker
+  VGA 169              Wall/obstacle boundary marker
+  VGA 170-199    30   Explosion fire palette (red/orange/yellow)
+  VGA 200              Tank hit marker pixel
+  VGA 254              Napalm fire particle color
+
+CRITICAL CORRECTION: REVERSE_ENGINEERING.md previously stated tank colors
+at VGA 80-104 (0x50-0x68). This is WRONG. The correct range is VGA 0-79
+(0x00-0x4F), with 8 colors per player.
+
+==============================================================================
+2. TANK COLORS (VGA 0-79)
+==============================================================================
+
+2.1 Player Base Color Assignment
+----------------------------------
+  Sub-struct +0x1A = player_index * 8 (base VGA palette index)
+
+  Code at file 0x30F30 (player.cpp):
+    mov ax, di           ; di = player_index (0-9)
+    shl ax, 3            ; ax = player_index * 8
+    mov [es:bx+0x1A], ax ; store as base palette index
+
+  Player 0 -> VGA 0-7,  Player 1 -> VGA 8-15, ..., Player 9 -> VGA 72-79
+
+2.2 Per-player 8-Color Slot Layout
+-------------------------------------
+  Slot 0: Darkest shade (base_R/5, base_G/5, base_B/5)
+  Slot 1: Dark shade    (base_R*2/5, base_G*2/5, base_B*2/5)
+  Slot 2: Medium shade  (base_R*3/5, base_G*3/5, base_B*3/5)
+  Slot 3: Light shade   (base_R*4/5, base_G*4/5, base_B*4/5)
+  Slot 4: Full color    (base_R, base_G, base_B)
+  Slot 5: White flash   (63, 63, 63)
+  Slot 6: Base color    (base_R, base_G, base_B)
+  Slot 7: Grey smoke    (30, 30, 30)
+
+  Gradient computed at file 0x28540 (icons.cpp):
+    for slot si (0-4):
+      R = base_R * (si+1) / 5
+      G = base_G * (si+1) / 5
+      B = base_B * (si+1) / 5
+    slot 5: (63, 63, 63)  -- white highlight
+    slot 6: (base_R, base_G, base_B)  -- full base
+    slot 7: (30, 30, 30)  -- grey (damage smoke?)
+
+  fg_setdacs call at 0x28586:
+    push 8                     ; count = 8
+    push word [es:bx+0x1A]    ; start = player's base VGA index
+    call far [DS:0xEEFC]       ; fg_setdacs(start, count)
+
+  Bulk update at 0x2867A:
+    push 80                    ; count = 80 (0x50)
+    push 0                     ; start = 0
+    call far [DS:0xEEFC]       ; fg_setdacs(0, 80)
+
+2.3 10 Player Default Base Colors
+------------------------------------
+  Stored at DS:0x57E2 (file 0x05B562)
+  Array of 10 entries, 3 bytes each (R, G, B in VGA 6-bit 0-63):
+
+  Player  Color Name    R   G   B
+  ------  ----------    --  --  --
+  0       Red           63  10  10
+  1       Lime Green    35  55  10
+  2       Purple        40  20  63
+  3       Yellow        63  63  10
+  4       Cyan          10  63  63
+  5       Magenta       63  10  63
+  6       White         60  60  60
+  7       Orange        63  40  20
+  8       Sea Green     20  63  40
+  9       Blue           0   0  63
+
+2.4 Collision Detection via Palette Index
+-------------------------------------------
+  At file 0x223D9 (extras.cpp):
+    cmp pixel_value, 0x50    ; compare with 80
+    jl tank_hit_handler      ; if < 80: it's a tank pixel!
+
+  Player identification from pixel:
+    player_index = pixel_value / 8    (integer division)
+
+  This confirms VGA 0-79 is the tank color range.
+
+==============================================================================
+3. EXPLOSION PLAYER PALETTE (VGA 81-85)
+==============================================================================
+
+  Function at file 0x23F63:
+    Sets 5 VGA entries (81-85) based on attacking player's base color.
+
+  Formula for each entry si (0-4):
+    R = (si + 1) * attacker_base_R / 6
+    G = (si + 1) * attacker_base_G / 6
+    B = (si + 1) * attacker_base_B / 6
+
+  Source colors loaded from:
+    DS:0xDD4C = attacker's base R
+    DS:0xDD4E = attacker's base G
+    DS:0xDD50 = attacker's base B
+
+  fg_setdacs call at 0x23FB2:
+    push 5       ; count
+    push 0x51    ; start = VGA 81
+    call [0xEEFC]
+
+  Creates a 5-step gradient from dark to bright in the attacker's
+  team color. Used for explosion shockwave rendering.
+
+==============================================================================
+4. EXPLOSION FIRE PALETTE (VGA 170-199)
+==============================================================================
+
+  Function at file 0x23FBC:
+    Sets 30 VGA entries (170-199) in 3 groups of 10.
+
+  First calls explosion player palette (0x23F63) via push cs; call.
+  Then fills fire colors:
+
+  Group 1 -- Dark Red Fire (VGA 170-179, si=0..9):
+    R = si * 2 + 43     (43-61)
+    G = si + 10          (10-19)
+    B = si + 10          (10-19)
+
+  Group 2 -- Orange Fire (VGA 180-189, si=0..9):
+    R = si * 2 + 43     (43-61)
+    G = si * 2 + 10      (10-28)
+    B = si + 10          (10-19)
+
+  Group 3 -- Yellow Fire (VGA 190-199, si=0..9):
+    R = si * 2 + 43     (43-61)
+    G = si * 2 + 43      (43-61)
+    B = si + 10          (10-19)
+
+  fg_setdacs call at 0x24034:
+    push 0x1E    ; count = 30
+    push 0xAA    ; start = VGA 170
+    call [0xEEFC]
+
+  All three groups share the same red channel ramp (43-61).
+  Green channel distinguishes them: low (red), medium (orange), high (yellow).
+  Blue channel is uniformly low (10-19) for warm fire tones.
+
+==============================================================================
+5. TERRAIN PALETTE (VGA 120-149)
+==============================================================================
+
+  Set by setTerrainPalette() called from terrain generation (ranges.cpp).
+  30 colors representing terrain surface gradient from top to bottom.
+
+  Each terrain type (0-6) has its own palette:
+
+  Type 0 -- Flat (Blue Ice):
+    setTerrainPalette(120, 0x1F, 0x9, 0x9, 0x78)
+    R: gradient from 31 to dark
+    G: base 9
+    B: base 9 + 120
+
+  Type 1 -- Slope (Snow/Ice):
+    di=0..29: R=29-di, G=29-di, B=63
+    White-to-blue gradient (snow to ice)
+
+  Type 2 -- Rolling (Rock/Gray):
+    di=0..29: R=G=B=2*di+7
+    Grey ramp (light to dark rock)
+    Base: (0x0A, 0x5, 0x5, 0x78)
+
+  Types 3,5,6 -- Mountain/Castle/Cavern:
+    3-band palette (see section 6 below)
+
+  Type 4 -- V-shaped (Desert/Lava):
+    Similar to Type 0 but with V-shaped terrain profile
+
+==============================================================================
+6. SKY/MOUNTAIN 3-BAND PALETTE (Types 3, 5, 6)
+==============================================================================
+
+  Used for mountain, castle, and cavern terrain types.
+  30 entries divided into 3 bands of 10:
+
+  Band 1 (indices 0-9, top of terrain):
+    t = (9 - i) / 10.0
+    inv_t = 1.0 - t
+    R = inv_t * 20
+    G = t * 63 + inv_t * 20
+    B = t * 63 + inv_t * 63
+
+  Band 2 (indices 10-19, middle):
+    t = (9 - i) / 10.0
+    R = t * 20 + inv_t * 63
+    G = t * 20 + inv_t * 29
+    B = t * 63 + inv_t * 29
+
+  Band 3 (indices 20-28, bottom):
+    t = (9 - i) / 10.0
+    R = t * 63 + inv_t * 31
+    G = t * 29 + inv_t * 9
+    B = t * 29 + inv_t * 9
+
+  FP constants used:
+    DS:6250 = 1.8    DS:6258 = 9.0    DS:625C = 10.0
+    DS:6260 = 20.0   DS:6264 = 63.0   DS:6268 = 29.0
+    DS:626C = 31.0   DS:6270 = 45.0   DS:6E5A = 1.0
+
+==============================================================================
+7. STORM/LIGHTNING SKY PALETTE (VGA 130-149)
+==============================================================================
+
+  During lightning storms, VGA 130-149 are overwritten with alternating
+  grey gradients to simulate lightning flashes.
+
+  Storm palette cycle (from ranges.cpp terrain handlers):
+    Alternates between dark and bright grey bands.
+
+==============================================================================
+8. UNDERGROUND/BLACK MODE
+==============================================================================
+
+  At file 0x39F90 (ranges.cpp):
+    Loop di=0 to 0x67 (103):
+      fg_setcolor(di, 0, 0, 0)     ; set all to black
+    fg_setdacs(0, 0x68)             ; write VGA 0-103
+
+  Blacks out VGA 0-103 (all tank colors + buffer zone).
+  Triggered when cavern_flag (DS:0x50D8) is set.
+
+==============================================================================
+9. SPECIAL COLOR INDICES
+==============================================================================
+
+  VGA 150 (0x96): Wall boundary marker (left/top)
+  VGA 169 (0xA9): Wall boundary marker (right/bottom)
+  VGA 200 (0xC8): Tank hit marker pixel (written to mark direct hits)
+  VGA 254 (0xFE): Napalm fire particle color
+
+  Terrain threshold: pixel >= 105 (0x69) = solid ground
+  Tank threshold: pixel < 80 (0x50) = tank body
+
+==============================================================================
+10. FASTGRAPH VGA FUNCTION POINTERS
+==============================================================================
+
+  Indirect calls through function pointer table (Fastgraph V4.02):
+
+  DS:0xEEF4 - fg_getpixel(x, y) -> returns VGA color index
+  DS:0xEEF8 - fg_setpixel(x, y) or fg_getmap(x, y, bitmap)
+  DS:0xEEFC - fg_setdacs(start_index, count) -> write palette to VGA DAC
+  DS:0xEF00 - fg_getdacs(start_index, count) -> read palette from VGA DAC
+  DS:0xEF04 - fg_drect(x1, y1, x2, y2) -> draw filled rectangle
+  DS:0xEF08 - fg_setcolor(index, R, G, B) -> set single palette buffer entry
+  DS:0xEF0C - fg_text(string, length) -> draw text
+  DS:0xEF14 - fg_rect(x1, y1, x2, y2) -> draw rectangle outline
+
+  fg_setcolor stores to a buffer at DS:0x6862:
+    buffer[index * 3 + 0] = R
+    buffer[index * 3 + 1] = G
+    buffer[index * 3 + 2] = B
+
+  fg_setdacs writes this buffer to VGA DAC hardware (port 0x3C8/0x3C9).
+
+==============================================================================
+11. KEY DS OFFSETS (PALETTE SYSTEM)
+==============================================================================
+
+  DS:0x50D8 - Cavern/underground flag (0=normal, 1=underground)
+  DS:0x57E2 - 10 player base colors (30 bytes: R,G,B per player)
+  DS:0x6862 - VGA palette buffer (256 * 3 = 768 bytes)
+  DS:0xDD4C - Attacker base R (for explosion palette)
+  DS:0xDD4E - Attacker base G
+  DS:0xDD50 - Attacker base B
+  DS:0xEEFC - Far ptr to fg_setdacs
+  DS:0xEF08 - Far ptr to fg_setcolor
+
+==============================================================================
+12. FILE OFFSET REFERENCES
+==============================================================================
+
+  Function                     File Offset    Purpose
+  ---------------------------  -----------    --------------------------
+  Tank color gradient setup    0x28540        Per-player 8-color ramp
+  Tank palette bulk write      0x2867A        fg_setdacs(0, 80)
+  Tank palette per-player      0x28586        fg_setdacs(base, 8)
+  Player base color assign     0x30F30        sub+0x1A = index * 8
+  Explosion player palette     0x23F63        VGA 81-85 attacker gradient
+  Explosion fire palette       0x23FBC        VGA 170-199 (red/orange/yellow)
+  Tank collision detect        0x223D9        pixel < 0x50 = tank
+  Underground black mode       0x39F90        VGA 0-103 all black
+  Terrain palette set          0x3971F+       Per terrain type palettes
+  fg_setcolor                  0x44458        Buffer write (index, R, G, B)

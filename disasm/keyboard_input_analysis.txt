@@ -1,0 +1,575 @@
+==============================================================================
+Scorched Earth v1.50 -- Keyboard, Input, and HUD Reverse Engineering
+==============================================================================
+Binary: earth/SCORCH.EXE (MZ, 415,456 bytes, header 0x6A00)
+DS base: 0x4F38 (file 0x055D80)
+Play.cpp segment: 28B3 (file base 0x2F530)
+
+==============================================================================
+1. INPUT SYSTEM ARCHITECTURE
+==============================================================================
+
+The game has a layered input architecture with three modes:
+
+  DS:0x5030 - Input source selector:
+    0 = Direct keyboard polling (reads key state from INT 9h handler)
+    1 = Mouse mode (mouse click regions + keyboard via INT 9h callback)
+    2 = Direct keyboard polling (same as 0, default)
+
+  DS:0x502E - BIOS keyboard flag:
+    0 = Use custom INT 9h handler (default)
+    1 = Use BIOS INT 16h keyboard services
+
+  Config: BIOS_KEYBOARD (file 0x560D3, format at 0x56556)
+
+1.1 INT 9h Custom Keyboard Handler
+------------------------------------
+  Installed at: 0x21E6:0x12E (file 0x2898E)
+  Old vector saved: DS:0xD0AE/D0B0
+
+  Operation:
+  - Reads scan code from port 0x60 (IN AL,DX at 0x289A1)
+  - Reads BIOS modifier flags from [0040:0017] -> stores at DS:0xD0B2
+  - Maintains KEY STATE ARRAY at DS:0xD1BE (word per scan code, 0x80 entries)
+    - Key press (scan < 0x80): [DS:0xD1BE + scancode*2] = 1
+    - Key release (scan >= 0x80): [DS:0xD1BE + (scancode&0x7F)*2] = 0
+  - Stores last scan code at DS:0xD0B8
+  - Auto-repeat suppression: compares current scan with DS:0xD0B8
+  - In mouse mode (DS:0x5030==1): calls direct handler for key-down events
+  - Chains to original INT 9 handler via far call [DS:0xD0AE]
+
+  Modifier flags at DS:0xD0B2:
+    Bit 0: Right Shift
+    Bit 1: Left Shift
+    Bit 2: Ctrl
+    Bit 3: Alt
+
+1.2 Keyboard Read Function
+----------------------------
+  Location: 0x21E6:0x220 (file 0x28A80)
+  Returns: action code (word), or 0x80 if no input
+
+  BIOS mode (DS:0x502E != 0):
+    - Calls INT 16h (kbhit at 0x9C93, getch at 0x9B57)
+    - If first byte == 0: reads extended scan code, adds 0x100
+    - Translates through scan code table at DS:0x9510 via function 0x465A:0x3
+    - Returns translated action code
+
+  Direct mode (DS:0x502E == 0, DS:0x5030 == 0 or 2):
+    - Reads DS:0xD0B8 (last raw scan code from INT 9h)
+    - If scan code > 0x7F (key release): returns 0x80 (no input)
+    - Otherwise returns the raw scan code as the action code
+    - The scan code IS the action code in this mode
+
+  Mouse mode (DS:0x5030 == 1):
+    - Calls mouse button/position function
+    - Checks mouse click regions (see section 4)
+
+  Callback filter at DS:0xD0B4/D0B6:
+    - If non-null far pointer, calls it with (action_code, modifier_flags)
+    - Return value replaces the action code
+
+1.3 Scan Code Translation Table
+---------------------------------
+  Location: DS:0x9510 (file 0x5F290)
+  Size: Up to 0xA8 entries (168), word-sized (scan code -> action code)
+  Used only in BIOS keyboard mode
+
+  Lookup function at 0x465A:0x3 (file 0x4CFA3):
+    mov bx,[bp+6]   ; scan code
+    add bx,bx       ; * 2 (word entries)
+    mov ax,[bx-0x6AF0]  ; = DS:0x9510 + scancode*2
+
+  Extended keys (scan code + 0x100) access the table at higher offsets:
+    Extended Up (0x148): table offset 0x290 -> DS:0x97A0
+    These map to their own action codes (0x47-0x53 for arrows)
+
+  Second table at DS:0x9910 (file 0x5F690):
+    Used by function 0x465A:0x13 -- scan code to ASCII mapping
+    Standard US keyboard layout (scan code -> ASCII character)
+    Includes bounds check: max scan code 0xA8
+
+==============================================================================
+2. KEYBOARD BINDINGS
+==============================================================================
+
+In direct keyboard mode (default), scan codes map directly to action codes.
+The main game loop switch dispatcher is at 28B3:0x25A (file 0x2F78A):
+
+  mov bx,[bp-0x2]       ; load action code
+  sub bx,0x2            ; base offset (first table entry = action 2)
+  cmp bx,0x4F           ; max 79 entries (actions 2-81)
+  jna switch_table      ; if in range, use table
+  jmp default_exit      ; else exit (no action)
+  add bx,bx             ; * 2 for word table
+  jmp [cs:bx+0x5DB]     ; jump through switch table at CS:0x5DB
+
+Switch table: 80 word entries at 28B3:0x5DB (file 0x2FB0B)
+Default handler: 0x05AD = simple function exit (no action taken)
+
+2.1 Key -> Action -> Handler Mapping
+--------------------------------------
+Based on direct mode (scan code = action code):
+
+  KEY            SCAN  ACTION  HANDLER  FUNCTION
+  ----           ----  ------  -------  --------
+  1              0x02    2     0x403E   Select player 1 (view/scroll to tank)
+  2              0x03    3     0x02E3   Scroll display / cycle language
+  3              0x04    4     0x027D   Select player by index
+  4              0x05    5     0x13EB   (computed handler, large offset)
+  5              0x06    6     0x36FF   (computed handler)
+  6              0x07    7     0x5184   (computed handler)
+  7              0x08    8     0x36FF   (computed handler)
+  8              0x09    9     0x5182   (computed handler)
+  9              0x0A   10     0x039A   FIRE / Autopilot begin
+  0              0x0B   11     0x160B   (computed handler)
+  -              0x0C   12     0x832A   (computed handler)
+  =              0x0D   13     0x04C4   FIRE (direct fire handler)
+  Enter          0x1C   28     0x0358   SURRENDER / Pass turn
+  S              0x1F   31     0x050E   POWER ADJUST (shift-modified)
+  D              0x20   32     default  (no action)
+  G              0x22   34     0x041F   CHANGE DEFENSE (toggle shield)
+  H              0x23   35     0x02B2   TOGGLE SOUND
+  J              0x24   36     0x02C8   SOUND OFF (push 0, call sound)
+  L              0x26   38     0x02A7   (handler)
+  ;              0x27   39     0x02D0   (handler)
+  ` (backtick)   0x29   41     0x031D   WAIT FOR KEY (drain input)
+  Z              0x2C   44     0x0581   WEAPON CYCLE (shared handler)
+  V              0x2F   47     0x03E7   GUIDED MISSILE steer
+  N              0x31   49     0x04A6   DISPLAY TOGGLE
+  M              0x32   50     0x046E   AI AIM & FIRE (autopilot)
+  /              0x35   53     0x029F   (handler)
+  F9             0x43   67     0x0393   SYSTEM MENU
+  F10            0x44   68     0x03BD   INVENTORY / Guided steer
+  PgUp/9         0x49   73     0x0581   WEAPON CYCLE
+
+  ARROW KEYS (all go to default handler = no action in switch):
+  Home/7         0x47   71     default
+  Up/8           0x48   72     default
+  PgUp/9         0x49   73     0x0581   WEAPON CYCLE
+  Num-           0x4A   74     default
+  Left/4         0x4B   75     default
+  Num5           0x4C   76     default
+  Right/6        0x4D   77     default
+  Num+           0x4E   78     default
+  End/1          0x4F   79     default
+  Down/2         0x50   80     default
+  PgDn/3         0x51   81     default
+
+NOTE: Arrow keys going to "default" means they are NOT processed through the
+event-driven switch table. Arrow key angle/power adjustment likely occurs
+through continuous key-state polling of the DS:0xD1BE array, or through
+the BIOS keyboard mode translation table when BIOS_KEYBOARD is enabled.
+
+2.2 BIOS Mode Scan Code Table (DS:0x9510)
+-------------------------------------------
+When BIOS keyboard mode is enabled, the scan code table provides
+translated action codes:
+
+  Key            ScanCode  -> Action
+  Left/4         0x4B      -> 37
+  Right/6        0x4D      -> 50
+  Up/8           0x48      -> 35
+  Down/2         0x50      -> 25
+  PgUp/9         0x49      -> 23
+  PgDn/3         0x51      -> 16
+  Home/7         0x47      -> 34
+  End/1          0x4F      -> 24
+  Num5           0x4C      -> 38
+  Space          0x39      -> 10
+  Enter          0x1C      -> 28 (same as direct mode)
+  Tab            0x0F      -> 15
+  Esc            0x01      -> (not in table, action 0)
+
+  Extended keys (BIOS mode adds 0x100):
+  Ext-F1..F10    0x13B-0x144 -> 59-68
+  Ext-Up         0x148     -> 72
+  Ext-Down       0x150     -> 80
+  Ext-Left       0x14B     -> 75
+  Ext-Right      0x14D     -> 77
+  Ext-Home       0x147     -> 71
+  Ext-End        0x14F     -> 79
+  Ext-PgUp       0x149     -> 73
+  Ext-PgDn       0x151     -> 81
+  Ext-Ins        0x152     -> 82
+  Ext-Del        0x153     -> 83
+
+2.3 Handler Details
+--------------------
+
+FIRE handler (0x04C4 / offset 0x2F9F4):
+  1. Calls 0x2a16:0x6BE -- check if player can fire (ammo/alive check)
+  2. If can fire: calls 0x2a16:0x6E9 -- secondary validation
+  3. If all checks pass: calls 0x2667:0x4 -- EXECUTE FIRE
+  4. If cannot fire: calls 0x4571:0x7(0x28, 0xC8) -- BEEP (200ms @ 40Hz?)
+  5. Drains keyboard buffer, waits for input completion
+
+POWER ADJUST handler (0x050E / offset 0x2FA3E):
+  test byte [DS:0xD0B2], 0x3    ; check shift keys
+  if shift held: push -1         ; POWER DOWN
+  else:          push +1         ; POWER UP
+  push cs; call local_0x10E0     ; adjust power function
+
+ANGLE ADJUST handlers (0x056C-0x0578 / offsets 0x2FA9C-0x2FAA8):
+  These are at segment offsets that exist within the function but are NOT
+  in the main switch table. They are:
+  0x056C: push +1,  jmp common  -> fine angle up
+  0x0570: push -1,  jmp common  -> fine angle down
+  0x0574: push +15, jmp common  -> coarse angle up
+  0x0578: push -15, jmp common  -> coarse angle down
+  Common: push player_ptr; call 0x2a16:0xABE (adjust_angle)
+
+  These handlers are likely reached through mouse click regions
+  or secondary input dispatching, NOT the main keyboard switch.
+
+WEAPON CYCLE handler (0x0581 / offset 0x2FAB1):
+  0x0589: push +1, jmp common   -> next weapon
+  0x058D: push -1, jmp common   -> previous weapon
+  Common: push player_ptr; call 0x2a16:0x12E0 (cycle_weapon)
+
+  Mapped to: Z key (action 44), PgUp/9 (action 73)
+
+SURRENDER handler (0x0358 / offset 0x2F888):
+  Calls 0x17a8:0x11D5 with arg 1 -- mark player as surrendered
+  Drains keyboard buffer
+
+SYSTEM MENU handler (0x0393 / offset 0x2F8C3):
+  Calls 0x17a8:0xE45 with arg 1 -- open system menu dialog
+  Drains keyboard buffer
+
+CHANGE DEFENSE handler (0x041F / offset 0x2F94F):
+  Calls local function (push cs; call) to toggle defense type
+  Drains keyboard buffer
+
+GUIDED MISSILE STEERING (0x03BD and 0x03E7):
+  0x03BD (action 68 = F10):
+    if [player+0x94] == 1: call adjust(player, -1) -- steer left
+  0x03E7 (action 47 = V):
+    if [player+0x94] == -1: call adjust(player, +1) -- steer right
+
+==============================================================================
+3. INPUT RATES AND TIMING
+==============================================================================
+
+3.1 Key Repeat Throttling
+---------------------------
+Located in the main game loop at 28B3:0x0E1 (file 0x2F611):
+
+The game tracks a "speed mode" in local variable [bp-0x6]:
+  0 = Normal (no modifier key)
+  1 = Shift held
+  2 = Alt held
+
+Speed mode is set at 28B3:0x234 (file 0x2F764):
+  test byte [DS:0xD0B2], 0x3    ; shift keys
+  if set: speed_mode = 1
+  test byte [DS:0xD0B2], 0x8    ; alt key
+  if set: speed_mode = 2
+  else:   speed_mode = 0
+
+Key repeat delays (in timer ticks, counter at DS:0xEE78):
+  Normal mode:  15 ticks (~0.82 seconds at 18.2 Hz) before next key accepted
+  Shift mode:   30 ticks (~1.65 seconds) -- slower for fine control
+  Alt mode:     No throttle (pass through immediately)
+
+Code pattern:
+  mov ax,[DS:0xEE78]       ; current timer
+  sub ax,[bp-0xE]          ; subtract last key time
+  cmp ax, 0xF              ; 15 ticks for normal
+  cmp ax, 0x1E             ; 30 ticks for shift
+
+3.2 Angle Adjustment Rates
+-----------------------------
+  Fine adjustment:   +/- 1 degree per input event
+  Coarse adjustment: +/- 15 degrees per input event
+
+  Clamping in AI autopilot code (file 0x188C1):
+    if delta < -15: delta = -15 (0xFFF1)
+    if delta > +15: delta = +15
+
+3.3 MOUSE_RATE
+----------------
+  Config string: "MOUSE_RATE" (file 0x560FF)
+  Format: "MOUSE_RATE=%.2lf" (file 0x56593)
+  Menu label: "~Mouse Rate:" (file 0x58AC8, DS:0x2D48)
+  Default value: 0.50 (stored as IEEE 754 double at DS:0x6BF8)
+
+  The MOUSE_RATE controls sensitivity of mouse movement to angle/power
+  adjustment. A value of 0.50 means each pixel of mouse movement
+  translates to 0.50 units of angle or power change.
+
+3.4 FIRE_DELAY
+----------------
+  Config string: "FIRE_DELAY" (file 0x56111)
+  Format: "FIRE_DELAY=%d" (file 0x565A5)
+  Default value: 200 (at DS:0x515C)
+
+  Controls the delay between fire button press and projectile launch,
+  allowing time for the fire animation/sound.
+
+==============================================================================
+4. MOUSE INPUT SYSTEM
+==============================================================================
+
+4.1 Mouse Button Check
+------------------------
+  Function: 0x44E7:0x533
+  Called with 4 word args (all 0 for basic check): returns button state
+  Return value bits:
+    Bit 0: Left button
+    Bit 1: Right button
+
+  Mouse position returned via pointer args (for region checking)
+
+4.2 Mouse Click Regions
+--------------------------
+  Table: DS:0x56AE (file 0x5B42E)
+  Entry size: 12 bytes (0x0C)
+  Count: DS:0xEA10
+
+  Structure per entry:
+    +0x00 (word): x1 (left boundary)
+    +0x02 (word): y1 (top boundary)
+    +0x04 (word): x2 (right boundary)
+    +0x06 (word): y2 (bottom boundary)
+    +0x08 (word): left-click action code
+    +0x0A (word): right-click action code
+
+  Region check (file 0x2F690):
+    for each region:
+      if mouse_x >= x1 && mouse_x <= x2 && mouse_y >= y1 && mouse_y <= y2:
+        if left_button: action = [region + 0x08]
+        else:           action = [region + 0x0A]
+
+  Special action 0x0F: sets DS:0xD0B2 = 1 (simulates shift held)
+
+  Mouse regions are dynamically populated at runtime (empty in static binary).
+  They are likely set up based on HUD element positions.
+
+4.3 Joystick Support
+-----------------------
+  Function at 0x465A:0x51 (file 0x4CFF1):
+    Reads joystick port 0x201 (game port)
+    inc cx; shl cx,0; mov dx,0x201; in al,dx
+    not al; shr al,cl; and ax,3
+    Returns 2-bit button state
+
+==============================================================================
+5. HUD LAYOUT
+==============================================================================
+
+5.1 Layout Computation Function
+----------------------------------
+  Location: 28B3:0x39A (file 0x2FBCA)
+  Called to compute horizontal positions of all HUD elements.
+
+  Algorithm:
+    [DS:0xE9D4] = 5                              ; LEFT MARGIN (x=5)
+
+    SI = text_width("Power") + 8                  ; player name column width
+    DI = text_width("Max") + text_width(":")      ; format column width
+    SI = max(SI, DI)                              ; use wider of the two
+
+    [DS:0xE9D6] = [0xE9D4] + SI                  ; POWER LABEL END
+
+    bar_width = 0x3E (62 pixels)
+    [DS:0xE9D8] = [0xE9D6] + bar_width + 0xA     ; POWER BAR END (+10 padding)
+    [DS:0xE9DA] = [0xE9D8]                        ; ANGLE AREA START (= power end)
+
+    [DS:0xE9E8] = [0xE9D4]                        ; ROW 2 START (same X as row 1)
+    [DS:0xE9EA] = [0xE9D6]                        ; ROW 2 LABEL END
+    [DS:0xE9EC] = [0xE9EA] + bar_width + 0xA      ; ROW 2 BAR END
+
+    SI = text_width("Shields") + text_width(": ")  ; wind column width
+    [DS:0xE9EE] = [0xE9EC] + SI                   ; WIND AREA END
+
+  HUD element positions stored in DS:0xE9D4 - DS:0xE9FE range (word values).
+
+5.2 HUD Rendering Function
+-----------------------------
+  Location: 28B3:0x454 (file 0x2FC84)
+
+  Renders the status bar with these elements:
+
+  ROW 1 (y = DS:0x518E):
+    - Player name     at x=[DS:0xE9D4], formatted with "%s:" (DS:0x576C)
+    - Power bar       at x=[DS:0xE9D6], width = [DS:0x50D4] * 6 pixels
+    - Power bar end   at x=[DS:0xE9D8]
+    - (Angle display follows if screen wide enough)
+
+  ROW 2 (y = DS:0x518E + 0xC = 12 pixels below):
+    - Weapon/defense  at x=[DS:0xE9E8], formatted with "%s:" (DS:0x5770)
+    - Weapon bar      at x=[DS:0xE9EA], width = [DS:0x50D4] * 6 pixels
+    - Weapon bar end  at x=[DS:0xE9EC]
+    - Wind display    at x=[DS:0xE9EE], formatted with "%s:" (DS:0x5774)
+
+  Y positions:
+    Row 1 text:   DS:0x518E          (base Y)
+    Row 1 bar:    DS:0x518E + 0xB    (+11 pixels)
+    Row 2 text:   DS:0x518E + 0xC    (+12 pixels)
+    Row 2 bar:    DS:0x518E + 0x17   (+23 pixels)
+
+  Bar rendering: call 0x3DAB:0x180 (filled rectangle)
+    Args: (x1, y1, x2, y2) with color from DS:0xEF2C
+    Bar height = 6 pixels (from y to y+5)
+
+  Width check at 0x30052:
+    cmp word [DS:0xEF3E], 0x140   ; if screen_width > 320
+    Additional HUD elements shown on wider screens.
+
+5.3 Color References
+----------------------
+  DS:0xEF22 - Text color (foreground)
+  DS:0xEF24 - (secondary color)
+  DS:0xEF28 - Background color (status bar fill)
+  DS:0xEF2C - Bar outline/border color
+  DS:0xEF30 - (additional color)
+  DS:0xEF32 - (additional color)
+  DS:0xEF14 - Far pointer to filled_rect function
+
+5.4 String Resources
+----------------------
+  DS:0x2AF8 (file 0x58878): "Power"
+  DS:0x2AFE (file 0x5887E): "Angle"
+  DS:0x2B04 (file 0x58884): "Wind"
+  DS:0x2B09 (file 0x58889): "No Wind"
+  DS:0x2C5D (file 0x589DD): "Remaining Power:"
+  DS:0x576C: "%s:"   (format: player name)
+  DS:0x5770: "%s:"   (format: weapon name)
+  DS:0x5774: "%s:"   (format: wind label)
+  DS:0x5778: "8888 " (width template for power display)
+  DS:0x577E: "99  "  (width template for angle display)
+  DS:0x5783: "MMMMMMMMMMMMMMM" (width template for weapon name)
+  DS:0x57A3: "100% " (max percentage display)
+  DS:0x57AD: "999 "  (width template for wind value)
+
+  Menu items:
+  DS:0x2B41 (file 0x588C1): "Weapons"
+  DS:0x2922 (file 0x588A2): "System Menu"
+  DS:0x2D48 (file 0x58AC8): "~Mouse Rate:"
+  DS:0x2D55 (file 0x58B5D): "Cash Left:"
+
+==============================================================================
+6. "NO KIBITZING!!" MECHANIC
+==============================================================================
+
+  String: "NO KIBITZING!!" at DS:0x2E2A (file 0x58BAA)
+
+  The "NO KIBITZING" message is displayed when a player who is NOT the
+  active/current player attempts to press keys during another player's turn.
+  "Kibitzing" means watching and offering unwanted advice (from Yiddish).
+
+  The mechanic check involves DS:0x5188:
+    At 28B3:0x5A1 (file 0x2FAD1):
+      cmp word [DS:0x5188], 0    ; is current player the active player?
+      jnz skip_action            ; if not, skip (go to exit)
+      call local_display_func    ; if yes, perform action
+
+  DS:0x5188 appears to be a flag indicating whether the current input
+  context belongs to the active player. When it's non-zero, the player
+  is not active and key presses are suppressed.
+
+==============================================================================
+7. SUMMARY OF CONFIRMED KEY BINDINGS
+==============================================================================
+
+Based on the static binary analysis, the DEFAULT key bindings are:
+
+  GAMEPLAY:
+    = key (or 9 key)      -> FIRE weapon
+    S key                  -> Adjust POWER (up without shift, down with shift)
+    Z key / PgUp           -> WEAPON CYCLE
+    G key                  -> CHANGE DEFENSE (toggle shield type)
+    Enter key              -> SURRENDER / Pass turn
+    Space (action 10)      -> FIRE / Autopilot sequence
+    V key                  -> GUIDED MISSILE steer (right)
+    F10 key                -> GUIDED MISSILE steer (left) / INVENTORY
+
+  DISPLAY:
+    H key                  -> TOGGLE SOUND
+    J key                  -> SOUND OFF
+    N key                  -> DISPLAY TOGGLE
+    M key                  -> AI AIM & FIRE (autopilot targeting)
+    F9 key                 -> SYSTEM MENU
+
+  PLAYER SELECT:
+    1-0 keys               -> Select/view player 1-10
+
+  ARROW KEYS:
+    Arrow keys (Up/Down/Left/Right) go to the default handler in the
+    switch table, meaning they are NOT processed through the event-driven
+    keyboard dispatch. Angle and power adjustment via arrow keys likely
+    works through:
+    1. The key state polling array at DS:0xD1BE (continuously checked), or
+    2. BIOS keyboard mode with the translation table at DS:0x9510, or
+    3. Mouse click regions that map to angle/power handlers
+
+  MODIFIERS:
+    Shift -> Changes power adjust direction (S key), sets speed mode 1
+    Alt   -> Sets speed mode 2 (bypasses key repeat throttle)
+    Ctrl  -> (stored in modifier byte, specific function TBD)
+
+==============================================================================
+8. DATA STRUCTURE REFERENCES
+==============================================================================
+
+  DS:0x5026 - Far pointer to timer/counter
+  DS:0x502A - Far pointer to timer source
+  DS:0x502E - BIOS keyboard mode flag (0=custom handler, 1=BIOS)
+  DS:0x5030 - Input source (0=keyboard, 1=mouse, 2=keyboard)
+  DS:0x50D4 - Current player index
+  DS:0x50F0 - Autopilot flag
+  DS:0x50F6 - Input interrupt flag
+  DS:0x5118 - Number of players
+  DS:0x5142 - Game state flag (0=not in game, 1=in game)
+  DS:0x5182 - Far pointer to current player struct
+  DS:0x5188 - Active player flag (0=active, non-0=kibitzing)
+  DS:0x518E - HUD Y position (initial value: 5)
+  DS:0x519A - Stack check pointer
+  DS:0x6BF8 - MOUSE_RATE value (double, default 0.50)
+  DS:0x9510 - Scan code translation table (BIOS mode)
+  DS:0x9910 - Scan code to ASCII table
+  DS:0xD0AE - Old INT 9h vector (offset)
+  DS:0xD0B0 - Old INT 9h vector (segment)
+  DS:0xD0B2 - Current modifier key flags
+  DS:0xD0B4 - Input callback function pointer (offset)
+  DS:0xD0B6 - Input callback function pointer (segment)
+  DS:0xD0B8 - Last scan code from INT 9h
+  DS:0xD1BA - Far pointer to key mapping table (runtime)
+  DS:0xD1BE - Key state array (0x80 words, 1=pressed, 0=released)
+  DS:0xE1DE - AI target data (pair)
+  DS:0xE1E0 - AI target data (pair)
+  DS:0xE1E2 - AI completion flag
+  DS:0xE340 - Game phase counter
+  DS:0xE344 - Weapon ammo index
+  DS:0xE9D4-E9FE - HUD element X positions (computed at runtime)
+  DS:0xEA10 - Mouse region count
+  DS:0xEE78 - Timer tick counter (for key repeat throttling)
+  DS:0xEF14 - Far pointer to filled_rect drawing function
+  DS:0xEF22 - HUD text color
+  DS:0xEF28 - HUD background color
+  DS:0xEF2C - HUD bar/border color
+  DS:0xEF3E - Screen width (0x140=320 for VGA, 0x280=640 for SVGA)
+  DS:0xEF40 - Screen height
+  DS:0xF056 - Far pointer to keyboard read function (offset)
+  DS:0xF058 - Far pointer to keyboard read function (segment)
+
+==============================================================================
+9. OPEN QUESTIONS
+==============================================================================
+
+  - The exact mechanism by which arrow keys adjust angle/power in direct
+    keyboard mode needs further investigation. The key state array at
+    DS:0xD1BE is the most likely candidate for continuous polling.
+
+  - The scan code table at DS:0x9510 contains mappings that suggest a
+    different key layout than the direct-mode switch table. The relationship
+    between these two input paths needs clarification.
+
+  - The mouse click regions (DS:0x56AE) are populated at runtime and their
+    exact layout depends on HUD positions and screen resolution.
+
+  - Several switch table handlers at large offsets (0x403E, 0x160B, 0x832A,
+    etc.) in the play.cpp mega-function need decoding to identify their
+    complete functionality (likely player selection, display modes, and
+    special weapon handling).
