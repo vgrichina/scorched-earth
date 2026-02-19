@@ -9,7 +9,7 @@ import { config } from './config.js';
 import { random, clamp } from './utils.js';
 import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks } from './tank.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
-         clearProjectiles, hasActiveProjectiles } from './physics.js';
+         clearProjectiles, hasActiveProjectiles, applyMagDamping } from './physics.js';
 import { getPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
@@ -164,10 +164,11 @@ function handleAimInput(player) {
 // EXE: fire_weapon at file 0x30652 — computes barrel tip from icons.cpp geometry
 // EXE: decrements ammo in player struct, switches to Baby Missile if depleted
 //
-// BUG: EXE differs — shield consume on fire not yet implemented:
-//   EXE 0x30668: calls shield_consume (0x1144:0x361) before launching if
-//   active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
-//   JS has no equivalent per-fire shield interaction.
+// EXE 0x30668: calls pre-fire handler (0x1144:0x361) before launching if
+// active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
+// Binary analysis: this function is the TALKING TANK speech handler (comments.cpp),
+// NOT shield energy consumption. It loads a string from DS:0xCC8E and calls
+// Fastgraph text display (0x3F19:0x4695). See Task 5: Talking Tanks.
 function fireWeapon(player) {
   // EXE: barrel tip = dome center + BARREL_LENGTH (12) in angle direction (icons.cpp)
   const barrelLength = 12;
@@ -193,12 +194,14 @@ function fireWeapon(player) {
     }
   }
 
-  // EXE: fire_weapon 0x306A8 — Super Mag (idx 52) ammo decremented per shot.
-  // Super Mag is not a shield; it deflects projectiles via physics (not yet implemented).
-  // When ammo depleted, the deflection deactivates.
+  // EXE VERIFIED: fire_weapon 0x306A8 — Super Mag (idx 52) ammo decremented per shot.
+  // EXE: DS:0x1C76 flag set on projectile — bypasses enemy Mag Deflector damping.
+  // EXE: Mag Deflector (idx 45) is NOT decremented at fire time (passive defense).
   const SUPER_MAG_IDX = 52;
+  let superMagActive = false;
   if (player.inventory[SUPER_MAG_IDX] > 0) {
     player.inventory[SUPER_MAG_IDX]--;
+    superMagActive = true;
   }
 
   // EXE: guidance_type set on projectile at fire time, ammo consumed
@@ -212,11 +215,41 @@ function fireWeapon(player) {
     projectiles[projectiles.length - 1].guidanceType = guidanceType;
   }
 
+  // EXE: DS:0x1C76 pushed to launchProjectile at extras.cpp 0x21357
+  if (superMagActive && projectiles.length > 0) {
+    projectiles[projectiles.length - 1].superMagActive = true;
+  }
+
   game.state = STATE.FLIGHT;
+}
+
+// Find which player was hit based on projectile position pixel color
+function findHitPlayer(proj) {
+  const px = Math.round(proj.x);
+  const py = Math.round(proj.y);
+  const pixel = getPixel(px, py);
+  if (pixel > 0 && pixel < 80) {
+    const playerIdx = Math.floor(pixel / 8);
+    return players[playerIdx] || null;
+  }
+  return null;
 }
 
 // Process a projectile hit
 function processHit(proj, hitResult) {
+  // EXE 0x2251A: Mag Deflector collision damping
+  // If target player has Mag Deflector and attacker has no Super Mag, dampen velocity
+  if (hitResult === 'hit_tank') {
+    const targetPlayer = findHitPlayer(proj);
+    if (targetPlayer) {
+      const magCount = (targetPlayer.inventory[45] || 0) + (targetPlayer.inventory[52] || 0);
+      if (magCount > 0) {
+        const absorbed = applyMagDamping(proj);
+        if (absorbed) return;  // projectile absorbed, no damage
+      }
+    }
+  }
+
   const result = handleBehavior(proj, hitResult);
   const cx = Math.round(proj.x);
   const cy = Math.round(proj.y);

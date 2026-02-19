@@ -8,6 +8,7 @@
 
 import { config } from './config.js';
 import { clamp } from './utils.js';
+import { players } from './tank.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -37,6 +38,65 @@ function getViscosityFactor() {
   return 1.0 - config.viscosity / 10000.0;
 }
 
+// EXE: Mag Deflector deflection zone constants
+// EXE: DS:1D2C = 1000000.0 (distance² threshold = 1000px radius)
+// EXE: DS:1D30 = 1000.0 (normalization divisor)
+const MAG_RANGE_SQ = 1000000.0;
+const MAG_RANGE = 1000.0;
+const MAG_DEFLECTOR_IDX = 45;
+const SUPER_MAG_IDX = 52;
+
+function applyMagDeflection(proj) {
+  for (const player of players) {
+    if (!player.alive) continue;
+    if (player.index === proj.attackerIdx) continue;
+
+    // Check if this player has Mag Deflector or Super Mag in inventory (passive defense)
+    const magCount = (player.inventory[MAG_DEFLECTOR_IDX] || 0) +
+                     (player.inventory[SUPER_MAG_IDX] || 0);
+    if (magCount <= 0) continue;
+
+    const dx = proj.x - player.x;
+    const dy = proj.y - (player.y - 4);  // center of tank body
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq > MAG_RANGE_SQ || distSq < 1.0) continue;
+
+    // EXE: normalizedDist = sqrt(distSq) / 1000.0
+    // Closer = stronger deflection. Push projectile AWAY from player.
+    const dist = Math.sqrt(distSq);
+    const normDist = Math.max(dist / MAG_RANGE, 0.05);  // cap to prevent infinity
+
+    // Deflection: push velocity away from player, strength = 1/normDist
+    const pushX = (dx / dist) / normDist;
+    const pushY = (dy / dist) / normDist;
+
+    proj.vx += pushX * DT * 30;
+    proj.vy -= pushY * DT * 30;  // screen Y inverted
+  }
+}
+
+// EXE: collision velocity damping at 0x2251A
+// When projectile hits near a Mag Deflector player and attacker has no Super Mag:
+// velocity *= 0.75, absorb if speed² < 2000
+// EXE: DS:1D54 = 0.75 (damping coefficient), DS:1D58 = 2000.0 (absorption threshold)
+const MAG_DAMP_COEFF = 0.75;
+const MAG_ABSORB_THRESHOLD = 2000.0;
+
+export function applyMagDamping(proj) {
+  if (proj.superMagActive) return false;  // Super Mag bypasses damping
+
+  proj.vx *= MAG_DAMP_COEFF;
+  proj.vy *= MAG_DAMP_COEFF;
+
+  const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
+  if (speedSq < MAG_ABSORB_THRESHOLD) {
+    proj.active = false;  // absorbed — no damage
+    return true;
+  }
+  return false;
+}
+
 // Create a new projectile object
 export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx, opts = {}) {
   return {
@@ -59,6 +119,7 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     bounceCount: 0,
     hasSplit: false,
     prevVy: undefined,
+    superMagActive: opts.superMagActive || false,  // EXE: DS:0x1C76 — bypasses Mag Deflector defense
     ...opts,
   };
 }
@@ -168,6 +229,11 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // 3. Wind (horizontal only, from RE) — skip for napalm particles
   if (!proj.isNapalmParticle) {
     proj.vx += wind * WIND_SCALE * DT;
+  }
+
+  // 3b. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
+  if (!proj.isNapalmParticle) {
+    applyMagDeflection(proj);
   }
 
   // 4. Integrate position (screen coords: y increases downward)
