@@ -1,5 +1,8 @@
 // Scorched Earth - Keyboard Input
-// Tracks key state array, matches original DOS keyboard polling
+// EXE: custom INT 9h keyboard handler at file 0x2898E
+// EXE: main game loop key dispatch at file 0x2F78A
+// EXE: key config values stored in DS offsets
+// Web: tracks key state array, matches original DOS keyboard polling
 
 const keys = {};
 

@@ -1,7 +1,11 @@
-// Scorched Earth - Tank Rendering (icons.cpp RE)
+// Scorched Earth - Tank Rendering
+// EXE source: icons.cpp (seg 0x1F7F+, file base 0x263F0)
+// EXE: tank color gradient at file 0x28540, 10 base colors at DS:0x57E2
+// EXE: player struct stride 0x6C (108 bytes), far ptr base at DS:CEB8
+// EXE: tank/sub struct stride 0xCA (202 bytes), base at DS:D568
 // Dome: 7px wide, 5px tall (1 base line + 4px rise)
 // Body: 7px wide rectangle below dome
-// Barrel: Bresenham line from dome center
+// Barrel: Bresenham line from dome center, BARREL_LENGTH=12
 
 import { setPixel, hline } from './framebuffer.js';
 import { getTerrainY, terrain } from './terrain.js';
@@ -9,11 +13,11 @@ import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
 
-// Tank dimensions
-const TANK_WIDTH = 7;
-const DOME_HEIGHT = 5;      // 4px rise + 1px base line
-const BODY_HEIGHT = 4;
-const BARREL_LENGTH = 12;
+// Tank dimensions — EXE: verified from icons.cpp disassembly (file 0x263F0+)
+const TANK_WIDTH = 7;       // EXE: 7px wide dome and body
+const DOME_HEIGHT = 5;      // EXE: 1px base line + 4px rise (dome peak at y-4)
+const BODY_HEIGHT = 4;      // EXE: 4px tall body rectangle below dome
+const BARREL_LENGTH = 12;   // EXE: barrel extends 12px from dome center (fire_weapon at 0x30652)
 const FALL_SPEED = 2;       // pixels per frame when falling
 
 // Player state

@@ -1,4 +1,7 @@
-// Scorched Earth - Shop System (equip.cpp RE)
+// Scorched Earth - Shop System
+// EXE source: equip.cpp (seg 0x16BC, file base 0x1D5C0)
+// EXE: equipInit at file 0x1D5D4 — sets DS:E4F0 (first accessory) and DS:D548 (last weapon)
+// EXE: AI auto-purchase uses random(11) action selection
 // Full-screen shop UI rendered in framebuffer
 // Category tabs, buy/sell, arms level gating, AI auto-purchase
 

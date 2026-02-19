@@ -1,5 +1,8 @@
 // Scorched Earth - Indexed Framebuffer (VGA Mode 13h emulation)
-// 320×200 Uint8Array of palette indices, blitted to canvas via palette32 lookup
+// EXE: VGA Mode 13h — linear 320×200 framebuffer at segment A000h
+// EXE: uses Fastgraph V4.02 library for VGA pixel operations
+// EXE: pixel values are palette indices (0-255) into the VGA DAC
+// Web: 320×200 Uint8Array of palette indices, blitted to canvas via palette32 lookup
 
 import { palette32, updatePalette32 } from './palette.js';
 import { config } from './config.js';

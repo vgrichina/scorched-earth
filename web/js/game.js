@@ -1,6 +1,9 @@
-// Scorched Earth - Game State Machine (play.cpp RE)
+// Scorched Earth - Game State Machine
+// EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
+// EXE: main game loop dispatch at file 0x2F78A
 // States: AIM → FLIGHT → EXPLOSION → FALLING → NEXT_TURN → ROUND_OVER → SHOP → ROUND_SETUP → GAME_OVER
-// Full weapon system with behavior dispatch + multi-round flow
+// EXE: weapon dispatch via extras.cpp behaviors + fire_weapon at file 0x30652
+// EXE: play modes — Sequential (0), Simultaneous (1), Synchronous (2) at DS config
 
 import { config } from './config.js';
 import { random, clamp } from './utils.js';
@@ -19,7 +22,7 @@ import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
 import { generateTerrain } from './terrain.js';
 
-// War quotes (from RE binary strings)
+// War quotes — EXE: 15 strings extracted from binary (see disasm/war_quotes.txt)
 const WAR_QUOTES = [
   '"War is hell." - W.T. Sherman',
   '"The quickest way to end a war is to lose it." - George Orwell',
@@ -67,7 +70,8 @@ export const game = {
   roundOverTimer: 0,
 };
 
-// Wind generation (from RE: center-biased with random doubling)
+// EXE: wind generation — center-biased with random doubling
+// EXE: 20% chance double, 40% chance double again (from disasm/physics_timestep_wind_analysis.txt)
 export function generateWind() {
   const maxWind = config.wind;
   if (maxWind === 0) { game.wind = 0; return; }
@@ -77,7 +81,7 @@ export function generateWind() {
   game.wind = clamp(wind, -maxWind * 4, maxWind * 4);
 }
 
-// Wind change per turn (from RE)
+// EXE: wind random walk per turn — delta in [-5, +5], clamped to ±wind*4
 function updateWind() {
   if (!config.changeWind) return;
   const delta = random(11) - 5;  // [-5, +5]
@@ -157,8 +161,10 @@ function handleAimInput(player) {
 }
 
 // Fire the weapon
+// EXE: fire_weapon at file 0x30652 — computes barrel tip from icons.cpp geometry
+// EXE: decrements ammo in player struct, switches to Baby Missile if depleted
 function fireWeapon(player) {
-  // Barrel tip position (match tank.js dome geometry)
+  // EXE: barrel tip = dome center + BARREL_LENGTH (12) in angle direction (icons.cpp)
   const barrelLength = 12;
   const domeTopY = player.y - 4 - 4;  // body(4) + dome peak(4)
   const angleRad = player.angle * Math.PI / 180;

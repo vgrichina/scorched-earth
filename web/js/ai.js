@@ -1,4 +1,7 @@
-// Scorched Earth - AI System (shark.cpp RE)
+// Scorched Earth - AI System
+// EXE source: shark.cpp (seg 0x3167, file base 0x38070)
+// EXE: AI solver region file 0x24F01-0x2610F (decoded in disasm/ai_solver_decoded.txt)
+// EXE: AI config data at DS:0x05BEDA
 // 7 difficulty levels: Moron → Spoiler
 // Analytic ballistic solver with wind correction + sinusoidal noise injection
 
@@ -8,7 +11,7 @@ import { random, clamp } from './utils.js';
 import { WEAPONS, WPN } from './weapons.js';
 import { terrain } from './terrain.js';
 
-// AI type constants (from RE: DS:0x02E2 vtable)
+// AI type constants — EXE: vtable at DS:0x02E2, types stored in player struct
 export const AI_TYPE = {
   HUMAN:     0,
   MORON:     1,
@@ -26,7 +29,8 @@ export const AI_NAMES = [
   'Tosser', 'Chooser', 'Spoiler', 'Cyborg', 'Unknown',
 ];
 
-// Noise parameters per AI type (from RE: higher = more inaccurate)
+// EXE: noise parameters per AI type — higher = more inaccurate
+// EXE: extracted from shark.cpp data section (file 0x38070+)
 // Format: [angleNoise, powerNoise, weaponNoise]
 const AI_NOISE = {
   [AI_TYPE.MORON]:     [50, 50, 50],
@@ -127,6 +131,9 @@ function selectWeapon(player, target, aiType) {
 }
 
 // Analytic ballistic solver
+// EXE: shark.cpp solver at file 0x24F01-0x2610F
+// EXE: uses FPU math (INT 34h-3Dh Borland emulation), decoded in disasm/ai_solver_decoded.txt
+// EXE: player struct stride 0x6C (108 bytes), base at DS:CEB8
 // Computes angle + power to hit target, accounting for gravity and wind
 function solveBallistic(shooter, target) {
   const dx = target.x - shooter.x;

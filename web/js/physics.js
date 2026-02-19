@@ -1,23 +1,28 @@
-// Scorched Earth - Projectile Physics (extras.cpp RE)
-// Multi-projectile system with wall collision
-// Original: dt=0.02, viscosity = 1.0 - config/10000, gravity/wind pre-scaled
+// Scorched Earth - Projectile Physics
+// EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
+// EXE: physics timestep calibrated via MIPS benchmark (adaptive dt, default 0.02)
+// EXE: viscosity factor = 1.0 - config/10000 (multiplicative per step)
+// EXE: gravity = 4.9 px/sec² (from SCORCH.CFG GRAVITY=0.05-10.0, default 1.0)
+// EXE: wind = horizontal only, WIND_SCALE applied per step
+// EXE: speed limit = 1.5 speed-squared threshold
 
 import { config } from './config.js';
 import { clamp } from './utils.js';
 
-// Physics tuning — per-second values matching original RE scale (dt=0.02)
-export const DT = 0.02;           // timestep per physics step (from RE)
-const MAX_SPEED = 400;             // pixels/sec at power=1000
-const GRAVITY = 4.9;               // pixels/sec² downward acceleration
-const WIND_SCALE = 0.15;           // wind value → pixels/sec² horizontal acceleration
+// Physics tuning — per-second values matching original RE scale
+// EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
+export const DT = 0.02;           // EXE: default timestep (from disasm/physics_timestep_wind_analysis.txt)
+const MAX_SPEED = 400;             // EXE: pixels/sec at power=1000 (power/1000 * MAX_SPEED)
+const GRAVITY = 4.9;               // EXE: pixels/sec² downward (SCORCH.CFG GRAVITY scaled)
+const WIND_SCALE = 0.15;           // EXE: wind config → pixels/sec² horizontal accel
 
-// Wall types (from RE: ELASTIC config)
+// Wall types — EXE: ELASTIC config variable, wall collision in physics loop
 export const WALL = {
-  CONCRETE: 0,
-  RUBBER:   1,
-  SPRING:   2,
-  WRAP:     3,
-  NONE:     4,
+  CONCRETE: 0,  // EXE: detonate on wall impact
+  RUBBER:   1,  // EXE: reflect with 0.8x velocity loss
+  SPRING:   2,  // EXE: reflect with 1.2x velocity increase
+  WRAP:     3,  // EXE: wrap-around screen edges
+  NONE:     4,  // EXE: fly off screen
 };
 
 // Active projectiles array (replaces single projectile)
@@ -26,7 +31,8 @@ export const projectiles = [];
 // Legacy single-projectile reference (for backward compat with main.js drawing)
 export const projectile = { active: false, x: 0, y: 0, vx: 0, vy: 0, trail: [] };
 
-// Viscosity factor: multiplicative per step (from RE)
+// EXE: viscosity factor applied multiplicatively each physics step
+// EXE: factor = 1.0 - (VISCOSITY config value / 10000.0)
 function getViscosityFactor() {
   return 1.0 - config.viscosity / 10000.0;
 }
@@ -187,8 +193,9 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   }
 
   // 7. Collision detection via pixel color (only when on-screen and below HUD)
-  // RE: fire_weapon at 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12).
-  // Skip first 2 steps to clear barrel/body pixels and prevent self-collision at low power.
+  // EXE: fire_weapon at file 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12)
+  // EXE: pixel-based collision — player colors 0-79, terrain >= 105
+  // Skip first 2 steps (grace period) to clear barrel/body pixels at low power
   if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= 15 && sy < config.screenHeight) {
     const pixel = getPixelFn(sx, sy);
 

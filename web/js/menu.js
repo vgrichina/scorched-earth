@@ -1,4 +1,6 @@
 // Scorched Earth - Title Screen & Configuration Menu
+// EXE: config menu structure found in binary UI strings (disasm/ui_complete.txt)
+// EXE: sub-menus for terrain, sky, walls, scoring, player setup
 // States: TITLE → CONFIG → PLAYER_SETUP → game starts
 
 import { config } from './config.js';

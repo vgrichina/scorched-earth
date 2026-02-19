@@ -1,6 +1,9 @@
-// Scorched Earth - Shield System (shields.cpp RE)
-// 6 shield types with flat 1:1 HP absorption
-// Shield config from RE: DS:0x616C, 6 entries × 16 bytes
+// Scorched Earth - Shield System
+// EXE source: shields.cpp (seg 0x31D8, file base 0x38780)
+// EXE: shield config table at DS:0x616C, 6 entries × 16 bytes
+// EXE: flat 1:1 HP absorption model — shield absorbs damage point-for-point
+// EXE: shield energy values: Shield=55, Warp/Teleport=100, Force=150, Heavy=200
+// EXE: special effects — Warp/Teleport shields trigger tank repositioning on hit
 
 import { config } from './config.js';
 import { setPixel } from './framebuffer.js';
@@ -16,8 +19,8 @@ export const SHIELD_TYPE = {
   HEAVY:    5,
 };
 
-// Shield config table (from RE: DS:0x616C)
-// energy: max HP, radius: visual size, color: VGA 6-bit RGB
+// EXE: shield config table at DS:0x616C, 16 bytes per entry
+// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), flags
 export const SHIELD_CONFIG = [
   { name: 'None',            energy: 0,   radius: 0,  r: 0,  g: 0,  b: 0,  flags: 0 },
   { name: 'Shield',          energy: 55,  radius: 16, r: 63, g: 63, b: 23, flags: 2 },

@@ -1,4 +1,6 @@
 // Scorched Earth - 8x8 Bitmap Font (PC BIOS/VGA CP437)
+// EXE: uses standard IBM VGA BIOS 8x8 font (INT 10h, AH=1130h font pointer)
+// EXE: rendered via Fastgraph V4.02 text routines into Mode 13h framebuffer
 // Each glyph is 8 bytes; each byte is one row, MSB = leftmost pixel
 // Renders directly into the indexed framebuffer
 

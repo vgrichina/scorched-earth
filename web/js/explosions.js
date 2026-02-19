@@ -1,6 +1,12 @@
-// Scorched Earth - Explosion & Crater System (extras.cpp RE)
-// Circular crater, expanding ring animation, damage calculation
-// Damage formula from RE: velocity-rotation with atan2/cos/sin, 0.7x attenuation
+// Scorched Earth - Explosion & Crater System
+// EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
+// EXE: damage function at file 0x23327 (seg 0x1C90:0x0027)
+// EXE: damage formula — velocity-rotation with atan2/cos/sin:
+//   angle1 = atan2(dy, dx); angle2 = atan2(vy, vx)
+//   adjusted = (angle2 - angle1) * 2.0  [DS:1D5C = f32 2.0]
+//   negate velocity, rotate by adjusted angle, magnitude / 100 * radius
+//   0.7x attenuation per hit [DS:1D60 = f64 0.7], threshold [DS:1D68 = f64 0.001]
+// EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
 import { config } from './config.js';
 import { setPixel, getPixel } from './framebuffer.js';
@@ -214,8 +220,12 @@ export function isExplosionActive() {
 }
 
 // Calculate and apply damage to all players from explosion at (cx, cy)
-// Uses velocity-rotation formula from RE (extras.cpp 0x23327)
-// projVx/projVy: projectile velocity at impact for rotation damage
+// EXE: damage function at file 0x23327 (seg 0x1C90:0x0027) in extras.cpp
+// EXE: reads velocity from DS:E4DC (vx) and DS:E4E4 (vy)
+// EXE: calls _atan2 at file 0x1421, _cos at 0x13D1, _sin at 0x1204
+// EXE: doubling constant at DS:1D5C (f32 2.0)
+// EXE: 0.7x attenuation at DS:1D60 (f64 0.7), threshold at DS:1D68 (f64 0.001)
+// EXE: sign comparison — checks if projectile approaching via velocity vs displacement
 export function applyExplosionDamage(cx, cy, radius, attackerIndex, projVx, projVy) {
   // If we have projectile velocity, use the RE velocity-rotation formula
   // Otherwise fall back to distance-based damage

@@ -1,4 +1,6 @@
 // Scorched Earth - Main entry point + game loop
+// EXE source: play.cpp (seg 0x28B9, file base 0x2F830) — main game loop
+// EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
 // Phase 6: Title screen, config menu, full game flow
 
 import { config } from './config.js';
@@ -101,27 +103,52 @@ function drawAllProjectiles() {
   }
 }
 
-// Laser sight state for sweep animation (RE: draw_laser_sight at file 0x36321)
+// ======================================================================
+// LASER SIGHT SYSTEM
+// ======================================================================
+// EXE: draw_laser_sight function at file 0x36321 (seg 0x2F76:0x01C1)
+// EXE: shares code segment 0x2F76 with plasma_blast_handler (0x3616D)
+//   and riot_blast_handler (0x3651D)
+// EXE: Laser and Plasma Laser are ACCESSORIES (indices 35-36), NOT fireable
+//   beam weapons. They have NULL behavior function pointers (0x0000:0x0000).
+//   Invoked during AIM phase by the UI, not through the weapon dispatch system.
+// EXE: DS:EC4C = erase color mask, DS:EC4E = draw color
+// EXE: DS:6100 = PI/180 deg-to-rad constant
+// EXE: DS:6108 = angular step (~0.3 rad) for sweep animation
+// EXE: DS:EC50/EC52 = laser sight tracking X/Y (furthest reach)
+// EXE: Laser struct at DS:0x18AA (file 0x5762A): color=0x78, erase=0xFE
+// EXE: Plasma Laser struct at DS:0x18DE (file 0x5765E): color=0xFE, erase=-1
+
 const laserState = {
   displayAngle: -1,  // current visual angle in radians (-1 = uninitialized)
   lastPlayerIdx: -1, // track player changes to reset sweep
 };
-const LASER_ANGLE_STEP = 0.3;  // radians per frame (RE: DS:6108 ~0.3 rad)
+const LASER_ANGLE_STEP = 0.3;  // EXE: DS:6108 ~0.3 rad per animation frame
 
-// Draw laser sight line from barrel tip (RE: draw_laser_sight at file 0x36321, segment 0x2F76:0x01C1)
-// Original sweeps from old angle to new angle in ~0.3 rad steps (DS:6108)
-// Standard Laser: green (RE: DS:EC4E=0x78, remapped to palette 253 to avoid terrain overlap)
-// Plasma Laser: white (RE: DS:EC4E=0xFE, palette 254)
+// Draw laser sight line from barrel tip
+// EXE function: file 0x36321, seg 0x2F76:0x01C1
+// EXE params: (x, y, angle, end_angle, power, type)
+// EXE pseudocode:
+//   angle_rad = angle * PI/180
+//   if (type == 1) { EC4C = -1; EC4E = 0xFE; }  // Plasma: white, no mask
+//   else           { EC4C = 0xFE; EC4E = 0x78; } // Laser: green, skip white
+//   while (angle_rad < end_angle_rad) {
+//     dx = sin(angle_rad) * (-power); dy = cos(angle_rad) * power;
+//     bresenham_line(old, new, pixel_callback_at_0x36271);
+//     angle_rad += ~0.3_rad;
+//   }
 function drawLaserSight(player) {
   if (!player.alive) return;
-  // Check if player has Laser (idx 35) or Plasma Laser (idx 36)
+  // EXE: checks player inventory for Laser (idx 35) or Plasma Laser (idx 36)
   const hasLaser = player.inventory[WPN.LASER] > 0;
   const hasPlasma = player.inventory[WPN.PLASMA_LASER] > 0;
   if (!hasLaser && !hasPlasma) return;
 
-  // Plasma takes priority (RE: type==1 check at 0x36321)
+  // EXE: Plasma takes priority — type==1 check at 0x36321
   const isPlasma = hasPlasma;
-  const color = isPlasma ? LASER_WHITE : LASER_GREEN;  // RE: DS:EC4E = 0xFE vs 0x78
+  // EXE: DS:EC4E = 0xFE (white) for Plasma, 0x78 (green) for standard Laser
+  // Web: remapped to palette indices 253/254 to avoid terrain overlap (0x78=120 conflicts)
+  const color = isPlasma ? LASER_WHITE : LASER_GREEN;
 
   const targetAngleRad = player.angle * Math.PI / 180;
 
@@ -136,7 +163,7 @@ function drawLaserSight(player) {
     laserState.displayAngle = targetAngleRad;
   }
 
-  // Sweep animation: step display angle toward target (RE: angle_rad += ANGLE_STEP)
+  // EXE: sweep animation — steps display angle toward target by DS:6108 (~0.3 rad) per frame
   const diff = targetAngleRad - laserState.displayAngle;
   if (Math.abs(diff) > LASER_ANGLE_STEP) {
     laserState.displayAngle += Math.sign(diff) * LASER_ANGLE_STEP;
@@ -145,27 +172,35 @@ function drawLaserSight(player) {
   }
 
   const angleRad = laserState.displayAngle;
+  // EXE: barrel tip = tank dome center + barrel length (12px) in aim direction
   const barrelLength = 12;
-  const domeTopY = player.y - 4 - 4;
+  const domeTopY = player.y - 4 - 4;  // body(4) + dome peak(4) from icons.cpp
   const startX = Math.round(player.x + Math.cos(angleRad) * barrelLength);
   const startY = Math.round(domeTopY - Math.sin(angleRad) * barrelLength);
 
-  // RE: dx = sin(angle_rad) * (-power) — power controls laser reach (0-1000 pixels)
+  // EXE: dx = sin(angle_rad) * (-power) — power (0-1000) controls laser reach
   const maxDist = player.power;
   const endX = Math.round(player.x + Math.cos(angleRad) * maxDist);
   const endY = Math.round(domeTopY - Math.sin(angleRad) * maxDist);
 
-  // RE: per-pixel callback at 0x36271 (0x2F76:0x0111)
-  // Standard laser: EC4C=0xFE (skip 254 pixels), EC4E=0x78 (terrain blend draws through terrain)
-  // Plasma laser: EC4C=-1 (no skip mask), EC4E=0xFE (fg_point overwrites all)
+  // EXE: per-pixel callback at file 0x36271 (seg 0x2F76:0x0111)
+  // EXE: checks screen bounds (DS:EF42/EF3C/EF40/EF38)
+  // EXE: handles cavern wrapping (DS:510E)
+  // EXE: Standard Laser: EC4C=0xFE (skip white pixels), EC4E=0x78 (green, terrain blend)
+  //   → calls 0x32C2:0x1519 for terrain-blended drawing
+  // EXE: Plasma Laser: EC4C=-1 (no skip mask), EC4E=0xFE (fg_point overwrites all)
+  // EXE: tracks furthest reach in DS:EC50/EC52
+  // EXE: uses Bresenham line at file 0x1E2E3 (seg 0x171B:0x0733)
   bresenhamLine(startX, startY, endX, endY, (x, y) => {
     if (x >= 0 && x < config.screenWidth && y >= 0 && y < config.screenHeight) {
       if (!isPlasma) {
-        // RE: "If EC4C != -1: skip pixels matching EC4C" — skip LASER_WHITE (0xFE) pixels
-        // RE: "If EC4E == 0x78: terrain blend (0x32C2:0x1519)" — draws through terrain
+        // EXE: "If EC4C != -1: skip pixels matching EC4C (0xFE)"
+        // Standard laser skips white pixels so it doesn't overwrite plasma sight
         const existing = getPixel(x, y);
         if (existing === LASER_WHITE) return;
+        // EXE: "If EC4E == 0x78: terrain blend" — green line draws through terrain
       }
+      // EXE: Plasma laser overwrites all pixels (EC4C=-1 means no skip check)
       setPixel(x, y, color);
     }
   });
@@ -223,6 +258,8 @@ function drawGameOver() {
 }
 
 // MAYHEM cheat code tracker
+// EXE: "mayhem" cheat code — sets all weapons to max ammo (verified in binary strings)
+// EXE: also supports "frondheim" (debug overlay), "ragnarok" (debug log), "nofloat" (disable FPU)
 const MAYHEM_SEQ = ['KeyM', 'KeyA', 'KeyY', 'KeyH', 'KeyE', 'KeyM'];
 let mayhemIdx = 0;
 

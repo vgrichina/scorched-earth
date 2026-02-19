@@ -1,7 +1,10 @@
-// Scorched Earth - Scoring System (score.cpp RE)
+// Scorched Earth - Scoring System
+// EXE source: score.cpp (seg 0x30B2, file base 0x36B20)
+// EXE: scoreOnDamage at file 0x37688, scoreOnDeath at file 0x375E3
+// EXE: endOfRoundScoring at file 0x37381
 // 3 modes: Standard (0), Corporate (1), Vicious (2)
-// Per-damage scoring: +30x enemy weapon, +2x enemy shield, -15x friendly weapon, -1x friendly shield
-// Per-death scoring: +4000 enemy, -2000 teammate, -1500 self
+// Per-damage: +30x enemy weapon, +2x enemy shield, -15x friendly weapon, -1x friendly shield
+// Per-death: +4000 enemy kill, -2000 teammate kill, -1500 self-destruction
 
 import { config } from './config.js';
 import { players } from './tank.js';
@@ -13,7 +16,7 @@ export const SCORE_MODE = {
   VICIOUS:   2,
 };
 
-// Called when damage is dealt (from RE: file 0x37688)
+// EXE: score_on_damage at file 0x37688 — multiplier lookup per target relationship
 export function scoreOnDamage(attacker, target, damage, isDamageToShield) {
   if (!attacker || attacker === target) return;  // self-hits: no score change
 
@@ -23,7 +26,7 @@ export function scoreOnDamage(attacker, target, damage, isDamageToShield) {
   attacker.score += damage * multiplier;
 }
 
-// Called when a tank is destroyed (from RE: file 0x375E3)
+// EXE: score_on_death at file 0x375E3
 export function scoreOnDeath(attacker, victim) {
   if (!attacker) return;
 
@@ -36,7 +39,7 @@ export function scoreOnDeath(attacker, victim) {
   }
 }
 
-// End-of-round scoring pool (Standard and Corporate only, from RE: file 0x37381)
+// EXE: end_of_round_scoring at file 0x37381 — pool = numPlayers * 1000 + round * 4000
 export function endOfRoundScoring(roundNumber) {
   if (config.scoringMode === SCORE_MODE.VICIOUS) return;
 

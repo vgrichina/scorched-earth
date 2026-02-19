@@ -1,5 +1,10 @@
-// Scorched Earth - Terrain Generation (ranges.cpp RE)
-// Random walk with momentum algorithm, 7 terrain types
+// Scorched Earth - Terrain Generation
+// EXE source: ranges.cpp (seg 0x2CBF, file base 0x33690)
+// EXE: height generation random walk kernel at file 0x29808
+// EXE: drawColumn per-column renderer at file 0x29720
+// EXE: setTerrainPixel per-pixel color at file 0x3AB39
+// EXE: 7 terrain types from SCORCH.CFG LAND_TYPE config
+// EXE: LAND1 = bumpiness (flat chance), LAND2 = slope component
 
 import { random, clamp } from './utils.js';
 import { config } from './config.js';
@@ -198,7 +203,9 @@ function generateCavern(width, yStart, yEnd) {
   }
 }
 
-// Main random walk algorithm from RE (ranges.cpp)
+// Main random walk algorithm
+// EXE: height generation kernel at file 0x29808, ranges.cpp
+// EXE: LAND1 controls flat chance (% momentum maintained), LAND2 controls slope
 function generateRolling(width, yStart, yEnd) {
   const flatChance = config.land1;   // default 20: % chance to maintain momentum
   const bumpChance = config.land1;   // default 20: % chance to double delta
@@ -267,7 +274,8 @@ export function drawSky() {
 }
 
 // Draw terrain columns using palette indices 120-149
-// From RE: palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
+// EXE: drawColumn at file 0x29720, setTerrainPixel at file 0x3AB39
+// EXE: palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 // Uses GLOBAL Y mapping so adjacent columns at same depth have same color
 export function drawTerrain() {
   const width = config.screenWidth;

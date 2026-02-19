@@ -1,6 +1,16 @@
 // Scorched Earth - VGA Palette System
-// 256-entry palette, all values stored as VGA 6-bit (0-63)
-// Converted to 8-bit on blit to canvas
+// EXE: VGA Mode 13h — 256-entry DAC palette, 6-bit per channel (0-63)
+// EXE: palette ranges:
+//   0-79:   player colors (10 players × 8 gradient slots) — DS:0x57E2 base colors
+//   80-103: sky gradient (24 entries) — varies by sky type
+//   104:    system black
+//   105-119: unused
+//   120-149: terrain gradient (30 entries) — varies by terrain type
+//   150:    wall color
+//   170-199: explosion fire palette (3 bands × 10)
+//   253:    laser sight green (remapped from EXE 0x78 to avoid terrain overlap)
+//   254:    laser sight white (EXE 0xFE)
+// EXE: palette analysis in disasm/vga_palette_analysis.txt, disasm/color_palettes.txt
 
 import { vga6to8, random } from './utils.js';
 
@@ -10,7 +20,7 @@ export const palette6 = new Uint8Array(256 * 3);
 // Pre-computed 32-bit RGBA lookup for fast blit (updated when palette changes)
 export const palette32 = new Uint32Array(256);
 
-// 10 player base colors (VGA 6-bit) from DS:0x57E2
+// EXE: 10 player base colors (VGA 6-bit) from DS:0x57E2 (file 0x0C562)
 const PLAYER_COLORS = [
   [63, 10, 10],  // 0: Red
   [35, 55, 10],  // 1: Lime Green
@@ -24,7 +34,7 @@ const PLAYER_COLORS = [
   [ 0,  0, 63],  // 9: Blue
 ];
 
-// Type 5 (Varied) base color table from DS:0x5036
+// EXE: Type 5 (Varied) base color table from DS:0x5036 (file 0x0BDB6)
 const VARIED_COLORS = [
   [38, 25, 17],  // Warm brown
   [54, 36, 28],  // Light tan
@@ -58,6 +68,9 @@ export function updatePalette32() {
 }
 
 // --- Player colors (VGA 0-79): 10 players × 8 gradient slots ---
+// EXE: tank color gradient setup at file 0x28540 (icons.cpp)
+// EXE: slots 0-3 = dark→light body/dome, slot 4 = full color, slot 5 = white flash,
+//   slot 6 = base repeat, slot 7 = grey smoke
 export function setupPlayerPalette() {
   for (let p = 0; p < 10; p++) {
     const [br, bg, bb] = PLAYER_COLORS[p];
@@ -219,6 +232,8 @@ function setupTerrainGradient(tr, tg, tb) {
 }
 
 // --- Explosion fire palette (VGA 170-199) ---
+// EXE: explosion player palette at VGA 81-85, fire palette at VGA 170-199
+// EXE: 3 bands: Dark Red (170-179), Orange (180-189), Yellow (190-199)
 export function setupExplosionPalette() {
   for (let si = 0; si < 10; si++) {
     // Group 1 (170-179): Dark Red Fire
@@ -246,16 +261,21 @@ function setupSystemColors() {
 }
 
 // --- Laser sight palette (VGA 253-254) ---
-// RE: draw_laser_sight at file 0x36321, DS:EC4E holds draw color
-// Standard Laser: DS:EC4E = 0x78 (green) — RE index 120 overlaps terrain palette,
-//   so we remap to 253 to avoid conflict with terrain gradient at 120-149.
-// Plasma Laser: DS:EC4E = 0xFE (bright white) — index 254.
+// EXE: draw_laser_sight at file 0x36321 (seg 0x2F76:0x01C1)
+// EXE: DS:EC4E holds the draw color for the laser sight line
+// EXE: Standard Laser — DS:EC4E = 0x78 (green/turquoise)
+//   In the EXE, index 0x78 = 120 which is the terrain palette base. We remap to
+//   VGA 253 to avoid conflict with terrain gradient at 120-149.
+// EXE: Plasma Laser — DS:EC4E = 0xFE (bright white) = index 254
+// EXE: DS:EC4C = erase mask — 0xFE for standard (skip white), -1 for plasma (no skip)
 // Both entries must be explicitly set; palette6.fill(0) leaves them black.
-export const LASER_GREEN = 253;
-export const LASER_WHITE = 254;
+export const LASER_GREEN = 253;  // remapped from EXE 0x78 (=120, terrain conflict)
+export const LASER_WHITE = 254;  // matches EXE 0xFE (=254)
 function setupLaserPalette() {
-  setEntry(LASER_GREEN, 0, 48, 0);    // green targeting line (RE: 0x78)
-  setEntry(LASER_WHITE, 63, 63, 63);  // bright white targeting line (RE: 0xFE)
+  // EXE: Laser green — 0x78 maps to a green/turquoise in the original VGA DAC
+  setEntry(LASER_GREEN, 0, 48, 0);
+  // EXE: Plasma white — 0xFE is bright white in the original VGA DAC
+  setEntry(LASER_WHITE, 63, 63, 63);
 }
 
 // Initialize entire palette

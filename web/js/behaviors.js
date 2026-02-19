@@ -1,4 +1,7 @@
-// Scorched Earth - Weapon Behavior System (extras.cpp, ranges.cpp RE)
+// Scorched Earth - Weapon Behavior System
+// EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
+// EXE: central dispatch at file 0x1C6C8 — far call via weapon struct +0C:+0A
+//   lcall [weapon_idx * 52 + DS:0x1200] selects handler by far ptr in struct
 // 13 behavior handlers dispatched by BHV type code
 // Each handler: onHit(proj, hitResult, ctx) → array of new projectiles to spawn
 
@@ -63,16 +66,21 @@ function defaultResult(proj) {
 }
 
 // --- Standard (0x0021): simple blast with parameterized radius ---
+// EXE: handler seg 0x3D1E (file 0x43BE0), param = blast radius from struct +0E
 function bhvStandard(proj, weapon) {
   return { explode: true, radius: weapon.param, spawn: [], dirtAdd: false, skipDamage: false };
 }
 
 // --- Tracer (0x0002): no damage, no crater, path only ---
+// EXE: handler seg 0x3D1E (shared with standard), skips explosion/damage path
 function bhvTracer() {
   return { explode: false, radius: 0, spawn: [], dirtAdd: false, skipDamage: true };
 }
 
 // --- Roller (0x0003): two-phase — flight then terrain-follow ---
+// EXE: on_impact handler at file 0x365D3 (seg 0x2FBD:0x0003)
+// EXE: per_frame roller at file 0x3684B (seg 0x2FBD:0x027B)
+// EXE: terrain check: pixel >= 105 → terrain surface
 function bhvRoller(proj, weapon, hitResult) {
   // If roller hits terrain, start rolling phase
   if (hitResult === 'hit_terrain' && !proj.rolling) {
@@ -132,6 +140,7 @@ function rollerFlightStep(proj, weapon) {
 }
 
 // --- Bounce/LeapFrog (0x0006): reflect velocity on terrain, param = bounce count ---
+// EXE: handler seg 0x2382 (file 0x2A220), struct param = max bounce count
 function bhvBounce(proj, weapon, hitResult) {
   if (hitResult !== 'hit_terrain') {
     return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
@@ -156,6 +165,8 @@ function bhvBounce(proj, weapon, hitResult) {
 }
 
 // --- MIRV (0x0239): detect apogee (vy sign flip), spawn 6 sub-warheads ---
+// EXE: handler seg 0x25D5 (file 0x2C750)
+// EXE: apogee detection — velocity sign comparison at DS:E4DC/E4E4
 function bhvMirv(proj, weapon) {
   // If hit something before splitting, just explode
   return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
@@ -196,6 +207,8 @@ function mirvFlightCheck(proj, weapon) {
 }
 
 // --- Napalm (0x01A0): fire particle spread ---
+// EXE: handler seg 0x26E6 (file 0x2D860), 99-slot particle pool, 6-byte structs
+// EXE: negative param → dirt particles (Ton of Dirt), positive → fire particles
 function bhvNapalm(proj, weapon) {
   const particleCount = Math.min(Math.abs(weapon.param), 20);
   const isDirt = weapon.param < 0;
@@ -223,6 +236,7 @@ function bhvNapalm(proj, weapon) {
 }
 
 // --- Dirt Adding (0x0009): inverse crater, fill circle with terrain ---
+// EXE: handler seg 0x15A0 (file 0x1C400), param=radius; param=0 → Dirt Tower (seg 0x2770)
 function bhvDirt(proj, weapon) {
   const radius = weapon.param;
   if (radius === 0) {
@@ -233,6 +247,7 @@ function bhvDirt(proj, weapon) {
 }
 
 // --- Tunneling (0x000A): line removal through terrain ---
+// EXE: handler seg 0x151B (file 0x1BBB0), param sign = dig direction
 function bhvTunnel(proj, weapon) {
   const depth = Math.abs(weapon.param);
   const goesDown = weapon.param < 0;
@@ -240,6 +255,8 @@ function bhvTunnel(proj, weapon) {
 }
 
 // --- Plasma (0x000D): variable radius beam ---
+// EXE: plasma_blast_handler at file 0x3616D (seg 0x2F76:0x000D)
+// EXE: shares code segment 0x2F76 with riot_blast_handler and draw_laser_sight
 function bhvPlasma(proj, weapon) {
   // Plasma Blast (param=0): radius based on speed
   const speed = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy);
@@ -248,16 +265,19 @@ function bhvPlasma(proj, weapon) {
 }
 
 // --- Riot (0x03BD): earth-moving explosion ---
+// EXE: riot_blast_handler at file 0x3651D (seg 0x2F76:0x03BD)
 function bhvRiot(proj, weapon) {
   return { explode: true, radius: weapon.param, spawn: [], dirtAdd: false, skipDamage: false, riotBlast: true };
 }
 
 // --- Disrupter (0x0004): force dirt to fall ---
+// EXE: handler seg 0x2319 (file 0x29190)
 function bhvDisrupter(proj) {
   return { explode: false, radius: 40, spawn: [], dirtAdd: false, skipDamage: true, disrupt: true };
 }
 
 // --- Liquid Dirt (0x0081): napalm-style dirt spread ---
+// EXE: handler seg 0x15A0 (file 0x1C400), uses napalm particle system with isDirt
 function bhvLiquid(proj) {
   const spawn = [];
   for (let i = 0; i < 15; i++) {
@@ -281,11 +301,13 @@ function bhvLiquid(proj) {
 }
 
 // --- Dirt Charge (0x013E): small explosion + dirt fill ---
+// EXE: handler seg 0x162C (file 0x1CAC0)
 function bhvDirtCharge(proj) {
   return { explode: true, radius: 15, spawn: [], dirtAdd: true, skipDamage: false };
 }
 
 // --- Funky Bomb: scatter 5-10 sub-bombs from screen top ---
+// EXE: handler seg 0x1DCE (file 0x246E0), spawns 5-10 sub-bombs as Baby Missiles
 function bhvFunky(proj, weapon) {
   const count = random(6) + 5;  // 5-10 sub-bombs
   const spawn = [];
@@ -365,6 +387,8 @@ export function applyGuidance(proj) {
 }
 
 // --- Napalm particle flight step ---
+// EXE: napalm particle pool at seg 0x26E6 (file 0x2D860), 6-byte per-particle structs
+// EXE: velocity damping 0.7x from DS:1D60 (float constant), threshold DS:1D68 = 0.001
 export function napalmParticleStep(proj) {
   if (!proj.isNapalmParticle) return { remove: false };
 

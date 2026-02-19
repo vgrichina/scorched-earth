@@ -1,5 +1,7 @@
 // Scorched Earth - HUD Display
-// Power bar, angle, wind indicator, player name, weapon + ammo
+// EXE: status bar rendered in top 14 rows (VGA rows 0-13) of Mode 13h framebuffer
+// EXE: displays Power, Angle, Wind, player name, weapon + ammo
+// EXE: key config values stored in DS offsets, mouse click regions at DS:0x56AE
 // All rendered into the indexed framebuffer using 8x8 bitmap font
 
 import { config } from './config.js';
