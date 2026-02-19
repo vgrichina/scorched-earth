@@ -244,11 +244,10 @@ function generateRolling(width, yStart, yEnd) {
 // Supports: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function drawSky() {
   const width = config.screenWidth;
-  const skyHeight = PLAYFIELD_BOTTOM;
 
   // Base gradient fill (all sky types use the palette gradient)
-  for (let y = 0; y < skyHeight; y++) {
-    const palIdx = 80 + Math.floor(y * 23 / (skyHeight - 1));
+  for (let y = 0; y < config.screenHeight; y++) {
+    const palIdx = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
     hline(0, width - 1, y, palIdx);
   }
 
@@ -256,7 +255,7 @@ export function drawSky() {
   if (config.skyType === 2) {
     for (let i = 0; i < 80; i++) {
       const sx = random(width);
-      const sy = random(skyHeight - HUD_HEIGHT) + HUD_HEIGHT;
+      const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
       const brightness = random(3);
       // Use explosion palette white-ish entries for stars
       setPixel(sx, sy, brightness === 0 ? 199 : 189);
@@ -267,7 +266,7 @@ export function drawSky() {
   if (config.skyType === 3) {
     for (let i = 0; i < 15; i++) {
       const sx = random(width);
-      const sy = random(skyHeight - HUD_HEIGHT) + HUD_HEIGHT;
+      const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
       setPixel(sx, sy, 199);
     }
   }

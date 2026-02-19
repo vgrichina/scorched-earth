@@ -181,10 +181,16 @@ export function startExplosion(cx, cy, radius, attackerIndex) {
 export function stepExplosion() {
   if (!currentExplosion) return false;
 
-  const { cx, cy, radius, frame, maxFrames } = currentExplosion;
+  // Check if done BEFORE drawing — prevents fire pixels on the transition frame
+  if (currentExplosion.frame >= currentExplosion.maxFrames) {
+    currentExplosion = explosionQueue.shift() || null;
+    return currentExplosion !== null;
+  }
+
+  const { cx, cy, radius, maxFrames } = currentExplosion;
 
   // Expanding ring animation using fire palette (VGA 170-199)
-  const t = frame / maxFrames;
+  const t = currentExplosion.frame / maxFrames;
   const ringRadius = Math.floor(radius * t);
   const ringWidth = Math.max(2, Math.floor(radius * 0.3));
 
@@ -207,11 +213,6 @@ export function stepExplosion() {
   }
 
   currentExplosion.frame++;
-  if (currentExplosion.frame > maxFrames) {
-    // Move to next queued explosion
-    currentExplosion = explosionQueue.shift() || null;
-    if (!currentExplosion) return false;
-  }
   return true;
 }
 
