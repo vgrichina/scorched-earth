@@ -9,18 +9,19 @@
 // EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
 import { config } from './config.js';
-import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
-import { terrain } from './terrain.js';
+import { setPixel, getBackgroundColor } from './framebuffer.js';
+import { terrain, terrainBitmap } from './terrain.js';
 import { players } from './tank.js';
 
 // Create a circular crater at (cx, cy) with given radius
-// Removes terrain pixels, replaces with sky, updates terrain[] height map
+// Removes terrain from the per-pixel bitmap and framebuffer, updates terrain[] height map
 export function createCrater(cx, cy, radius) {
   const r2 = radius * radius;
+  const W = config.screenWidth;
 
   for (let dx = -radius; dx <= radius; dx++) {
     const x = cx + dx;
-    if (x < 0 || x >= config.screenWidth) continue;
+    if (x < 0 || x >= W) continue;
 
     for (let dy = -radius; dy <= radius; dy++) {
       if (dx * dx + dy * dy > r2) continue;  // circular shape
@@ -28,12 +29,9 @@ export function createCrater(cx, cy, radius) {
       const y = cy + dy;
       if (y < 0 || y >= config.screenHeight) continue;
 
-      const pixel = getPixel(x, y);
-      // Only remove terrain pixels (>= 105) and non-player pixels
-      if (pixel >= 105) {
-        // Replace with sky color based on Y position (80-103 range)
-        const skyIdx = getBackgroundColor(y);
-        setPixel(x, y, skyIdx);
+      if (terrainBitmap[y * W + x]) {
+        terrainBitmap[y * W + x] = 0;
+        setPixel(x, y, getBackgroundColor(y));
       }
     }
 
@@ -45,10 +43,11 @@ export function createCrater(cx, cy, radius) {
 // Add dirt in a circle (inverse crater) — used by dirt-adding weapons
 export function addDirt(cx, cy, radius) {
   const r2 = radius * radius;
+  const W = config.screenWidth;
 
   for (let dx = -radius; dx <= radius; dx++) {
     const x = cx + dx;
-    if (x < 0 || x >= config.screenWidth) continue;
+    if (x < 0 || x >= W) continue;
 
     for (let dy = -radius; dy <= radius; dy++) {
       if (dx * dx + dy * dy > r2) continue;
@@ -56,11 +55,9 @@ export function addDirt(cx, cy, radius) {
       const y = cy + dy;
       if (y < 15 || y >= config.screenHeight) continue;
 
-      const pixel = getPixel(x, y);
-      // Only fill non-terrain pixels (sky/empty)
-      if (pixel < 105) {
-        // Terrain color based on depth
+      if (!terrainBitmap[y * W + x]) {
         const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - 15))));
+        terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
     }
@@ -72,15 +69,16 @@ export function addDirt(cx, cy, radius) {
 // Add a vertical dirt tower from impact point upward
 export function addDirtTower(cx, cy, height) {
   const width = 3;
+  const W = config.screenWidth;
   for (let dx = -width; dx <= width; dx++) {
     const x = cx + dx;
-    if (x < 0 || x >= config.screenWidth) continue;
+    if (x < 0 || x >= W) continue;
     for (let dy = 0; dy < height; dy++) {
       const y = cy - dy;
       if (y < 15 || y >= config.screenHeight) continue;
-      const pixel = getPixel(x, y);
-      if (pixel < 105) {
+      if (!terrainBitmap[y * W + x]) {
         const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - 15))));
+        terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
     }
@@ -92,6 +90,7 @@ export function addDirtTower(cx, cy, height) {
 export function createTunnel(cx, cy, depth, goesDown) {
   const tunnelWidth = Math.max(3, Math.floor(depth / 4));
   const dir = goesDown ? 1 : -1;
+  const W = config.screenWidth;
 
   for (let d = 0; d < depth; d++) {
     const y = cy + d * dir;
@@ -99,11 +98,10 @@ export function createTunnel(cx, cy, depth, goesDown) {
 
     for (let dx = -tunnelWidth; dx <= tunnelWidth; dx++) {
       const x = cx + dx;
-      if (x < 0 || x >= config.screenWidth) continue;
-      const pixel = getPixel(x, y);
-      if (pixel >= 105) {
-        const skyIdx = getBackgroundColor(y);
-        setPixel(x, y, skyIdx);
+      if (x < 0 || x >= W) continue;
+      if (terrainBitmap[y * W + x]) {
+        terrainBitmap[y * W + x] = 0;
+        setPixel(x, y, getBackgroundColor(y));
       }
     }
   }
@@ -111,7 +109,7 @@ export function createTunnel(cx, cy, depth, goesDown) {
   // Update terrain columns
   for (let dx = -tunnelWidth; dx <= tunnelWidth; dx++) {
     const x = cx + dx;
-    if (x >= 0 && x < config.screenWidth) updateTerrainColumn(x);
+    if (x >= 0 && x < W) updateTerrainColumn(x);
   }
 }
 
@@ -119,38 +117,41 @@ export function createTunnel(cx, cy, depth, goesDown) {
 export function applyDisrupter(cx, cy, radius) {
   const left = Math.max(0, cx - radius);
   const right = Math.min(config.screenWidth - 1, cx + radius);
+  const W = config.screenWidth;
 
   for (let x = left; x <= right; x++) {
     // Scan column from bottom up, let dirt fall to fill gaps
     let writeY = config.screenHeight - 1;
     for (let y = config.screenHeight - 1; y >= 15; y--) {
-      const pixel = getPixel(x, y);
-      if (pixel >= 105) {
+      const color = terrainBitmap[y * W + x];
+      if (color) {
         if (y !== writeY) {
           // Move this terrain pixel down
-          const skyIdx = getBackgroundColor(y);
-          setPixel(x, y, skyIdx);
-          setPixel(x, writeY, pixel);
+          terrainBitmap[y * W + x] = 0;
+          terrainBitmap[writeY * W + x] = color;
+          setPixel(x, y, getBackgroundColor(y));
+          setPixel(x, writeY, color);
         }
         writeY--;
       }
     }
     // Clear anything above the compacted terrain
     for (let y = writeY; y >= 15; y--) {
-      const pixel = getPixel(x, y);
-      if (pixel >= 105) {
-        const skyIdx = getBackgroundColor(y);
-        setPixel(x, y, skyIdx);
+      if (terrainBitmap[y * W + x]) {
+        terrainBitmap[y * W + x] = 0;
+        setPixel(x, y, getBackgroundColor(y));
       }
     }
     updateTerrainColumn(x);
   }
 }
 
-// Recalculate terrain[x] by scanning from top to find first solid pixel
+// Recalculate terrain[x] from the per-pixel bitmap (not the framebuffer,
+// which may contain non-terrain overlay pixels like tanks or shields)
 function updateTerrainColumn(x) {
+  const W = config.screenWidth;
   for (let y = 15; y < config.screenHeight; y++) {
-    if (getPixel(x, y) >= 105) {
+    if (terrainBitmap[y * W + x]) {
       terrain[x] = y;
       return;
     }

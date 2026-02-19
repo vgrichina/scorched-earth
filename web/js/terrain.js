@@ -8,13 +8,25 @@
 
 import { random, clamp } from './utils.js';
 import { config } from './config.js';
-import { setPixel, hline, setBackground, clearToBackground } from './framebuffer.js';
+import { setPixel, setBackground, clearToBackground } from './framebuffer.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
+// NOTE: This is a DERIVED index for collision lookups only. The authoritative
+// terrain shape is stored in terrainBitmap[] — a per-pixel map that preserves
+// crater holes, tunnels, and other sub-column detail. In the original EXE,
+// VGA VRAM itself served this role; pixels persisted between frames.
 export const terrain = new Uint16Array(config.screenWidth);
 
 // Ceiling terrain for cavern mode: ceilingTerrain[x] = bottom Y of ceiling at column x
 export const ceilingTerrain = new Uint16Array(config.screenWidth);
+
+// Per-pixel terrain bitmap: non-zero = terrain palette index, 0 = sky.
+// Equivalent to VGA VRAM in the original EXE — the source of truth for terrain
+// shape including crater holes and tunnels. drawTerrain() reads this instead of
+// filling solid columns from terrain[x], which would lose sub-column detail.
+const WIDTH = config.screenWidth;
+const HEIGHT = config.screenHeight;
+export const terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
 
 // Sky region: rows 0 to ~14 reserved for HUD, rest is playfield
 const HUD_HEIGHT = 14;
@@ -54,6 +66,9 @@ export function generateTerrain() {
       generateCavern(width, yStart, yEnd);
       break;
   }
+
+  // Build per-pixel terrain bitmap from height map
+  buildTerrainBitmap();
 }
 
 function generateFlat(width, yStart, yEnd) {
@@ -282,30 +297,39 @@ export function drawSky() {
   }
 }
 
-// Draw terrain columns using palette indices 120-149
-// EXE: drawColumn at file 0x29720, setTerrainPixel at file 0x3AB39
-// EXE: palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
-// Uses GLOBAL Y mapping so adjacent columns at same depth have same color
-export function drawTerrain() {
-  const width = config.screenWidth;
+// Build per-pixel terrain bitmap from the height map arrays.
+// Called once after terrain generation. Subsequent terrain modifications
+// (craters, dirt, tunnels) update the bitmap directly.
+function buildTerrainBitmap() {
+  terrainBitmap.fill(0);
   const bottom = PLAYFIELD_BOTTOM;
-  // Global range: map from deepest possible terrain to bottom of screen
-  const globalTop = PLAYFIELD_TOP + 20;  // minimum terrain height
+  const globalTop = PLAYFIELD_TOP + 20;
   const globalRange = Math.max(bottom - globalTop, 1);
 
-  for (let x = 0; x < width; x++) {
-    // Draw floor terrain
-    const top = terrain[x];
-    for (let y = top; y <= bottom; y++) {
-      const palIdx = 120 + Math.floor((bottom - y) * 29 / globalRange);
-      setPixel(x, y, palIdx);
+  for (let x = 0; x < WIDTH; x++) {
+    // Floor terrain
+    for (let y = terrain[x]; y <= bottom; y++) {
+      terrainBitmap[y * WIDTH + x] = 120 + Math.floor((bottom - y) * 29 / globalRange);
     }
-
-    // Draw ceiling terrain (cavern mode)
+    // Ceiling terrain (cavern mode)
     if (config.landType === 6 && ceilingTerrain[x] > 0) {
       for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
-        const palIdx = 120 + Math.floor((y - PLAYFIELD_TOP) * 29 / globalRange);
-        setPixel(x, y, palIdx);
+        terrainBitmap[y * WIDTH + x] = 120 + Math.floor((y - PLAYFIELD_TOP) * 29 / globalRange);
+      }
+    }
+  }
+}
+
+// Draw terrain from per-pixel bitmap (preserves crater holes, tunnels, etc.)
+// EXE: drawColumn at file 0x29720, setTerrainPixel at file 0x3AB39
+// EXE: palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
+export function drawTerrain() {
+  for (let y = PLAYFIELD_TOP; y < HEIGHT; y++) {
+    const base = y * WIDTH;
+    for (let x = 0; x < WIDTH; x++) {
+      const color = terrainBitmap[base + x];
+      if (color) {
+        setPixel(x, y, color);
       }
     }
   }
