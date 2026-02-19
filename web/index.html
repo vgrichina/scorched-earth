@@ -2,12 +2,95 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Scorched Earth v1.50</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="screen" width="320" height="200"></canvas>
+  <!-- Landing Page -->
+  <div id="landing">
+    <div class="landing-inner">
+      <div class="title-glow">SCORCHED EARTH</div>
+      <p class="version">v1.50</p>
+      <p class="tagline">"The Mother of All Games"</p>
+      <p class="description">
+        The classic DOS artillery game (1995), faithfully
+        reverse-engineered from the original binary
+        and rebuilt for the web.
+      </p>
+      <button id="start-btn">START GAME</button>
+      <div class="controls-info">
+        <p><kbd>&larr;</kbd><kbd>&rarr;</kbd> Angle
+        &nbsp;&nbsp;<kbd>&uarr;</kbd><kbd>&darr;</kbd> Power
+        &nbsp;&nbsp;<kbd>Tab</kbd> Weapon
+        &nbsp;&nbsp;<kbd>Space</kbd> Fire</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Canvas -->
+  <div id="game-wrap">
+    <canvas id="screen" width="320" height="200"></canvas>
+  </div>
+
+  <!-- Mobile Touch Controls -->
+  <div id="touch-controls">
+    <div class="tc-left">
+      <button class="tc-btn tc-sm" data-key="ArrowUp">&uarr;</button>
+      <div class="tc-row">
+        <button class="tc-btn" data-key="ArrowLeft">&larr;</button>
+        <button class="tc-btn" data-key="ArrowRight">&rarr;</button>
+      </div>
+      <button class="tc-btn tc-sm" data-key="ArrowDown">&darr;</button>
+    </div>
+    <div class="tc-mid">
+      <button class="tc-btn tc-wpn" data-key="Tab">WPN</button>
+      <button class="tc-btn tc-ok" data-key="Enter">OK</button>
+    </div>
+    <div class="tc-right">
+      <button class="tc-btn tc-fire" data-key="Space">FIRE</button>
+    </div>
+  </div>
+
+  <script>
+    // Landing page → game transition
+    document.getElementById('start-btn').addEventListener('click', function() {
+      document.getElementById('landing').style.display = 'none';
+      document.getElementById('game-wrap').classList.add('active');
+      document.getElementById('touch-controls').classList.add('active');
+      // Focus canvas area so keyboard works immediately
+      document.body.focus();
+    });
+
+    // Touch controls — simulate keyboard events
+    document.querySelectorAll('.tc-btn').forEach(function(btn) {
+      var key = btn.getAttribute('data-key');
+
+      btn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: key, bubbles: true }));
+      }, { passive: false });
+
+      btn.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: key, bubbles: true }));
+      }, { passive: false });
+
+      // Mouse fallback for desktop testing
+      btn.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: key, bubbles: true }));
+      });
+      btn.addEventListener('mouseup', function(e) {
+        e.preventDefault();
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: key, bubbles: true }));
+      });
+      btn.addEventListener('mouseleave', function(e) {
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: key, bubbles: true }));
+      });
+    });
+  </script>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

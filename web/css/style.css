@@ -7,14 +7,246 @@
 body {
   background: #000;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  min-height: 100dvh;
+  font-family: 'Courier New', Courier, monospace;
+  color: #ccc;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== Landing Page ===== */
+
+#landing {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, #0a0a2e 0%, #1a0808 45%, #2a1500 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.landing-inner {
+  max-width: 480px;
+  padding: 2rem 1.5rem;
+}
+
+.title-glow {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #ff6600;
+  text-shadow:
+    0 0 10px #ff4400,
+    0 0 30px #cc3300,
+    0 0 60px rgba(170, 34, 0, 0.4);
+  letter-spacing: 0.12em;
+  margin-bottom: 0.3rem;
+}
+
+.version {
+  font-size: 1rem;
+  color: #777;
+  margin-bottom: 1.5rem;
+}
+
+.tagline {
+  font-size: 1.05rem;
+  color: #ffaa44;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.description {
+  font-size: 0.82rem;
+  color: #888;
+  line-height: 1.65;
+  margin-bottom: 2.2rem;
+}
+
+#start-btn {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.35rem;
+  font-weight: bold;
+  padding: 0.75rem 2.5rem;
+  background: #bb3300;
+  color: #fff;
+  border: 2px solid #ff5500;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+#start-btn:hover {
+  background: #dd4400;
+  box-shadow: 0 0 24px rgba(255, 85, 0, 0.45);
+}
+
+#start-btn:active {
+  transform: scale(0.97);
+  background: #ff5500;
+}
+
+.controls-info {
+  margin-top: 2.2rem;
+  font-size: 0.7rem;
+  color: #555;
+}
+
+.controls-info kbd {
+  display: inline-block;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  color: #999;
+}
+
+/* ===== Game Container ===== */
+
+#game-wrap {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+}
+
+#game-wrap.active {
+  display: flex;
 }
 
 #screen {
-  width: 960px;
-  height: 600px;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  width: min(960px, 100vw);
+  height: min(600px, calc(100vw * 200 / 320));
+}
+
+/* ===== Mobile Touch Controls ===== */
+
+#touch-controls {
+  display: none;
+  width: 100%;
+  padding: 6px 10px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  justify-content: space-between;
+  align-items: center;
+  background: #0c0c0c;
+  border-top: 1px solid #222;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.tc-left, .tc-mid, .tc-right {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+}
+
+.tc-row {
+  display: flex;
+  gap: 5px;
+}
+
+.tc-btn {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  padding: 10px 16px;
+  background: #1a1a1a;
+  color: #ccc;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  min-width: 48px;
+  text-align: center;
+  transition: background 0.08s;
+}
+
+.tc-btn:active {
+  background: #3a3a3a;
+  border-color: #ff6600;
+  color: #fff;
+}
+
+.tc-sm {
+  padding: 7px 16px;
+  font-size: 0.85rem;
+}
+
+.tc-fire {
+  background: #551100;
+  color: #ff6600;
+  border-color: #882200;
+  font-size: 1.15rem;
+  padding: 20px 28px;
+  border-radius: 50%;
+  min-width: 76px;
+  min-height: 76px;
+}
+
+.tc-fire:active {
+  background: #cc4400;
+  color: #fff;
+}
+
+.tc-wpn {
+  font-size: 0.8rem;
+  padding: 8px 14px;
+  color: #aaa;
+}
+
+.tc-ok {
+  font-size: 0.8rem;
+  padding: 8px 14px;
+  color: #aaa;
+}
+
+/* ===== Responsive / Mobile ===== */
+
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+  #screen {
+    width: 100vw;
+    height: calc(100vw * 200 / 320);
+  }
+
+  #touch-controls.active {
+    display: flex;
+  }
+
+  .title-glow {
+    font-size: 1.7rem;
+  }
+
+  .description {
+    font-size: 0.78rem;
+  }
+
+  #start-btn {
+    font-size: 1.2rem;
+    padding: 0.7rem 2rem;
+  }
+
+  .controls-info {
+    display: none;
+  }
+}
+
+/* Desktop: hide touch controls, show keyboard info */
+@media (hover: hover) and (pointer: fine) {
+  #touch-controls.active {
+    display: none;
+  }
 }
