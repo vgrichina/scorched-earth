@@ -1,0 +1,141 @@
+Borland C++ RTL Math Functions — Scorched Earth v1.50
+=====================================================
+
+Identified by decoding first ~64 bytes of each function entry point using
+the corrected FPU decoder (INT 34h-3Eh → D8h-DFh sequential mapping,
+verified via Ralf Brown's Interrupt List).
+
+EXE header size: 0x6A00 (27,136 bytes)
+File offset = code_offset + 0x6A00
+
+CRITICAL BUG FIX: The original INT_TO_OPCODE mapping in fpu_decode.py was
+WRONG. The correct mapping is sequential: opcode = 0xD8 + (INT - 0x34).
+This was verified against RBIL which states: "INT 34h emulates D8h",
+"INT 35h emulates D9h", etc. The old mapping had most entries swapped,
+causing instructions like fsqrt to appear as fdivr, fnstcw as fdivr, etc.
+
+
+1. _sin — Borland sin(double x)
+   Call target: 0x0:0x1204
+   File offset: 0x7C04
+   Calling convention: double arg pushed on stack (8 bytes), result on FPU ST(0)
+   Evidence:
+     - fld qword [bp+0x6]          ; load double argument
+     - mov ax, 0x7FF0
+     - and ax, [bp+0xC]            ; extract IEEE 754 exponent bits
+     - cmp ax, 0x4340              ; check |x| < 2^52 (safe for FSIN)
+     - jnc software_path
+     - cmp word [0xBE30], 0x3      ; check FPU type >= 387
+     - jl software_path
+     - FSIN                        ; ← native 387 sine instruction
+     - pop bp; retf
+     - software_path: polynomial approximation via shared evaluator
+
+2. _cos — Borland cos(double x)
+   Call target: 0x0:0x13D1
+   File offset: 0x7DD1
+   Calling convention: double arg pushed on stack (8 bytes), result on FPU ST(0)
+   Evidence:
+     - Identical structure to _sin
+     - FCOS                        ; ← native 387 cosine instruction
+     - Software fallback loads constants from DS:0xC024
+
+3. _sqrt — Borland sqrt(double x)
+   Call target: 0x0:0x0FC8
+   File offset: 0x79C8
+   Calling convention: double arg pushed on stack (8 bytes), result on FPU ST(0)
+   Evidence:
+     - fld qword [bp+0x6]          ; load double argument
+     - mov ax, [bp+0xC]            ; high word (sign + exponent)
+     - shl ax, 1                   ; sign bit → CF
+     - jz return_zero              ; ±0 → return 0
+     - jc domain_error             ; negative → domain error
+     - FSQRT                       ; ← native 387 sqrt instruction
+     - pop bp; retf
+     - Domain error: loads NaN from DS:0xBFCC, calls polynomial evaluator
+
+4. _ftol — Borland float-to-long (double → int32)
+   Call target: 0x0:0x14DF
+   File offset: 0x7EDF
+   Calling convention: value on FPU ST(0), result in DX:AX (32-bit int)
+   Evidence:
+     - push bp; mov bp,sp; sub sp,0xA
+     - FNSTCW [bp-0x2]             ; save FPU control word
+     - FWAIT
+     - mov al, [bp-0x1]            ; save high byte
+     - or byte [bp-0x1], 0x0C      ; set rounding to truncation (chop)
+     - FLDCW [bp-0x2]              ; load modified control word
+     - FISTP qword [bp-0xA]        ; convert ST(0) → 64-bit int, pop
+     - mov [bp-0x1], al            ; restore original byte
+     - FLDCW [bp-0x2]              ; restore original control word
+     - mov ax, [bp-0xA]            ; result low word
+     - mov dx, [bp-0x8]            ; result high word
+     - mov sp,bp; pop bp; retf
+   This is the textbook Borland _ftol pattern.
+
+5. _atan2 — Borland atan2(double y, double x)
+   Call target: 0x0:0x1421
+   File offset: 0x7E21
+   Calling convention: two doubles pushed (16 bytes total), result on FPU ST(0)
+   Stack layout: [bp+0x6]=x (8 bytes), [bp+0xE]=y (8 bytes)
+   Evidence:
+     - fld qword [bp+0xE]          ; load y
+     - fld qword [bp+0x6]          ; load x (ST(0)=x, ST(1)=y)
+     - Sign checks on both arguments (and al,0xF0 / test [bp+0x15],0x80)
+     - FDIVRP ST1                   ; ST(0) = y/x
+     - FPTAN                        ; ST(0) = 1.0, ST(1) = tan(atan(y/x))
+     - Quadrant adjustment:
+       test byte [bp+0x15], 0x80    ; check sign of y
+       jz positive_y
+       FLDPI                        ; load PI for quadrant correction
+       test byte [bp+0xD], 0x80     ; check sign of x
+       jz positive_x
+       FSUBP ST1                    ; angle -= PI (quadrant III)
+       jmp done
+       positive_x:
+       FADDP ST1                    ; angle += PI (quadrant II)
+       done:
+     - pop bp; retf
+
+6. _tan — Borland tan(double x)
+   Call target: 0x0:0x04DC
+   File offset: 0x6EDC
+   Calling convention: double arg pushed on stack (8 bytes), result on FPU ST(0)
+   Evidence:
+     - fld qword [bp+0x6]          ; load double argument
+     - FPTAN                        ; partial tangent: ST(0)=1.0, ST(1)=tan(x)
+     - pop bp; retf
+   Note: FPTAN leaves 1.0 on top of stack; caller must handle this.
+
+7. _fabs — Borland fabs(double x)
+   Call target: 0x0:0x0500
+   File offset: 0x6F00
+   Calling convention: double arg pushed on stack (8 bytes), result on FPU ST(0)
+   Evidence:
+     - push bp; mov bp,sp
+     - FWAIT
+     - and byte [bp+0xD], 0x7F     ; clear sign bit of IEEE 754 double
+     - fld qword [bp+0x6]          ; load the now-positive double
+     - pop bp; retf
+   Elegant: directly clears the MSB of the double's high byte in memory,
+   then loads it. No FPU sign manipulation needed.
+
+8. __stkchk — Borland stack overflow check
+   Call target: 0x0:0xA2CE
+   File offset: 0x10CCE
+   Calling convention: called when SP < [DS:0x519A]
+   Evidence:
+     - Called at function entry: cmp [0x519A],sp / ja skip / call __stkchk
+     - Present in every function with >0 local variables (enter instruction)
+
+
+FPU Type Check
+--------------
+All trig functions check DS:0xBE30 >= 3 before using native 387 instructions.
+This indicates the Borland RTL detects the FPU type at startup:
+  0 = no FPU (pure software emulation via INT handlers)
+  1 = 8087
+  2 = 80287
+  3 = 80387+ (supports FSIN, FCOS, FSQRT, FPTAN natively)
+When FPU type < 3, functions fall through to software polynomial approximations
+using a shared evaluator (near call within the RTL code segment).

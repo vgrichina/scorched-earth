@@ -1,0 +1,2956 @@
+0x25D5D  1F35:000D  in al,byte 0x6b                        ; x86
+0x25D5F  1F35:000F  shr byte [si-0x3c],byte 0x1e           ; x86
+0x25D63  1F35:0013  mov ax,0x3ce                           ; x86
+0x25D66  1F35:0016  db 0xd8                                ; x86
+0x25D67  1F35:0017  fcomp st5                              ; INT 3Ch
+0x25D6A  1F35:001A  inc di                                 ; x86
+0x25D6B  1F35:001B  db 0x04                                ; x86
+0x25D6C  1F35:001C  fld qword [bp-0x30]                    ; INT 39h
+0x25D70  1F35:0020  fmul qword [bp-0x20]                   ; INT 38h
+0x25D74  1F35:0024  faddp st1                              ; INT 3Ah
+0x25D77  1F35:0027  mov ax,[0xe4da]                        ; x86
+0x25D7A  1F35:002A  imul ax,ax,0x6c                        ; x86
+0x25D7D  1F35:002D  les bx,word [0xceb8]                   ; x86
+0x25D81  1F35:0031  add bx,ax                              ; x86
+0x25D83  1F35:0033  fcomp st5                              ; INT 3Ch
+0x25D86  1F35:0036  pop di                                 ; x86
+0x25D87  1F35:0037  db 0x04                                ; x86
+0x25D88  1F35:0038  wait                                   ; INT 3Dh
+0x25D8A  1F35:003A  mov ax,[0xe4da]                        ; x86
+0x25D8D  1F35:003D  imul ax,ax,0x6c                        ; x86
+0x25D90  1F35:0040  les bx,word [0xceb8]                   ; x86
+0x25D94  1F35:0044  add bx,ax                              ; x86
+0x25D96  1F35:0046  fcomp st5                              ; INT 3Ch
+0x25D99  1F35:0049  inc di                                 ; x86
+0x25D9A  1F35:004A  db 0x0c                                ; x86
+0x25D9B  1F35:004B  fld qword [bp-0x30]                    ; INT 39h
+0x25D9F  1F35:004F  fmul qword [bp-0x28]                   ; INT 38h
+0x25DA3  1F35:0053  faddp st1                              ; INT 3Ah
+0x25DA6  1F35:0056  mov ax,[0xe4da]                        ; x86
+0x25DA9  1F35:0059  imul ax,ax,0x6c                        ; x86
+0x25DAC  1F35:005C  les bx,word [0xceb8]                   ; x86
+0x25DB0  1F35:0060  add bx,ax                              ; x86
+0x25DB2  1F35:0062  fcomp st5                              ; INT 3Ch
+0x25DB5  1F35:0065  pop di                                 ; x86
+0x25DB6  1F35:0066  db 0x0c                                ; x86
+0x25DB7  1F35:0067  wait                                   ; INT 3Dh
+0x25DB9  1F35:0069  mov ax,0x1                             ; x86
+0x25DBC  1F35:006C  jmp 0x6e                               ; x86
+0x25DBE  1F35:006E  pop si                                 ; x86
+0x25DBF  1F35:006F  leave                                  ; x86
+0x25DC0  1F35:0070  retf                                   ; x86  ; --- end ---
+0x25DC1  1F35:0071  push bp                                ; x86
+0x25DC2  1F35:0072  mov bp,sp                              ; x86
+0x25DC4  1F35:0074  mov dx,[bp+0x6]                        ; x86
+0x25DC7  1F35:0077  cmp [0x519a],sp                        ; x86
+0x25DCB  1F35:007B  ja 0x82                                ; x86
+0x25DCD  1F35:007D  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x25DD2  1F35:0082  cmp [0xd548],dx                        ; x86
+0x25DD6  1F35:0086  jnl 0x93                               ; x86
+0x25DD8  1F35:0088  cmp dx,[0xd552]                        ; x86
+0x25DDC  1F35:008C  jg 0x93                                ; x86
+0x25DDE  1F35:008E  mov ax,0x1                             ; x86
+0x25DE1  1F35:0091  jmp 0x95                               ; x86
+0x25DE3  1F35:0093  xor ax,ax                              ; x86
+0x25DE5  1F35:0095  pop bp                                 ; x86
+0x25DE6  1F35:0096  retf                                   ; x86  ; --- end ---
+0x25DE7  1F35:0097  pop bp                                 ; x86
+0x25DE8  1F35:0098  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x25DE9 ===
+; ============================================================
+0x25DE9  1F35:0099  enter word 0x20,byte 0x0               ; x86
+0x25DED  1F35:009D  push si                                ; x86
+0x25DEE  1F35:009E  cmp [0x519a],sp                        ; x86
+0x25DF2  1F35:00A2  ja 0xa9                                ; x86
+0x25DF4  1F35:00A4  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x25DF9  1F35:00A9  mov word [bp-0x1a],0xa                 ; x86
+0x25DFE  1F35:00AE  mov word [bp-0x1c],0x5                 ; x86
+0x25E03  1F35:00B3  mov word [bp-0x1e],0xa                 ; x86
+0x25E08  1F35:00B8  mov ax,[bp+0x6]                        ; x86
+0x25E0B  1F35:00BB  add ax,ax                              ; x86
+0x25E0D  1F35:00BD  mov [bp-0x20],ax                       ; x86
+0x25E10  1F35:00C0  fild word [bp-0x20]                    ; INT 3Bh
+0x25E14  1F35:00C4  fdivr qword [0x322e]                   ; INT 38h  DS:322E
+0x25E19  1F35:00C9  fstp qword [bp-0x8]                    ; INT 39h
+0x25E1D  1F35:00CD  wait                                   ; INT 3Dh
+0x25E1F  1F35:00CF  mov ax,[bp-0x1e]                       ; x86
+0x25E22  1F35:00D2  mov [bp-0x20],ax                       ; x86
+0x25E25  1F35:00D5  fild word [bp-0x20]                    ; INT 3Bh
+0x25E29  1F35:00D9  fdivr qword [0x3236]                   ; INT 38h  DS:3236
+0x25E2E  1F35:00DE  fstp qword [bp-0x18]                   ; INT 39h
+0x25E32  1F35:00E2  wait                                   ; INT 3Dh
+0x25E34  1F35:00E4  fld qword [bp-0x8]                     ; INT 39h
+0x25E38  1F35:00E8  fmul dword [0x323e]                    ; INT 34h  DS:323E
+0x25E3D  1F35:00ED  fstp qword [bp-0x10]                   ; INT 39h
+0x25E41  1F35:00F1  wait                                   ; INT 3Dh
+0x25E43  1F35:00F3  mov ax,[bp+0x8]                        ; x86
+0x25E46  1F35:00F6  add ax,0xffe2                          ; x86
+0x25E49  1F35:00F9  mov si,ax                              ; x86
+0x25E4B  1F35:00FB  mov word [0x322c],0x0                  ; x86
+0x25E51  1F35:0101  jmp 0x1c8                              ; x86
+0x25E54  1F35:0104  call word 0x2bf9:word 0x275            ; x86
+0x25E59  1F35:0109  mov [bp-0x20],si                       ; x86
+0x25E5C  1F35:010C  fild word [bp-0x20]                    ; INT 3Bh
+0x25E60  1F35:0110  fmulp st1                              ; INT 3Ah
+0x25E63  1F35:0113  fmul dword [0x3242]                    ; INT 34h  DS:3242
+0x25E68  1F35:0118  mov bx,[0x322c]                        ; x86
+0x25E6C  1F35:011C  shl bx,byte 0x3                        ; x86
+0x25E6F  1F35:011F  fstp qword [bx-0x3020]                 ; INT 39h
+0x25E74  1F35:0124  wait                                   ; INT 3Dh
+0x25E76  1F35:0126  call word 0x2bf9:word 0x275            ; x86
+0x25E7B  1F35:012B  fmul qword [bp-0x10]                   ; INT 38h
+0x25E7F  1F35:012F  mov bx,[0x322c]                        ; x86
+0x25E83  1F35:0133  shl bx,byte 0x3                        ; x86
+0x25E86  1F35:0136  fstp qword [bx-0x3070]                 ; INT 39h
+0x25E8B  1F35:013B  wait                                   ; INT 3Dh
+0x25E8D  1F35:013D  mov bx,[0x322c]                        ; x86
+0x25E91  1F35:0141  shl bx,byte 0x3                        ; x86
+0x25E94  1F35:0144  fld qword [bx-0x3070]                  ; INT 39h
+0x25E99  1F35:0149  fcomp qword [bp-0x8]                   ; INT 38h
+0x25E9D  1F35:014D  fnstsw [bp-0x20]                       ; INT 39h
+0x25EA1  1F35:0151  wait                                   ; INT 3Dh
+0x25EA3  1F35:0153  mov ax,[bp-0x20]                       ; x86
+0x25EA6  1F35:0156  sahf                                   ; x86
+0x25EA7  1F35:0157  jc 0x126                               ; x86
+0x25EA9  1F35:0159  mov bx,[0x322c]                        ; x86
+0x25EAD  1F35:015D  shl bx,byte 0x3                        ; x86
+0x25EB0  1F35:0160  fld qword [bx-0x3070]                  ; INT 39h
+0x25EB5  1F35:0165  fcomp qword [bp-0x18]                  ; INT 38h
+0x25EB9  1F35:0169  fnstsw [bp-0x20]                       ; INT 39h
+0x25EBD  1F35:016D  wait                                   ; INT 3Dh
+0x25EBF  1F35:016F  mov ax,[bp-0x20]                       ; x86
+0x25EC2  1F35:0172  sahf                                   ; x86
+0x25EC3  1F35:0173  ja 0x126                               ; x86
+0x25EC5  1F35:0175  push word 0x12c                        ; x86
+0x25EC8  1F35:0178  call word 0x2bf9:word 0x48b            ; x86
+0x25ECD  1F35:017D  pop cx                                 ; x86
+0x25ECE  1F35:017E  mov [bp-0x20],ax                       ; x86
+0x25ED1  1F35:0181  fild word [bp-0x20]                    ; INT 3Bh
+0x25ED5  1F35:0185  mov bx,[0x322c]                        ; x86
+0x25ED9  1F35:0189  shl bx,byte 0x3                        ; x86
+0x25EDC  1F35:018C  fstp qword [bx-0x2fd0]                 ; INT 39h
+0x25EE1  1F35:0191  wait                                   ; INT 3Dh
+0x25EE3  1F35:0193  mov bx,[0x322c]                        ; x86
+0x25EE7  1F35:0197  shl bx,byte 0x3                        ; x86
+0x25EEA  1F35:019A  fld qword [bx-0x3020]                  ; INT 39h
+0x25EEF  1F35:019F  fmul dword [0x3246]                    ; INT 34h  DS:3246
+0x25EF4  1F35:01A4  mov [bp-0x20],si                       ; x86
+0x25EF7  1F35:01A7  fild word [bp-0x20]                    ; INT 3Bh
+0x25EFB  1F35:01AB  fsubrp st1                             ; INT 3Ah
+0x25EFE  1F35:01AE  call word 0x0:word 0x14df              ; x86  → _ftol
+0x25F03  1F35:01B3  mov si,ax                              ; x86
+0x25F05  1F35:01B5  fld dword [0x323e]                     ; INT 35h  DS:323E
+0x25F0A  1F35:01BA  fmul qword [bp-0x10]                   ; INT 38h
+0x25F0E  1F35:01BE  fstp qword [bp-0x10]                   ; INT 39h
+0x25F12  1F35:01C2  wait                                   ; INT 3Dh
+0x25F14  1F35:01C4  inc word [0x322c]                      ; x86
+0x25F18  1F35:01C8  cmp si,[bp-0x1a]                       ; x86
+0x25F1B  1F35:01CB  jng 0x1d8                              ; x86
+0x25F1D  1F35:01CD  mov ax,[0x322c]                        ; x86
+0x25F20  1F35:01D0  cmp ax,[bp-0x1c]                       ; x86
+0x25F23  1F35:01D3  jnl 0x1d8                              ; x86
+0x25F25  1F35:01D5  jmp 0x104                              ; x86
+0x25F28  1F35:01D8  cmp word [0x322c],0x2                  ; x86
+0x25F2D  1F35:01DD  jnl 0x1e2                              ; x86
+0x25F2F  1F35:01DF  jmp 0xe4                               ; x86
+0x25F32  1F35:01E2  jmp 0x1e4                              ; x86
+0x25F34  1F35:01E4  pop si                                 ; x86
+0x25F35  1F35:01E5  leave                                  ; x86
+0x25F36  1F35:01E6  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x25F37 ===
+; ============================================================
+0x25F37  1F35:01E7  enter word 0x10,byte 0x0               ; x86
+0x25F3B  1F35:01EB  push si                                ; x86
+0x25F3C  1F35:01EC  push di                                ; x86
+0x25F3D  1F35:01ED  cmp [0x519a],sp                        ; x86
+0x25F41  1F35:01F1  ja 0x1f8                               ; x86
+0x25F43  1F35:01F3  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x25F48  1F35:01F8  mov ax,[bp+0xc]                        ; x86
+0x25F4B  1F35:01FB  sub ax,[bp+0x10]                       ; x86
+0x25F4E  1F35:01FE  inc ax                                 ; x86
+0x25F4F  1F35:01FF  push ax                                ; x86
+0x25F50  1F35:0200  mov ax,[bp+0xe]                        ; x86
+0x25F53  1F35:0203  sub ax,[bp+0xa]                        ; x86
+0x25F56  1F35:0206  inc ax                                 ; x86
+0x25F57  1F35:0207  push ax                                ; x86
+0x25F58  1F35:0208  push cs                                ; x86
+0x25F59  1F35:0209  call 0x99                              ; x86
+0x25F5C  1F35:020C  add sp,0x4                             ; x86
+0x25F5F  1F35:020F  fld qword [0xcfe0]                     ; INT 39h  DS:CFE0
+0x25F64  1F35:0214  fstp qword [bp-0xe]                    ; INT 39h
+0x25F68  1F35:0218  mov si,0x1                             ; x86
+0x25F6B  1F35:021B  wait                                   ; INT 3Dh
+0x25F6D  1F35:021D  jmp 0x234                              ; x86
+0x25F6F  1F35:021F  mov bx,si                              ; x86
+0x25F71  1F35:0221  shl bx,byte 0x3                        ; x86
+0x25F74  1F35:0224  fld qword [bx-0x3020]                  ; INT 39h
+0x25F79  1F35:0229  fadd qword [bp-0xe]                    ; INT 38h
+0x25F7D  1F35:022D  fstp qword [bp-0xe]                    ; INT 39h
+0x25F81  1F35:0231  wait                                   ; INT 3Dh
+0x25F83  1F35:0233  inc si                                 ; x86
+0x25F84  1F35:0234  cmp si,[0x322c]                        ; x86
+0x25F88  1F35:0238  jl 0x21f                               ; x86
+0x25F8A  1F35:023A  mov ax,[bp+0xc]                        ; x86
+0x25F8D  1F35:023D  sub ax,[bp+0x10]                       ; x86
+0x25F90  1F35:0240  add ax,0xffec                          ; x86
+0x25F93  1F35:0243  mov [bp-0x10],ax                       ; x86
+0x25F96  1F35:0246  fild word [bp-0x10]                    ; INT 3Bh
+0x25F9A  1F35:024A  fld dword [0x3246]                     ; INT 35h  DS:3246
+0x25F9F  1F35:024F  fmul qword [bp-0xe]                    ; INT 38h
+0x25FA3  1F35:0253  fsubp st1                              ; INT 3Ah
+0x25FA6  1F35:0256  call word 0x0:word 0x14df              ; x86  → _ftol
+0x25FAB  1F35:025B  mov [bp-0x2],ax                        ; x86
+0x25FAE  1F35:025E  push word [bp-0x2]                     ; x86
+0x25FB1  1F35:0261  call word 0x2bf9:word 0x48b            ; x86
+0x25FB6  1F35:0266  pop cx                                 ; x86
+0x25FB7  1F35:0267  mov [bp-0x10],ax                       ; x86
+0x25FBA  1F35:026A  fild word [bp-0x10]                    ; INT 3Bh
+0x25FBE  1F35:026E  mov ax,[bp+0x10]                       ; x86
+0x25FC1  1F35:0271  mov [bp-0x10],ax                       ; x86
+0x25FC4  1F35:0274  fild word [bp-0x10]                    ; INT 3Bh
+0x25FC8  1F35:0278  fadd qword [bp-0xe]                    ; INT 38h
+0x25FCC  1F35:027C  faddp st1                              ; INT 3Ah
+0x25FCF  1F35:027F  call word 0x0:word 0x14df              ; x86  → _ftol
+0x25FD4  1F35:0284  mov [bp-0x6],ax                        ; x86
+0x25FD7  1F35:0287  mov word [bp-0x4],0x0                  ; x86
+0x25FDC  1F35:028C  les bx,word [bp+0x6]                   ; x86
+0x25FDF  1F35:028F  cmp word [es:bx+0x8],0x1               ; x86
+0x25FE4  1F35:0294  jz 0x299                               ; x86
+0x25FE6  1F35:0296  jmp 0x32b                              ; x86
+0x25FE9  1F35:0299  mov si,[bp+0xa]                        ; x86
+0x25FEC  1F35:029C  jmp 0x320                              ; x86
+0x25FEF  1F35:029F  inc word [bp-0x4]                      ; x86
+0x25FF2  1F35:02A2  mov ax,[bp-0x6]                        ; x86
+0x25FF5  1F35:02A5  mov [bp-0x10],ax                       ; x86
+0x25FF8  1F35:02A8  fild word [bp-0x10]                    ; INT 3Bh
+0x25FFC  1F35:02AC  fstp qword [bp-0xe]                    ; INT 39h
+0x26000  1F35:02B0  xor di,di                              ; x86
+0x26002  1F35:02B2  wait                                   ; INT 3Dh
+0x26004  1F35:02B4  jmp 0x300                              ; x86
+0x26006  1F35:02B6  mov bx,di                              ; x86
+0x26008  1F35:02B8  shl bx,byte 0x3                        ; x86
+0x2600B  1F35:02BB  fld qword [bx-0x3070]                  ; INT 39h
+0x26010  1F35:02C0  mov bx,di                              ; x86
+0x26012  1F35:02C2  shl bx,byte 0x3                        ; x86
+0x26015  1F35:02C5  fld qword [bx-0x2fd0]                  ; INT 39h
+0x2601A  1F35:02CA  mov ax,[bp-0x4]                        ; x86
+0x2601D  1F35:02CD  mov [bp-0x10],ax                       ; x86
+0x26020  1F35:02D0  fild word [bp-0x10]                    ; INT 3Bh
+0x26024  1F35:02D4  faddp st1                              ; INT 3Ah
+0x26027  1F35:02D7  fmulp st1                              ; INT 3Ah
+0x2602A  1F35:02DA  sub sp,0x8                             ; x86
+0x2602D  1F35:02DD  fstp qword [bp-0x1c]                   ; INT 39h
+0x26031  1F35:02E1  wait                                   ; INT 3Dh
+0x26033  1F35:02E3  call word 0x0:word 0x1204              ; x86  → _sin
+0x26038  1F35:02E8  add sp,0x8                             ; x86
+0x2603B  1F35:02EB  mov bx,di                              ; x86
+0x2603D  1F35:02ED  shl bx,byte 0x3                        ; x86
+0x26040  1F35:02F0  fmul qword [bx-0x3020]                 ; INT 38h
+0x26045  1F35:02F5  fadd qword [bp-0xe]                    ; INT 38h
+0x26049  1F35:02F9  fstp qword [bp-0xe]                    ; INT 39h
+0x2604D  1F35:02FD  wait                                   ; INT 3Dh
+0x2604F  1F35:02FF  inc di                                 ; x86
+0x26050  1F35:0300  cmp di,[0x322c]                        ; x86
+0x26054  1F35:0304  jl 0x2b6                               ; x86
+0x26056  1F35:0306  fld qword [bp-0xe]                     ; INT 39h
+0x2605A  1F35:030A  call word 0x0:word 0x14df              ; x86  → _ftol
+0x2605F  1F35:030F  push ax                                ; x86
+0x26060  1F35:0310  push si                                ; x86
+0x26061  1F35:0311  push word [bp+0x8]                     ; x86
+0x26064  1F35:0314  push word [bp+0x6]                     ; x86
+0x26067  1F35:0317  call word 0x223a:word 0x980            ; x86
+0x2606C  1F35:031C  add sp,0x8                             ; x86
+0x2606F  1F35:031F  inc si                                 ; x86
+0x26070  1F35:0320  cmp si,[bp+0xe]                        ; x86
+0x26073  1F35:0323  jg 0x328                               ; x86
+0x26075  1F35:0325  jmp 0x29f                              ; x86
+0x26078  1F35:0328  jmp 0x3ba                              ; x86
+0x2607B  1F35:032B  mov si,[bp+0xe]                        ; x86
+0x2607E  1F35:032E  jmp 0x3b2                              ; x86
+0x26081  1F35:0331  inc word [bp-0x4]                      ; x86
+0x26084  1F35:0334  mov ax,[bp-0x6]                        ; x86
+0x26087  1F35:0337  mov [bp-0x10],ax                       ; x86
+0x2608A  1F35:033A  fild word [bp-0x10]                    ; INT 3Bh
+0x2608E  1F35:033E  fstp qword [bp-0xe]                    ; INT 39h
+0x26092  1F35:0342  xor di,di                              ; x86
+0x26094  1F35:0344  wait                                   ; INT 3Dh
+0x26096  1F35:0346  jmp 0x392                              ; x86
+0x26098  1F35:0348  mov bx,di                              ; x86
+0x2609A  1F35:034A  shl bx,byte 0x3                        ; x86
+0x2609D  1F35:034D  fld qword [bx-0x3070]                  ; INT 39h
+0x260A2  1F35:0352  mov bx,di                              ; x86
+0x260A4  1F35:0354  shl bx,byte 0x3                        ; x86
+0x260A7  1F35:0357  fld qword [bx-0x2fd0]                  ; INT 39h
+0x260AC  1F35:035C  mov ax,[bp-0x4]                        ; x86
+0x260AF  1F35:035F  mov [bp-0x10],ax                       ; x86
+0x260B2  1F35:0362  fild word [bp-0x10]                    ; INT 3Bh
+0x260B6  1F35:0366  faddp st1                              ; INT 3Ah
+0x260B9  1F35:0369  fmulp st1                              ; INT 3Ah
+0x260BC  1F35:036C  sub sp,0x8                             ; x86
+0x260BF  1F35:036F  fstp qword [bp-0x1c]                   ; INT 39h
+0x260C3  1F35:0373  wait                                   ; INT 3Dh
+0x260C5  1F35:0375  call word 0x0:word 0x1204              ; x86  → _sin
+0x260CA  1F35:037A  add sp,0x8                             ; x86
+0x260CD  1F35:037D  mov bx,di                              ; x86
+0x260CF  1F35:037F  shl bx,byte 0x3                        ; x86
+0x260D2  1F35:0382  fmul qword [bx-0x3020]                 ; INT 38h
+0x260D7  1F35:0387  fadd qword [bp-0xe]                    ; INT 38h
+0x260DB  1F35:038B  fstp qword [bp-0xe]                    ; INT 39h
+0x260DF  1F35:038F  wait                                   ; INT 3Dh
+0x260E1  1F35:0391  inc di                                 ; x86
+0x260E2  1F35:0392  cmp di,[0x322c]                        ; x86
+0x260E6  1F35:0396  jl 0x348                               ; x86
+0x260E8  1F35:0398  fld qword [bp-0xe]                     ; INT 39h
+0x260EC  1F35:039C  call word 0x0:word 0x14df              ; x86  → _ftol
+0x260F1  1F35:03A1  push ax                                ; x86
+0x260F2  1F35:03A2  push si                                ; x86
+0x260F3  1F35:03A3  push word [bp+0x8]                     ; x86
+0x260F6  1F35:03A6  push word [bp+0x6]                     ; x86
+0x260F9  1F35:03A9  call word 0x223a:word 0x980            ; x86
+0x260FE  1F35:03AE  add sp,0x8                             ; x86
+0x26101  1F35:03B1  dec si                                 ; x86
+0x26102  1F35:03B2  cmp si,[bp+0xa]                        ; x86
+0x26105  1F35:03B5  jl 0x3ba                               ; x86
+0x26107  1F35:03B7  jmp 0x331                              ; x86
+0x2610A  1F35:03BA  jmp 0x3bc                              ; x86
+0x2610C  1F35:03BC  pop di                                 ; x86
+0x2610D  1F35:03BD  pop si                                 ; x86
+0x2610E  1F35:03BE  leave                                  ; x86
+0x2610F  1F35:03BF  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x26110 ===
+; ============================================================
+0x26110  1F35:03C0  enter word 0x8,byte 0x0                ; x86
+0x26114  1F35:03C4  push si                                ; x86
+0x26115  1F35:03C5  push di                                ; x86
+0x26116  1F35:03C6  cmp [0x519a],sp                        ; x86
+0x2611A  1F35:03CA  ja 0x3d1                               ; x86
+0x2611C  1F35:03CC  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26121  1F35:03D1  mov ax,[bp+0xa]                        ; x86
+0x26124  1F35:03D4  add [bp+0x6],ax                        ; x86
+0x26127  1F35:03D7  mov word [bp-0x2],0x0                  ; x86
+0x2612C  1F35:03DC  mov si,[bp+0x6]                        ; x86
+0x2612F  1F35:03DF  mov ax,[bp+0x8]                        ; x86
+0x26132  1F35:03E2  add ax,[bp+0xc]                        ; x86
+0x26135  1F35:03E5  mov di,ax                              ; x86
+0x26137  1F35:03E7  mov dx,[bp+0x12]                       ; x86
+0x2613A  1F35:03EA  mov ax,[bp+0x10]                       ; x86
+0x2613D  1F35:03ED  mov [bp-0x4],dx                        ; x86
+0x26140  1F35:03F0  mov [bp-0x6],ax                        ; x86
+0x26143  1F35:03F3  jmp 0x472                              ; x86
+0x26145  1F35:03F5  cmp word [bp+0x16],0x0                 ; x86
+0x26149  1F35:03F9  jz 0x414                               ; x86
+0x2614B  1F35:03FB  les bx,word [bp-0x6]                   ; x86
+0x2614E  1F35:03FE  mov al,[es:bx]                         ; x86
+0x26151  1F35:0401  cbw                                    ; x86
+0x26152  1F35:0402  or ax,ax                               ; x86
+0x26154  1F35:0404  jng 0x412                              ; x86
+0x26156  1F35:0406  push word [bp+0x14]                    ; x86
+0x26159  1F35:0409  push di                                ; x86
+0x2615A  1F35:040A  push si                                ; x86
+0x2615B  1F35:040B  call word far [0xeef4]                 ; x86
+0x2615F  1F35:040F  add sp,0x6                             ; x86
+0x26162  1F35:0412  jmp 0x45a                              ; x86
+0x26164  1F35:0414  cmp word [bp+0x14],0x0                 ; x86
+0x26168  1F35:0418  jl 0x444                               ; x86
+0x2616A  1F35:041A  les bx,word [bp-0x6]                   ; x86
+0x2616D  1F35:041D  cmp byte [es:bx],0x0                   ; x86
+0x26171  1F35:0421  jz 0x442                               ; x86
+0x26173  1F35:0423  les bx,word [bp-0x6]                   ; x86
+0x26176  1F35:0426  mov al,[es:bx]                         ; x86
+0x26179  1F35:0429  cbw                                    ; x86
+0x2617A  1F35:042A  mov [bp-0x8],ax                        ; x86
+0x2617D  1F35:042D  mov ax,[bp-0x8]                        ; x86
+0x26180  1F35:0430  cwd                                    ; x86
+0x26181  1F35:0431  xor ax,dx                              ; x86
+0x26183  1F35:0433  sub ax,dx                              ; x86
+0x26185  1F35:0435  add ax,[bp+0x14]                       ; x86
+0x26188  1F35:0438  push ax                                ; x86
+0x26189  1F35:0439  push di                                ; x86
+0x2618A  1F35:043A  push si                                ; x86
+0x2618B  1F35:043B  call word far [0xeef4]                 ; x86
+0x2618F  1F35:043F  add sp,0x6                             ; x86
+0x26192  1F35:0442  jmp 0x45a                              ; x86
+0x26194  1F35:0444  les bx,word [bp-0x6]                   ; x86
+0x26197  1F35:0447  cmp byte [es:bx],0x0                   ; x86
+0x2619B  1F35:044B  jz 0x45a                               ; x86
+0x2619D  1F35:044D  push word [0xef28]                     ; x86
+0x261A1  1F35:0451  push di                                ; x86
+0x261A2  1F35:0452  push si                                ; x86
+0x261A3  1F35:0453  call word far [0xeef4]                 ; x86
+0x261A7  1F35:0457  add sp,0x6                             ; x86
+0x261AA  1F35:045A  inc si                                 ; x86
+0x261AB  1F35:045B  inc word [bp-0x6]                      ; x86
+0x261AE  1F35:045E  inc word [bp-0x2]                      ; x86
+0x261B1  1F35:0461  mov ax,[bp-0x2]                        ; x86
+0x261B4  1F35:0464  cmp ax,[bp+0xe]                        ; x86
+0x261B7  1F35:0467  jnz 0x472                              ; x86
+0x261B9  1F35:0469  mov word [bp-0x2],0x0                  ; x86
+0x261BE  1F35:046E  mov si,[bp+0x6]                        ; x86
+0x261C1  1F35:0471  inc di                                 ; x86
+0x261C2  1F35:0472  les bx,word [bp-0x6]                   ; x86
+0x261C5  1F35:0475  mov al,[es:bx]                         ; x86
+0x261C8  1F35:0478  cbw                                    ; x86
+0x261C9  1F35:0479  cmp ax,0xff9d                          ; x86
+0x261CC  1F35:047C  jz 0x481                               ; x86
+0x261CE  1F35:047E  jmp 0x3f5                              ; x86
+0x261D1  1F35:0481  jmp 0x483                              ; x86
+0x261D3  1F35:0483  pop di                                 ; x86
+0x261D4  1F35:0484  pop si                                 ; x86
+0x261D5  1F35:0485  leave                                  ; x86
+0x261D6  1F35:0486  retf                                   ; x86  ; --- end ---
+0x261D7  1F35:0487  push bp                                ; x86
+0x261D8  1F35:0488  mov bp,sp                              ; x86
+0x261DA  1F35:048A  push si                                ; x86
+0x261DB  1F35:048B  mov si,[bp+0xa]                        ; x86
+0x261DE  1F35:048E  cmp [0x519a],sp                        ; x86
+0x261E2  1F35:0492  ja 0x499                               ; x86
+0x261E4  1F35:0494  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x261E9  1F35:0499  or si,si                               ; x86
+0x261EB  1F35:049B  jl 0x4a4                               ; x86
+0x261ED  1F35:049D  cmp si,0x30                            ; x86
+0x261F0  1F35:04A0  jnl 0x4a4                              ; x86
+0x261F2  1F35:04A2  jmp 0x4b5                              ; x86
+0x261F4  1F35:04A4  push word 0x0                          ; x86
+0x261F6  1F35:04A6  push word 0x262                        ; x86
+0x261F9  1F35:04A9  push ds                                ; x86
+0x261FA  1F35:04AA  push word 0x4f96                       ; x86
+0x261FD  1F35:04AD  call word 0x1d0b:word 0xda             ; x86
+0x26202  1F35:04B2  add sp,0x8                             ; x86
+0x26205  1F35:04B5  push word 0x1                          ; x86
+0x26207  1F35:04B7  push word [bp+0xc]                     ; x86
+0x2620A  1F35:04BA  mov ax,si                              ; x86
+0x2620C  1F35:04BC  imul ax,ax,0x7d                        ; x86
+0x2620F  1F35:04BF  add ax,0x3829                          ; x86
+0x26212  1F35:04C2  push ds                                ; x86
+0x26213  1F35:04C3  push ax                                ; x86
+0x26214  1F35:04C4  mov bx,si                              ; x86
+0x26216  1F35:04C6  imul bx,bx,0x7d                        ; x86
+0x26219  1F35:04C9  mov al,[bx+0x3828]                     ; x86
+0x2621D  1F35:04CD  cbw                                    ; x86
+0x2621E  1F35:04CE  push ax                                ; x86
+0x2621F  1F35:04CF  mov bx,si                              ; x86
+0x26221  1F35:04D1  imul bx,bx,0x7d                        ; x86
+0x26224  1F35:04D4  mov al,[bx+0x3827]                     ; x86
+0x26228  1F35:04D8  cbw                                    ; x86
+0x26229  1F35:04D9  push ax                                ; x86
+0x2622A  1F35:04DA  mov bx,si                              ; x86
+0x2622C  1F35:04DC  imul bx,bx,0x7d                        ; x86
+0x2622F  1F35:04DF  mov al,[bx+0x3826]                     ; x86
+0x26233  1F35:04E3  cbw                                    ; x86
+0x26234  1F35:04E4  push ax                                ; x86
+0x26235  1F35:04E5  push word [bp+0x8]                     ; x86
+0x26238  1F35:04E8  push word [bp+0x6]                     ; x86
+0x2623B  1F35:04EB  push cs                                ; x86
+0x2623C  1F35:04EC  call 0x3c0                             ; x86
+0x2623F  1F35:04EF  add sp,0x12                            ; x86
+0x26242  1F35:04F2  pop si                                 ; x86
+0x26243  1F35:04F3  pop bp                                 ; x86
+0x26244  1F35:04F4  retf                                   ; x86  ; --- end ---
+0x26245  1F35:04F5  push bp                                ; x86
+0x26246  1F35:04F6  mov bp,sp                              ; x86
+0x26248  1F35:04F8  push si                                ; x86
+0x26249  1F35:04F9  mov si,[bp+0xa]                        ; x86
+0x2624C  1F35:04FC  cmp [0x519a],sp                        ; x86
+0x26250  1F35:0500  ja 0x507                               ; x86
+0x26252  1F35:0502  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26257  1F35:0507  or si,si                               ; x86
+0x26259  1F35:0509  jl 0x512                               ; x86
+0x2625B  1F35:050B  cmp si,0x30                            ; x86
+0x2625E  1F35:050E  jnl 0x512                              ; x86
+0x26260  1F35:0510  jmp 0x523                              ; x86
+0x26262  1F35:0512  push word 0x0                          ; x86
+0x26264  1F35:0514  push word 0x267                        ; x86
+0x26267  1F35:0517  push ds                                ; x86
+0x26268  1F35:0518  push word 0x4fa0                       ; x86
+0x2626B  1F35:051B  call word 0x1d0b:word 0xda             ; x86
+0x26270  1F35:0520  add sp,0x8                             ; x86
+0x26273  1F35:0523  push word 0x0                          ; x86
+0x26275  1F35:0525  push word 0xa9                         ; x86
+0x26278  1F35:0528  mov ax,si                              ; x86
+0x2627A  1F35:052A  imul ax,ax,0x7d                        ; x86
+0x2627D  1F35:052D  add ax,0x3829                          ; x86
+0x26280  1F35:0530  push ds                                ; x86
+0x26281  1F35:0531  push ax                                ; x86
+0x26282  1F35:0532  mov bx,si                              ; x86
+0x26284  1F35:0534  imul bx,bx,0x7d                        ; x86
+0x26287  1F35:0537  mov al,[bx+0x3828]                     ; x86
+0x2628B  1F35:053B  cbw                                    ; x86
+0x2628C  1F35:053C  push ax                                ; x86
+0x2628D  1F35:053D  mov bx,si                              ; x86
+0x2628F  1F35:053F  imul bx,bx,0x7d                        ; x86
+0x26292  1F35:0542  mov al,[bx+0x3827]                     ; x86
+0x26296  1F35:0546  cbw                                    ; x86
+0x26297  1F35:0547  push ax                                ; x86
+0x26298  1F35:0548  mov bx,si                              ; x86
+0x2629A  1F35:054A  imul bx,bx,0x7d                        ; x86
+0x2629D  1F35:054D  mov al,[bx+0x3826]                     ; x86
+0x262A1  1F35:0551  cbw                                    ; x86
+0x262A2  1F35:0552  push ax                                ; x86
+0x262A3  1F35:0553  push word [bp+0x8]                     ; x86
+0x262A6  1F35:0556  push word [bp+0x6]                     ; x86
+0x262A9  1F35:0559  push cs                                ; x86
+0x262AA  1F35:055A  call 0x3c0                             ; x86
+0x262AD  1F35:055D  add sp,0x12                            ; x86
+0x262B0  1F35:0560  pop si                                 ; x86
+0x262B1  1F35:0561  pop bp                                 ; x86
+0x262B2  1F35:0562  retf                                   ; x86  ; --- end ---
+0x262B3  1F35:0563  push bp                                ; x86
+0x262B4  1F35:0564  mov bp,sp                              ; x86
+0x262B6  1F35:0566  push si                                ; x86
+0x262B7  1F35:0567  mov si,[bp+0xa]                        ; x86
+0x262BA  1F35:056A  cmp [0x519a],sp                        ; x86
+0x262BE  1F35:056E  ja 0x575                               ; x86
+0x262C0  1F35:0570  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x262C5  1F35:0575  or si,si                               ; x86
+0x262C7  1F35:0577  jl 0x580                               ; x86
+0x262C9  1F35:0579  cmp si,0x30                            ; x86
+0x262CC  1F35:057C  jnl 0x580                              ; x86
+0x262CE  1F35:057E  jmp 0x591                              ; x86
+0x262D0  1F35:0580  push word 0x0                          ; x86
+0x262D2  1F35:0582  push word 0x26c                        ; x86
+0x262D5  1F35:0585  push ds                                ; x86
+0x262D6  1F35:0586  push word 0x4faa                       ; x86
+0x262D9  1F35:0589  call word 0x1d0b:word 0xda             ; x86
+0x262DE  1F35:058E  add sp,0x8                             ; x86
+0x262E1  1F35:0591  push word 0x0                          ; x86
+0x262E3  1F35:0593  push word 0xffffffffffffffff           ; x86
+0x262E5  1F35:0595  mov ax,si                              ; x86
+0x262E7  1F35:0597  imul ax,ax,0x7d                        ; x86
+0x262EA  1F35:059A  add ax,0x3829                          ; x86
+0x262ED  1F35:059D  push ds                                ; x86
+0x262EE  1F35:059E  push ax                                ; x86
+0x262EF  1F35:059F  mov bx,si                              ; x86
+0x262F1  1F35:05A1  imul bx,bx,0x7d                        ; x86
+0x262F4  1F35:05A4  mov al,[bx+0x3828]                     ; x86
+0x262F8  1F35:05A8  cbw                                    ; x86
+0x262F9  1F35:05A9  push ax                                ; x86
+0x262FA  1F35:05AA  mov bx,si                              ; x86
+0x262FC  1F35:05AC  imul bx,bx,0x7d                        ; x86
+0x262FF  1F35:05AF  mov al,[bx+0x3827]                     ; x86
+0x26303  1F35:05B3  cbw                                    ; x86
+0x26304  1F35:05B4  push ax                                ; x86
+0x26305  1F35:05B5  mov bx,si                              ; x86
+0x26307  1F35:05B7  imul bx,bx,0x7d                        ; x86
+0x2630A  1F35:05BA  mov al,[bx+0x3826]                     ; x86
+0x2630E  1F35:05BE  cbw                                    ; x86
+0x2630F  1F35:05BF  push ax                                ; x86
+0x26310  1F35:05C0  push word [bp+0x8]                     ; x86
+0x26313  1F35:05C3  push word [bp+0x6]                     ; x86
+0x26316  1F35:05C6  push cs                                ; x86
+0x26317  1F35:05C7  call 0x3c0                             ; x86
+0x2631A  1F35:05CA  add sp,0x12                            ; x86
+0x2631D  1F35:05CD  pop si                                 ; x86
+0x2631E  1F35:05CE  pop bp                                 ; x86
+0x2631F  1F35:05CF  retf                                   ; x86  ; --- end ---
+0x26320  1F35:05D0  push bp                                ; x86
+0x26321  1F35:05D1  mov bp,sp                              ; x86
+0x26323  1F35:05D3  push si                                ; x86
+0x26324  1F35:05D4  mov si,[bp+0xa]                        ; x86
+0x26327  1F35:05D7  cmp [0x519a],sp                        ; x86
+0x2632B  1F35:05DB  ja 0x5e2                               ; x86
+0x2632D  1F35:05DD  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26332  1F35:05E2  or si,si                               ; x86
+0x26334  1F35:05E4  jl 0x5ed                               ; x86
+0x26336  1F35:05E6  cmp si,0xc                             ; x86
+0x26339  1F35:05E9  jnl 0x5ed                              ; x86
+0x2633B  1F35:05EB  jmp 0x5fe                              ; x86
+0x2633D  1F35:05ED  push word 0x0                          ; x86
+0x2633F  1F35:05EF  push word 0x271                        ; x86
+0x26342  1F35:05F2  push ds                                ; x86
+0x26343  1F35:05F3  push word 0x4fb4                       ; x86
+0x26346  1F35:05F6  call word 0x1d0b:word 0xda             ; x86
+0x2634B  1F35:05FB  add sp,0x8                             ; x86
+0x2634E  1F35:05FE  push word 0x1                          ; x86
+0x26350  1F35:0600  push word [bp+0xc]                     ; x86
+0x26353  1F35:0603  mov ax,si                              ; x86
+0x26355  1F35:0605  imul ax,ax,0x7d                        ; x86
+0x26358  1F35:0608  add ax,0x324d                          ; x86
+0x2635B  1F35:060B  push ds                                ; x86
+0x2635C  1F35:060C  push ax                                ; x86
+0x2635D  1F35:060D  mov bx,si                              ; x86
+0x2635F  1F35:060F  imul bx,bx,0x7d                        ; x86
+0x26362  1F35:0612  mov al,[bx+0x324c]                     ; x86
+0x26366  1F35:0616  cbw                                    ; x86
+0x26367  1F35:0617  push ax                                ; x86
+0x26368  1F35:0618  mov bx,si                              ; x86
+0x2636A  1F35:061A  imul bx,bx,0x7d                        ; x86
+0x2636D  1F35:061D  mov al,[bx+0x324b]                     ; x86
+0x26371  1F35:0621  cbw                                    ; x86
+0x26372  1F35:0622  push ax                                ; x86
+0x26373  1F35:0623  mov bx,si                              ; x86
+0x26375  1F35:0625  imul bx,bx,0x7d                        ; x86
+0x26378  1F35:0628  mov al,[bx+0x324a]                     ; x86
+0x2637C  1F35:062C  cbw                                    ; x86
+0x2637D  1F35:062D  push ax                                ; x86
+0x2637E  1F35:062E  push word [bp+0x8]                     ; x86
+0x26381  1F35:0631  push word [bp+0x6]                     ; x86
+0x26384  1F35:0634  push cs                                ; x86
+0x26385  1F35:0635  call 0x3c0                             ; x86
+0x26388  1F35:0638  add sp,0x12                            ; x86
+0x2638B  1F35:063B  jmp 0x63d                              ; x86
+0x2638D  1F35:063D  pop si                                 ; x86
+0x2638E  1F35:063E  pop bp                                 ; x86
+0x2638F  1F35:063F  retf                                   ; x86  ; --- end ---
+0x26390  1F35:0640  push bp                                ; x86
+0x26391  1F35:0641  mov bp,sp                              ; x86
+0x26393  1F35:0643  push si                                ; x86
+0x26394  1F35:0644  push di                                ; x86
+0x26395  1F35:0645  mov di,[bp+0x6]                        ; x86
+0x26398  1F35:0648  mov si,[bp+0xa]                        ; x86
+0x2639B  1F35:064B  cmp [0x519a],sp                        ; x86
+0x2639F  1F35:064F  ja 0x656                               ; x86
+0x263A1  1F35:0651  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x263A6  1F35:0656  or si,si                               ; x86
+0x263A8  1F35:0658  jl 0x661                               ; x86
+0x263AA  1F35:065A  cmp si,0xc                             ; x86
+0x263AD  1F35:065D  jnl 0x661                              ; x86
+0x263AF  1F35:065F  jmp 0x672                              ; x86
+0x263B1  1F35:0661  push word 0x0                          ; x86
+0x263B3  1F35:0663  push word 0x277                        ; x86
+0x263B6  1F35:0666  push ds                                ; x86
+0x263B7  1F35:0667  push word 0x4fbe                       ; x86
+0x263BA  1F35:066A  call word 0x1d0b:word 0xda             ; x86
+0x263BF  1F35:066F  add sp,0x8                             ; x86
+0x263C2  1F35:0672  cmp word [bp+0xc],0x0                  ; x86
+0x263C6  1F35:0676  jz 0x67f                               ; x86
+0x263C8  1F35:0678  push word 0x0                          ; x86
+0x263CA  1F35:067A  push word 0xa9                         ; x86
+0x263CD  1F35:067D  jmp 0x683                              ; x86
+0x263CF  1F35:067F  push word 0x0                          ; x86
+0x263D1  1F35:0681  push word 0xffffffffffffffff           ; x86
+0x263D3  1F35:0683  mov ax,si                              ; x86
+0x263D5  1F35:0685  imul ax,ax,0x7d                        ; x86
+0x263D8  1F35:0688  add ax,0x324d                          ; x86
+0x263DB  1F35:068B  push ds                                ; x86
+0x263DC  1F35:068C  push ax                                ; x86
+0x263DD  1F35:068D  mov bx,si                              ; x86
+0x263DF  1F35:068F  imul bx,bx,0x7d                        ; x86
+0x263E2  1F35:0692  mov al,[bx+0x324c]                     ; x86
+0x263E6  1F35:0696  cbw                                    ; x86
+0x263E7  1F35:0697  push ax                                ; x86
+0x263E8  1F35:0698  mov bx,si                              ; x86
+0x263EA  1F35:069A  imul bx,bx,0x7d                        ; x86
+0x263ED  1F35:069D  mov al,[bx+0x324b]                     ; x86
+0x263F1  1F35:06A1  cbw                                    ; x86
+0x263F2  1F35:06A2  push ax                                ; x86
+0x263F3  1F35:06A3  mov bx,si                              ; x86
+0x263F5  1F35:06A5  imul bx,bx,0x7d                        ; x86
+0x263F8  1F35:06A8  mov al,[bx+0x324a]                     ; x86
+0x263FC  1F35:06AC  cbw                                    ; x86
+0x263FD  1F35:06AD  push ax                                ; x86
+0x263FE  1F35:06AE  push word [bp+0x8]                     ; x86
+0x26401  1F35:06B1  push di                                ; x86
+0x26402  1F35:06B2  push cs                                ; x86
+0x26403  1F35:06B3  call 0x3c0                             ; x86
+0x26406  1F35:06B6  add sp,0x12                            ; x86
+0x26409  1F35:06B9  jmp 0x6bb                              ; x86
+0x2640B  1F35:06BB  pop di                                 ; x86
+0x2640C  1F35:06BC  pop si                                 ; x86
+0x2640D  1F35:06BD  pop bp                                 ; x86
+0x2640E  1F35:06BE  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x2640F ===
+; ============================================================
+0x2640F  1F35:06BF  enter word 0x12,byte 0x0               ; x86
+0x26413  1F35:06C3  cmp [0x519a],sp                        ; x86
+0x26417  1F35:06C7  ja 0x6ce                               ; x86
+0x26419  1F35:06C9  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x2641E  1F35:06CE  mov ax,[bp+0x6]                        ; x86
+0x26421  1F35:06D1  sub ax,[bp+0xa]                        ; x86
+0x26424  1F35:06D4  mov [bp-0x12],ax                       ; x86
+0x26427  1F35:06D7  fild word [bp-0x12]                    ; INT 3Bh
+0x2642B  1F35:06DB  fstp qword [bp-0x8]                    ; INT 39h
+0x2642F  1F35:06DF  wait                                   ; INT 3Dh
+0x26431  1F35:06E1  mov ax,[bp+0x8]                        ; x86
+0x26434  1F35:06E4  sub ax,[bp+0xc]                        ; x86
+0x26437  1F35:06E7  mov [bp-0x12],ax                       ; x86
+0x2643A  1F35:06EA  fild word [bp-0x12]                    ; INT 3Bh
+0x2643E  1F35:06EE  fstp qword [bp-0x10]                   ; INT 39h
+0x26442  1F35:06F2  fld qword [bp-0x8]                     ; INT 39h
+0x26446  1F35:06F6  fmul qword [bp-0x8]                    ; INT 38h
+0x2644A  1F35:06FA  fld qword [bp-0x10]                    ; INT 39h
+0x2644E  1F35:06FE  fmul qword [bp-0x10]                   ; INT 38h
+0x26452  1F35:0702  faddp st1                              ; INT 3Ah
+0x26455  1F35:0705  fstp qword [bp-0x8]                    ; INT 39h
+0x26459  1F35:0709  fld qword [bp-0x8]                     ; INT 39h
+0x2645D  1F35:070D  fldz                                   ; INT 35h
+0x26460  1F35:0710  fcompp                                 ; INT 3Ah
+0x26463  1F35:0713  fnstsw [bp-0x12]                       ; INT 39h
+0x26467  1F35:0717  wait                                   ; INT 3Dh
+0x26469  1F35:0719  mov ax,[bp-0x12]                       ; x86
+0x2646C  1F35:071C  sahf                                   ; x86
+0x2646D  1F35:071D  jnz 0x723                              ; x86
+0x2646F  1F35:071F  xor ax,ax                              ; x86
+0x26471  1F35:0721  leave                                  ; x86
+0x26472  1F35:0722  retf                                   ; x86  ; --- end ---
+0x26473  1F35:0723  fld qword [bp-0x8]                     ; INT 39h
+0x26477  1F35:0727  sub sp,0x8                             ; x86
+0x2647A  1F35:072A  fstp qword [bp-0x1a]                   ; INT 39h
+0x2647E  1F35:072E  wait                                   ; INT 3Dh
+0x26480  1F35:0730  call word 0x0:word 0xfc8               ; x86  → _sqrt
+0x26485  1F35:0735  add sp,0x8                             ; x86
+0x26488  1F35:0738  call word 0x0:word 0x14df              ; x86  → _ftol
+0x2648D  1F35:073D  leave                                  ; x86
+0x2648E  1F35:073E  retf                                   ; x86  ; --- end ---
+0x2648F  1F35:073F  leave                                  ; x86
+0x26490  1F35:0740  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x26491 ===
+; ============================================================
+0x26491  1F35:0741  enter word 0xa,byte 0x0                ; x86
+0x26495  1F35:0745  push si                                ; x86
+0x26496  1F35:0746  push di                                ; x86
+0x26497  1F35:0747  cmp [0x519a],sp                        ; x86
+0x2649B  1F35:074B  ja 0x752                               ; x86
+0x2649D  1F35:074D  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x264A2  1F35:0752  mov word [bp-0x2],0x0                  ; x86
+0x264A7  1F35:0757  mov si,[bp+0xa]                        ; x86
+0x264AA  1F35:075A  mov word [bp-0x4],0x0                  ; x86
+0x264AF  1F35:075F  mov word [bp-0x6],0x0                  ; x86
+0x264B4  1F35:0764  jmp 0x795                              ; x86
+0x264B6  1F35:0766  les bx,word [bp-0xa]                   ; x86
+0x264B9  1F35:0769  push word [es:bx+0x10]                 ; x86
+0x264BD  1F35:076D  les bx,word [bp-0xa]                   ; x86
+0x264C0  1F35:0770  push word [es:bx+0xe]                  ; x86
+0x264C4  1F35:0774  push word [bp+0x8]                     ; x86
+0x264C7  1F35:0777  push word [bp+0x6]                     ; x86
+0x264CA  1F35:077A  push cs                                ; x86
+0x264CB  1F35:077B  call 0x6bf                             ; x86
+0x264CE  1F35:077E  add sp,0x8                             ; x86
+0x264D1  1F35:0781  mov di,ax                              ; x86
+0x264D3  1F35:0783  cmp di,si                              ; x86
+0x264D5  1F35:0785  jnl 0x795                              ; x86
+0x264D7  1F35:0787  mov si,di                              ; x86
+0x264D9  1F35:0789  mov dx,[bp-0x8]                        ; x86
+0x264DC  1F35:078C  mov ax,[bp-0xa]                        ; x86
+0x264DF  1F35:078F  mov [bp-0x4],dx                        ; x86
+0x264E2  1F35:0792  mov [bp-0x6],ax                        ; x86
+0x264E5  1F35:0795  push ss                                ; x86
+0x264E6  1F35:0796  lea ax,[bp-0xa]                        ; x86
+0x264E9  1F35:0799  push ax                                ; x86
+0x264EA  1F35:079A  push ss                                ; x86
+0x264EB  1F35:079B  lea ax,[bp-0x2]                        ; x86
+0x264EE  1F35:079E  push ax                                ; x86
+0x264EF  1F35:079F  call word 0x2a16:word 0x1648           ; x86
+0x264F4  1F35:07A4  add sp,0x8                             ; x86
+0x264F7  1F35:07A7  or ax,ax                               ; x86
+0x264F9  1F35:07A9  jnz 0x766                              ; x86
+0x264FB  1F35:07AB  mov dx,[bp-0x4]                        ; x86
+0x264FE  1F35:07AE  mov ax,[bp-0x6]                        ; x86
+0x26501  1F35:07B1  jmp 0x7b3                              ; x86
+0x26503  1F35:07B3  pop di                                 ; x86
+0x26504  1F35:07B4  pop si                                 ; x86
+0x26505  1F35:07B5  leave                                  ; x86
+0x26506  1F35:07B6  retf                                   ; x86  ; --- end ---
+0x26507  1F35:07B7  mov dh,0x4                             ; x86
+0x26509  1F35:07B9  test al,0xa                            ; x86
+0x2650B  1F35:07BB  add al,0x0                             ; x86
+0x2650D  1F35:07BD  cld                                    ; x86
+0x2650E  1F35:07BE  inc word [bx+si]                       ; x86
+0x26510  1F35:07C0  add [bx+si],al                         ; x86
+0x26512  1F35:07C2  add [bx+si],al                         ; x86
+0x26514  1F35:07C4  add [bx+si],al                         ; x86
+0x26516  1F35:07C6  add [bx+si],al                         ; x86
+0x26518  1F35:07C8  add dh,bl                              ; x86
+0x2651A  1F35:07CA  inc word [bx+si]                       ; x86
+0x2651C  1F35:07CC  add [di],al                            ; x86
+0x2651E  1F35:07CE  add [bx+si],al                         ; x86
+0x26520  1F35:07D0  add [bx],al                            ; x86
+0x26522  1F35:07D2  add ax,cx                              ; x86
+0x26524  1F35:07D4  o32 add [bx+si],al                     ; x86
+0x26527  1F35:07D7  push si                                ; x86
+0x26528  1F35:07D8  push di                                ; x86
+0x26529  1F35:07D9  cmp [0x519a],sp                        ; x86
+0x2652D  1F35:07DD  ja 0x7e4                               ; x86
+0x2652F  1F35:07DF  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26534  1F35:07E4  mov ax,0x1fa0                          ; x86
+0x26537  1F35:07E7  mov bx,0x115                           ; x86
+0x2653A  1F35:07EA  call word 0x0:word 0x2d25              ; x86
+0x2653F  1F35:07EF  les bx,word [bp+0x6]                   ; x86
+0x26542  1F35:07F2  mov ax,[es:bx+0x2]                     ; x86
+0x26546  1F35:07F6  les bx,word [bp+0x6]                   ; x86
+0x26549  1F35:07F9  les bx,word [es:bx+0x20]               ; x86
+0x2654D  1F35:07FD  add ax,[es:bx+0x4e]                    ; x86
+0x26551  1F35:0801  add ax,0x3                             ; x86
+0x26554  1F35:0804  mov si,ax                              ; x86
+0x26556  1F35:0806  mov dx,[0xd082]                        ; x86
+0x2655A  1F35:080A  mov ax,[0xd080]                        ; x86
+0x2655D  1F35:080D  mov [bp-0x24],dx                       ; x86
+0x26560  1F35:0810  mov [bp-0x26],ax                       ; x86
+0x26563  1F35:0813  push word [0xef2e]                     ; x86
+0x26567  1F35:0817  les bx,word [bp+0x6]                   ; x86
+0x2656A  1F35:081A  mov ax,[es:bx+0x2]                     ; x86
+0x2656E  1F35:081E  les bx,word [bp+0x6]                   ; x86
+0x26571  1F35:0821  les bx,word [es:bx+0x20]               ; x86
+0x26575  1F35:0825  add ax,[es:bx+0x4e]                    ; x86
+0x26579  1F35:0829  add ax,0x2                             ; x86
+0x2657C  1F35:082C  push ax                                ; x86
+0x2657D  1F35:082D  les bx,word [bp+0x6]                   ; x86
+0x26580  1F35:0830  mov ax,[es:bx+0x4]                     ; x86
+0x26584  1F35:0834  add ax,0xfffb                          ; x86
+0x26587  1F35:0837  push ax                                ; x86
+0x26588  1F35:0838  les bx,word [bp+0x6]                   ; x86
+0x2658B  1F35:083B  mov ax,[es:bx]                         ; x86
+0x2658E  1F35:083E  add ax,0x5                             ; x86
+0x26591  1F35:0841  push ax                                ; x86
+0x26592  1F35:0842  call word far [0xef0c]                 ; x86
+0x26596  1F35:0846  add sp,0x8                             ; x86
+0x26599  1F35:0849  push word [0xef30]                     ; x86
+0x2659D  1F35:084D  les bx,word [bp+0x6]                   ; x86
+0x265A0  1F35:0850  mov ax,[es:bx+0x2]                     ; x86
+0x265A4  1F35:0854  les bx,word [bp+0x6]                   ; x86
+0x265A7  1F35:0857  les bx,word [es:bx+0x20]               ; x86
+0x265AB  1F35:085B  add ax,[es:bx+0x4e]                    ; x86
+0x265AF  1F35:085F  add ax,0x3                             ; x86
+0x265B2  1F35:0862  push ax                                ; x86
+0x265B3  1F35:0863  les bx,word [bp+0x6]                   ; x86
+0x265B6  1F35:0866  mov ax,[es:bx+0x4]                     ; x86
+0x265BA  1F35:086A  add ax,0xfffb                          ; x86
+0x265BD  1F35:086D  push ax                                ; x86
+0x265BE  1F35:086E  les bx,word [bp+0x6]                   ; x86
+0x265C1  1F35:0871  mov ax,[es:bx]                         ; x86
+0x265C4  1F35:0874  add ax,0x5                             ; x86
+0x265C7  1F35:0877  push ax                                ; x86
+0x265C8  1F35:0878  call word far [0xef0c]                 ; x86
+0x265CC  1F35:087C  add sp,0x8                             ; x86
+0x265CF  1F35:087F  push word [0xef2c]                     ; x86
+0x265D3  1F35:0883  les bx,word [bp+0x6]                   ; x86
+0x265D6  1F35:0886  mov ax,[es:bx+0x2]                     ; x86
+0x265DA  1F35:088A  add ax,0x11                            ; x86
+0x265DD  1F35:088D  push ax                                ; x86
+0x265DE  1F35:088E  les bx,word [bp+0x6]                   ; x86
+0x265E1  1F35:0891  mov ax,[es:bx+0x4]                     ; x86
+0x265E5  1F35:0895  add ax,0xfff6                          ; x86
+0x265E8  1F35:0898  push ax                                ; x86
+0x265E9  1F35:0899  push word [bp-0x24]                    ; x86
+0x265EC  1F35:089C  push word [bp-0x26]                    ; x86
+0x265EF  1F35:089F  call word 0x39d4:word 0x7              ; x86
+0x265F4  1F35:08A4  add sp,0xa                             ; x86
+0x265F7  1F35:08A7  les bx,word [bp-0x26]                  ; x86
+0x265FA  1F35:08AA  push word [es:bx+0xb8]                 ; x86
+0x265FF  1F35:08AF  push word [es:bx+0xb6]                 ; x86
+0x26604  1F35:08B4  call word 0x4589:word 0xb87            ; x86
+0x26609  1F35:08B9  add sp,0x4                             ; x86
+0x2660C  1F35:08BC  les bx,word [bp+0x6]                   ; x86
+0x2660F  1F35:08BF  mov dx,[es:bx+0x4]                     ; x86
+0x26613  1F35:08C3  les bx,word [bp+0x6]                   ; x86
+0x26616  1F35:08C6  sub dx,[es:bx]                         ; x86
+0x26619  1F35:08C9  add dx,0xfffffffffffffff8              ; x86
+0x2661C  1F35:08CC  sub dx,ax                              ; x86
+0x2661E  1F35:08CE  mov di,dx                              ; x86
+0x26620  1F35:08D0  sar di,0x0                             ; x86
+0x26622  1F35:08D2  les bx,word [bp-0x26]                  ; x86
+0x26625  1F35:08D5  push word [es:bx+0x1a]                 ; x86
+0x26629  1F35:08D9  lea ax,[si+0x10]                       ; x86
+0x2662C  1F35:08DC  push ax                                ; x86
+0x2662D  1F35:08DD  les bx,word [bp+0x6]                   ; x86
+0x26630  1F35:08E0  mov ax,[es:bx]                         ; x86
+0x26633  1F35:08E3  add ax,di                              ; x86
+0x26635  1F35:08E5  push ax                                ; x86
+0x26636  1F35:08E6  lea ax,[si+0x5]                        ; x86
+0x26639  1F35:08E9  push ax                                ; x86
+0x2663A  1F35:08EA  les bx,word [bp+0x6]                   ; x86
+0x2663D  1F35:08ED  mov ax,[es:bx]                         ; x86
+0x26640  1F35:08F0  add ax,0x4                             ; x86
+0x26643  1F35:08F3  push ax                                ; x86
+0x26644  1F35:08F4  call word far [0xef14]                 ; x86
+0x26648  1F35:08F8  add sp,0xa                             ; x86
+0x2664B  1F35:08FB  les bx,word [bp-0x26]                  ; x86
+0x2664E  1F35:08FE  push word [es:bx+0x1a]                 ; x86
+0x26652  1F35:0902  lea ax,[si+0x10]                       ; x86
+0x26655  1F35:0905  push ax                                ; x86
+0x26656  1F35:0906  les bx,word [bp+0x6]                   ; x86
+0x26659  1F35:0909  mov ax,[es:bx+0x4]                     ; x86
+0x2665D  1F35:090D  add ax,0xfffc                          ; x86
+0x26660  1F35:0910  push ax                                ; x86
+0x26661  1F35:0911  lea ax,[si+0x5]                        ; x86
+0x26664  1F35:0914  push ax                                ; x86
+0x26665  1F35:0915  les bx,word [bp+0x6]                   ; x86
+0x26668  1F35:0918  mov ax,[es:bx+0x4]                     ; x86
+0x2666C  1F35:091C  sub ax,di                              ; x86
+0x2666E  1F35:091E  push ax                                ; x86
+0x2666F  1F35:091F  call word far [0xef14]                 ; x86
+0x26673  1F35:0923  add sp,0xa                             ; x86
+0x26676  1F35:0926  lea ax,[si+0x10]                       ; x86
+0x26679  1F35:0929  push ax                                ; x86
+0x2667A  1F35:092A  les bx,word [bp+0x6]                   ; x86
+0x2667D  1F35:092D  mov ax,[es:bx]                         ; x86
+0x26680  1F35:0930  add ax,di                              ; x86
+0x26682  1F35:0932  push ax                                ; x86
+0x26683  1F35:0933  lea ax,[si+0x5]                        ; x86
+0x26686  1F35:0936  push ax                                ; x86
+0x26687  1F35:0937  les bx,word [bp+0x6]                   ; x86
+0x2668A  1F35:093A  mov ax,[es:bx]                         ; x86
+0x2668D  1F35:093D  add ax,0x4                             ; x86
+0x26690  1F35:0940  push ax                                ; x86
+0x26691  1F35:0941  call word 0x3dab:word 0x180            ; x86
+0x26696  1F35:0946  add sp,0x8                             ; x86
+0x26699  1F35:0949  lea ax,[si+0x10]                       ; x86
+0x2669C  1F35:094C  push ax                                ; x86
+0x2669D  1F35:094D  les bx,word [bp+0x6]                   ; x86
+0x266A0  1F35:0950  mov ax,[es:bx+0x4]                     ; x86
+0x266A4  1F35:0954  add ax,0xfffc                          ; x86
+0x266A7  1F35:0957  push ax                                ; x86
+0x266A8  1F35:0958  lea ax,[si+0x5]                        ; x86
+0x266AB  1F35:095B  push ax                                ; x86
+0x266AC  1F35:095C  les bx,word [bp+0x6]                   ; x86
+0x266AF  1F35:095F  mov ax,[es:bx+0x4]                     ; x86
+0x266B3  1F35:0963  sub ax,di                              ; x86
+0x266B5  1F35:0965  push ax                                ; x86
+0x266B6  1F35:0966  call word 0x3dab:word 0x180            ; x86
+0x266BB  1F35:096B  add sp,0x8                             ; x86
+0x266BE  1F35:096E  push word [0xef22]                     ; x86
+0x266C2  1F35:0972  call word 0x3ea1:word 0x28f            ; x86
+0x266C7  1F35:0977  pop cx                                 ; x86
+0x266C8  1F35:0978  les bx,word [bp-0x26]                  ; x86
+0x266CB  1F35:097B  push word [es:bx+0xb8]                 ; x86
+0x266D0  1F35:0980  push word [es:bx+0xb6]                 ; x86
+0x266D5  1F35:0985  lea ax,[si+0x5]                        ; x86
+0x266D8  1F35:0988  push ax                                ; x86
+0x266D9  1F35:0989  les bx,word [bp+0x6]                   ; x86
+0x266DC  1F35:098C  mov ax,[es:bx]                         ; x86
+0x266DF  1F35:098F  add ax,di                              ; x86
+0x266E1  1F35:0991  add ax,0x4                             ; x86
+0x266E4  1F35:0994  push ax                                ; x86
+0x266E5  1F35:0995  call word 0x4589:word 0x684            ; x86
+0x266EA  1F35:099A  add sp,0x8                             ; x86
+0x266ED  1F35:099D  les bx,word [bp-0x26]                  ; x86
+0x266F0  1F35:09A0  push word [es:bx+0xa4]                 ; x86
+0x266F5  1F35:09A5  push word [es:bx+0xa2]                 ; x86
+0x266FA  1F35:09AA  push word [0x220e]                     ; x86
+0x266FE  1F35:09AE  push word [0x220c]                     ; x86
+0x26702  1F35:09B2  push ds                                ; x86
+0x26703  1F35:09B3  push word 0x4fca                       ; x86
+0x26706  1F35:09B6  push ds                                ; x86
+0x26707  1F35:09B7  push word 0xe05e                       ; x86
+0x2670A  1F35:09BA  call word 0x0:word 0x5754              ; x86
+0x2670F  1F35:09BF  add sp,0x10                            ; x86
+0x26712  1F35:09C2  push ds                                ; x86
+0x26713  1F35:09C3  push word 0xe05e                       ; x86
+0x26716  1F35:09C6  lea ax,[si+0x11]                       ; x86
+0x26719  1F35:09C9  push ax                                ; x86
+0x2671A  1F35:09CA  les bx,word [bp+0x6]                   ; x86
+0x2671D  1F35:09CD  mov ax,[es:bx]                         ; x86
+0x26720  1F35:09D0  add ax,0x6                             ; x86
+0x26723  1F35:09D3  push ax                                ; x86
+0x26724  1F35:09D4  call word 0x4589:word 0x684            ; x86
+0x26729  1F35:09D9  add sp,0x8                             ; x86
+0x2672C  1F35:09DC  push ss                                ; x86
+0x2672D  1F35:09DD  mov word [bp-0x16],0x6                 ; x86
+0x26732  1F35:09E2  push word [bp-0x24]                    ; x86
+0x26735  1F35:09E5  push word [bp-0x26]                    ; x86
+0x26738  1F35:09E8  push ss                                ; x86
+0x26739  1F35:09E9  lea ax,[bp-0x4]                        ; x86
+0x2673C  1F35:09EC  push ax                                ; x86
+0x2673D  1F35:09ED  call word 0x2a16:word 0x819            ; x86
+0x26742  1F35:09F2  add sp,0x8                             ; x86
+0x26745  1F35:09F5  lea ax,[bp-0x4]                        ; x86
+0x26748  1F35:09F8  push ax                                ; x86
+0x26749  1F35:09F9  call word 0xaa8:word 0x3b              ; x86
+0x2674E  1F35:09FE  add sp,0x4                             ; x86
+0x26751  1F35:0A01  push dx                                ; x86
+0x26752  1F35:0A02  push ax                                ; x86
+0x26753  1F35:0A03  push ss                                ; x86
+0x26754  1F35:0A04  lea ax,[bp-0x66]                       ; x86
+0x26757  1F35:0A07  push ax                                ; x86
+0x26758  1F35:0A08  call word 0x0:word 0x584d              ; x86
+0x2675D  1F35:0A0D  add sp,0x8                             ; x86
+0x26760  1F35:0A10  push word 0x2                          ; x86
+0x26762  1F35:0A12  push ss                                ; x86
+0x26763  1F35:0A13  lea ax,[bp-0x4]                        ; x86
+0x26766  1F35:0A16  push ax                                ; x86
+0x26767  1F35:0A17  call word 0xaf7:word 0xe3              ; x86
+0x2676C  1F35:0A1C  add sp,0x6                             ; x86
+0x2676F  1F35:0A1F  push ss                                ; x86
+0x26770  1F35:0A20  lea ax,[bp-0x66]                       ; x86
+0x26773  1F35:0A23  push ax                                ; x86
+0x26774  1F35:0A24  push word [0x20be]                     ; x86
+0x26778  1F35:0A28  push word [0x20bc]                     ; x86
+0x2677C  1F35:0A2C  push ds                                ; x86
+0x2677D  1F35:0A2D  push word 0xe05e                       ; x86
+0x26780  1F35:0A30  call word 0x0:word 0x5754              ; x86
+0x26785  1F35:0A35  add sp,0xc                             ; x86
+0x26788  1F35:0A38  push ds                                ; x86
+0x26789  1F35:0A39  push word 0xe05e                       ; x86
+0x2678C  1F35:0A3C  push word [0x226e]                     ; x86
+0x26790  1F35:0A40  push word [0x226c]                     ; x86
+0x26794  1F35:0A44  push ds                                ; x86
+0x26795  1F35:0A45  push word 0x4fd1                       ; x86
+0x26798  1F35:0A48  lea ax,[si+0x1d]                       ; x86
+0x2679B  1F35:0A4B  push ax                                ; x86
+0x2679C  1F35:0A4C  les bx,word [bp+0x6]                   ; x86
+0x2679F  1F35:0A4F  mov ax,[es:bx]                         ; x86
+0x267A2  1F35:0A52  add ax,0x6                             ; x86
+0x267A5  1F35:0A55  push ax                                ; x86
+0x267A6  1F35:0A56  call word 0x4589:word 0x684            ; x86
+0x267AB  1F35:0A5B  add sp,0x10                            ; x86
+0x267AE  1F35:0A5E  push word 0x0                          ; x86
+0x267B0  1F35:0A60  push word [bp-0x24]                    ; x86
+0x267B3  1F35:0A63  push word [bp-0x26]                    ; x86
+0x267B6  1F35:0A66  call word 0x2a16:word 0x1715           ; x86
+0x267BB  1F35:0A6B  add sp,0x6                             ; x86
+0x267BE  1F35:0A6E  push dx                                ; x86
+0x267BF  1F35:0A6F  push ax                                ; x86
+0x267C0  1F35:0A70  lea ax,[si+0x29]                       ; x86
+0x267C3  1F35:0A73  push ax                                ; x86
+0x267C4  1F35:0A74  les bx,word [bp+0x6]                   ; x86
+0x267C7  1F35:0A77  mov ax,[es:bx]                         ; x86
+0x267CA  1F35:0A7A  add ax,0x6                             ; x86
+0x267CD  1F35:0A7D  push ax                                ; x86
+0x267CE  1F35:0A7E  call word 0x4589:word 0x684            ; x86
+0x267D3  1F35:0A83  add sp,0x8                             ; x86
+0x267D6  1F35:0A86  cmp word [0x50ea],0x0                  ; x86
+0x267DB  1F35:0A8B  jz 0xac0                               ; x86
+0x267DD  1F35:0A8D  les bx,word [bp-0x26]                  ; x86
+0x267E0  1F35:0A90  mov ax,[es:bx+0x30]                    ; x86
+0x267E4  1F35:0A94  inc ax                                 ; x86
+0x267E5  1F35:0A95  push ax                                ; x86
+0x267E6  1F35:0A96  push ds                                ; x86
+0x267E7  1F35:0A97  push word 0x4fd8                       ; x86
+0x267EA  1F35:0A9A  push ds                                ; x86
+0x267EB  1F35:0A9B  push word 0xe05e                       ; x86
+0x267EE  1F35:0A9E  call word 0x0:word 0x5754              ; x86
+0x267F3  1F35:0AA3  add sp,0xa                             ; x86
+0x267F6  1F35:0AA6  push ds                                ; x86
+0x267F7  1F35:0AA7  push word 0xe05e                       ; x86
+0x267FA  1F35:0AAA  lea ax,[si+0x35]                       ; x86
+0x267FD  1F35:0AAD  push ax                                ; x86
+0x267FE  1F35:0AAE  les bx,word [bp+0x6]                   ; x86
+0x26801  1F35:0AB1  mov ax,[es:bx]                         ; x86
+0x26804  1F35:0AB4  add ax,0x6                             ; x86
+0x26807  1F35:0AB7  push ax                                ; x86
+0x26808  1F35:0AB8  call word 0x4589:word 0x684            ; x86
+0x2680D  1F35:0ABD  add sp,0x8                             ; x86
+0x26810  1F35:0AC0  mov ax,[bp-0x22]                       ; x86
+0x26813  1F35:0AC3  mov [ss:0x14],ax                       ; x86
+0x26817  1F35:0AC7  jmp 0xac9                              ; x86
+0x26819  1F35:0AC9  pop di                                 ; x86
+0x2681A  1F35:0ACA  pop si                                 ; x86
+0x2681B  1F35:0ACB  leave                                  ; x86
+0x2681C  1F35:0ACC  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x2681D ===
+; ============================================================
+0x2681D  1F35:0ACD  enter word 0xe,byte 0x0                ; x86
+0x26821  1F35:0AD1  push si                                ; x86
+0x26822  1F35:0AD2  cmp [0x519a],sp                        ; x86
+0x26826  1F35:0AD6  ja 0xadd                               ; x86
+0x26828  1F35:0AD8  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x2682D  1F35:0ADD  push word 0xa                          ; x86
+0x2682F  1F35:0ADF  push word [bp+0x8]                     ; x86
+0x26832  1F35:0AE2  push word [bp+0x6]                     ; x86
+0x26835  1F35:0AE5  push cs                                ; x86
+0x26836  1F35:0AE6  call 0x741                             ; x86
+0x26839  1F35:0AE9  add sp,0x6                             ; x86
+0x2683C  1F35:0AEC  mov [0xd082],dx                        ; x86
+0x26840  1F35:0AF0  mov [0xd080],ax                        ; x86
+0x26843  1F35:0AF3  mov ax,[0xd080]                        ; x86
+0x26846  1F35:0AF6  or ax,[0xd082]                         ; x86
+0x2684A  1F35:0AFA  jnz 0xaff                              ; x86
+0x2684C  1F35:0AFC  jmp 0xbf5                              ; x86
+0x2684F  1F35:0AFF  mov si,0x4b                            ; x86
+0x26852  1F35:0B02  cmp word [0x50ea],0x0                  ; x86
+0x26857  1F35:0B07  jz 0xb0c                               ; x86
+0x26859  1F35:0B09  add si,0xf                             ; x86
+0x2685C  1F35:0B0C  cmp word [0x4fc8],0xffffffffffffffff   ; x86
+0x26861  1F35:0B11  jnz 0xb50                              ; x86
+0x26863  1F35:0B13  push si                                ; x86
+0x26864  1F35:0B14  push word 0x64                         ; x86
+0x26866  1F35:0B16  push word 0x0                          ; x86
+0x26868  1F35:0B18  push word 0x0                          ; x86
+0x2686A  1F35:0B1A  call word 0x3f19:word 0xe2             ; x86
+0x2686F  1F35:0B1F  add sp,0x8                             ; x86
+0x26872  1F35:0B22  mov [bp-0x2],dx                        ; x86
+0x26875  1F35:0B25  mov [bp-0x4],ax                        ; x86
+0x26878  1F35:0B28  mov dx,[bp-0x2]                        ; x86
+0x2687B  1F35:0B2B  mov ax,[bp-0x4]                        ; x86
+0x2687E  1F35:0B2E  mov [bp-0x8],dx                        ; x86
+0x26881  1F35:0B31  mov [bp-0xa],ax                        ; x86
+0x26884  1F35:0B34  push word [0xef3a]                     ; x86
+0x26888  1F35:0B38  push word [0xef3e]                     ; x86
+0x2688C  1F35:0B3C  push word 0x0                          ; x86
+0x2688E  1F35:0B3E  push word 0x0                          ; x86
+0x26890  1F35:0B40  push word [bp-0x8]                     ; x86
+0x26893  1F35:0B43  push word [bp-0xa]                     ; x86
+0x26896  1F35:0B46  call word 0x3f19:word 0x19c            ; x86
+0x2689B  1F35:0B4B  add sp,0xc                             ; x86
+0x2689E  1F35:0B4E  jmp 0xb73                              ; x86
+0x268A0  1F35:0B50  mov ax,[0xd084]                        ; x86
+0x268A3  1F35:0B53  add ax,si                              ; x86
+0x268A5  1F35:0B55  push ax                                ; x86
+0x268A6  1F35:0B56  mov ax,[0x4fc8]                        ; x86
+0x268A9  1F35:0B59  add ax,0x64                            ; x86
+0x268AC  1F35:0B5C  push ax                                ; x86
+0x268AD  1F35:0B5D  push word [0xd084]                     ; x86
+0x268B1  1F35:0B61  push word [0x4fc8]                     ; x86
+0x268B5  1F35:0B65  call word 0x3f19:word 0xe2             ; x86
+0x268BA  1F35:0B6A  add sp,0x8                             ; x86
+0x268BD  1F35:0B6D  mov [bp-0x2],dx                        ; x86
+0x268C0  1F35:0B70  mov [bp-0x4],ax                        ; x86
+0x268C3  1F35:0B73  push word 0x3f19                       ; x86
+0x268C6  1F35:0B76  push word 0x17d0                       ; x86
+0x268C9  1F35:0B79  push word [0x232e]                     ; x86
+0x268CD  1F35:0B7D  push word [0x232c]                     ; x86
+0x268D1  1F35:0B81  push word 0x5                          ; x86
+0x268D3  1F35:0B83  push word 0x0                          ; x86
+0x268D5  1F35:0B85  push word [bp-0x2]                     ; x86
+0x268D8  1F35:0B88  push word [bp-0x4]                     ; x86
+0x268DB  1F35:0B8B  call word 0x3f19:word 0x2577           ; x86
+0x268E0  1F35:0B90  add sp,0x10                            ; x86
+0x268E3  1F35:0B93  mov [bp-0x6],ax                        ; x86
+0x268E6  1F35:0B96  push word [bp-0x6]                     ; x86
+0x268E9  1F35:0B99  push word [bp-0x2]                     ; x86
+0x268EC  1F35:0B9C  push word [bp-0x4]                     ; x86
+0x268EF  1F35:0B9F  call word 0x3f19:word 0x2c62           ; x86
+0x268F4  1F35:0BA4  add sp,0x6                             ; x86
+0x268F7  1F35:0BA7  mov dx,[bp-0x2]                        ; x86
+0x268FA  1F35:0BAA  mov ax,[bp-0x4]                        ; x86
+0x268FD  1F35:0BAD  mov [bp-0xc],dx                        ; x86
+0x26900  1F35:0BB0  mov [bp-0xe],ax                        ; x86
+0x26903  1F35:0BB3  les bx,word [bp-0xe]                   ; x86
+0x26906  1F35:0BB6  mov word [es:bx+0x16],0x1fa0           ; x86
+0x2690C  1F35:0BBC  mov word [es:bx+0x14],0x123            ; x86
+0x26912  1F35:0BC2  push word 0x1                          ; x86
+0x26914  1F35:0BC4  push word [bp-0x2]                     ; x86
+0x26917  1F35:0BC7  push word [bp-0x4]                     ; x86
+0x2691A  1F35:0BCA  call word 0x3f19:word 0x45d            ; x86
+0x2691F  1F35:0BCF  add sp,0x6                             ; x86
+0x26922  1F35:0BD2  les bx,word [bp-0x4]                   ; x86
+0x26925  1F35:0BD5  mov ax,[es:bx]                         ; x86
+0x26928  1F35:0BD8  mov [0x4fc8],ax                        ; x86
+0x2692B  1F35:0BDB  les bx,word [bp-0x4]                   ; x86
+0x2692E  1F35:0BDE  mov ax,[es:bx+0x2]                     ; x86
+0x26932  1F35:0BE2  mov [0xd084],ax                        ; x86
+0x26935  1F35:0BE5  push word [bp-0x2]                     ; x86
+0x26938  1F35:0BE8  push word [bp-0x4]                     ; x86
+0x2693B  1F35:0BEB  call word 0x3f19:word 0x24c            ; x86
+0x26940  1F35:0BF0  add sp,0x4                             ; x86
+0x26943  1F35:0BF3  jmp 0xbf5                              ; x86
+0x26945  1F35:0BF5  pop si                                 ; x86
+0x26946  1F35:0BF6  leave                                  ; x86
+0x26947  1F35:0BF7  retf                                   ; x86  ; --- end ---
+0x26948  1F35:0BF8  push bp                                ; x86
+0x26949  1F35:0BF9  mov bp,sp                              ; x86
+0x2694B  1F35:0BFB  cmp [0x519a],sp                        ; x86
+0x2694F  1F35:0BFF  ja 0xc06                               ; x86
+0x26951  1F35:0C01  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26956  1F35:0C06  push word [0xef2e]                     ; x86
+0x2695A  1F35:0C0A  les bx,word [bp+0x6]                   ; x86
+0x2695D  1F35:0C0D  mov ax,[es:bx+0x2]                     ; x86
+0x26961  1F35:0C11  mov dx,[0xd086]                        ; x86
+0x26965  1F35:0C15  shl dx,byte 0x2                        ; x86
+0x26968  1F35:0C18  les bx,word [bp+0x6]                   ; x86
+0x2696B  1F35:0C1B  add bx,dx                              ; x86
+0x2696D  1F35:0C1D  les bx,word [es:bx+0x20]               ; x86
+0x26971  1F35:0C21  add ax,[es:bx+0x4e]                    ; x86
+0x26975  1F35:0C25  add ax,0x2                             ; x86
+0x26978  1F35:0C28  push ax                                ; x86
+0x26979  1F35:0C29  les bx,word [bp+0x6]                   ; x86
+0x2697C  1F35:0C2C  mov ax,[es:bx+0x4]                     ; x86
+0x26980  1F35:0C30  add ax,0xfffb                          ; x86
+0x26983  1F35:0C33  push ax                                ; x86
+0x26984  1F35:0C34  les bx,word [bp+0x6]                   ; x86
+0x26987  1F35:0C37  mov ax,[es:bx]                         ; x86
+0x2698A  1F35:0C3A  add ax,0x5                             ; x86
+0x2698D  1F35:0C3D  push ax                                ; x86
+0x2698E  1F35:0C3E  call word far [0xef0c]                 ; x86
+0x26992  1F35:0C42  add sp,0x8                             ; x86
+0x26995  1F35:0C45  push word [0xef30]                     ; x86
+0x26999  1F35:0C49  les bx,word [bp+0x6]                   ; x86
+0x2699C  1F35:0C4C  mov ax,[es:bx+0x2]                     ; x86
+0x269A0  1F35:0C50  mov dx,[0xd086]                        ; x86
+0x269A4  1F35:0C54  shl dx,byte 0x2                        ; x86
+0x269A7  1F35:0C57  les bx,word [bp+0x6]                   ; x86
+0x269AA  1F35:0C5A  add bx,dx                              ; x86
+0x269AC  1F35:0C5C  les bx,word [es:bx+0x20]               ; x86
+0x269B0  1F35:0C60  add ax,[es:bx+0x4e]                    ; x86
+0x269B4  1F35:0C64  add ax,0x3                             ; x86
+0x269B7  1F35:0C67  push ax                                ; x86
+0x269B8  1F35:0C68  les bx,word [bp+0x6]                   ; x86
+0x269BB  1F35:0C6B  mov ax,[es:bx+0x4]                     ; x86
+0x269BF  1F35:0C6F  add ax,0xfffb                          ; x86
+0x269C2  1F35:0C72  push ax                                ; x86
+0x269C3  1F35:0C73  les bx,word [bp+0x6]                   ; x86
+0x269C6  1F35:0C76  mov ax,[es:bx]                         ; x86
+0x269C9  1F35:0C79  add ax,0x5                             ; x86
+0x269CC  1F35:0C7C  push ax                                ; x86
+0x269CD  1F35:0C7D  call word far [0xef0c]                 ; x86
+0x269D1  1F35:0C81  add sp,0x8                             ; x86
+0x269D4  1F35:0C84  pop bp                                 ; x86
+0x269D5  1F35:0C85  retf                                   ; x86  ; --- end ---
+0x269D6  1F35:0C86  pop bp                                 ; x86
+0x269D7  1F35:0C87  retf                                   ; x86  ; --- end ---
+0x269D8  1F35:0C88  push bp                                ; x86
+0x269D9  1F35:0C89  mov bp,sp                              ; x86
+0x269DB  1F35:0C8B  cmp [0x519a],sp                        ; x86
+0x269DF  1F35:0C8F  ja 0xc96                               ; x86
+0x269E1  1F35:0C91  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x269E6  1F35:0C96  mov ax,0x1                             ; x86
+0x269E9  1F35:0C99  pop bp                                 ; x86
+0x269EA  1F35:0C9A  retf                                   ; x86  ; --- end ---
+0x269EB  1F35:0C9B  pop bp                                 ; x86
+0x269EC  1F35:0C9C  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x269ED ===
+; ============================================================
+0x269ED  1F35:0C9D  enter word 0xe,byte 0x0                ; x86
+0x269F1  1F35:0CA1  push si                                ; x86
+0x269F2  1F35:0CA2  cmp [0x519a],sp                        ; x86
+0x269F6  1F35:0CA6  ja 0xcad                               ; x86
+0x269F8  1F35:0CA8  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x269FD  1F35:0CAD  push word 0x0                          ; x86
+0x269FF  1F35:0CAF  push word 0x0                          ; x86
+0x26A01  1F35:0CB1  push word 0x0                          ; x86
+0x26A03  1F35:0CB3  push word 0x0                          ; x86
+0x26A05  1F35:0CB5  call word 0x3f19:word 0xe2             ; x86
+0x26A0A  1F35:0CBA  add sp,0x8                             ; x86
+0x26A0D  1F35:0CBD  mov [bp-0x2],dx                        ; x86
+0x26A10  1F35:0CC0  mov [bp-0x4],ax                        ; x86
+0x26A13  1F35:0CC3  mov dx,[bp-0x2]                        ; x86
+0x26A16  1F35:0CC6  mov ax,[bp-0x4]                        ; x86
+0x26A19  1F35:0CC9  mov [bp-0x8],dx                        ; x86
+0x26A1C  1F35:0CCC  mov [bp-0xa],ax                        ; x86
+0x26A1F  1F35:0CCF  les bx,word [bp-0xa]                   ; x86
+0x26A22  1F35:0CD2  mov word [es:bx+0x16],0x1ff4           ; x86
+0x26A28  1F35:0CD8  mov word [es:bx+0x14],0x8              ; x86
+0x26A2E  1F35:0CDE  push word 0x3f19                       ; x86
+0x26A31  1F35:0CE1  push word 0x17d0                       ; x86
+0x26A34  1F35:0CE4  push word [0x233e]                     ; x86
+0x26A38  1F35:0CE8  push word [0x233c]                     ; x86
+0x26A3C  1F35:0CEC  push word 0x5                          ; x86
+0x26A3E  1F35:0CEE  push word 0x14                         ; x86
+0x26A40  1F35:0CF0  push word [bp-0x2]                     ; x86
+0x26A43  1F35:0CF3  push word [bp-0x4]                     ; x86
+0x26A46  1F35:0CF6  call word 0x3f19:word 0x2577           ; x86
+0x26A4B  1F35:0CFB  add sp,0x10                            ; x86
+0x26A4E  1F35:0CFE  mov [0xd086],ax                        ; x86
+0x26A51  1F35:0D01  push word 0x3f19                       ; x86
+0x26A54  1F35:0D04  push word 0x17d0                       ; x86
+0x26A57  1F35:0D07  mov bx,[bp+0xa]                        ; x86
+0x26A5A  1F35:0D0A  imul bx,bx,0x34                        ; x86
+0x26A5D  1F35:0D0D  push word [bx+0x11f8]                  ; x86
+0x26A61  1F35:0D11  push word [bx+0x11f6]                  ; x86
+0x26A65  1F35:0D15  push word 0x17                         ; x86
+0x26A67  1F35:0D17  push word 0xa                          ; x86
+0x26A69  1F35:0D19  push word [bp-0x2]                     ; x86
+0x26A6C  1F35:0D1C  push word [bp-0x4]                     ; x86
+0x26A6F  1F35:0D1F  call word 0x3f19:word 0x2577           ; x86
+0x26A74  1F35:0D24  add sp,0x10                            ; x86
+0x26A77  1F35:0D27  mov [bp-0x6],ax                        ; x86
+0x26A7A  1F35:0D2A  push word 0x1ff4                       ; x86
+0x26A7D  1F35:0D2D  push word 0x98                         ; x86
+0x26A80  1F35:0D30  push word 0x0                          ; x86
+0x26A82  1F35:0D32  push word 0x3f19                       ; x86
+0x26A85  1F35:0D35  push word 0x17d0                       ; x86
+0x26A88  1F35:0D38  push word [0x227a]                     ; x86
+0x26A8C  1F35:0D3C  push word [0x2278]                     ; x86
+0x26A90  1F35:0D40  push word 0xffffffffffffffff           ; x86
+0x26A92  1F35:0D42  push word 0xffffffffffffffff           ; x86
+0x26A94  1F35:0D44  push word 0x55                         ; x86
+0x26A96  1F35:0D46  push word 0xa                          ; x86
+0x26A98  1F35:0D48  push word [bp-0x2]                     ; x86
+0x26A9B  1F35:0D4B  push word [bp-0x4]                     ; x86
+0x26A9E  1F35:0D4E  call word 0x3f19:word 0x2a9b           ; x86
+0x26AA3  1F35:0D53  add sp,0x1a                            ; x86
+0x26AA6  1F35:0D56  mov si,ax                              ; x86
+0x26AA8  1F35:0D58  push word 0x1ff4                       ; x86
+0x26AAB  1F35:0D5B  push word 0x98                         ; x86
+0x26AAE  1F35:0D5E  push si                                ; x86
+0x26AAF  1F35:0D5F  push word 0x3f19                       ; x86
+0x26AB2  1F35:0D62  push word 0x17d0                       ; x86
+0x26AB5  1F35:0D65  push word 0xd                          ; x86
+0x26AB7  1F35:0D67  push word [bp-0x2]                     ; x86
+0x26ABA  1F35:0D6A  push word [bp-0x4]                     ; x86
+0x26ABD  1F35:0D6D  call word 0x3f19:word 0x2862           ; x86
+0x26AC2  1F35:0D72  add sp,0x10                            ; x86
+0x26AC5  1F35:0D75  push word 0xa                          ; x86
+0x26AC7  1F35:0D77  push word [bp-0x2]                     ; x86
+0x26ACA  1F35:0D7A  push word [bp-0x4]                     ; x86
+0x26ACD  1F35:0D7D  call word 0x3f19:word 0x36db           ; x86
+0x26AD2  1F35:0D82  add sp,0x6                             ; x86
+0x26AD5  1F35:0D85  mov dx,[bp-0x2]                        ; x86
+0x26AD8  1F35:0D88  mov ax,[bp-0x4]                        ; x86
+0x26ADB  1F35:0D8B  mov [bp-0xc],dx                        ; x86
+0x26ADE  1F35:0D8E  mov [bp-0xe],ax                        ; x86
+0x26AE1  1F35:0D91  push word [0xef3a]                     ; x86
+0x26AE5  1F35:0D95  push word [0xef3e]                     ; x86
+0x26AE9  1F35:0D99  push word 0x0                          ; x86
+0x26AEB  1F35:0D9B  push word 0x0                          ; x86
+0x26AED  1F35:0D9D  push word [bp-0xc]                     ; x86
+0x26AF0  1F35:0DA0  push word [bp-0xe]                     ; x86
+0x26AF3  1F35:0DA3  call word 0x3f19:word 0x19c            ; x86
+0x26AF8  1F35:0DA8  add sp,0xc                             ; x86
+0x26AFB  1F35:0DAB  push word [0xd086]                     ; x86
+0x26AFF  1F35:0DAF  push word [bp-0x2]                     ; x86
+0x26B02  1F35:0DB2  push word [bp-0x4]                     ; x86
+0x26B05  1F35:0DB5  call word 0x3f19:word 0x2c62           ; x86
+0x26B0A  1F35:0DBA  add sp,0x6                             ; x86
+0x26B0D  1F35:0DBD  push word [bp-0x6]                     ; x86
+0x26B10  1F35:0DC0  push word [bp-0x2]                     ; x86
+0x26B13  1F35:0DC3  push word [bp-0x4]                     ; x86
+0x26B16  1F35:0DC6  call word 0x3f19:word 0x2c62           ; x86
+0x26B1B  1F35:0DCB  add sp,0x6                             ; x86
+0x26B1E  1F35:0DCE  push si                                ; x86
+0x26B1F  1F35:0DCF  push word [bp-0x2]                     ; x86
+0x26B22  1F35:0DD2  push word [bp-0x4]                     ; x86
+0x26B25  1F35:0DD5  call word 0x3f19:word 0x2c62           ; x86
+0x26B2A  1F35:0DDA  add sp,0x6                             ; x86
+0x26B2D  1F35:0DDD  push word 0x1                          ; x86
+0x26B2F  1F35:0DDF  push word [bp-0x2]                     ; x86
+0x26B32  1F35:0DE2  push word [bp-0x4]                     ; x86
+0x26B35  1F35:0DE5  call word 0x3f19:word 0x45d            ; x86
+0x26B3A  1F35:0DEA  add sp,0x6                             ; x86
+0x26B3D  1F35:0DED  push word [bp-0x2]                     ; x86
+0x26B40  1F35:0DF0  push word [bp-0x4]                     ; x86
+0x26B43  1F35:0DF3  call word 0x3f19:word 0x24c            ; x86
+0x26B48  1F35:0DF8  add sp,0x4                             ; x86
+0x26B4B  1F35:0DFB  pop si                                 ; x86
+0x26B4C  1F35:0DFC  leave                                  ; x86
+0x26B4D  1F35:0DFD  retf                                   ; x86  ; --- end ---
+0x26B4E  1F35:0DFE  push bp                                ; x86
+0x26B4F  1F35:0DFF  mov bp,sp                              ; x86
+0x26B51  1F35:0E01  cmp [0x519a],sp                        ; x86
+0x26B55  1F35:0E05  ja 0xe0c                               ; x86
+0x26B57  1F35:0E07  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26B5C  1F35:0E0C  push word [bp+0x6]                     ; x86
+0x26B5F  1F35:0E0F  call word 0x4589:word 0xa1f            ; x86
+0x26B64  1F35:0E14  pop cx                                 ; x86
+0x26B65  1F35:0E15  pop bp                                 ; x86
+0x26B66  1F35:0E16  retf                                   ; x86  ; --- end ---
+0x26B67  1F35:0E17  pop bp                                 ; x86
+0x26B68  1F35:0E18  retf                                   ; x86  ; --- end ---
+0x26B69  1F35:0E19  push bp                                ; x86
+0x26B6A  1F35:0E1A  mov bp,sp                              ; x86
+0x26B6C  1F35:0E1C  push si                                ; x86
+0x26B6D  1F35:0E1D  push di                                ; x86
+0x26B6E  1F35:0E1E  cmp [0x519a],sp                        ; x86
+0x26B72  1F35:0E22  ja 0xe29                               ; x86
+0x26B74  1F35:0E24  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26B79  1F35:0E29  xor si,si                              ; x86
+0x26B7B  1F35:0E2B  jmp 0xe6b                              ; x86
+0x26B7D  1F35:0E2D  lea ax,[si+0x5]                        ; x86
+0x26B80  1F35:0E30  mov di,ax                              ; x86
+0x26B82  1F35:0E32  les bx,word [bp+0x6]                   ; x86
+0x26B85  1F35:0E35  mov ax,[es:bx+0x20]                    ; x86
+0x26B89  1F35:0E39  imul di                                ; x86
+0x26B8B  1F35:0E3B  mov bx,0x18                            ; x86
+0x26B8E  1F35:0E3E  cwd                                    ; x86
+0x26B8F  1F35:0E3F  idiv bx                                ; x86
+0x26B91  1F35:0E41  push ax                                ; x86
+0x26B92  1F35:0E42  les bx,word [bp+0x6]                   ; x86
+0x26B95  1F35:0E45  mov ax,[es:bx+0x1e]                    ; x86
+0x26B99  1F35:0E49  imul di                                ; x86
+0x26B9B  1F35:0E4B  mov bx,0x18                            ; x86
+0x26B9E  1F35:0E4E  cwd                                    ; x86
+0x26B9F  1F35:0E4F  idiv bx                                ; x86
+0x26BA1  1F35:0E51  push ax                                ; x86
+0x26BA2  1F35:0E52  les bx,word [bp+0x6]                   ; x86
+0x26BA5  1F35:0E55  mov ax,[es:bx+0x1c]                    ; x86
+0x26BA9  1F35:0E59  imul di                                ; x86
+0x26BAB  1F35:0E5B  mov bx,0x18                            ; x86
+0x26BAE  1F35:0E5E  cwd                                    ; x86
+0x26BAF  1F35:0E5F  idiv bx                                ; x86
+0x26BB1  1F35:0E61  push ax                                ; x86
+0x26BB2  1F35:0E62  push si                                ; x86
+0x26BB3  1F35:0E63  call word far [0xef08]                 ; x86
+0x26BB7  1F35:0E67  add sp,0x8                             ; x86
+0x26BBA  1F35:0E6A  inc si                                 ; x86
+0x26BBB  1F35:0E6B  cmp si,0x14                            ; x86
+0x26BBE  1F35:0E6E  jl 0xe2d                               ; x86
+0x26BC0  1F35:0E70  xor si,si                              ; x86
+0x26BC2  1F35:0E72  jmp 0xeb7                              ; x86
+0x26BC4  1F35:0E74  mov ax,0x18                            ; x86
+0x26BC7  1F35:0E77  sub ax,si                              ; x86
+0x26BC9  1F35:0E79  mov di,ax                              ; x86
+0x26BCB  1F35:0E7B  les bx,word [bp+0x6]                   ; x86
+0x26BCE  1F35:0E7E  mov ax,[es:bx+0x20]                    ; x86
+0x26BD2  1F35:0E82  imul di                                ; x86
+0x26BD4  1F35:0E84  mov bx,0x18                            ; x86
+0x26BD7  1F35:0E87  cwd                                    ; x86
+0x26BD8  1F35:0E88  idiv bx                                ; x86
+0x26BDA  1F35:0E8A  push ax                                ; x86
+0x26BDB  1F35:0E8B  les bx,word [bp+0x6]                   ; x86
+0x26BDE  1F35:0E8E  mov ax,[es:bx+0x1e]                    ; x86
+0x26BE2  1F35:0E92  imul di                                ; x86
+0x26BE4  1F35:0E94  mov bx,0x18                            ; x86
+0x26BE7  1F35:0E97  cwd                                    ; x86
+0x26BE8  1F35:0E98  idiv bx                                ; x86
+0x26BEA  1F35:0E9A  push ax                                ; x86
+0x26BEB  1F35:0E9B  les bx,word [bp+0x6]                   ; x86
+0x26BEE  1F35:0E9E  mov ax,[es:bx+0x1c]                    ; x86
+0x26BF2  1F35:0EA2  imul di                                ; x86
+0x26BF4  1F35:0EA4  mov bx,0x18                            ; x86
+0x26BF7  1F35:0EA7  cwd                                    ; x86
+0x26BF8  1F35:0EA8  idiv bx                                ; x86
+0x26BFA  1F35:0EAA  push ax                                ; x86
+0x26BFB  1F35:0EAB  lea ax,[si+0x14]                       ; x86
+0x26BFE  1F35:0EAE  push ax                                ; x86
+0x26BFF  1F35:0EAF  call word far [0xef08]                 ; x86
+0x26C03  1F35:0EB3  add sp,0x8                             ; x86
+0x26C06  1F35:0EB6  inc si                                 ; x86
+0x26C07  1F35:0EB7  cmp si,0x14                            ; x86
+0x26C0A  1F35:0EBA  jl 0xe74                               ; x86
+0x26C0C  1F35:0EBC  jmp 0xebe                              ; x86
+0x26C0E  1F35:0EBE  pop di                                 ; x86
+0x26C0F  1F35:0EBF  pop si                                 ; x86
+0x26C10  1F35:0EC0  pop bp                                 ; x86
+0x26C11  1F35:0EC1  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x26C12 ===
+; ============================================================
+0x26C12  1F35:0EC2  enter word 0x8,byte 0x0                ; x86
+0x26C16  1F35:0EC6  push si                                ; x86
+0x26C17  1F35:0EC7  push di                                ; x86
+0x26C18  1F35:0EC8  cmp [0x519a],sp                        ; x86
+0x26C1C  1F35:0ECC  ja 0xed3                               ; x86
+0x26C1E  1F35:0ECE  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26C23  1F35:0ED3  mov word [bp-0x2],0x0                  ; x86
+0x26C28  1F35:0ED8  xor si,si                              ; x86
+0x26C2A  1F35:0EDA  jmp 0xefb                              ; x86
+0x26C2C  1F35:0EDC  mov ax,si                              ; x86
+0x26C2E  1F35:0EDE  imul ax,ax,0xca                        ; x86
+0x26C32  1F35:0EE2  add ax,0xd568                          ; x86
+0x26C35  1F35:0EE5  mov word [bp-0x4],ds                   ; x86
+0x26C38  1F35:0EE8  mov [bp-0x6],ax                        ; x86
+0x26C3B  1F35:0EEB  push si                                ; x86
+0x26C3C  1F35:0EEC  push word [bp-0x4]                     ; x86
+0x26C3F  1F35:0EEF  push word [bp-0x6]                     ; x86
+0x26C42  1F35:0EF2  call word 0x2a16:word 0x320            ; x86
+0x26C47  1F35:0EF7  add sp,0x6                             ; x86
+0x26C4A  1F35:0EFA  inc si                                 ; x86
+0x26C4B  1F35:0EFB  cmp si,[0x50d4]                        ; x86
+0x26C4F  1F35:0EFF  jl 0xedc                               ; x86
+0x26C51  1F35:0F01  nop                                    ; x86
+0x26C52  1F35:0F02  push cs                                ; x86
+0x26C53  1F35:0F03  call 0x2842                            ; x86
+0x26C56  1F35:0F06  push ds                                ; x86
+0x26C57  1F35:0F07  push word 0xd568                       ; x86
+0x26C5A  1F35:0F0A  push cs                                ; x86
+0x26C5B  1F35:0F0B  call 0xe19                             ; x86
+0x26C5E  1F35:0F0E  add sp,0x4                             ; x86
+0x26C61  1F35:0F11  push word 0x28                         ; x86
+0x26C63  1F35:0F13  push word 0xb4                         ; x86
+0x26C66  1F35:0F16  call word far [0xef04]                 ; x86
+0x26C6A  1F35:0F1A  add sp,0x4                             ; x86
+0x26C6D  1F35:0F1D  mov di,0xb4                            ; x86
+0x26C70  1F35:0F20  xor si,si                              ; x86
+0x26C72  1F35:0F22  jmp 0xf54                              ; x86
+0x26C74  1F35:0F24  mov ax,di                              ; x86
+0x26C76  1F35:0F26  inc di                                 ; x86
+0x26C77  1F35:0F27  push ax                                ; x86
+0x26C78  1F35:0F28  push word [0xef3a]                     ; x86
+0x26C7C  1F35:0F2C  lea ax,[si+0x8]                        ; x86
+0x26C7F  1F35:0F2F  cmp ax,[0xef3e]                        ; x86
+0x26C83  1F35:0F33  jnl 0xf3a                              ; x86
+0x26C85  1F35:0F35  lea ax,[si+0x8]                        ; x86
+0x26C88  1F35:0F38  jmp 0xf3d                              ; x86
+0x26C8A  1F35:0F3A  mov ax,[0xef3e]                        ; x86
+0x26C8D  1F35:0F3D  push ax                                ; x86
+0x26C8E  1F35:0F3E  push word 0x0                          ; x86
+0x26C90  1F35:0F40  push si                                ; x86
+0x26C91  1F35:0F41  call word far [0xef14]                 ; x86
+0x26C95  1F35:0F45  add sp,0xa                             ; x86
+0x26C98  1F35:0F48  cmp di,0xdc                            ; x86
+0x26C9C  1F35:0F4C  jl 0xf51                               ; x86
+0x26C9E  1F35:0F4E  mov di,0xb4                            ; x86
+0x26CA1  1F35:0F51  add si,0x9                             ; x86
+0x26CA4  1F35:0F54  cmp si,[0xef3e]                        ; x86
+0x26CA8  1F35:0F58  jng 0xf24                              ; x86
+0x26CAA  1F35:0F5A  mov word [bp-0x2],0x0                  ; x86
+0x26CAF  1F35:0F5F  jmp 0xf7b                              ; x86
+0x26CB1  1F35:0F61  xor di,di                              ; x86
+0x26CB3  1F35:0F63  jmp 0xf76                              ; x86
+0x26CB5  1F35:0F65  les bx,word [bp-0x6]                   ; x86
+0x26CB8  1F35:0F68  mov bx,[es:bx+0xa0]                    ; x86
+0x26CBD  1F35:0F6D  imul bx,bx,0xc                         ; x86
+0x26CC0  1F35:0F70  mov byte [bx+di-0x1d38],0x0            ; x86
+0x26CC5  1F35:0F75  inc di                                 ; x86
+0x26CC6  1F35:0F76  cmp di,0x6                             ; x86
+0x26CC9  1F35:0F79  jl 0xf65                               ; x86
+0x26CCB  1F35:0F7B  push ss                                ; x86
+0x26CCC  1F35:0F7C  lea ax,[bp-0x6]                        ; x86
+0x26CCF  1F35:0F7F  push ax                                ; x86
+0x26CD0  1F35:0F80  push ss                                ; x86
+0x26CD1  1F35:0F81  lea ax,[bp-0x2]                        ; x86
+0x26CD4  1F35:0F84  push ax                                ; x86
+0x26CD5  1F35:0F85  call word 0x2a16:word 0x1606           ; x86
+0x26CDA  1F35:0F8A  add sp,0x8                             ; x86
+0x26CDD  1F35:0F8D  or ax,ax                               ; x86
+0x26CDF  1F35:0F8F  jnz 0xf61                              ; x86
+0x26CE1  1F35:0F91  mov word [bp-0x2],0x0                  ; x86
+0x26CE6  1F35:0F96  jmp 0x1059                             ; x86
+0x26CE9  1F35:0F99  les bx,word [bp-0x6]                   ; x86
+0x26CEC  1F35:0F9C  cmp word [es:bx+0xa0],0x0              ; x86
+0x26CF2  1F35:0FA2  jng 0xfb1                              ; x86
+0x26CF4  1F35:0FA4  push word [bp-0x4]                     ; x86
+0x26CF7  1F35:0FA7  push word [bp-0x6]                     ; x86
+0x26CFA  1F35:0FAA  push cs                                ; x86
+0x26CFB  1F35:0FAB  call 0xe19                             ; x86
+0x26CFE  1F35:0FAE  add sp,0x4                             ; x86
+0x26D01  1F35:0FB1  mov dx,[bp-0x4]                        ; x86
+0x26D04  1F35:0FB4  mov ax,[bp-0x6]                        ; x86
+0x26D07  1F35:0FB7  mov [0x5184],dx                        ; x86
+0x26D0B  1F35:0FBB  mov [0x5182],ax                        ; x86
+0x26D0E  1F35:0FBE  les bx,word [bp-0x6]                   ; x86
+0x26D11  1F35:0FC1  mov ax,[0x67ae]                        ; x86
+0x26D14  1F35:0FC4  dec ax                                 ; x86
+0x26D15  1F35:0FC5  cmp [es:bx],ax                         ; x86
+0x26D18  1F35:0FC8  jnz 0xfd2                              ; x86
+0x26D1A  1F35:0FCA  les bx,word [bp-0x6]                   ; x86
+0x26D1D  1F35:0FCD  mov word [es:bx],0x3                   ; x86
+0x26D22  1F35:0FD2  nop                                    ; x86
+0x26D23  1F35:0FD3  push cs                                ; x86
+0x26D24  1F35:0FD4  call 0x1ade                            ; x86
+0x26D27  1F35:0FD7  cmp word [0x50f6],0x0                  ; x86
+0x26D2C  1F35:0FDC  jz 0xfe1                               ; x86
+0x26D2E  1F35:0FDE  jmp 0x10ea                             ; x86
+0x26D31  1F35:0FE1  nop                                    ; x86
+0x26D32  1F35:0FE2  push cs                                ; x86
+0x26D33  1F35:0FE3  call 0x29a4                            ; x86
+0x26D36  1F35:0FE6  les bx,word [bp-0x6]                   ; x86
+0x26D39  1F35:0FE9  mov bx,[es:bx]                         ; x86
+0x26D3C  1F35:0FEC  imul bx,bx,0x12                        ; x86
+0x26D3F  1F35:0FEF  mov ax,[bx+0x6734]                     ; x86
+0x26D43  1F35:0FF3  mov [bp-0x8],ax                        ; x86
+0x26D46  1F35:0FF6  fild word [bp-0x8]                     ; INT 3Bh
+0x26D4A  1F35:0FFA  fmulp st1                              ; INT 3Ah
+0x26D4D  1F35:0FFD  call word 0x0:word 0x14df              ; x86  → _ftol
+0x26D52  1F35:1002  les bx,word [bp-0x6]                   ; x86
+0x26D55  1F35:1005  mov [es:bx+0x2],ax                     ; x86
+0x26D59  1F35:1009  les bx,word [bp-0x6]                   ; x86
+0x26D5C  1F35:100C  mov bx,[es:bx]                         ; x86
+0x26D5F  1F35:100F  imul bx,bx,0x12                        ; x86
+0x26D62  1F35:1012  mov ax,[bx+0x6736]                     ; x86
+0x26D66  1F35:1016  les bx,word [bp-0x6]                   ; x86
+0x26D69  1F35:1019  mov [es:bx+0x4],ax                     ; x86
+0x26D6D  1F35:101D  les bx,word [bp-0x6]                   ; x86
+0x26D70  1F35:1020  mov bx,[es:bx]                         ; x86
+0x26D73  1F35:1023  imul bx,bx,0x12                        ; x86
+0x26D76  1F35:1026  mov ax,[bx+0x6738]                     ; x86
+0x26D7A  1F35:102A  les bx,word [bp-0x6]                   ; x86
+0x26D7D  1F35:102D  mov [es:bx+0x6],ax                     ; x86
+0x26D81  1F35:1031  les bx,word [bp-0x6]                   ; x86
+0x26D84  1F35:1034  mov bx,[es:bx]                         ; x86
+0x26D87  1F35:1037  imul bx,bx,0x12                        ; x86
+0x26D8A  1F35:103A  mov ax,[bx+0x673a]                     ; x86
+0x26D8E  1F35:103E  les bx,word [bp-0x6]                   ; x86
+0x26D91  1F35:1041  mov [es:bx+0x8],ax                     ; x86
+0x26D95  1F35:1045  les bx,word [bp-0x6]                   ; x86
+0x26D98  1F35:1048  mov bx,[es:bx]                         ; x86
+0x26D9B  1F35:104B  imul bx,bx,0x12                        ; x86
+0x26D9E  1F35:104E  mov ax,[bx+0x673c]                     ; x86
+0x26DA2  1F35:1052  les bx,word [bp-0x6]                   ; x86
+0x26DA5  1F35:1055  mov [es:bx+0xa],ax                     ; x86
+0x26DA9  1F35:1059  push ss                                ; x86
+0x26DAA  1F35:105A  lea ax,[bp-0x6]                        ; x86
+0x26DAD  1F35:105D  push ax                                ; x86
+0x26DAE  1F35:105E  push ss                                ; x86
+0x26DAF  1F35:105F  lea ax,[bp-0x2]                        ; x86
+0x26DB2  1F35:1062  push ax                                ; x86
+0x26DB3  1F35:1063  call word 0x2a16:word 0x1606           ; x86
+0x26DB8  1F35:1068  add sp,0x8                             ; x86
+0x26DBB  1F35:106B  or ax,ax                               ; x86
+0x26DBD  1F35:106D  jz 0x1072                              ; x86
+0x26DBF  1F35:106F  jmp 0xf99                              ; x86
+0x26DC2  1F35:1072  mov word [bp-0x2],0x0                  ; x86
+0x26DC7  1F35:1077  jmp 0x10ac                             ; x86
+0x26DC9  1F35:1079  jmp 0x1090                             ; x86
+0x26DCB  1F35:107B  call word 0x26e4:word 0x4              ; x86
+0x26DD0  1F35:1080  push dx                                ; x86
+0x26DD1  1F35:1081  push ax                                ; x86
+0x26DD2  1F35:1082  push word [bp-0x4]                     ; x86
+0x26DD5  1F35:1085  push word [bp-0x6]                     ; x86
+0x26DD8  1F35:1088  call word 0x2a16:word 0x9bf            ; x86
+0x26DDD  1F35:108D  add sp,0x8                             ; x86
+0x26DE0  1F35:1090  les bx,word [bp-0x6]                   ; x86
+0x26DE3  1F35:1093  cmp word [es:bx+0x22],0x0              ; x86
+0x26DE8  1F35:1098  jng 0x10ac                             ; x86
+0x26DEA  1F35:109A  push word [bp-0x4]                     ; x86
+0x26DED  1F35:109D  push word [bp-0x6]                     ; x86
+0x26DF0  1F35:10A0  nop                                    ; x86
+0x26DF1  1F35:10A1  push cs                                ; x86
+0x26DF2  1F35:10A2  call 0x2937                            ; x86
+0x26DF5  1F35:10A5  add sp,0x4                             ; x86
+0x26DF8  1F35:10A8  or ax,ax                               ; x86
+0x26DFA  1F35:10AA  jnz 0x107b                             ; x86
+0x26DFC  1F35:10AC  push ss                                ; x86
+0x26DFD  1F35:10AD  lea ax,[bp-0x6]                        ; x86
+0x26E00  1F35:10B0  push ax                                ; x86
+0x26E01  1F35:10B1  push ss                                ; x86
+0x26E02  1F35:10B2  lea ax,[bp-0x2]                        ; x86
+0x26E05  1F35:10B5  push ax                                ; x86
+0x26E06  1F35:10B6  call word 0x2a16:word 0x1606           ; x86
+0x26E0B  1F35:10BB  add sp,0x8                             ; x86
+0x26E0E  1F35:10BE  or ax,ax                               ; x86
+0x26E10  1F35:10C0  jnz 0x1079                             ; x86
+0x26E12  1F35:10C2  cmp word [0x50ea],0x0                  ; x86
+0x26E17  1F35:10C7  jz 0x10ea                              ; x86
+0x26E19  1F35:10C9  push word [0xef24]                     ; x86
+0x26E1D  1F35:10CD  push word [0xef3a]                     ; x86
+0x26E21  1F35:10D1  push word [0xef3e]                     ; x86
+0x26E25  1F35:10D5  push word 0x0                          ; x86
+0x26E27  1F35:10D7  push word 0x0                          ; x86
+0x26E29  1F35:10D9  call word far [0xef14]                 ; x86
+0x26E2D  1F35:10DD  add sp,0xa                             ; x86
+0x26E30  1F35:10E0  call word 0x3a4c:word 0x152            ; x86
+0x26E35  1F35:10E5  call word 0x3a4c:word 0x646            ; x86
+0x26E3A  1F35:10EA  pop di                                 ; x86
+0x26E3B  1F35:10EB  pop si                                 ; x86
+0x26E3C  1F35:10EC  leave                                  ; x86
+0x26E3D  1F35:10ED  retf                                   ; x86  ; --- end ---
+0x26E3E  1F35:10EE  push bp                                ; x86
+0x26E3F  1F35:10EF  mov bp,sp                              ; x86
+0x26E41  1F35:10F1  cmp [0x519a],sp                        ; x86
+0x26E45  1F35:10F5  ja 0x10fc                              ; x86
+0x26E47  1F35:10F7  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26E4C  1F35:10FC  mov ax,[0x5006]                        ; x86
+0x26E4F  1F35:10FF  pop bp                                 ; x86
+0x26E50  1F35:1100  retf                                   ; x86  ; --- end ---
+0x26E51  1F35:1101  pop bp                                 ; x86
+0x26E52  1F35:1102  retf                                   ; x86  ; --- end ---
+0x26E53  1F35:1103  add [bx+di+0x1c],cl                    ; x86
+0x26E56  1F35:1106  adc al,0x20                            ; x86
+0x26E58  1F35:1108  add al,0x0                             ; x86
+0x26E5A  1F35:110A  inc word [ss:bx+si]                    ; x86
+0x26E5D  1F35:110D  add [bx+si],al                         ; x86
+0x26E5F  1F35:110F  add [bx+si],al                         ; x86
+0x26E61  1F35:1111  add [bx+si],al                         ; x86
+0x26E63  1F35:1113  add [bx+si],al                         ; x86
+0x26E65  1F35:1115  add [bx+si],bl                         ; x86
+0x26E67  1F35:1117  inc word [bx+si]                       ; x86
+0x26E69  1F35:1119  add [di],al                            ; x86
+0x26E6B  1F35:111B  add [bx+si],al                         ; x86
+0x26E6D  1F35:111D  add [si],dl                            ; x86
+0x26E6F  1F35:111F  add cx,ax                              ; x86
+0x26E71  1F35:1121  test byte [bx+si],0x0                  ; x86
+0x26E74  1F35:1124  push si                                ; x86
+0x26E75  1F35:1125  push di                                ; x86
+0x26E76  1F35:1126  cmp [0x519a],sp                        ; x86
+0x26E7A  1F35:112A  ja 0x1131                              ; x86
+0x26E7C  1F35:112C  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26E81  1F35:1131  mov ax,0x2014                          ; x86
+0x26E84  1F35:1134  mov bx,0x322                           ; x86
+0x26E87  1F35:1137  call word 0x0:word 0x2d25              ; x86
+0x26E8C  1F35:113C  mov word [bp-0xdc],0x6                 ; x86
+0x26E92  1F35:1142  push ss                                ; x86
+0x26E93  1F35:1143  lea ax,[bp-0xca]                       ; x86
+0x26E97  1F35:1147  push ax                                ; x86
+0x26E98  1F35:1148  call word 0x2a16:word 0x5              ; x86
+0x26E9D  1F35:114D  add sp,0x4                             ; x86
+0x26EA0  1F35:1150  push word [0xef22]                     ; x86
+0x26EA4  1F35:1154  call word 0x3ea1:word 0x28f            ; x86
+0x26EA9  1F35:1159  pop cx                                 ; x86
+0x26EAA  1F35:115A  push word [0x50d4]                     ; x86
+0x26EAE  1F35:115E  push word [0x2402]                     ; x86
+0x26EB2  1F35:1162  push word [0x2400]                     ; x86
+0x26EB6  1F35:1166  push ds                                ; x86
+0x26EB7  1F35:1167  push word 0xe15e                       ; x86
+0x26EBA  1F35:116A  call word 0x0:word 0x5754              ; x86
+0x26EBF  1F35:116F  add sp,0xa                             ; x86
+0x26EC2  1F35:1172  push ds                                ; x86
+0x26EC3  1F35:1173  push word 0xe15e                       ; x86
+0x26EC6  1F35:1176  les bx,word [0x5182]                   ; x86
+0x26ECA  1F35:117A  mov ax,[es:bx+0xa0]                    ; x86
+0x26ECF  1F35:117F  inc ax                                 ; x86
+0x26ED0  1F35:1180  push ax                                ; x86
+0x26ED1  1F35:1181  push word [0x21f6]                     ; x86
+0x26ED5  1F35:1185  push word [0x21f4]                     ; x86
+0x26ED9  1F35:1189  push ds                                ; x86
+0x26EDA  1F35:118A  push word 0x500e                       ; x86
+0x26EDD  1F35:118D  push ds                                ; x86
+0x26EDE  1F35:118E  push word 0xe05e                       ; x86
+0x26EE1  1F35:1191  call word 0x0:word 0x5754              ; x86
+0x26EE6  1F35:1196  add sp,0x12                            ; x86
+0x26EE9  1F35:1199  push ds                                ; x86
+0x26EEA  1F35:119A  push word 0xe05e                       ; x86
+0x26EED  1F35:119D  call word 0x4589:word 0xb87            ; x86
+0x26EF2  1F35:11A2  add sp,0x4                             ; x86
+0x26EF5  1F35:11A5  mov si,ax                              ; x86
+0x26EF7  1F35:11A7  push ds                                ; x86
+0x26EF8  1F35:11A8  push word 0xe05e                       ; x86
+0x26EFB  1F35:11AB  les bx,word [bp+0x6]                   ; x86
+0x26EFE  1F35:11AE  mov ax,[es:bx+0x2]                     ; x86
+0x26F02  1F35:11B2  add ax,0x2                             ; x86
+0x26F05  1F35:11B5  push ax                                ; x86
+0x26F06  1F35:11B6  les bx,word [bp+0x6]                   ; x86
+0x26F09  1F35:11B9  mov ax,[es:bx+0x4]                     ; x86
+0x26F0D  1F35:11BD  les bx,word [bp+0x6]                   ; x86
+0x26F10  1F35:11C0  sub ax,[es:bx]                         ; x86
+0x26F13  1F35:11C3  sub ax,si                              ; x86
+0x26F15  1F35:11C5  sar ax,0x0                             ; x86
+0x26F17  1F35:11C7  les bx,word [bp+0x6]                   ; x86
+0x26F1A  1F35:11CA  add ax,[es:bx]                         ; x86
+0x26F1D  1F35:11CD  push ax                                ; x86
+0x26F1E  1F35:11CE  call word 0x4589:word 0x684            ; x86
+0x26F23  1F35:11D3  add sp,0x8                             ; x86
+0x26F26  1F35:11D6  les bx,word [bp+0x6]                   ; x86
+0x26F29  1F35:11D9  mov ax,[es:bx+0x2]                     ; x86
+0x26F2D  1F35:11DD  add ax,[0xd08a]                        ; x86
+0x26F31  1F35:11E1  push ax                                ; x86
+0x26F32  1F35:11E2  les bx,word [bp+0x6]                   ; x86
+0x26F35  1F35:11E5  mov ax,[es:bx+0x4]                     ; x86
+0x26F39  1F35:11E9  add ax,0xfff6                          ; x86
+0x26F3C  1F35:11EC  push ax                                ; x86
+0x26F3D  1F35:11ED  les bx,word [bp+0x6]                   ; x86
+0x26F40  1F35:11F0  mov ax,[es:bx+0x2]                     ; x86
+0x26F44  1F35:11F4  add ax,0xf                             ; x86
+0x26F47  1F35:11F7  push ax                                ; x86
+0x26F48  1F35:11F8  les bx,word [bp+0x6]                   ; x86
+0x26F4B  1F35:11FB  mov ax,[es:bx]                         ; x86
+0x26F4E  1F35:11FE  add ax,0xa                             ; x86
+0x26F51  1F35:1201  push ax                                ; x86
+0x26F52  1F35:1202  call word 0x3dab:word 0x180            ; x86
+0x26F57  1F35:1207  add sp,0x8                             ; x86
+0x26F5A  1F35:120A  mov ax,[0xd0ac]                        ; x86
+0x26F5D  1F35:120D  or ax,ax                               ; x86
+0x26F5F  1F35:120F  jz 0x1221                              ; x86
+0x26F61  1F35:1211  cmp ax,0x1                             ; x86
+0x26F64  1F35:1214  jz 0x1224                              ; x86
+0x26F66  1F35:1216  cmp ax,0x2                             ; x86
+0x26F69  1F35:1219  jnz 0x121e                             ; x86
+0x26F6B  1F35:121B  jmp 0x132f                             ; x86
+0x26F6E  1F35:121E  jmp 0x1331                             ; x86
+0x26F71  1F35:1221  jmp 0x1331                             ; x86
+0x26F74  1F35:1224  cmp word [0x5188],0x1                  ; x86
+0x26F79  1F35:1229  jz 0x122e                              ; x86
+0x26F7B  1F35:122B  jmp 0x132d                             ; x86
+0x26F7E  1F35:122E  push ds                                ; x86
+0x26F7F  1F35:122F  push word 0x5017                       ; x86
+0x26F82  1F35:1232  les bx,word [bp+0x6]                   ; x86
+0x26F85  1F35:1235  mov ax,[es:bx+0x2]                     ; x86
+0x26F89  1F35:1239  mov dx,[0xd08e]                        ; x86
+0x26F8D  1F35:123D  shl dx,byte 0x2                        ; x86
+0x26F90  1F35:1240  les bx,word [bp+0x6]                   ; x86
+0x26F93  1F35:1243  add bx,dx                              ; x86
+0x26F95  1F35:1245  les bx,word [es:bx+0x20]               ; x86
+0x26F99  1F35:1249  add ax,[es:bx+0x4a]                    ; x86
+0x26F9D  1F35:124D  inc ax                                 ; x86
+0x26F9E  1F35:124E  push ax                                ; x86
+0x26F9F  1F35:124F  mov ax,[0xd08e]                        ; x86
+0x26FA2  1F35:1252  shl ax,byte 0x2                        ; x86
+0x26FA5  1F35:1255  les bx,word [bp+0x6]                   ; x86
+0x26FA8  1F35:1258  add bx,ax                              ; x86
+0x26FAA  1F35:125A  les bx,word [es:bx+0x20]               ; x86
+0x26FAE  1F35:125E  mov ax,[es:bx+0x48]                    ; x86
+0x26FB2  1F35:1262  les bx,word [bp+0x6]                   ; x86
+0x26FB5  1F35:1265  add ax,[es:bx]                         ; x86
+0x26FB8  1F35:1268  add ax,0xfff8                          ; x86
+0x26FBB  1F35:126B  push ax                                ; x86
+0x26FBC  1F35:126C  call word 0x4589:word 0x684            ; x86
+0x26FC1  1F35:1271  add sp,0x8                             ; x86
+0x26FC4  1F35:1274  xor si,si                              ; x86
+0x26FC6  1F35:1276  jmp 0x1325                             ; x86
+0x26FC9  1F35:1279  les bx,word [bp+0x6]                   ; x86
+0x26FCC  1F35:127C  mov ax,[es:bx+0x2]                     ; x86
+0x26FD0  1F35:1280  mov dx,[0xd08e]                        ; x86
+0x26FD4  1F35:1284  shl dx,byte 0x2                        ; x86
+0x26FD7  1F35:1287  les bx,word [bp+0x6]                   ; x86
+0x26FDA  1F35:128A  add bx,dx                              ; x86
+0x26FDC  1F35:128C  les bx,word [es:bx+0x20]               ; x86
+0x26FE0  1F35:1290  add ax,[es:bx+0x4a]                    ; x86
+0x26FE4  1F35:1294  add ax,0xfff2                          ; x86
+0x26FE7  1F35:1297  mov [bp-0xec],ax                       ; x86
+0x26FEB  1F35:129B  mov bx,si                              ; x86
+0x26FED  1F35:129D  add bx,bx                              ; x86
+0x26FEF  1F35:129F  mov ax,[bx-0x2f72]                     ; x86
+0x26FF3  1F35:12A3  shl ax,byte 0x2                        ; x86
+0x26FF6  1F35:12A6  les bx,word [bp+0x6]                   ; x86
+0x26FF9  1F35:12A9  add bx,ax                              ; x86
+0x26FFB  1F35:12AB  les bx,word [es:bx+0x20]               ; x86
+0x26FFF  1F35:12AF  mov ax,[es:bx+0x48]                    ; x86
+0x27003  1F35:12B3  les bx,word [bp+0x6]                   ; x86
+0x27006  1F35:12B6  add ax,[es:bx]                         ; x86
+0x27009  1F35:12B9  add ax,0xfffe                          ; x86
+0x2700C  1F35:12BC  mov [bp-0xea],ax                       ; x86
+0x27010  1F35:12C0  mov ax,[bp-0xec]                       ; x86
+0x27014  1F35:12C4  add ax,0xc                             ; x86
+0x27017  1F35:12C7  push ax                                ; x86
+0x27018  1F35:12C8  mov ax,[bp-0xea]                       ; x86
+0x2701C  1F35:12CC  add ax,0xd                             ; x86
+0x2701F  1F35:12CF  push ax                                ; x86
+0x27020  1F35:12D0  push word [bp-0xec]                    ; x86
+0x27024  1F35:12D4  push word [bp-0xea]                    ; x86
+0x27028  1F35:12D8  call word 0x3dab:word 0x180            ; x86
+0x2702D  1F35:12DD  add sp,0x8                             ; x86
+0x27030  1F35:12E0  push word [0xef2c]                     ; x86
+0x27034  1F35:12E4  mov ax,[bp-0xec]                       ; x86
+0x27038  1F35:12E8  add ax,0xb                             ; x86
+0x2703B  1F35:12EB  push ax                                ; x86
+0x2703C  1F35:12EC  mov ax,[bp-0xea]                       ; x86
+0x27040  1F35:12F0  add ax,0xc                             ; x86
+0x27043  1F35:12F3  push ax                                ; x86
+0x27044  1F35:12F4  mov ax,[bp-0xec]                       ; x86
+0x27048  1F35:12F8  inc ax                                 ; x86
+0x27049  1F35:12F9  push ax                                ; x86
+0x2704A  1F35:12FA  mov ax,[bp-0xea]                       ; x86
+0x2704E  1F35:12FE  inc ax                                 ; x86
+0x2704F  1F35:12FF  push ax                                ; x86
+0x27050  1F35:1300  call word far [0xef14]                 ; x86
+0x27054  1F35:1304  add sp,0xa                             ; x86
+0x27057  1F35:1307  push word [0xef26]                     ; x86
+0x2705B  1F35:130B  push si                                ; x86
+0x2705C  1F35:130C  mov ax,[bp-0xec]                       ; x86
+0x27060  1F35:1310  add ax,0x2                             ; x86
+0x27063  1F35:1313  push ax                                ; x86
+0x27064  1F35:1314  mov ax,[bp-0xea]                       ; x86
+0x27068  1F35:1318  add ax,0x2                             ; x86
+0x2706B  1F35:131B  push ax                                ; x86
+0x2706C  1F35:131C  call word 0x1f71:word 0x210            ; x86
+0x27071  1F35:1321  add sp,0x8                             ; x86
+0x27074  1F35:1324  inc si                                 ; x86
+0x27075  1F35:1325  cmp si,0x6                             ; x86
+0x27078  1F35:1328  jnl 0x132d                             ; x86
+0x2707A  1F35:132A  jmp 0x1279                             ; x86
+0x2707D  1F35:132D  jmp 0x1331                             ; x86
+0x2707F  1F35:132F  jmp 0x1331                             ; x86
+0x27081  1F35:1331  push word [0x5184]                     ; x86
+0x27085  1F35:1335  push word [0x5182]                     ; x86
+0x27089  1F35:1339  push ss                                ; x86
+0x2708A  1F35:133A  lea ax,[bp-0xca]                       ; x86
+0x2708E  1F35:133E  push ax                                ; x86
+0x2708F  1F35:133F  call word 0x2a16:word 0x146            ; x86
+0x27094  1F35:1344  add sp,0x8                             ; x86
+0x27097  1F35:1347  mov ax,[0x50e2]                        ; x86
+0x2709A  1F35:134A  mov [bp-0xee],ax                       ; x86
+0x2709E  1F35:134E  mov word [0x50e2],0x0                  ; x86
+0x270A4  1F35:1354  push word 0x2d                         ; x86
+0x270A6  1F35:1356  push word 0x1                          ; x86
+0x270A8  1F35:1358  push ss                                ; x86
+0x270A9  1F35:1359  lea ax,[bp-0xca]                       ; x86
+0x270AD  1F35:135D  push ax                                ; x86
+0x270AE  1F35:135E  call word 0x2a16:word 0x135d           ; x86
+0x270B3  1F35:1363  add sp,0x8                             ; x86
+0x270B6  1F35:1366  mov ax,[bp-0xee]                       ; x86
+0x270BA  1F35:136A  mov [0x50e2],ax                        ; x86
+0x270BD  1F35:136D  push ds                                ; x86
+0x270BE  1F35:136E  push word 0x501a                       ; x86
+0x270C1  1F35:1371  les bx,word [bp+0x6]                   ; x86
+0x270C4  1F35:1374  mov ax,[es:bx+0x2]                     ; x86
+0x270C8  1F35:1378  mov dx,[0xd09a]                        ; x86
+0x270CC  1F35:137C  shl dx,byte 0x2                        ; x86
+0x270CF  1F35:137F  les bx,word [bp+0x6]                   ; x86
+0x270D2  1F35:1382  add bx,dx                              ; x86
+0x270D4  1F35:1384  les bx,word [es:bx+0x20]               ; x86
+0x270D8  1F35:1388  add ax,[es:bx+0x4a]                    ; x86
+0x270DC  1F35:138C  add ax,0xf                             ; x86
+0x270DF  1F35:138F  push ax                                ; x86
+0x270E0  1F35:1390  mov ax,[0xd09a]                        ; x86
+0x270E3  1F35:1393  shl ax,byte 0x2                        ; x86
+0x270E6  1F35:1396  les bx,word [bp+0x6]                   ; x86
+0x270E9  1F35:1399  add bx,ax                              ; x86
+0x270EB  1F35:139B  les bx,word [es:bx+0x20]               ; x86
+0x270EF  1F35:139F  mov ax,[es:bx+0x48]                    ; x86
+0x270F3  1F35:13A3  les bx,word [bp+0x6]                   ; x86
+0x270F6  1F35:13A6  add ax,[es:bx]                         ; x86
+0x270F9  1F35:13A9  add ax,0xfff8                          ; x86
+0x270FC  1F35:13AC  push ax                                ; x86
+0x270FD  1F35:13AD  call word 0x4589:word 0x684            ; x86
+0x27102  1F35:13B2  add sp,0x8                             ; x86
+0x27105  1F35:13B5  les bx,word [0x5182]                   ; x86
+0x27109  1F35:13B9  push word [es:bx+0x20]                 ; x86
+0x2710D  1F35:13BD  les bx,word [0x5182]                   ; x86
+0x27111  1F35:13C1  push word [es:bx+0x1e]                 ; x86
+0x27115  1F35:13C5  les bx,word [0x5182]                   ; x86
+0x27119  1F35:13C9  push word [es:bx+0x1c]                 ; x86
+0x2711D  1F35:13CD  push word 0xa4                         ; x86
+0x27120  1F35:13D0  call word 0x456b:word 0x5              ; x86
+0x27125  1F35:13D5  add sp,0x8                             ; x86
+0x27128  1F35:13D8  xor si,si                              ; x86
+0x2712A  1F35:13DA  jmp 0x1515                             ; x86
+0x2712D  1F35:13DD  mov ax,[0xd09a]                        ; x86
+0x27130  1F35:13E0  shl ax,byte 0x2                        ; x86
+0x27133  1F35:13E3  les bx,word [bp+0x6]                   ; x86
+0x27136  1F35:13E6  add bx,ax                              ; x86
+0x27138  1F35:13E8  les bx,word [es:bx+0x20]               ; x86
+0x2713C  1F35:13EC  les bx,word [es:bx+0x1e]               ; x86
+0x27140  1F35:13F0  mov ax,si                              ; x86
+0x27142  1F35:13F2  add ax,ax                              ; x86
+0x27144  1F35:13F4  add bx,ax                              ; x86
+0x27146  1F35:13F6  mov ax,[es:bx]                         ; x86
+0x27149  1F35:13F9  les bx,word [bp+0x6]                   ; x86
+0x2714C  1F35:13FC  add ax,[es:bx]                         ; x86
+0x2714F  1F35:13FF  mov di,ax                              ; x86
+0x27151  1F35:1401  les bx,word [bp+0x6]                   ; x86
+0x27154  1F35:1404  mov ax,[es:bx+0x2]                     ; x86
+0x27158  1F35:1408  mov dx,[0xd09a]                        ; x86
+0x2715C  1F35:140C  shl dx,byte 0x2                        ; x86
+0x2715F  1F35:140F  les bx,word [bp+0x6]                   ; x86
+0x27162  1F35:1412  add bx,dx                              ; x86
+0x27164  1F35:1414  les bx,word [es:bx+0x20]               ; x86
+0x27168  1F35:1418  add ax,[es:bx+0x4a]                    ; x86
+0x2716C  1F35:141C  add ax,0xb                             ; x86
+0x2716F  1F35:141F  mov [bp-0xf2],ax                       ; x86
+0x27173  1F35:1423  mov ax,[bp-0xf2]                       ; x86
+0x27177  1F35:1427  add ax,0x2                             ; x86
+0x2717A  1F35:142A  push ax                                ; x86
+0x2717B  1F35:142B  lea ax,[di+0x7]                        ; x86
+0x2717E  1F35:142E  push ax                                ; x86
+0x2717F  1F35:142F  mov ax,[bp-0xf2]                       ; x86
+0x27183  1F35:1433  add ax,0xfff4                          ; x86
+0x27186  1F35:1436  push ax                                ; x86
+0x27187  1F35:1437  lea ax,[di-0x6]                        ; x86
+0x2718A  1F35:143A  push ax                                ; x86
+0x2718B  1F35:143B  call word 0x3dab:word 0x180            ; x86
+0x27190  1F35:1440  add sp,0x8                             ; x86
+0x27193  1F35:1443  mov ax,[0xd09a]                        ; x86
+0x27196  1F35:1446  shl ax,byte 0x2                        ; x86
+0x27199  1F35:1449  les bx,word [bp+0x6]                   ; x86
+0x2719C  1F35:144C  add bx,ax                              ; x86
+0x2719E  1F35:144E  les bx,word [es:bx+0x20]               ; x86
+0x271A2  1F35:1452  les bx,word [es:bx+0x1e]               ; x86
+0x271A6  1F35:1456  mov ax,[0x67ae]                        ; x86
+0x271A9  1F35:1459  add ax,si                              ; x86
+0x271AB  1F35:145B  add ax,ax                              ; x86
+0x271AD  1F35:145D  add bx,ax                              ; x86
+0x271AF  1F35:145F  cmp word [es:bx],0x1                   ; x86
+0x271B3  1F35:1463  jnz 0x146b                             ; x86
+0x271B5  1F35:1465  push word [0xef2c]                     ; x86
+0x271B9  1F35:1469  jmp 0x146f                             ; x86
+0x271BB  1F35:146B  push word [0xef24]                     ; x86
+0x271BF  1F35:146F  mov ax,[bp-0xf2]                       ; x86
+0x271C3  1F35:1473  inc ax                                 ; x86
+0x271C4  1F35:1474  push ax                                ; x86
+0x271C5  1F35:1475  lea ax,[di+0x6]                        ; x86
+0x271C8  1F35:1478  push ax                                ; x86
+0x271C9  1F35:1479  mov ax,[bp-0xf2]                       ; x86
+0x271CD  1F35:147D  add ax,0xfff5                          ; x86
+0x271D0  1F35:1480  push ax                                ; x86
+0x271D1  1F35:1481  lea ax,[di-0x5]                        ; x86
+0x271D4  1F35:1484  push ax                                ; x86
+0x271D5  1F35:1485  call word far [0xef14]                 ; x86
+0x271D9  1F35:1489  add sp,0xa                             ; x86
+0x271DC  1F35:148C  mov [bp-0xbc],di                       ; x86
+0x271E0  1F35:1490  mov ax,[bp-0xf2]                       ; x86
+0x271E4  1F35:1494  mov [bp-0xba],ax                       ; x86
+0x271E8  1F35:1498  xor ax,ax                              ; x86
+0x271EA  1F35:149A  mov [bp-0xb6],ax                       ; x86
+0x271EE  1F35:149E  mov [bp-0xb8],ax                       ; x86
+0x271F2  1F35:14A2  mov [bp-0xca],si                       ; x86
+0x271F6  1F35:14A6  nop                                    ; x86
+0x271F7  1F35:14A7  push cs                                ; x86
+0x271F8  1F35:14A8  call 0x29a4                            ; x86
+0x271FB  1F35:14AB  mov bx,si                              ; x86
+0x271FD  1F35:14AD  imul bx,bx,0x12                        ; x86
+0x27200  1F35:14B0  mov ax,[bx+0x6734]                     ; x86
+0x27204  1F35:14B4  mov [bp-0xf0],ax                       ; x86
+0x27208  1F35:14B8  fild word [bp-0xf0]                    ; INT 3Bh
+0x2720D  1F35:14BD  fmulp st1                              ; INT 3Ah
+0x27210  1F35:14C0  call word 0x0:word 0x14df              ; x86  → _ftol
+0x27215  1F35:14C5  mov [bp-0xc8],ax                       ; x86
+0x27219  1F35:14C9  mov bx,si                              ; x86
+0x2721B  1F35:14CB  imul bx,bx,0x12                        ; x86
+0x2721E  1F35:14CE  mov ax,[bx+0x6736]                     ; x86
+0x27222  1F35:14D2  mov [bp-0xc6],ax                       ; x86
+0x27226  1F35:14D6  mov bx,si                              ; x86
+0x27228  1F35:14D8  imul bx,bx,0x12                        ; x86
+0x2722B  1F35:14DB  mov ax,[bx+0x6738]                     ; x86
+0x2722F  1F35:14DF  mov [bp-0xc4],ax                       ; x86
+0x27233  1F35:14E3  mov bx,si                              ; x86
+0x27235  1F35:14E5  imul bx,bx,0x12                        ; x86
+0x27238  1F35:14E8  mov ax,[bx+0x673a]                     ; x86
+0x2723C  1F35:14EC  mov [bp-0xc2],ax                       ; x86
+0x27240  1F35:14F0  push ss                                ; x86
+0x27241  1F35:14F1  lea ax,[bp-0xca]                       ; x86
+0x27245  1F35:14F5  push ax                                ; x86
+0x27246  1F35:14F6  call word 0x3912:word 0x21f            ; x86
+0x2724B  1F35:14FB  add sp,0x4                             ; x86
+0x2724E  1F35:14FE  push word 0xa4                         ; x86
+0x27251  1F35:1501  push word [bp-0xf2]                    ; x86
+0x27255  1F35:1505  push di                                ; x86
+0x27256  1F35:1506  push ss                                ; x86
+0x27257  1F35:1507  lea ax,[bp-0xca]                       ; x86
+0x2725B  1F35:150B  push ax                                ; x86
+0x2725C  1F35:150C  call word 0x39d4:word 0x7              ; x86
+0x27261  1F35:1511  add sp,0xa                             ; x86
+0x27264  1F35:1514  inc si                                 ; x86
+0x27265  1F35:1515  cmp si,[0x67ae]                        ; x86
+0x27269  1F35:1519  jnl 0x151e                             ; x86
+0x2726B  1F35:151B  jmp 0x13dd                             ; x86
+0x2726E  1F35:151E  xor si,si                              ; x86
+0x27270  1F35:1520  jmp 0x1629                             ; x86
+0x27273  1F35:1523  mov ax,[0xd09c]                        ; x86
+0x27276  1F35:1526  shl ax,byte 0x2                        ; x86
+0x27279  1F35:1529  les bx,word [bp+0x6]                   ; x86
+0x2727C  1F35:152C  add bx,ax                              ; x86
+0x2727E  1F35:152E  les bx,word [es:bx+0x20]               ; x86
+0x27282  1F35:1532  les bx,word [es:bx+0x1e]               ; x86
+0x27286  1F35:1536  mov ax,si                              ; x86
+0x27288  1F35:1538  add ax,ax                              ; x86
+0x2728A  1F35:153A  add bx,ax                              ; x86
+0x2728C  1F35:153C  mov ax,[es:bx]                         ; x86
+0x2728F  1F35:153F  les bx,word [bp+0x6]                   ; x86
+0x27292  1F35:1542  add ax,[es:bx]                         ; x86
+0x27295  1F35:1545  mov di,ax                              ; x86
+0x27297  1F35:1547  les bx,word [bp+0x6]                   ; x86
+0x2729A  1F35:154A  mov ax,[es:bx+0x2]                     ; x86
+0x2729E  1F35:154E  mov dx,[0xd09c]                        ; x86
+0x272A2  1F35:1552  shl dx,byte 0x2                        ; x86
+0x272A5  1F35:1555  les bx,word [bp+0x6]                   ; x86
+0x272A8  1F35:1558  add bx,dx                              ; x86
+0x272AA  1F35:155A  les bx,word [es:bx+0x20]               ; x86
+0x272AE  1F35:155E  add ax,[es:bx+0x4a]                    ; x86
+0x272B2  1F35:1562  add ax,0xc                             ; x86
+0x272B5  1F35:1565  mov [bp-0xf2],ax                       ; x86
+0x272B9  1F35:1569  mov ax,[bp-0xf2]                       ; x86
+0x272BD  1F35:156D  add ax,0x2                             ; x86
+0x272C0  1F35:1570  push ax                                ; x86
+0x272C1  1F35:1571  lea ax,[di+0x7]                        ; x86
+0x272C4  1F35:1574  push ax                                ; x86
+0x272C5  1F35:1575  mov ax,[bp-0xf2]                       ; x86
+0x272C9  1F35:1579  add ax,0xfff4                          ; x86
+0x272CC  1F35:157C  push ax                                ; x86
+0x272CD  1F35:157D  lea ax,[di-0x7]                        ; x86
+0x272D0  1F35:1580  push ax                                ; x86
+0x272D1  1F35:1581  call word 0x3dab:word 0x180            ; x86
+0x272D6  1F35:1586  add sp,0x8                             ; x86
+0x272D9  1F35:1589  mov ax,[0xd09c]                        ; x86
+0x272DC  1F35:158C  shl ax,byte 0x2                        ; x86
+0x272DF  1F35:158F  les bx,word [bp+0x6]                   ; x86
+0x272E2  1F35:1592  add bx,ax                              ; x86
+0x272E4  1F35:1594  les bx,word [es:bx+0x20]               ; x86
+0x272E8  1F35:1598  les bx,word [es:bx+0x1e]               ; x86
+0x272EC  1F35:159C  lea ax,[si+0x2]                        ; x86
+0x272EF  1F35:159F  add ax,ax                              ; x86
+0x272F1  1F35:15A1  add bx,ax                              ; x86
+0x272F3  1F35:15A3  mov ax,[es:bx]                         ; x86
+0x272F6  1F35:15A6  mov [bp-0xf4],ax                       ; x86
+0x272FA  1F35:15AA  cmp word [bp-0xf4],0x0                 ; x86
+0x272FF  1F35:15AF  jz 0x15b6                              ; x86
+0x27301  1F35:15B1  mov ax,[0xef2c]                        ; x86
+0x27304  1F35:15B4  jmp 0x15b9                             ; x86
+0x27306  1F35:15B6  mov ax,[0xef24]                        ; x86
+0x27309  1F35:15B9  push ax                                ; x86
+0x2730A  1F35:15BA  mov ax,[bp-0xf2]                       ; x86
+0x2730E  1F35:15BE  inc ax                                 ; x86
+0x2730F  1F35:15BF  push ax                                ; x86
+0x27310  1F35:15C0  lea ax,[di+0x6]                        ; x86
+0x27313  1F35:15C3  push ax                                ; x86
+0x27314  1F35:15C4  mov ax,[bp-0xf2]                       ; x86
+0x27318  1F35:15C8  add ax,0xfff5                          ; x86
+0x2731B  1F35:15CB  push ax                                ; x86
+0x2731C  1F35:15CC  lea ax,[di-0x6]                        ; x86
+0x2731F  1F35:15CF  push ax                                ; x86
+0x27320  1F35:15D0  call word far [0xef14]                 ; x86
+0x27324  1F35:15D4  add sp,0xa                             ; x86
+0x27327  1F35:15D7  cmp word [bp-0xf4],0x0                 ; x86
+0x2732C  1F35:15DC  jz 0x15e3                              ; x86
+0x2732E  1F35:15DE  mov ax,[0xef26]                        ; x86
+0x27331  1F35:15E1  jmp 0x15e6                             ; x86
+0x27333  1F35:15E3  mov ax,[0xef2c]                        ; x86
+0x27336  1F35:15E6  mov [bp-0xf6],ax                       ; x86
+0x2733A  1F35:15EA  mov ax,si                              ; x86
+0x2733C  1F35:15EC  or ax,ax                               ; x86
+0x2733E  1F35:15EE  jz 0x15fc                              ; x86
+0x27340  1F35:15F0  cmp ax,0x1                             ; x86
+0x27343  1F35:15F3  jz 0x1604                              ; x86
+0x27345  1F35:15F5  cmp ax,0x2                             ; x86
+0x27348  1F35:15F8  jz 0x160c                              ; x86
+0x2734A  1F35:15FA  jmp 0x1628                             ; x86
+0x2734C  1F35:15FC  push word [bp-0xf6]                    ; x86
+0x27350  1F35:1600  push word 0xb                          ; x86
+0x27352  1F35:1602  jmp 0x1612                             ; x86
+0x27354  1F35:1604  push word [bp-0xf6]                    ; x86
+0x27358  1F35:1608  push word 0xa                          ; x86
+0x2735A  1F35:160A  jmp 0x1612                             ; x86
+0x2735C  1F35:160C  push word [bp-0xf6]                    ; x86
+0x27360  1F35:1610  push word 0x9                          ; x86
+0x27362  1F35:1612  mov ax,[bp-0xf2]                       ; x86
+0x27366  1F35:1616  add ax,0xfff6                          ; x86
+0x27369  1F35:1619  push ax                                ; x86
+0x2736A  1F35:161A  lea ax,[di-0x5]                        ; x86
+0x2736D  1F35:161D  push ax                                ; x86
+0x2736E  1F35:161E  call word 0x1f71:word 0x210            ; x86
+0x27373  1F35:1623  add sp,0x8                             ; x86
+0x27376  1F35:1626  jmp 0x1628                             ; x86
+0x27378  1F35:1628  inc si                                 ; x86
+0x27379  1F35:1629  cmp si,0x2                             ; x86
+0x2737C  1F35:162C  jnl 0x1631                             ; x86
+0x2737E  1F35:162E  jmp 0x1523                             ; x86
+0x27381  1F35:1631  push word 0x2                          ; x86
+0x27383  1F35:1633  push ss                                ; x86
+0x27384  1F35:1634  lea ax,[bp-0xca]                       ; x86
+0x27388  1F35:1638  push ax                                ; x86
+0x27389  1F35:1639  call word 0x2a16:word 0xa3             ; x86
+0x2738E  1F35:163E  add sp,0x6                             ; x86
+0x27391  1F35:1641  mov dx,[bp-0xe8]                       ; x86
+0x27395  1F35:1645  mov [ss:0x14],dx                       ; x86
+0x2739A  1F35:164A  jmp 0x164c                             ; x86
+0x2739C  1F35:164C  pop di                                 ; x86
+0x2739D  1F35:164D  pop si                                 ; x86
+0x2739E  1F35:164E  leave                                  ; x86
+0x2739F  1F35:164F  retf                                   ; x86  ; --- end ---
+0x273A0  1F35:1650  push bp                                ; x86
+0x273A1  1F35:1651  mov bp,sp                              ; x86
+0x273A3  1F35:1653  cmp [0x519a],sp                        ; x86
+0x273A7  1F35:1657  ja 0x165e                              ; x86
+0x273A9  1F35:1659  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x273AE  1F35:165E  inc word [0x5008]                      ; x86
+0x273B2  1F35:1662  mov ax,[0x5008]                        ; x86
+0x273B5  1F35:1665  cmp ax,0x64                            ; x86
+0x273B8  1F35:1668  jg 0x1671                              ; x86
+0x273BA  1F35:166A  cmp word [0x6e42],0x0                  ; x86
+0x273BF  1F35:166F  jz 0x1683                              ; x86
+0x273C1  1F35:1671  push word 0x28                         ; x86
+0x273C3  1F35:1673  push word 0xb4                         ; x86
+0x273C6  1F35:1676  call word far [0xef04]                 ; x86
+0x273CA  1F35:167A  add sp,0x4                             ; x86
+0x273CD  1F35:167D  mov word [0x5008],0x0                  ; x86
+0x273D3  1F35:1683  xor ax,ax                              ; x86
+0x273D5  1F35:1685  pop bp                                 ; x86
+0x273D6  1F35:1686  retf                                   ; x86  ; --- end ---
+0x273D7  1F35:1687  pop bp                                 ; x86
+0x273D8  1F35:1688  retf                                   ; x86  ; --- end ---
+0x273D9  1F35:1689  push bp                                ; x86
+0x273DA  1F35:168A  mov bp,sp                              ; x86
+0x273DC  1F35:168C  cmp [0x519a],sp                        ; x86
+0x273E0  1F35:1690  ja 0x1697                              ; x86
+0x273E2  1F35:1692  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x273E7  1F35:1697  xor dx,dx                              ; x86
+0x273E9  1F35:1699  jmp 0x16bc                             ; x86
+0x273EB  1F35:169B  mov bx,dx                              ; x86
+0x273ED  1F35:169D  add bx,bx                              ; x86
+0x273EF  1F35:169F  mov ax,[bx-0x2f72]                     ; x86
+0x273F3  1F35:16A3  shl ax,byte 0x2                        ; x86
+0x273F6  1F35:16A6  les bx,word [0xd0a4]                   ; x86
+0x273FA  1F35:16AA  add bx,ax                              ; x86
+0x273FC  1F35:16AC  les bx,word [es:bx+0x20]               ; x86
+0x27400  1F35:16B0  cmp word [es:bx+0xe],0x0               ; x86
+0x27405  1F35:16B5  jnz 0x16bb                             ; x86
+0x27407  1F35:16B7  xor ax,ax                              ; x86
+0x27409  1F35:16B9  pop bp                                 ; x86
+0x2740A  1F35:16BA  retf                                   ; x86  ; --- end ---
+0x2740B  1F35:16BB  inc dx                                 ; x86
+0x2740C  1F35:16BC  cmp dx,0x6                             ; x86
+0x2740F  1F35:16BF  jl 0x169b                              ; x86
+0x27411  1F35:16C1  mov ax,0x1                             ; x86
+0x27414  1F35:16C4  pop bp                                 ; x86
+0x27415  1F35:16C5  retf                                   ; x86  ; --- end ---
+0x27416  1F35:16C6  pop bp                                 ; x86
+0x27417  1F35:16C7  retf                                   ; x86  ; --- end ---
+0x27418  1F35:16C8  push bp                                ; x86
+0x27419  1F35:16C9  mov bp,sp                              ; x86
+0x2741B  1F35:16CB  cmp [0x519a],sp                        ; x86
+0x2741F  1F35:16CF  ja 0x16d6                              ; x86
+0x27421  1F35:16D1  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x27426  1F35:16D6  cmp word [0x5198],0x0                  ; x86
+0x2742B  1F35:16DB  jnz 0x16e2                             ; x86
+0x2742D  1F35:16DD  mov ax,0x1                             ; x86
+0x27430  1F35:16E0  pop bp                                 ; x86
+0x27431  1F35:16E1  retf                                   ; x86  ; --- end ---
+0x27432  1F35:16E2  xor ax,ax                              ; x86
+0x27434  1F35:16E4  pop bp                                 ; x86
+0x27435  1F35:16E5  retf                                   ; x86  ; --- end ---
+0x27436  1F35:16E6  pop bp                                 ; x86
+0x27437  1F35:16E7  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x27438 ===
+; ============================================================
+0x27438  1F35:16E8  enter word 0x2,byte 0x0                ; x86
+0x2743C  1F35:16EC  push si                                ; x86
+0x2743D  1F35:16ED  push di                                ; x86
+0x2743E  1F35:16EE  cmp [0x519a],sp                        ; x86
+0x27442  1F35:16F2  ja 0x16f9                              ; x86
+0x27444  1F35:16F4  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x27449  1F35:16F9  xor di,di                              ; x86
+0x2744B  1F35:16FB  mov ax,[0xd09c]                        ; x86
+0x2744E  1F35:16FE  shl ax,byte 0x2                        ; x86
+0x27451  1F35:1701  les bx,word [bp+0x6]                   ; x86
+0x27454  1F35:1704  add bx,ax                              ; x86
+0x27456  1F35:1706  les bx,word [es:bx+0x20]               ; x86
+0x2745A  1F35:170A  mov ax,[es:bx+0xe]                     ; x86
+0x2745E  1F35:170E  cmp ax,[0xd0ac]                        ; x86
+0x27462  1F35:1712  jnz 0x1717                             ; x86
+0x27464  1F35:1714  jmp 0x1990                             ; x86
+0x27467  1F35:1717  mov ax,[0xd0ac]                        ; x86
+0x2746A  1F35:171A  mov [bp-0x2],ax                        ; x86
+0x2746D  1F35:171D  mov ax,[0xd09c]                        ; x86
+0x27470  1F35:1720  shl ax,byte 0x2                        ; x86
+0x27473  1F35:1723  les bx,word [bp+0x6]                   ; x86
+0x27476  1F35:1726  add bx,ax                              ; x86
+0x27478  1F35:1728  les bx,word [es:bx+0x20]               ; x86
+0x2747C  1F35:172C  mov ax,[es:bx+0xe]                     ; x86
+0x27480  1F35:1730  mov [0xd0ac],ax                        ; x86
+0x27483  1F35:1733  mov bx,[0xd0ac]                        ; x86
+0x27487  1F35:1737  shl bx,byte 0x2                        ; x86
+0x2748A  1F35:173A  mov dx,[bx-0x2f5e]                     ; x86
+0x2748E  1F35:173E  mov ax,[bx-0x2f60]                     ; x86
+0x27492  1F35:1742  mov [bp+0x8],dx                        ; x86
+0x27495  1F35:1745  mov [bp+0x6],ax                        ; x86
+0x27498  1F35:1748  mov bx,[bp-0x2]                        ; x86
+0x2749B  1F35:174B  shl bx,byte 0x2                        ; x86
+0x2749E  1F35:174E  les bx,word [bx-0x2f60]                ; x86
+0x274A2  1F35:1752  mov ax,[es:bx]                         ; x86
+0x274A5  1F35:1755  les bx,word [bp+0x6]                   ; x86
+0x274A8  1F35:1758  mov [es:bx],ax                         ; x86
+0x274AB  1F35:175B  mov bx,[bp-0x2]                        ; x86
+0x274AE  1F35:175E  shl bx,byte 0x2                        ; x86
+0x274B1  1F35:1761  les bx,word [bx-0x2f60]                ; x86
+0x274B5  1F35:1765  mov ax,[es:bx+0x4]                     ; x86
+0x274B9  1F35:1769  les bx,word [bp+0x6]                   ; x86
+0x274BC  1F35:176C  mov [es:bx+0x4],ax                     ; x86
+0x274C0  1F35:1770  mov bx,[bp-0x2]                        ; x86
+0x274C3  1F35:1773  shl bx,byte 0x2                        ; x86
+0x274C6  1F35:1776  les bx,word [bx-0x2f60]                ; x86
+0x274CA  1F35:177A  mov ax,[es:bx+0x2]                     ; x86
+0x274CE  1F35:177E  les bx,word [bp+0x6]                   ; x86
+0x274D1  1F35:1781  mov [es:bx+0x2],ax                     ; x86
+0x274D5  1F35:1785  mov bx,[bp-0x2]                        ; x86
+0x274D8  1F35:1788  shl bx,byte 0x2                        ; x86
+0x274DB  1F35:178B  les bx,word [bx-0x2f60]                ; x86
+0x274DF  1F35:178F  mov ax,[es:bx+0x6]                     ; x86
+0x274E3  1F35:1793  les bx,word [bp+0x6]                   ; x86
+0x274E6  1F35:1796  mov [es:bx+0x6],ax                     ; x86
+0x274EA  1F35:179A  push cs                                ; x86
+0x274EB  1F35:179B  call 0x16c8                            ; x86
+0x274EE  1F35:179E  or ax,ax                               ; x86
+0x274F0  1F35:17A0  jnz 0x17a5                             ; x86
+0x274F2  1F35:17A2  jmp 0x18fc                             ; x86
+0x274F5  1F35:17A5  cmp word [0xd0ac],0x0                  ; x86
+0x274FA  1F35:17AA  jnz 0x17f8                             ; x86
+0x274FC  1F35:17AC  mov ax,[0xd09a]                        ; x86
+0x274FF  1F35:17AF  shl ax,byte 0x2                        ; x86
+0x27502  1F35:17B2  les bx,word [bp+0x6]                   ; x86
+0x27505  1F35:17B5  add bx,ax                              ; x86
+0x27507  1F35:17B7  les bx,word [es:bx+0x20]               ; x86
+0x2750B  1F35:17BB  les bx,word [es:bx+0x1e]               ; x86
+0x2750F  1F35:17BF  mov ax,[0x67ae]                        ; x86
+0x27512  1F35:17C2  add ax,[0x67ae]                        ; x86
+0x27516  1F35:17C6  dec ax                                 ; x86
+0x27517  1F35:17C7  add ax,ax                              ; x86
+0x27519  1F35:17C9  add bx,ax                              ; x86
+0x2751B  1F35:17CB  cmp word [es:bx],0x0                   ; x86
+0x2751F  1F35:17CF  jnz 0x17f5                             ; x86
+0x27521  1F35:17D1  mov ax,[0xd09a]                        ; x86
+0x27524  1F35:17D4  shl ax,byte 0x2                        ; x86
+0x27527  1F35:17D7  les bx,word [bp+0x6]                   ; x86
+0x2752A  1F35:17DA  add bx,ax                              ; x86
+0x2752C  1F35:17DC  les bx,word [es:bx+0x20]               ; x86
+0x27530  1F35:17E0  les bx,word [es:bx+0x1e]               ; x86
+0x27534  1F35:17E4  mov ax,[0x67ae]                        ; x86
+0x27537  1F35:17E7  add ax,[0x67ae]                        ; x86
+0x2753B  1F35:17EB  dec ax                                 ; x86
+0x2753C  1F35:17EC  add ax,ax                              ; x86
+0x2753E  1F35:17EE  add bx,ax                              ; x86
+0x27540  1F35:17F0  mov word [es:bx],0x1                   ; x86
+0x27545  1F35:17F5  jmp 0x18fc                             ; x86
+0x27548  1F35:17F8  cmp word [0xd0ac],0x1                  ; x86
+0x2754D  1F35:17FD  jz 0x1802                              ; x86
+0x2754F  1F35:17FF  jmp 0x18fc                             ; x86
+0x27552  1F35:1802  mov ax,[0xd09a]                        ; x86
+0x27555  1F35:1805  shl ax,byte 0x2                        ; x86
+0x27558  1F35:1808  les bx,word [bp+0x6]                   ; x86
+0x2755B  1F35:180B  add bx,ax                              ; x86
+0x2755D  1F35:180D  les bx,word [es:bx+0x20]               ; x86
+0x27561  1F35:1811  les bx,word [es:bx+0x1e]               ; x86
+0x27565  1F35:1815  mov ax,[0x67ae]                        ; x86
+0x27568  1F35:1818  add ax,[0x67ae]                        ; x86
+0x2756C  1F35:181C  dec ax                                 ; x86
+0x2756D  1F35:181D  add ax,ax                              ; x86
+0x2756F  1F35:181F  add bx,ax                              ; x86
+0x27571  1F35:1821  cmp word [es:bx],0x1                   ; x86
+0x27575  1F35:1825  nop                                    ; x86
+0x27576  1F35:1826  nop                                    ; x86
+0x27577  1F35:1827  jmp 0x18fc                             ; x86
+0x2757A  1F35:182A  mov ax,[0xd09a]                        ; x86
+0x2757D  1F35:182D  shl ax,byte 0x2                        ; x86
+0x27580  1F35:1830  les bx,word [bp+0x6]                   ; x86
+0x27583  1F35:1833  add bx,ax                              ; x86
+0x27585  1F35:1835  les bx,word [es:bx+0x20]               ; x86
+0x27589  1F35:1839  les bx,word [es:bx+0x1e]               ; x86
+0x2758D  1F35:183D  mov ax,[0x67ae]                        ; x86
+0x27590  1F35:1840  add ax,[0x67ae]                        ; x86
+0x27594  1F35:1844  dec ax                                 ; x86
+0x27595  1F35:1845  add ax,ax                              ; x86
+0x27597  1F35:1847  add bx,ax                              ; x86
+0x27599  1F35:1849  mov word [es:bx],0x0                   ; x86
+0x2759E  1F35:184E  mov ax,[0xd09a]                        ; x86
+0x275A1  1F35:1851  shl ax,byte 0x2                        ; x86
+0x275A4  1F35:1854  les bx,word [bp+0x6]                   ; x86
+0x275A7  1F35:1857  add bx,ax                              ; x86
+0x275A9  1F35:1859  les bx,word [es:bx+0x20]               ; x86
+0x275AD  1F35:185D  mov ax,[0x67ae]                        ; x86
+0x275B0  1F35:1860  dec ax                                 ; x86
+0x275B1  1F35:1861  cmp [es:bx+0xe],ax                     ; x86
+0x275B5  1F35:1865  jz 0x186a                              ; x86
+0x275B7  1F35:1867  jmp 0x18fc                             ; x86
+0x275BA  1F35:186A  cmp word [bp-0x2],0x0                  ; x86
+0x275BE  1F35:186E  jnz 0x18e3                             ; x86
+0x275C0  1F35:1870  les bx,word [bp+0x6]                   ; x86
+0x275C3  1F35:1873  mov ax,[es:bx+0x2]                     ; x86
+0x275C7  1F35:1877  mov dx,[0xd09a]                        ; x86
+0x275CB  1F35:187B  shl dx,byte 0x2                        ; x86
+0x275CE  1F35:187E  les bx,word [bp+0x6]                   ; x86
+0x275D1  1F35:1881  add bx,dx                              ; x86
+0x275D3  1F35:1883  les bx,word [es:bx+0x20]               ; x86
+0x275D7  1F35:1887  add ax,[es:bx+0x4e]                    ; x86
+0x275DB  1F35:188B  add ax,0xfff9                          ; x86
+0x275DE  1F35:188E  push ax                                ; x86
+0x275DF  1F35:188F  mov ax,[0xd09a]                        ; x86
+0x275E2  1F35:1892  shl ax,byte 0x2                        ; x86
+0x275E5  1F35:1895  les bx,word [bp+0x6]                   ; x86
+0x275E8  1F35:1898  add bx,ax                              ; x86
+0x275EA  1F35:189A  les bx,word [es:bx+0x20]               ; x86
+0x275EE  1F35:189E  les bx,word [es:bx+0x1e]               ; x86
+0x275F2  1F35:18A2  mov ax,[0x67ae]                        ; x86
+0x275F5  1F35:18A5  add ax,0xfffe                          ; x86
+0x275F8  1F35:18A8  add ax,ax                              ; x86
+0x275FA  1F35:18AA  add bx,ax                              ; x86
+0x275FC  1F35:18AC  mov ax,[es:bx]                         ; x86
+0x275FF  1F35:18AF  les bx,word [bp+0x6]                   ; x86
+0x27602  1F35:18B2  add ax,[es:bx]                         ; x86
+0x27605  1F35:18B5  push ax                                ; x86
+0x27606  1F35:18B6  mov ax,[0xd09a]                        ; x86
+0x27609  1F35:18B9  shl ax,byte 0x2                        ; x86
+0x2760C  1F35:18BC  les bx,word [bp+0x6]                   ; x86
+0x2760F  1F35:18BF  add bx,ax                              ; x86
+0x27611  1F35:18C1  les bx,word [es:bx+0x20]               ; x86
+0x27615  1F35:18C5  les bx,word [es:bx+0x1e]               ; x86
+0x27619  1F35:18C9  mov ax,[0x67ae]                        ; x86
+0x2761C  1F35:18CC  dec ax                                 ; x86
+0x2761D  1F35:18CD  add ax,ax                              ; x86
+0x2761F  1F35:18CF  add bx,ax                              ; x86
+0x27621  1F35:18D1  mov ax,[es:bx]                         ; x86
+0x27624  1F35:18D4  les bx,word [bp+0x6]                   ; x86
+0x27627  1F35:18D7  add ax,[es:bx]                         ; x86
+0x2762A  1F35:18DA  push ax                                ; x86
+0x2762B  1F35:18DB  call word 0x3f19:word 0x3fb1           ; x86
+0x27630  1F35:18E0  add sp,0x6                             ; x86
+0x27633  1F35:18E3  mov ax,[0xd09a]                        ; x86
+0x27636  1F35:18E6  shl ax,byte 0x2                        ; x86
+0x27639  1F35:18E9  les bx,word [bp+0x6]                   ; x86
+0x2763C  1F35:18EC  add bx,ax                              ; x86
+0x2763E  1F35:18EE  les bx,word [es:bx+0x20]               ; x86
+0x27642  1F35:18F2  mov ax,[0x67ae]                        ; x86
+0x27645  1F35:18F5  add ax,0xfffe                          ; x86
+0x27648  1F35:18F8  mov [es:bx+0xe],ax                     ; x86
+0x2764C  1F35:18FC  push word [0xef28]                     ; x86
+0x27650  1F35:1900  les bx,word [bp+0x6]                   ; x86
+0x27653  1F35:1903  mov ax,[es:bx+0x2]                     ; x86
+0x27657  1F35:1907  add ax,[0xd08a]                        ; x86
+0x2765B  1F35:190B  dec ax                                 ; x86
+0x2765C  1F35:190C  push ax                                ; x86
+0x2765D  1F35:190D  les bx,word [bp+0x6]                   ; x86
+0x27660  1F35:1910  mov ax,[es:bx+0x4]                     ; x86
+0x27664  1F35:1914  add ax,0xfff5                          ; x86
+0x27667  1F35:1917  push ax                                ; x86
+0x27668  1F35:1918  les bx,word [bp+0x6]                   ; x86
+0x2766B  1F35:191B  mov ax,[es:bx+0x2]                     ; x86
+0x2766F  1F35:191F  add ax,0xe                             ; x86
+0x27672  1F35:1922  push ax                                ; x86
+0x27673  1F35:1923  les bx,word [bp+0x6]                   ; x86
+0x27676  1F35:1926  mov ax,[es:bx]                         ; x86
+0x27679  1F35:1929  add ax,0xb                             ; x86
+0x2767C  1F35:192C  push ax                                ; x86
+0x2767D  1F35:192D  call word far [0xef14]                 ; x86
+0x27681  1F35:1931  add sp,0xa                             ; x86
+0x27684  1F35:1934  push word [bp+0x8]                     ; x86
+0x27687  1F35:1937  push word [bp+0x6]                     ; x86
+0x2768A  1F35:193A  call word 0x3f19:word 0x466b           ; x86
+0x2768F  1F35:193F  add sp,0x4                             ; x86
+0x27692  1F35:1942  push word [bp+0x8]                     ; x86
+0x27695  1F35:1945  push word [bp+0x6]                     ; x86
+0x27698  1F35:1948  push cs                                ; x86
+0x27699  1F35:1949  call 0x1120                            ; x86
+0x2769C  1F35:194C  add sp,0x4                             ; x86
+0x2769F  1F35:194F  xor si,si                              ; x86
+0x276A1  1F35:1951  jmp 0x1987                             ; x86
+0x276A3  1F35:1953  mov ax,si                              ; x86
+0x276A5  1F35:1955  shl ax,byte 0x2                        ; x86
+0x276A8  1F35:1958  les bx,word [bp+0x6]                   ; x86
+0x276AB  1F35:195B  add bx,ax                              ; x86
+0x276AD  1F35:195D  les bx,word [es:bx+0x20]               ; x86
+0x276B1  1F35:1961  call word far [es:bx+0x4]              ; x86
+0x276B5  1F35:1965  mov dx,si                              ; x86
+0x276B7  1F35:1967  shl dx,byte 0x2                        ; x86
+0x276BA  1F35:196A  les bx,word [bp+0x6]                   ; x86
+0x276BD  1F35:196D  add bx,dx                              ; x86
+0x276BF  1F35:196F  les bx,word [es:bx+0x20]               ; x86
+0x276C3  1F35:1973  mov [es:bx+0x2],ax                     ; x86
+0x276C7  1F35:1977  push si                                ; x86
+0x276C8  1F35:1978  push word [bp+0x8]                     ; x86
+0x276CB  1F35:197B  push word [bp+0x6]                     ; x86
+0x276CE  1F35:197E  call word 0x3f19:word 0x1951           ; x86
+0x276D3  1F35:1983  add sp,0x6                             ; x86
+0x276D6  1F35:1986  inc si                                 ; x86
+0x276D7  1F35:1987  les bx,word [bp+0x6]                   ; x86
+0x276DA  1F35:198A  cmp [es:bx+0x8],si                     ; x86
+0x276DE  1F35:198E  jg 0x1953                              ; x86
+0x276E0  1F35:1990  mov ax,[0xd0ac]                        ; x86
+0x276E3  1F35:1993  or ax,ax                               ; x86
+0x276E5  1F35:1995  jz 0x19a3                              ; x86
+0x276E7  1F35:1997  cmp ax,0x1                             ; x86
+0x276EA  1F35:199A  jz 0x19a5                              ; x86
+0x276EC  1F35:199C  cmp ax,0x2                             ; x86
+0x276EF  1F35:199F  jz 0x19dc                              ; x86
+0x276F1  1F35:19A1  jmp 0x19e1                             ; x86
+0x276F3  1F35:19A3  jmp 0x19dc                             ; x86
+0x276F5  1F35:19A5  mov ax,[0xd09e]                        ; x86
+0x276F8  1F35:19A8  shl ax,byte 0x2                        ; x86
+0x276FB  1F35:19AB  les bx,word [bp+0x6]                   ; x86
+0x276FE  1F35:19AE  add bx,ax                              ; x86
+0x27700  1F35:19B0  les bx,word [es:bx+0x20]               ; x86
+0x27704  1F35:19B4  push word [es:bx+0x18]                 ; x86
+0x27708  1F35:19B8  push word [es:bx+0x16]                 ; x86
+0x2770C  1F35:19BC  call word 0x0:word 0x5902              ; x86
+0x27711  1F35:19C1  add sp,0x4                             ; x86
+0x27714  1F35:19C4  or ax,ax                               ; x86
+0x27716  1F35:19C6  jna 0x19da                             ; x86
+0x27718  1F35:19C8  cmp word [0x5188],0x1                  ; x86
+0x2771D  1F35:19CD  jnz 0x19d7                             ; x86
+0x2771F  1F35:19CF  push cs                                ; x86
+0x27720  1F35:19D0  call 0x1689                            ; x86
+0x27723  1F35:19D3  or ax,ax                               ; x86
+0x27725  1F35:19D5  jz 0x19da                              ; x86
+0x27727  1F35:19D7  mov di,0x1                             ; x86
+0x2772A  1F35:19DA  jmp 0x19e1                             ; x86
+0x2772C  1F35:19DC  mov di,0x1                             ; x86
+0x2772F  1F35:19DF  jmp 0x19e1                             ; x86
+0x27731  1F35:19E1  cmp di,[0x5006]                        ; x86
+0x27735  1F35:19E5  jz 0x19f9                              ; x86
+0x27737  1F35:19E7  mov [0x5006],di                        ; x86
+0x2773B  1F35:19EB  push word [bp+0x8]                     ; x86
+0x2773E  1F35:19EE  push word [bp+0x6]                     ; x86
+0x27741  1F35:19F1  call word 0x3f19:word 0x37bc           ; x86
+0x27746  1F35:19F6  add sp,0x4                             ; x86
+0x27749  1F35:19F9  xor ax,ax                              ; x86
+0x2774B  1F35:19FB  jmp 0x19fd                             ; x86
+0x2774D  1F35:19FD  pop di                                 ; x86
+0x2774E  1F35:19FE  pop si                                 ; x86
+0x2774F  1F35:19FF  leave                                  ; x86
+0x27750  1F35:1A00  retf                                   ; x86  ; --- end ---
+0x27751  1F35:1A01  push bp                                ; x86
+0x27752  1F35:1A02  mov bp,sp                              ; x86
+0x27754  1F35:1A04  push si                                ; x86
+0x27755  1F35:1A05  push di                                ; x86
+0x27756  1F35:1A06  cmp [0x519a],sp                        ; x86
+0x2775A  1F35:1A0A  ja 0x1a11                              ; x86
+0x2775C  1F35:1A0C  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x27761  1F35:1A11  xor di,di                              ; x86
+0x27763  1F35:1A13  jmp 0x1a4d                             ; x86
+0x27765  1F35:1A15  mov bx,di                              ; x86
+0x27767  1F35:1A17  imul bx,bx,0xca                        ; x86
+0x2776B  1F35:1A1B  cmp word [bx-0x2a76],0x0               ; x86
+0x27770  1F35:1A20  jnz 0x1a4c                             ; x86
+0x27772  1F35:1A22  xor si,si                              ; x86
+0x27774  1F35:1A24  jmp 0x1a47                             ; x86
+0x27776  1F35:1A26  mov bx,di                              ; x86
+0x27778  1F35:1A28  imul bx,bx,0xc                         ; x86
+0x2777B  1F35:1A2B  mov al,[bx+si-0x1d38]                  ; x86
+0x2777F  1F35:1A2F  cbw                                    ; x86
+0x27780  1F35:1A30  cmp ax,[bp+0x6]                        ; x86
+0x27783  1F35:1A33  jnz 0x1a46                             ; x86
+0x27785  1F35:1A35  push word 0x28                         ; x86
+0x27787  1F35:1A37  push word 0xc8                         ; x86
+0x2778A  1F35:1A3A  call word 0x4571:word 0x7              ; x86
+0x2778F  1F35:1A3F  add sp,0x4                             ; x86
+0x27792  1F35:1A42  jmp 0x1a82                             ; x86
+0x27794  1F35:1A44  jmp 0x1a82                             ; x86
+0x27796  1F35:1A46  inc si                                 ; x86
+0x27797  1F35:1A47  cmp si,0x6                             ; x86
+0x2779A  1F35:1A4A  jl 0x1a26                              ; x86
+0x2779C  1F35:1A4C  inc di                                 ; x86
+0x2779D  1F35:1A4D  cmp di,[0x50d4]                        ; x86
+0x277A1  1F35:1A51  jl 0x1a15                              ; x86
+0x277A3  1F35:1A53  xor si,si                              ; x86
+0x277A5  1F35:1A55  jmp 0x1a87                             ; x86
+0x277A7  1F35:1A57  mov bx,si                              ; x86
+0x277A9  1F35:1A59  add bx,bx                              ; x86
+0x277AB  1F35:1A5B  mov ax,[bx-0x2f72]                     ; x86
+0x277AF  1F35:1A5F  shl ax,byte 0x2                        ; x86
+0x277B2  1F35:1A62  les bx,word [0xd0a4]                   ; x86
+0x277B6  1F35:1A66  add bx,ax                              ; x86
+0x277B8  1F35:1A68  les bx,word [es:bx+0x20]               ; x86
+0x277BC  1F35:1A6C  mov ax,[es:bx+0xe]                     ; x86
+0x277C0  1F35:1A70  cmp ax,[bp+0x6]                        ; x86
+0x277C3  1F35:1A73  jnz 0x1a86                             ; x86
+0x277C5  1F35:1A75  push word 0x28                         ; x86
+0x277C7  1F35:1A77  push word 0xc8                         ; x86
+0x277CA  1F35:1A7A  call word 0x4571:word 0x7              ; x86
+0x277CF  1F35:1A7F  add sp,0x4                             ; x86
+0x277D2  1F35:1A82  xor ax,ax                              ; x86
+0x277D4  1F35:1A84  jmp 0x1a91                             ; x86
+0x277D6  1F35:1A86  inc si                                 ; x86
+0x277D7  1F35:1A87  cmp si,0x6                             ; x86
+0x277DA  1F35:1A8A  jl 0x1a57                              ; x86
+0x277DC  1F35:1A8C  mov ax,0x1                             ; x86
+0x277DF  1F35:1A8F  jmp 0x1a91                             ; x86
+0x277E1  1F35:1A91  pop di                                 ; x86
+0x277E2  1F35:1A92  pop si                                 ; x86
+0x277E3  1F35:1A93  pop bp                                 ; x86
+0x277E4  1F35:1A94  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x277E5 ===
+; ============================================================
+0x277E5  1F35:1A95  enter word 0x2,byte 0x0                ; x86
+0x277E9  1F35:1A99  push si                                ; x86
+0x277EA  1F35:1A9A  push di                                ; x86
+0x277EB  1F35:1A9B  cmp [0x519a],sp                        ; x86
+0x277EF  1F35:1A9F  ja 0x1aa6                              ; x86
+0x277F1  1F35:1AA1  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x277F6  1F35:1AA6  xor di,di                              ; x86
+0x277F8  1F35:1AA8  xor si,si                              ; x86
+0x277FA  1F35:1AAA  jmp 0x1ad1                             ; x86
+0x277FC  1F35:1AAC  mov ax,si                              ; x86
+0x277FE  1F35:1AAE  shl ax,byte 0x2                        ; x86
+0x27801  1F35:1AB1  les bx,word [bp+0x6]                   ; x86
+0x27804  1F35:1AB4  add bx,ax                              ; x86
+0x27806  1F35:1AB6  push word [es:bx+0x2]                  ; x86
+0x2780A  1F35:1ABA  push word [es:bx]                      ; x86
+0x2780D  1F35:1ABD  call word 0x4589:word 0xb87            ; x86
+0x27812  1F35:1AC2  add sp,0x4                             ; x86
+0x27815  1F35:1AC5  mov [bp-0x2],ax                        ; x86
+0x27818  1F35:1AC8  cmp [bp-0x2],di                        ; x86
+0x2781B  1F35:1ACB  jng 0x1ad0                             ; x86
+0x2781D  1F35:1ACD  mov di,[bp-0x2]                        ; x86
+0x27820  1F35:1AD0  inc si                                 ; x86
+0x27821  1F35:1AD1  cmp si,[bp+0xa]                        ; x86
+0x27824  1F35:1AD4  jl 0x1aac                              ; x86
+0x27826  1F35:1AD6  mov ax,di                              ; x86
+0x27828  1F35:1AD8  jmp 0x1ada                             ; x86
+0x2782A  1F35:1ADA  pop di                                 ; x86
+0x2782B  1F35:1ADB  pop si                                 ; x86
+0x2782C  1F35:1ADC  leave                                  ; x86
+0x2782D  1F35:1ADD  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x2782E ===
+; ============================================================
+0x2782E  1F35:1ADE  enter word 0xc,byte 0x0                ; x86
+0x27832  1F35:1AE2  push si                                ; x86
+0x27833  1F35:1AE3  push di                                ; x86
+0x27834  1F35:1AE4  cmp [0x519a],sp                        ; x86
+0x27838  1F35:1AE8  ja 0x1aef                              ; x86
+0x2783A  1F35:1AEA  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x2783F  1F35:1AEF  mov word [0xd08a],0x49                 ; x86
+0x27845  1F35:1AF5  cmp word [0x500a],0x0                  ; x86
+0x2784A  1F35:1AFA  jnz 0x1b04                             ; x86
+0x2784C  1F35:1AFC  mov word [0x5006],0x1                  ; x86
+0x27852  1F35:1B02  jmp 0x1b0a                             ; x86
+0x27854  1F35:1B04  mov word [0x5006],0x0                  ; x86
+0x2785A  1F35:1B0A  mov ax,[0x500a]                        ; x86
+0x2785D  1F35:1B0D  mov [0xd0ac],ax                        ; x86
+0x27860  1F35:1B10  mov word [bp-0x2],0x0                  ; x86
+0x27865  1F35:1B15  xor di,di                              ; x86
+0x27867  1F35:1B17  xor si,si                              ; x86
+0x27869  1F35:1B19  jmp 0x1b88                             ; x86
+0x2786B  1F35:1B1B  push si                                ; x86
+0x2786C  1F35:1B1C  nop                                    ; x86
+0x2786D  1F35:1B1D  push cs                                ; x86
+0x2786E  1F35:1B1E  call 0x22bb                            ; x86
+0x27871  1F35:1B21  pop cx                                 ; x86
+0x27872  1F35:1B22  mov bx,si                              ; x86
+0x27874  1F35:1B24  shl bx,byte 0x2                        ; x86
+0x27877  1F35:1B27  mov [bx-0x2f5e],dx                     ; x86
+0x2787B  1F35:1B2B  mov [bx-0x2f60],ax                     ; x86
+0x2787F  1F35:1B2F  mov bx,si                              ; x86
+0x27881  1F35:1B31  shl bx,byte 0x2                        ; x86
+0x27884  1F35:1B34  mov dx,[bx-0x2f5e]                     ; x86
+0x27888  1F35:1B38  mov ax,[bx-0x2f60]                     ; x86
+0x2788C  1F35:1B3C  mov [bp-0xa],dx                        ; x86
+0x2788F  1F35:1B3F  mov [bp-0xc],ax                        ; x86
+0x27892  1F35:1B42  les bx,word [bp-0xc]                   ; x86
+0x27895  1F35:1B45  mov word [es:bx+0xc],0x1               ; x86
+0x2789B  1F35:1B4B  mov bx,si                              ; x86
+0x2789D  1F35:1B4D  shl bx,byte 0x2                        ; x86
+0x278A0  1F35:1B50  les bx,word [bx-0x2f60]                ; x86
+0x278A4  1F35:1B54  mov ax,[es:bx+0x4]                     ; x86
+0x278A8  1F35:1B58  mov bx,si                              ; x86
+0x278AA  1F35:1B5A  shl bx,byte 0x2                        ; x86
+0x278AD  1F35:1B5D  les bx,word [bx-0x2f60]                ; x86
+0x278B1  1F35:1B61  sub ax,[es:bx]                         ; x86
+0x278B4  1F35:1B64  cmp ax,[bp-0x2]                        ; x86
+0x278B7  1F35:1B67  jng 0x1b87                             ; x86
+0x278B9  1F35:1B69  mov bx,si                              ; x86
+0x278BB  1F35:1B6B  shl bx,byte 0x2                        ; x86
+0x278BE  1F35:1B6E  les bx,word [bx-0x2f60]                ; x86
+0x278C2  1F35:1B72  mov ax,[es:bx+0x4]                     ; x86
+0x278C6  1F35:1B76  mov bx,si                              ; x86
+0x278C8  1F35:1B78  shl bx,byte 0x2                        ; x86
+0x278CB  1F35:1B7B  les bx,word [bx-0x2f60]                ; x86
+0x278CF  1F35:1B7F  sub ax,[es:bx]                         ; x86
+0x278D2  1F35:1B82  mov [bp-0x2],ax                        ; x86
+0x278D5  1F35:1B85  mov di,si                              ; x86
+0x278D7  1F35:1B87  inc si                                 ; x86
+0x278D8  1F35:1B88  cmp si,0x2                             ; x86
+0x278DB  1F35:1B8B  jl 0x1b1b                              ; x86
+0x278DD  1F35:1B8D  xor si,si                              ; x86
+0x278DF  1F35:1B8F  jmp 0x1bb4                             ; x86
+0x278E1  1F35:1B91  mov bx,di                              ; x86
+0x278E3  1F35:1B93  shl bx,byte 0x2                        ; x86
+0x278E6  1F35:1B96  push word [bx-0x2f5e]                  ; x86
+0x278EA  1F35:1B9A  push word [bx-0x2f60]                  ; x86
+0x278EE  1F35:1B9E  mov bx,si                              ; x86
+0x278F0  1F35:1BA0  shl bx,byte 0x2                        ; x86
+0x278F3  1F35:1BA3  push word [bx-0x2f5e]                  ; x86
+0x278F7  1F35:1BA7  push word [bx-0x2f60]                  ; x86
+0x278FB  1F35:1BAB  call word 0x3f19:word 0x3781           ; x86
+0x27900  1F35:1BB0  add sp,0x8                             ; x86
+0x27903  1F35:1BB3  inc si                                 ; x86
+0x27904  1F35:1BB4  cmp si,0x2                             ; x86
+0x27907  1F35:1BB7  jl 0x1b91                              ; x86
+0x27909  1F35:1BB9  push word [0xd09a]                     ; x86
+0x2790D  1F35:1BBD  push word [0xd0a2]                     ; x86
+0x27911  1F35:1BC1  push word [0xd0a0]                     ; x86
+0x27915  1F35:1BC5  call word 0x3f19:word 0x3d91           ; x86
+0x2791A  1F35:1BCA  add sp,0x6                             ; x86
+0x2791D  1F35:1BCD  mov ax,[0xd09c]                        ; x86
+0x27920  1F35:1BD0  mov [bp-0x6],ax                        ; x86
+0x27923  1F35:1BD3  mov ax,[0xd088]                        ; x86
+0x27926  1F35:1BD6  mov [bp-0x4],ax                        ; x86
+0x27929  1F35:1BD9  push word 0x2                          ; x86
+0x2792B  1F35:1BDB  push ss                                ; x86
+0x2792C  1F35:1BDC  lea ax,[bp-0x6]                        ; x86
+0x2792F  1F35:1BDF  push ax                                ; x86
+0x27930  1F35:1BE0  push word [0xd0a2]                     ; x86
+0x27934  1F35:1BE4  push word [0xd0a0]                     ; x86
+0x27938  1F35:1BE8  call word 0x3f19:word 0x4808           ; x86
+0x2793D  1F35:1BED  add sp,0xa                             ; x86
+0x27940  1F35:1BF0  cmp word [0x5188],0x1                  ; x86
+0x27945  1F35:1BF5  jnz 0x1c0d                             ; x86
+0x27947  1F35:1BF7  push word 0x6                          ; x86
+0x27949  1F35:1BF9  push ds                                ; x86
+0x2794A  1F35:1BFA  push word 0xd08e                       ; x86
+0x2794D  1F35:1BFD  push word [0xd0a6]                     ; x86
+0x27951  1F35:1C01  push word [0xd0a4]                     ; x86
+0x27955  1F35:1C05  call word 0x3f19:word 0x4808           ; x86
+0x2795A  1F35:1C0A  add sp,0xa                             ; x86
+0x2795D  1F35:1C0D  cmp word [0xd0ac],0x1                  ; x86
+0x27962  1F35:1C12  jnz 0x1c2e                             ; x86
+0x27964  1F35:1C14  mov ax,[0xd09e]                        ; x86
+0x27967  1F35:1C17  shl ax,byte 0x2                        ; x86
+0x2796A  1F35:1C1A  les bx,word [0xd0a4]                   ; x86
+0x2796E  1F35:1C1E  add bx,ax                              ; x86
+0x27970  1F35:1C20  les bx,word [es:bx+0x20]               ; x86
+0x27974  1F35:1C24  push word [es:bx+0xc]                  ; x86
+0x27978  1F35:1C28  call word 0x3f19:word 0x4d6a           ; x86
+0x2797D  1F35:1C2D  pop cx                                 ; x86
+0x2797E  1F35:1C2E  push word 0x1                          ; x86
+0x27980  1F35:1C30  call word 0x21e6:word 0x39             ; x86
+0x27985  1F35:1C35  pop cx                                 ; x86
+0x27986  1F35:1C36  mov [bp-0x8],ax                        ; x86
+0x27989  1F35:1C39  push word 0x0                          ; x86
+0x2798B  1F35:1C3B  mov bx,[0xd0ac]                        ; x86
+0x2798F  1F35:1C3F  shl bx,byte 0x2                        ; x86
+0x27992  1F35:1C42  push word [bx-0x2f5e]                  ; x86
+0x27996  1F35:1C46  push word [bx-0x2f60]                  ; x86
+0x2799A  1F35:1C4A  call word 0x3f19:word 0x45d            ; x86
+0x2799F  1F35:1C4F  add sp,0x6                             ; x86
+0x279A2  1F35:1C52  push word [bp-0x8]                     ; x86
+0x279A5  1F35:1C55  call word 0x21e6:word 0x39             ; x86
+0x279AA  1F35:1C5A  pop cx                                 ; x86
+0x279AB  1F35:1C5B  les bx,word [0xd0a0]                   ; x86
+0x279AF  1F35:1C5F  mov ax,[es:bx+0x6]                     ; x86
+0x279B3  1F35:1C63  add ax,0xfffd                          ; x86
+0x279B6  1F35:1C66  push ax                                ; x86
+0x279B7  1F35:1C67  les bx,word [0xd0a0]                   ; x86
+0x279BB  1F35:1C6B  mov ax,[es:bx+0x4]                     ; x86
+0x279BF  1F35:1C6F  add ax,0xfffd                          ; x86
+0x279C2  1F35:1C72  push ax                                ; x86
+0x279C3  1F35:1C73  les bx,word [0xd0a0]                   ; x86
+0x279C7  1F35:1C77  mov ax,[es:bx+0x2]                     ; x86
+0x279CB  1F35:1C7B  add ax,0x3                             ; x86
+0x279CE  1F35:1C7E  push ax                                ; x86
+0x279CF  1F35:1C7F  les bx,word [0xd0a0]                   ; x86
+0x279D3  1F35:1C83  mov ax,[es:bx]                         ; x86
+0x279D6  1F35:1C86  add ax,0x3                             ; x86
+0x279D9  1F35:1C89  push ax                                ; x86
+0x279DA  1F35:1C8A  call word 0x1917:word 0xb              ; x86
+0x279DF  1F35:1C8F  add sp,0x8                             ; x86
+0x279E2  1F35:1C92  mov ax,[0xd0ac]                        ; x86
+0x279E5  1F35:1C95  mov [0x500a],ax                        ; x86
+0x279E8  1F35:1C98  cmp word [0xd0ac],0x0                  ; x86
+0x279ED  1F35:1C9D  jz 0x1ca2                              ; x86
+0x279EF  1F35:1C9F  jmp 0x1d55                             ; x86
+0x279F2  1F35:1CA2  mov ax,[0xd08c]                        ; x86
+0x279F5  1F35:1CA5  shl ax,byte 0x2                        ; x86
+0x279F8  1F35:1CA8  les bx,word [0xd0a0]                   ; x86
+0x279FC  1F35:1CAC  add bx,ax                              ; x86
+0x279FE  1F35:1CAE  les bx,word [es:bx+0x20]               ; x86
+0x27A02  1F35:1CB2  mov ax,[es:bx+0xe]                     ; x86
+0x27A06  1F35:1CB6  inc ax                                 ; x86
+0x27A07  1F35:1CB7  les bx,word [0x5182]                   ; x86
+0x27A0B  1F35:1CBB  mov [es:bx+0x22],ax                    ; x86
+0x27A0F  1F35:1CBF  les bx,word [0x5182]                   ; x86
+0x27A13  1F35:1CC3  cmp word [es:bx+0x22],0x8              ; x86
+0x27A18  1F35:1CC8  jnz 0x1ce7                             ; x86
+0x27A1A  1F35:1CCA  les bx,word [0x5182]                   ; x86
+0x27A1E  1F35:1CCE  mov word [es:bx+0x24],0xfffe           ; x86
+0x27A24  1F35:1CD4  push word 0x7                          ; x86
+0x27A26  1F35:1CD6  call word 0x2bf9:word 0x48b            ; x86
+0x27A2B  1F35:1CDB  pop cx                                 ; x86
+0x27A2C  1F35:1CDC  inc ax                                 ; x86
+0x27A2D  1F35:1CDD  les bx,word [0x5182]                   ; x86
+0x27A31  1F35:1CE1  mov [es:bx+0x22],ax                    ; x86
+0x27A35  1F35:1CE5  jmp 0x1cf8                             ; x86
+0x27A37  1F35:1CE7  les bx,word [0x5182]                   ; x86
+0x27A3B  1F35:1CEB  mov ax,[es:bx+0x22]                    ; x86
+0x27A3F  1F35:1CEF  dec ax                                 ; x86
+0x27A40  1F35:1CF0  les bx,word [0x5182]                   ; x86
+0x27A44  1F35:1CF4  mov [es:bx+0x24],ax                    ; x86
+0x27A48  1F35:1CF8  mov ax,[0xd09e]                        ; x86
+0x27A4B  1F35:1CFB  shl ax,byte 0x2                        ; x86
+0x27A4E  1F35:1CFE  les bx,word [0xd0a4]                   ; x86
+0x27A52  1F35:1D02  add bx,ax                              ; x86
+0x27A54  1F35:1D04  les bx,word [es:bx+0x20]               ; x86
+0x27A58  1F35:1D08  les bx,word [es:bx+0x16]               ; x86
+0x27A5C  1F35:1D0C  cmp byte [es:bx],0x0                   ; x86
+0x27A60  1F35:1D10  jz 0x1d2c                              ; x86
+0x27A62  1F35:1D12  mov ax,[0xd09e]                        ; x86
+0x27A65  1F35:1D15  shl ax,byte 0x2                        ; x86
+0x27A68  1F35:1D18  les bx,word [0xd0a4]                   ; x86
+0x27A6C  1F35:1D1C  add bx,ax                              ; x86
+0x27A6E  1F35:1D1E  les bx,word [es:bx+0x20]               ; x86
+0x27A72  1F35:1D22  push word [es:bx+0x18]                 ; x86
+0x27A76  1F35:1D26  push word [es:bx+0x16]                 ; x86
+0x27A7A  1F35:1D2A  jmp 0x1d33                             ; x86
+0x27A7C  1F35:1D2C  call word 0x26e4:word 0x4              ; x86
+0x27A81  1F35:1D31  push dx                                ; x86
+0x27A82  1F35:1D32  push ax                                ; x86
+0x27A83  1F35:1D33  push word [0x5184]                     ; x86
+0x27A87  1F35:1D37  push word [0x5182]                     ; x86
+0x27A8B  1F35:1D3B  call word 0x2a16:word 0x9bf            ; x86
+0x27A90  1F35:1D40  add sp,0x8                             ; x86
+0x27A93  1F35:1D43  les bx,word [0x5182]                   ; x86
+0x27A97  1F35:1D47  mov word [es:bx+0xb0],0x0              ; x86
+0x27A9E  1F35:1D4E  mov word [es:bx+0xae],0x0              ; x86
+0x27AA5  1F35:1D55  cmp word [0xd0ac],0x1                  ; x86
+0x27AAA  1F35:1D5A  jnz 0x1dc8                             ; x86
+0x27AAC  1F35:1D5C  mov ax,[0xd09e]                        ; x86
+0x27AAF  1F35:1D5F  shl ax,byte 0x2                        ; x86
+0x27AB2  1F35:1D62  les bx,word [0xd0a4]                   ; x86
+0x27AB6  1F35:1D66  add bx,ax                              ; x86
+0x27AB8  1F35:1D68  les bx,word [es:bx+0x20]               ; x86
+0x27ABC  1F35:1D6C  push word [es:bx+0x18]                 ; x86
+0x27AC0  1F35:1D70  push word [es:bx+0x16]                 ; x86
+0x27AC4  1F35:1D74  push word [0x5184]                     ; x86
+0x27AC8  1F35:1D78  push word [0x5182]                     ; x86
+0x27ACC  1F35:1D7C  call word 0x2a16:word 0x9bf            ; x86
+0x27AD1  1F35:1D81  add sp,0x8                             ; x86
+0x27AD4  1F35:1D84  les bx,word [0x5182]                   ; x86
+0x27AD8  1F35:1D88  mov word [es:bx+0x22],0x0              ; x86
+0x27ADE  1F35:1D8E  cmp word [0x5188],0x1                  ; x86
+0x27AE3  1F35:1D93  jnz 0x1dc8                             ; x86
+0x27AE5  1F35:1D95  xor si,si                              ; x86
+0x27AE7  1F35:1D97  jmp 0x1dc3                             ; x86
+0x27AE9  1F35:1D99  mov bx,si                              ; x86
+0x27AEB  1F35:1D9B  add bx,bx                              ; x86
+0x27AED  1F35:1D9D  mov ax,[bx-0x2f72]                     ; x86
+0x27AF1  1F35:1DA1  shl ax,byte 0x2                        ; x86
+0x27AF4  1F35:1DA4  les bx,word [0xd0a4]                   ; x86
+0x27AF8  1F35:1DA8  add bx,ax                              ; x86
+0x27AFA  1F35:1DAA  les bx,word [es:bx+0x20]               ; x86
+0x27AFE  1F35:1DAE  mov al,[es:bx+0xe]                     ; x86
+0x27B02  1F35:1DB2  les bx,word [0x5182]                   ; x86
+0x27B06  1F35:1DB6  mov bx,[es:bx+0xa0]                    ; x86
+0x27B0B  1F35:1DBB  imul bx,bx,0xc                         ; x86
+0x27B0E  1F35:1DBE  mov [bx+si-0x1d38],al                  ; x86
+0x27B12  1F35:1DC2  inc si                                 ; x86
+0x27B13  1F35:1DC3  cmp si,0x6                             ; x86
+0x27B16  1F35:1DC6  jl 0x1d99                              ; x86
+0x27B18  1F35:1DC8  cmp word [0xd0ac],0x2                  ; x86
+0x27B1D  1F35:1DCD  jz 0x1df4                              ; x86
+0x27B1F  1F35:1DCF  mov ax,[0xd09a]                        ; x86
+0x27B22  1F35:1DD2  shl ax,byte 0x2                        ; x86
+0x27B25  1F35:1DD5  les bx,word [0xd0a0]                   ; x86
+0x27B29  1F35:1DD9  add bx,ax                              ; x86
+0x27B2B  1F35:1DDB  les bx,word [es:bx+0x20]               ; x86
+0x27B2F  1F35:1DDF  mov ax,[es:bx+0xe]                     ; x86
+0x27B33  1F35:1DE3  les bx,word [0x5182]                   ; x86
+0x27B37  1F35:1DE7  mov [es:bx],ax                         ; x86
+0x27B3A  1F35:1DEA  les bx,word [0x5182]                   ; x86
+0x27B3E  1F35:1DEE  mov ax,[es:bx]                         ; x86
+0x27B41  1F35:1DF1  mov [0x4fe0],ax                        ; x86
+0x27B44  1F35:1DF4  mov ax,[0xd09c]                        ; x86
+0x27B47  1F35:1DF7  shl ax,byte 0x2                        ; x86
+0x27B4A  1F35:1DFA  les bx,word [0xd0a0]                   ; x86
+0x27B4E  1F35:1DFE  add bx,ax                              ; x86
+0x27B50  1F35:1E00  les bx,word [es:bx+0x20]               ; x86
+0x27B54  1F35:1E04  mov ax,[es:bx+0xe]                     ; x86
+0x27B58  1F35:1E08  mov [0x4fe2],ax                        ; x86
+0x27B5B  1F35:1E0B  cmp word [0xd0ac],0x0                  ; x86
+0x27B60  1F35:1E10  jnz 0x1e29                             ; x86
+0x27B62  1F35:1E12  mov ax,[0xd08c]                        ; x86
+0x27B65  1F35:1E15  shl ax,byte 0x2                        ; x86
+0x27B68  1F35:1E18  les bx,word [0xd0a0]                   ; x86
+0x27B6C  1F35:1E1C  add bx,ax                              ; x86
+0x27B6E  1F35:1E1E  les bx,word [es:bx+0x20]               ; x86
+0x27B72  1F35:1E22  mov ax,[es:bx+0xe]                     ; x86
+0x27B76  1F35:1E26  mov [0x4fe4],ax                        ; x86
+0x27B79  1F35:1E29  mov ax,[0xd09c]                        ; x86
+0x27B7C  1F35:1E2C  shl ax,byte 0x2                        ; x86
+0x27B7F  1F35:1E2F  les bx,word [0xd0a0]                   ; x86
+0x27B83  1F35:1E33  add bx,ax                              ; x86
+0x27B85  1F35:1E35  les bx,word [es:bx+0x20]               ; x86
+0x27B89  1F35:1E39  push word [es:bx+0x20]                 ; x86
+0x27B8D  1F35:1E3D  push word [es:bx+0x1e]                 ; x86
+0x27B91  1F35:1E41  call word 0x0:word 0x164f              ; x86
+0x27B96  1F35:1E46  add sp,0x4                             ; x86
+0x27B99  1F35:1E49  mov ax,[0xd09a]                        ; x86
+0x27B9C  1F35:1E4C  shl ax,byte 0x2                        ; x86
+0x27B9F  1F35:1E4F  les bx,word [0xd0a0]                   ; x86
+0x27BA3  1F35:1E53  add bx,ax                              ; x86
+0x27BA5  1F35:1E55  les bx,word [es:bx+0x20]               ; x86
+0x27BA9  1F35:1E59  push word [es:bx+0x20]                 ; x86
+0x27BAD  1F35:1E5D  push word [es:bx+0x1e]                 ; x86
+0x27BB1  1F35:1E61  call word 0x0:word 0x164f              ; x86
+0x27BB6  1F35:1E66  add sp,0x4                             ; x86
+0x27BB9  1F35:1E69  mov ax,[0xd08c]                        ; x86
+0x27BBC  1F35:1E6C  shl ax,byte 0x2                        ; x86
+0x27BBF  1F35:1E6F  les bx,word [0xd0a0]                   ; x86
+0x27BC3  1F35:1E73  add bx,ax                              ; x86
+0x27BC5  1F35:1E75  les bx,word [es:bx+0x20]               ; x86
+0x27BC9  1F35:1E79  push word [es:bx+0x20]                 ; x86
+0x27BCD  1F35:1E7D  push word [es:bx+0x1e]                 ; x86
+0x27BD1  1F35:1E81  call word 0x0:word 0x164f              ; x86
+0x27BD6  1F35:1E86  add sp,0x4                             ; x86
+0x27BD9  1F35:1E89  push word [0xd0a2]                     ; x86
+0x27BDD  1F35:1E8D  push word [0xd0a0]                     ; x86
+0x27BE1  1F35:1E91  call word 0x3f19:word 0x24c            ; x86
+0x27BE6  1F35:1E96  add sp,0x4                             ; x86
+0x27BE9  1F35:1E99  push word [0xd0a6]                     ; x86
+0x27BED  1F35:1E9D  push word [0xd0a4]                     ; x86
+0x27BF1  1F35:1EA1  call word 0x3f19:word 0x24c            ; x86
+0x27BF6  1F35:1EA6  add sp,0x4                             ; x86
+0x27BF9  1F35:1EA9  pop di                                 ; x86
+0x27BFA  1F35:1EAA  pop si                                 ; x86
+0x27BFB  1F35:1EAB  leave                                  ; x86
+0x27BFC  1F35:1EAC  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x27BFD ===
+; ============================================================
+0x27BFD  1F35:1EAD  enter word 0xc,byte 0x0                ; x86
+0x27C01  1F35:1EB1  push si                                ; x86
+0x27C02  1F35:1EB2  push di                                ; x86
+0x27C03  1F35:1EB3  cmp [0x519a],sp                        ; x86
+0x27C07  1F35:1EB7  ja 0x1ebe                              ; x86
+0x27C09  1F35:1EB9  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x27C0E  1F35:1EBE  mov dx,[0x5184]                        ; x86
+0x27C12  1F35:1EC2  mov ax,[0x5182]                        ; x86
+0x27C15  1F35:1EC5  mov [bp-0x8],dx                        ; x86
+0x27C18  1F35:1EC8  mov [bp-0xa],ax                        ; x86
+0x27C1B  1F35:1ECB  mov dx,[bp+0x8]                        ; x86
+0x27C1E  1F35:1ECE  mov ax,[bp+0x6]                        ; x86
+0x27C21  1F35:1ED1  mov [0x5184],dx                        ; x86
+0x27C25  1F35:1ED5  mov [0x5182],ax                        ; x86
+0x27C28  1F35:1ED8  mov word [0x500c],0x1                  ; x86
+0x27C2E  1F35:1EDE  mov word [0xd08a],0x49                 ; x86
+0x27C34  1F35:1EE4  mov word [0x5006],0x1                  ; x86
+0x27C3A  1F35:1EEA  les bx,word [bp+0x6]                   ; x86
+0x27C3D  1F35:1EED  cmp word [es:bx+0x22],0x0              ; x86
+0x27C42  1F35:1EF2  jnz 0x1ef9                             ; x86
+0x27C44  1F35:1EF4  mov ax,0x1                             ; x86
+0x27C47  1F35:1EF7  jmp 0x1efb                             ; x86
+0x27C49  1F35:1EF9  xor ax,ax                              ; x86
+0x27C4B  1F35:1EFB  mov [0xd0ac],ax                        ; x86
+0x27C4E  1F35:1EFE  mov word [bp-0x2],0x0                  ; x86
+0x27C53  1F35:1F03  xor di,di                              ; x86
+0x27C55  1F35:1F05  xor si,si                              ; x86
+0x27C57  1F35:1F07  jmp 0x1f5a                             ; x86
+0x27C59  1F35:1F09  push si                                ; x86
+0x27C5A  1F35:1F0A  nop                                    ; x86
+0x27C5B  1F35:1F0B  push cs                                ; x86
+0x27C5C  1F35:1F0C  call 0x22bb                            ; x86
+0x27C5F  1F35:1F0F  pop cx                                 ; x86
+0x27C60  1F35:1F10  mov bx,si                              ; x86
+0x27C62  1F35:1F12  shl bx,byte 0x2                        ; x86
+0x27C65  1F35:1F15  mov [bx-0x2f5e],dx                     ; x86
+0x27C69  1F35:1F19  mov [bx-0x2f60],ax                     ; x86
+0x27C6D  1F35:1F1D  mov bx,si                              ; x86
+0x27C6F  1F35:1F1F  shl bx,byte 0x2                        ; x86
+0x27C72  1F35:1F22  les bx,word [bx-0x2f60]                ; x86
+0x27C76  1F35:1F26  mov ax,[es:bx+0x4]                     ; x86
+0x27C7A  1F35:1F2A  mov bx,si                              ; x86
+0x27C7C  1F35:1F2C  shl bx,byte 0x2                        ; x86
+0x27C7F  1F35:1F2F  les bx,word [bx-0x2f60]                ; x86
+0x27C83  1F35:1F33  sub ax,[es:bx]                         ; x86
+0x27C86  1F35:1F36  cmp ax,[bp-0x2]                        ; x86
+0x27C89  1F35:1F39  jng 0x1f59                             ; x86
+0x27C8B  1F35:1F3B  mov bx,si                              ; x86
+0x27C8D  1F35:1F3D  shl bx,byte 0x2                        ; x86
+0x27C90  1F35:1F40  les bx,word [bx-0x2f60]                ; x86
+0x27C94  1F35:1F44  mov ax,[es:bx+0x4]                     ; x86
+0x27C98  1F35:1F48  mov bx,si                              ; x86
+0x27C9A  1F35:1F4A  shl bx,byte 0x2                        ; x86
+0x27C9D  1F35:1F4D  les bx,word [bx-0x2f60]                ; x86
+0x27CA1  1F35:1F51  sub ax,[es:bx]                         ; x86
+0x27CA4  1F35:1F54  mov [bp-0x2],ax                        ; x86
+0x27CA7  1F35:1F57  mov di,si                              ; x86
+0x27CA9  1F35:1F59  inc si                                 ; x86
+0x27CAA  1F35:1F5A  cmp si,0x2                             ; x86
+0x27CAD  1F35:1F5D  jl 0x1f09                              ; x86
+0x27CAF  1F35:1F5F  xor si,si                              ; x86
+0x27CB1  1F35:1F61  jmp 0x1f86                             ; x86
+0x27CB3  1F35:1F63  mov bx,di                              ; x86
+0x27CB5  1F35:1F65  shl bx,byte 0x2                        ; x86
+0x27CB8  1F35:1F68  push word [bx-0x2f5e]                  ; x86
+0x27CBC  1F35:1F6C  push word [bx-0x2f60]                  ; x86
+0x27CC0  1F35:1F70  mov bx,si                              ; x86
+0x27CC2  1F35:1F72  shl bx,byte 0x2                        ; x86
+0x27CC5  1F35:1F75  push word [bx-0x2f5e]                  ; x86
+0x27CC9  1F35:1F79  push word [bx-0x2f60]                  ; x86
+0x27CCD  1F35:1F7D  call word 0x3f19:word 0x3781           ; x86
+0x27CD2  1F35:1F82  add sp,0x8                             ; x86
+0x27CD5  1F35:1F85  inc si                                 ; x86
+0x27CD6  1F35:1F86  cmp si,0x2                             ; x86
+0x27CD9  1F35:1F89  jl 0x1f63                              ; x86
+0x27CDB  1F35:1F8B  push word [0xd09a]                     ; x86
+0x27CDF  1F35:1F8F  push word [0xd0a2]                     ; x86
+0x27CE3  1F35:1F93  push word [0xd0a0]                     ; x86
+0x27CE7  1F35:1F97  call word 0x3f19:word 0x3d91           ; x86
+0x27CEC  1F35:1F9C  add sp,0x6                             ; x86
+0x27CEF  1F35:1F9F  mov ax,[0xd09c]                        ; x86
+0x27CF2  1F35:1FA2  mov [bp-0x6],ax                        ; x86
+0x27CF5  1F35:1FA5  mov ax,[0xd088]                        ; x86
+0x27CF8  1F35:1FA8  mov [bp-0x4],ax                        ; x86
+0x27CFB  1F35:1FAB  push word 0x2                          ; x86
+0x27CFD  1F35:1FAD  push ss                                ; x86
+0x27CFE  1F35:1FAE  lea ax,[bp-0x6]                        ; x86
+0x27D01  1F35:1FB1  push ax                                ; x86
+0x27D02  1F35:1FB2  push word [0xd0a2]                     ; x86
+0x27D06  1F35:1FB6  push word [0xd0a0]                     ; x86
+0x27D0A  1F35:1FBA  call word 0x3f19:word 0x4808           ; x86
+0x27D0F  1F35:1FBF  add sp,0xa                             ; x86
+0x27D12  1F35:1FC2  cmp word [0x5188],0x1                  ; x86
+0x27D17  1F35:1FC7  jnz 0x1fdf                             ; x86
+0x27D19  1F35:1FC9  push word 0x6                          ; x86
+0x27D1B  1F35:1FCB  push ds                                ; x86
+0x27D1C  1F35:1FCC  push word 0xd08e                       ; x86
+0x27D1F  1F35:1FCF  push word [0xd0a6]                     ; x86
+0x27D23  1F35:1FD3  push word [0xd0a4]                     ; x86
+0x27D27  1F35:1FD7  call word 0x3f19:word 0x4808           ; x86
+0x27D2C  1F35:1FDC  add sp,0xa                             ; x86
+0x27D2F  1F35:1FDF  push word 0x1                          ; x86
+0x27D31  1F35:1FE1  call word 0x21e6:word 0x39             ; x86
+0x27D36  1F35:1FE6  pop cx                                 ; x86
+0x27D37  1F35:1FE7  push word 0x1                          ; x86
+0x27D39  1F35:1FE9  mov bx,[0xd0ac]                        ; x86
+0x27D3D  1F35:1FED  shl bx,byte 0x2                        ; x86
+0x27D40  1F35:1FF0  push word [bx-0x2f5e]                  ; x86
+0x27D44  1F35:1FF4  push word [bx-0x2f60]                  ; x86
+0x27D48  1F35:1FF8  call word 0x3f19:word 0x45d            ; x86
+0x27D4D  1F35:1FFD  add sp,0x6                             ; x86
+0x27D50  1F35:2000  push word 0x0                          ; x86
+0x27D52  1F35:2002  call word 0x21e6:word 0x39             ; x86
+0x27D57  1F35:2007  pop cx                                 ; x86
+0x27D58  1F35:2008  mov ax,[0xd09e]                        ; x86
+0x27D5B  1F35:200B  db 0xc1                                ; x86
+0x27D5C  1F35:200C  db 0xe0                                ; x86
+--- Statistics ---
+FPU instructions: 119
+x86 instructions: 2784
+Total: 2903
+

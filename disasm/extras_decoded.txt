@@ -5,25 +5,29 @@
 0x20EA9  1A4A:0009  pop di                                 ; x86
 0x20EAA  1A4A:000A  pop si                                 ; x86
 0x20EAB  1A4A:000B  leave                                  ; x86
-0x20EAC  1A4A:000C  retf                                   ; x86
+0x20EAC  1A4A:000C  retf                                   ; x86  ; --- end ---
 0x20EAD  1A4A:000D  push bp                                ; x86
 0x20EAE  1A4A:000E  mov bp,sp                              ; x86
 0x20EB0  1A4A:0010  cmp [0x519a],sp                        ; x86
 0x20EB4  1A4A:0014  ja 0x1b                                ; x86
-0x20EB6  1A4A:0016  call word 0x0:word 0xa2ce              ; x86
+0x20EB6  1A4A:0016  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x20EBB  1A4A:001B  push word 0x2a30                       ; x86
-0x20EBE  1A4A:001E  call word 0x0:word 0x1e97              ; x86
+0x20EBE  1A4A:001E  call word 0x0:word 0x1e97              ; x86  → _malloc
 0x20EC3  1A4A:0023  pop cx                                 ; x86
 0x20EC4  1A4A:0024  mov [0xceba],dx                        ; x86
 0x20EC8  1A4A:0028  mov [0xceb8],ax                        ; x86
 0x20ECB  1A4A:002B  pop bp                                 ; x86
-0x20ECC  1A4A:002C  retf                                   ; x86
+0x20ECC  1A4A:002C  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x20ECD ===
+; ============================================================
 0x20ECD  1A4A:002D  enter word 0x2,byte 0x0                ; x86
 0x20ED1  1A4A:0031  push si                                ; x86
 0x20ED2  1A4A:0032  push di                                ; x86
 0x20ED3  1A4A:0033  cmp [0x519a],sp                        ; x86
 0x20ED7  1A4A:0037  ja 0x3e                                ; x86
-0x20ED9  1A4A:0039  call word 0x0:word 0xa2ce              ; x86
+0x20ED9  1A4A:0039  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x20EDE  1A4A:003E  mov ax,[0xef40]                        ; x86
 0x20EE1  1A4A:0041  mov [0xceb4],ax                        ; x86
 0x20EE4  1A4A:0044  mov si,[0xef38]                        ; x86
@@ -74,13 +78,17 @@
 0x20F5F  1A4A:00BF  pop di                                 ; x86
 0x20F60  1A4A:00C0  pop si                                 ; x86
 0x20F61  1A4A:00C1  leave                                  ; x86
-0x20F62  1A4A:00C2  retf                                   ; x86
+0x20F62  1A4A:00C2  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x20F63 ===
+; ============================================================
 0x20F63  1A4A:00C3  enter word 0x8,byte 0x0                ; x86
 0x20F67  1A4A:00C7  push si                                ; x86
 0x20F68  1A4A:00C8  push di                                ; x86
 0x20F69  1A4A:00C9  cmp [0x519a],sp                        ; x86
 0x20F6D  1A4A:00CD  ja 0xd4                                ; x86
-0x20F6F  1A4A:00CF  call word 0x0:word 0xa2ce              ; x86
+0x20F6F  1A4A:00CF  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x20F74  1A4A:00D4  mov word [bp-0x6],0x0                  ; x86
 0x20F79  1A4A:00D9  mov word [bp-0x8],0x0                  ; x86
 0x20F7E  1A4A:00DE  mov di,[0xee78]                        ; x86
@@ -113,19 +121,19 @@
 0x20FC9  1A4A:0129  mov word [bp-0x4],0x0                  ; x86
 0x20FCE  1A4A:012E  mov di,[0xee78]                        ; x86
 0x20FD2  1A4A:0132  jmp 0x17c                              ; x86
-0x20FD4  1A4A:0134  fadd dword [0x1c8e]                    ; INT 35h  DS:1C8E
-0x20FD9  1A4A:0139  fstp dword [0xcebe]                    ; INT 39h  DS:CEBE
-0x20FDE  1A4A:013E  fld dword [0x1c92]                     ; INT 39h  DS:1C92
-0x20FE3  1A4A:0143  fstp dword [0xcec6]                    ; INT 39h  DS:CEC6
+0x20FD4  1A4A:0134  fld dword [0x1c8e]                     ; INT 35h  DS:1C8E
+0x20FD9  1A4A:0139  fstp qword [0xcebe]                    ; INT 39h  DS:CEBE
+0x20FDE  1A4A:013E  fld qword [0x1c92]                     ; INT 39h  DS:1C92
+0x20FE3  1A4A:0143  fstp qword [0xcec6]                    ; INT 39h  DS:CEC6
 0x20FE8  1A4A:0148  xor si,si                              ; x86
 0x20FEA  1A4A:014A  wait                                   ; INT 3Dh
 0x20FEC  1A4A:014C  jmp 0x16f                              ; x86
-0x20FEE  1A4A:014E  fld dword [0x1c9a]                     ; INT 39h  DS:1C9A
-0x20FF3  1A4A:0153  fld qword [0xcebe]                     ; INT 38h  DS:CEBE
-0x20FF8  1A4A:0158  fstp dword [0xcebe]                    ; INT 39h  DS:CEBE
-0x20FFD  1A4A:015D  fadd dword [0x1ca2]                    ; INT 35h  DS:1CA2
-0x21002  1A4A:0162  fisttp qword [0xcec6]                  ; INT 38h  DS:CEC6
-0x21007  1A4A:0167  fstp dword [0xcec6]                    ; INT 39h  DS:CEC6
+0x20FEE  1A4A:014E  fld qword [0x1c9a]                     ; INT 39h  DS:1C9A
+0x20FF3  1A4A:0153  fadd qword [0xcebe]                    ; INT 38h  DS:CEBE
+0x20FF8  1A4A:0158  fstp qword [0xcebe]                    ; INT 39h  DS:CEBE
+0x20FFD  1A4A:015D  fld dword [0x1ca2]                     ; INT 35h  DS:1CA2
+0x21002  1A4A:0162  fmul qword [0xcec6]                    ; INT 38h  DS:CEC6
+0x21007  1A4A:0167  fstp qword [0xcec6]                    ; INT 39h  DS:CEC6
 0x2100C  1A4A:016C  wait                                   ; INT 3Dh
 0x2100E  1A4A:016E  inc si                                 ; x86
 0x2100F  1A4A:016F  cmp si,0x32                            ; x86
@@ -159,15 +167,19 @@
 0x21060  1A4A:01C0  pop di                                 ; x86
 0x21061  1A4A:01C1  pop si                                 ; x86
 0x21062  1A4A:01C2  leave                                  ; x86
-0x21063  1A4A:01C3  retf                                   ; x86
+0x21063  1A4A:01C3  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x21064 ===
+; ============================================================
 0x21064  1A4A:01C4  enter word 0xc,byte 0x0                ; x86
 0x21068  1A4A:01C8  cmp [0x519a],sp                        ; x86
 0x2106C  1A4A:01CC  ja 0x1d3                               ; x86
-0x2106E  1A4A:01CE  call word 0x0:word 0xa2ce              ; x86
+0x2106E  1A4A:01CE  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x21073  1A4A:01D3  cmp word [0x1c78],0x0                  ; x86
 0x21078  1A4A:01D8  jnz 0x1dc                              ; x86
 0x2107A  1A4A:01DA  leave                                  ; x86
-0x2107B  1A4A:01DB  retf                                   ; x86
+0x2107B  1A4A:01DB  retf                                   ; x86  ; --- end ---
 0x2107C  1A4A:01DC  push ds                                ; x86
 0x2107D  1A4A:01DD  push word 0x1cb9                       ; x86
 0x21080  1A4A:01E0  call word 0x3e60:word 0xd              ; x86
@@ -186,83 +198,87 @@
 0x210AA  1A4A:020A  mov ax,[0x1c86]                        ; x86
 0x210AD  1A4A:020D  mov [bp-0xc],ax                        ; x86
 0x210B0  1A4A:0210  mov [bp-0xa],dx                        ; x86
-0x210B3  1A4A:0213  fiadd word [bp-0xc]                    ; INT 37h
-0x210B7  1A4A:0217  fcmovne st1                            ; INT 3Ah
+0x210B3  1A4A:0213  fild dword [bp-0xc]                    ; INT 37h
+0x210B7  1A4A:0217  fmulp st1                              ; INT 3Ah
 0x210BA  1A4A:021A  mov ax,[0x1c78]                        ; x86
 0x210BD  1A4A:021D  mov [bp-0xc],ax                        ; x86
 0x210C0  1A4A:0220  fild word [bp-0xc]                     ; INT 3Bh
-0x210C4  1A4A:0224  fmul qword [0x1cc8]                    ; INT 34h  DS:1CC8
-0x210C9  1A4A:0229  db db f9 (/7 mod=3 rm=1)               ; INT 3Ah
-0x210CC  1A4A:022C  fstp dword [bp-0x8]                    ; INT 39h
+0x210C4  1A4A:0224  fmul dword [0x1cc8]                    ; INT 34h  DS:1CC8
+0x210C9  1A4A:0229  fdivp st1                              ; INT 3Ah
+0x210CC  1A4A:022C  fstp qword [bp-0x8]                    ; INT 39h
 0x210D0  1A4A:0230  wait                                   ; INT 3Dh
 0x210D2  1A4A:0232  push word [0x1c78]                     ; x86
 0x210D6  1A4A:0236  push word [0x5140]                     ; x86
-0x210DA  1A4A:023A  fld dword [bp-0x8]                     ; INT 39h
+0x210DA  1A4A:023A  fld qword [bp-0x8]                     ; INT 39h
 0x210DE  1A4A:023E  sub sp,0x8                             ; x86
-0x210E1  1A4A:0241  fstp dword [bp-0x18]                   ; INT 39h
+0x210E1  1A4A:0241  fstp qword [bp-0x18]                   ; INT 39h
 0x210E5  1A4A:0245  push ds                                ; x86
 0x210E6  1A4A:0246  push word 0x1ccc                       ; x86
 0x210E9  1A4A:0249  wait                                   ; INT 3Dh
 0x210EB  1A4A:024B  call word 0x3e60:word 0xd              ; x86
 0x210F0  1A4A:0250  add sp,0x10                            ; x86
-0x210F3  1A4A:0253  fld dword [bp-0x8]                     ; INT 39h
-0x210F7  1A4A:0257  fsubr st6                              ; INT 35h
-0x210FA  1A4A:025A  fcmovnu st1                            ; INT 3Ah
-0x210FD  1A4A:025D  fnstcw [bp-0xc]                        ; INT 39h
+0x210F3  1A4A:0253  fld qword [bp-0x8]                     ; INT 39h
+0x210F7  1A4A:0257  fldz                                   ; INT 35h
+0x210FA  1A4A:025A  fcompp                                 ; INT 3Ah
+0x210FD  1A4A:025D  fnstsw [bp-0xc]                        ; INT 39h
 0x21101  1A4A:0261  wait                                   ; INT 3Dh
 0x21103  1A4A:0263  mov ax,[bp-0xc]                        ; x86
 0x21106  1A4A:0266  sahf                                   ; x86
 0x21107  1A4A:0267  jnc 0x2b1                              ; x86
 0x21109  1A4A:0269  cmp word [0x50f0],0x0                  ; x86
 0x2110E  1A4A:026E  jnz 0x2b1                              ; x86
-0x21110  1A4A:0270  fadd dword [0x1cf2]                    ; INT 35h  DS:1CF2
-0x21115  1A4A:0275  fisttp qword [0x512a]                  ; INT 38h  DS:512A
-0x2111A  1A4A:027A  fnsave [bp-0x8]                        ; INT 38h
-0x2111E  1A4A:027E  fstp dword [0xce9c]                    ; INT 39h  DS:CE9C
+0x21110  1A4A:0270  fld dword [0x1cf2]                     ; INT 35h  DS:1CF2
+0x21115  1A4A:0275  fmul qword [0x512a]                    ; INT 38h  DS:512A
+0x2111A  1A4A:027A  fdiv qword [bp-0x8]                    ; INT 38h
+0x2111E  1A4A:027E  fstp qword [0xce9c]                    ; INT 39h  DS:CE9C
 0x21123  1A4A:0283  wait                                   ; INT 3Dh
 0x21125  1A4A:0285  mov ax,[0x515a]                        ; x86
 0x21128  1A4A:0288  mov [bp-0xc],ax                        ; x86
 0x2112B  1A4A:028B  fild word [bp-0xc]                     ; INT 3Bh
-0x2112F  1A4A:028F  fld dword [bp-0x8]                     ; INT 39h
-0x21133  1A4A:0293  fmul qword [0x1cf6]                    ; INT 34h  DS:1CF6
-0x21138  1A4A:0298  db db f9 (/7 mod=3 rm=1)               ; INT 3Ah
-0x2113B  1A4A:029B  fstp dword [0xcea4]                    ; INT 39h  DS:CEA4
-0x21140  1A4A:02A0  fadd dword [0x1cf2]                    ; INT 35h  DS:1CF2
-0x21145  1A4A:02A5  fisttp qword [bp-0x8]                  ; INT 38h
-0x21149  1A4A:02A9  fsubr st0                              ; INT 35h
-0x2114C  1A4A:02AC  fcomi st1                              ; INT 3Ah
+0x2112F  1A4A:028F  fld qword [bp-0x8]                     ; INT 39h
+0x21133  1A4A:0293  fmul dword [0x1cf6]                    ; INT 34h  DS:1CF6
+0x21138  1A4A:0298  fdivp st1                              ; INT 3Ah
+0x2113B  1A4A:029B  fstp qword [0xcea4]                    ; INT 39h  DS:CEA4
+0x21140  1A4A:02A0  fld dword [0x1cf2]                     ; INT 35h  DS:1CF2
+0x21145  1A4A:02A5  fmul qword [bp-0x8]                    ; INT 38h
+0x21149  1A4A:02A9  fld1                                   ; INT 35h
+0x2114C  1A4A:02AC  fdivrp st1                             ; INT 3Ah
 0x2114F  1A4A:02AF  jmp 0x2db                              ; x86
-0x21151  1A4A:02B1  fadd dword [0x1cf2]                    ; INT 35h  DS:1CF2
-0x21156  1A4A:02B6  fisttp qword [0x512a]                  ; INT 38h  DS:512A
-0x2115B  1A4A:02BB  fstp dword [0xce9c]                    ; INT 39h  DS:CE9C
+0x21151  1A4A:02B1  fld dword [0x1cf2]                     ; INT 35h  DS:1CF2
+0x21156  1A4A:02B6  fmul qword [0x512a]                    ; INT 38h  DS:512A
+0x2115B  1A4A:02BB  fstp qword [0xce9c]                    ; INT 39h  DS:CE9C
 0x21160  1A4A:02C0  wait                                   ; INT 3Dh
 0x21162  1A4A:02C2  mov ax,[0x515a]                        ; x86
 0x21165  1A4A:02C5  mov [bp-0xc],ax                        ; x86
 0x21168  1A4A:02C8  fild word [bp-0xc]                     ; INT 3Bh
-0x2116C  1A4A:02CC  fdiv qword [0x1cf6]                    ; INT 34h  DS:1CF6
-0x21171  1A4A:02D1  fstp dword [0xcea4]                    ; INT 39h  DS:CEA4
-0x21176  1A4A:02D6  fld dword [0x1cfa]                     ; INT 39h  DS:1CFA
-0x2117B  1A4A:02DB  fstp dword [0xceac]                    ; INT 39h  DS:CEAC
+0x2116C  1A4A:02CC  fdiv dword [0x1cf6]                    ; INT 34h  DS:1CF6
+0x21171  1A4A:02D1  fstp qword [0xcea4]                    ; INT 39h  DS:CEA4
+0x21176  1A4A:02D6  fld qword [0x1cfa]                     ; INT 39h  DS:1CFA
+0x2117B  1A4A:02DB  fstp qword [0xceac]                    ; INT 39h  DS:CEAC
 0x21180  1A4A:02E0  wait                                   ; INT 3Dh
 0x21182  1A4A:02E2  push ds                                ; x86
 0x21183  1A4A:02E3  push word 0x1d02                       ; x86
 0x21186  1A4A:02E6  call word 0x3e60:word 0xd              ; x86
 0x2118B  1A4A:02EB  add sp,0x4                             ; x86
 0x2118E  1A4A:02EE  leave                                  ; x86
-0x2118F  1A4A:02EF  retf                                   ; x86
+0x2118F  1A4A:02EF  retf                                   ; x86  ; --- end ---
 0x21190  1A4A:02F0  leave                                  ; x86
-0x21191  1A4A:02F1  retf                                   ; x86
+0x21191  1A4A:02F1  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x21192 ===
+; ============================================================
 0x21192  1A4A:02F2  enter word 0x16,byte 0x0               ; x86
 0x21196  1A4A:02F6  push si                                ; x86
 0x21197  1A4A:02F7  push di                                ; x86
 0x21198  1A4A:02F8  cmp [0x519a],sp                        ; x86
 0x2119C  1A4A:02FC  ja 0x303                               ; x86
-0x2119E  1A4A:02FE  call word 0x0:word 0xa2ce              ; x86
+0x2119E  1A4A:02FE  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x211A3  1A4A:0303  mov ax,[bp+0xc]                        ; x86
 0x211A6  1A4A:0306  mov [bp-0xa],ax                        ; x86
 0x211A9  1A4A:0309  fild word [bp-0xa]                     ; INT 3Bh
-0x211AD  1A4A:030D  fisttp qword [0x1d08]                  ; INT 38h  DS:1D08 = [f64] 0.017453293 (PI/180 deg-to-rad)
-0x211B2  1A4A:0312  fstp dword [bp-0x8]                    ; INT 39h
+0x211AD  1A4A:030D  fmul qword [0x1d08]                    ; INT 38h  DS:1D08 = [f64] 0.017453293 (PI/180 deg-to-rad)
+0x211B2  1A4A:0312  fstp qword [bp-0x8]                    ; INT 39h
 0x211B6  1A4A:0316  wait                                   ; INT 3Dh
 0x211B8  1A4A:0318  mov bx,[0xe344]                        ; x86
 0x211BC  1A4A:031C  imul bx,bx,0x34                        ; x86
@@ -298,9 +314,9 @@
 0x21226  1A4A:0386  jnz 0x3b6                              ; x86
 0x21228  1A4A:0388  cmp word [bx+0x1200],0x4               ; x86
 0x2122E  1A4A:038E  jnz 0x3b6                              ; x86
-0x21230  1A4A:0390  fld dword [bp-0x8]                     ; INT 39h
+0x21230  1A4A:0390  fld qword [bp-0x8]                     ; INT 39h
 0x21234  1A4A:0394  sub sp,0x8                             ; x86
-0x21237  1A4A:0397  fstp dword [bp-0x22]                   ; INT 39h
+0x21237  1A4A:0397  fstp qword [bp-0x22]                   ; INT 39h
 0x2123B  1A4A:039B  wait                                   ; INT 3Dh
 0x2123D  1A4A:039D  push word [bp+0xa]                     ; x86
 0x21240  1A4A:03A0  push word [bp+0x8]                     ; x86
@@ -350,29 +366,29 @@
 0x212C4  1A4A:0424  push ss                                ; x86
 0x212C5  1A4A:0425  lea ax,[bp-0xe]                        ; x86
 0x212C8  1A4A:0428  push ax                                ; x86
-0x212C9  1A4A:0429  fld dword [bp-0x8]                     ; INT 39h
+0x212C9  1A4A:0429  fld qword [bp-0x8]                     ; INT 39h
 0x212CD  1A4A:042D  sub sp,0x8                             ; x86
-0x212D0  1A4A:0430  fstp dword [bp-0x2a]                   ; INT 39h
+0x212D0  1A4A:0430  fstp qword [bp-0x2a]                   ; INT 39h
 0x212D4  1A4A:0434  wait                                   ; INT 3Dh
-0x212D6  1A4A:0436  call word 0x0:word 0x1204              ; x86
+0x212D6  1A4A:0436  call word 0x0:word 0x1204              ; x86  → _sin
 0x212DB  1A4A:043B  add sp,0x8                             ; x86
 0x212DE  1A4A:043E  mov ax,[bp+0xa]                        ; x86
 0x212E1  1A4A:0441  mov [bp-0xa],ax                        ; x86
 0x212E4  1A4A:0444  fild word [bp-0xa]                     ; INT 3Bh
-0x212E8  1A4A:0448  fcmovne st1                            ; INT 3Ah
-0x212EB  1A4A:044B  call word 0x0:word 0x14df              ; x86
+0x212E8  1A4A:0448  fmulp st1                              ; INT 3Ah
+0x212EB  1A4A:044B  call word 0x0:word 0x14df              ; x86  → _ftol
 0x212F0  1A4A:0450  push ax                                ; x86
-0x212F1  1A4A:0451  fld dword [bp-0x8]                     ; INT 39h
+0x212F1  1A4A:0451  fld qword [bp-0x8]                     ; INT 39h
 0x212F5  1A4A:0455  sub sp,0x8                             ; x86
-0x212F8  1A4A:0458  fstp dword [bp-0x2c]                   ; INT 39h
+0x212F8  1A4A:0458  fstp qword [bp-0x2c]                   ; INT 39h
 0x212FC  1A4A:045C  wait                                   ; INT 3Dh
-0x212FE  1A4A:045E  call word 0x0:word 0x13d1              ; x86
+0x212FE  1A4A:045E  call word 0x0:word 0x13d1              ; x86  → _cos
 0x21303  1A4A:0463  add sp,0x8                             ; x86
 0x21306  1A4A:0466  mov ax,[bp+0xa]                        ; x86
 0x21309  1A4A:0469  mov [bp-0xa],ax                        ; x86
 0x2130C  1A4A:046C  fild word [bp-0xa]                     ; INT 3Bh
-0x21310  1A4A:0470  fcmovne st1                            ; INT 3Ah
-0x21313  1A4A:0473  call word 0x0:word 0x14df              ; x86
+0x21310  1A4A:0470  fmulp st1                              ; INT 3Ah
+0x21313  1A4A:0473  call word 0x0:word 0x14df              ; x86  → _ftol
 0x21318  1A4A:0478  push ax                                ; x86
 0x21319  1A4A:0479  push word 0x0                          ; x86
 0x2131B  1A4A:047B  push word 0x0                          ; x86
@@ -382,13 +398,13 @@
 0x21328  1A4A:0488  mov [bp-0xa],ax                        ; x86
 0x2132B  1A4A:048B  fild word [bp-0xa]                     ; INT 3Bh
 0x2132F  1A4A:048F  sub sp,0x8                             ; x86
-0x21332  1A4A:0492  fstp dword [bp-0x22]                   ; INT 39h
+0x21332  1A4A:0492  fstp qword [bp-0x22]                   ; INT 39h
 0x21336  1A4A:0496  wait                                   ; INT 3Dh
 0x21338  1A4A:0498  mov ax,[bp-0xe]                        ; x86
 0x2133B  1A4A:049B  mov [bp-0xa],ax                        ; x86
 0x2133E  1A4A:049E  fild word [bp-0xa]                     ; INT 3Bh
 0x21342  1A4A:04A2  sub sp,0x8                             ; x86
-0x21345  1A4A:04A5  fstp dword [bp-0x2a]                   ; INT 39h
+0x21345  1A4A:04A5  fstp qword [bp-0x2a]                   ; INT 39h
 0x21349  1A4A:04A9  wait                                   ; INT 3Dh
 0x2134B  1A4A:04AB  push word [bp+0x8]                     ; x86
 0x2134E  1A4A:04AE  push word [bp+0x6]                     ; x86
@@ -431,7 +447,7 @@
 0x213BC  1A4A:051C  wait                                   ; INT 3Dh
 0x213BE  1A4A:051E  les bx,word [0xceb8]                   ; x86
 0x213C2  1A4A:0522  add bx,ax                              ; x86
-0x213C4  1A4A:0524  fld dword [bp-0x8]                     ; INT 39h
+0x213C4  1A4A:0524  fld qword [bp-0x8]                     ; INT 39h
 0x213C8  1A4A:0528  fcomp st5                              ; INT 3Ch
 0x213CB  1A4A:052B  pop di                                 ; x86
 0x213CC  1A4A:052C  pop si                                 ; x86
@@ -472,8 +488,8 @@
 0x2143F  1A4A:059F  mov si,ax                              ; x86
 0x21441  1A4A:05A1  cmp word [bp-0xc],0x0                  ; x86
 0x21445  1A4A:05A5  jnz 0x5ef                              ; x86
-0x21447  1A4A:05A7  fld dword [0x1d10]                     ; INT 39h  DS:1D10 = [f64] 1.02 (+2% damage randomization)
-0x2144C  1A4A:05AC  fstp dword [bp-0x14]                   ; INT 39h
+0x21447  1A4A:05A7  fld qword [0x1d10]                     ; INT 39h  DS:1D10 = [f64] 1.02 (+2% damage randomization)
+0x2144C  1A4A:05AC  fstp qword [bp-0x14]                   ; INT 39h
 0x21450  1A4A:05B0  wait                                   ; INT 3Dh
 0x21452  1A4A:05B2  les bx,word [0x5182]                   ; x86
 0x21456  1A4A:05B6  cmp word [es:bx+0x92],0x4b             ; x86
@@ -493,8 +509,8 @@
 0x21486  1A4A:05E6  mov si,ax                              ; x86
 0x21488  1A4A:05E8  mov word [bp-0x16],0xffff              ; x86
 0x2148D  1A4A:05ED  jmp 0x62d                              ; x86
-0x2148F  1A4A:05EF  fld dword [0x1d18]                     ; INT 39h  DS:1D18 = [f64] 0.98 (-2% damage randomization)
-0x21494  1A4A:05F4  fstp dword [bp-0x14]                   ; INT 39h
+0x2148F  1A4A:05EF  fld qword [0x1d18]                     ; INT 39h  DS:1D18 = [f64] 0.98 (-2% damage randomization)
+0x21494  1A4A:05F4  fstp qword [bp-0x14]                   ; INT 39h
 0x21498  1A4A:05F8  wait                                   ; INT 3Dh
 0x2149A  1A4A:05FA  les bx,word [0x5182]                   ; x86
 0x2149E  1A4A:05FE  cmp word [es:bx+0x92],0x4b             ; x86
@@ -509,32 +525,32 @@
 0x214BF  1A4A:061F  les bx,word [0x5182]                   ; x86
 0x214C3  1A4A:0623  mov si,[es:bx+0x94]                    ; x86
 0x214C8  1A4A:0628  mov word [bp-0x16],0x1                 ; x86
-0x214CD  1A4A:062D  fld dword [bp-0x8]                     ; INT 39h
+0x214CD  1A4A:062D  fld qword [bp-0x8]                     ; INT 39h
 0x214D1  1A4A:0631  sub sp,0x8                             ; x86
-0x214D4  1A4A:0634  fstp dword [bp-0x22]                   ; INT 39h
+0x214D4  1A4A:0634  fstp qword [bp-0x22]                   ; INT 39h
 0x214D8  1A4A:0638  wait                                   ; INT 3Dh
-0x214DA  1A4A:063A  call word 0x0:word 0x1204              ; x86
+0x214DA  1A4A:063A  call word 0x0:word 0x1204              ; x86  → _sin
 0x214DF  1A4A:063F  add sp,0x8                             ; x86
 0x214E2  1A4A:0642  mov ax,[bp+0xa]                        ; x86
 0x214E5  1A4A:0645  mov [bp-0xa],ax                        ; x86
 0x214E8  1A4A:0648  fild word [bp-0xa]                     ; INT 3Bh
-0x214EC  1A4A:064C  fisttp qword [bp-0x14]                 ; INT 38h
-0x214F0  1A4A:0650  fcmovne st1                            ; INT 3Ah
+0x214EC  1A4A:064C  fmul qword [bp-0x14]                   ; INT 38h
+0x214F0  1A4A:0650  fmulp st1                              ; INT 3Ah
 0x214F3  1A4A:0653  sub sp,0x8                             ; x86
-0x214F6  1A4A:0656  fstp dword [bp-0x22]                   ; INT 39h
-0x214FA  1A4A:065A  fld dword [bp-0x8]                     ; INT 39h
+0x214F6  1A4A:0656  fstp qword [bp-0x22]                   ; INT 39h
+0x214FA  1A4A:065A  fld qword [bp-0x8]                     ; INT 39h
 0x214FE  1A4A:065E  sub sp,0x8                             ; x86
-0x21501  1A4A:0661  fstp dword [bp-0x2a]                   ; INT 39h
+0x21501  1A4A:0661  fstp qword [bp-0x2a]                   ; INT 39h
 0x21505  1A4A:0665  wait                                   ; INT 3Dh
-0x21507  1A4A:0667  call word 0x0:word 0x13d1              ; x86
+0x21507  1A4A:0667  call word 0x0:word 0x13d1              ; x86  → _cos
 0x2150C  1A4A:066C  add sp,0x8                             ; x86
 0x2150F  1A4A:066F  mov ax,[bp+0xa]                        ; x86
 0x21512  1A4A:0672  mov [bp-0xa],ax                        ; x86
 0x21515  1A4A:0675  fild word [bp-0xa]                     ; INT 3Bh
-0x21519  1A4A:0679  fisttp qword [bp-0x14]                 ; INT 38h
-0x2151D  1A4A:067D  fcmovne st1                            ; INT 3Ah
+0x21519  1A4A:0679  fmul qword [bp-0x14]                   ; INT 38h
+0x2151D  1A4A:067D  fmulp st1                              ; INT 3Ah
 0x21520  1A4A:0680  sub sp,0x8                             ; x86
-0x21523  1A4A:0683  fstp dword [bp-0x2a]                   ; INT 39h
+0x21523  1A4A:0683  fstp qword [bp-0x2a]                   ; INT 39h
 0x21527  1A4A:0687  wait                                   ; INT 3Dh
 0x21529  1A4A:0689  mov ax,[bp+0x8]                        ; x86
 0x2152C  1A4A:068C  add ax,[bp-0x16]                       ; x86
@@ -579,46 +595,54 @@
 0x21598  1A4A:06F8  pop di                                 ; x86
 0x21599  1A4A:06F9  pop si                                 ; x86
 0x2159A  1A4A:06FA  leave                                  ; x86
-0x2159B  1A4A:06FB  retf                                   ; x86
+0x2159B  1A4A:06FB  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x2159C ===
+; ============================================================
 0x2159C  1A4A:06FC  enter word 0xa,byte 0x0                ; x86
 0x215A0  1A4A:0700  cmp [0x519a],sp                        ; x86
 0x215A4  1A4A:0704  ja 0x70b                               ; x86
-0x215A6  1A4A:0706  call word 0x0:word 0xa2ce              ; x86
+0x215A6  1A4A:0706  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x215AB  1A4A:070B  mov ax,[bp+0x8]                        ; x86
 0x215AE  1A4A:070E  mov [bp-0xa],ax                        ; x86
 0x215B1  1A4A:0711  fild word [bp-0xa]                     ; INT 3Bh
-0x215B5  1A4A:0715  fisttp qword [0x1d08]                  ; INT 38h  DS:1D08 = [f64] 0.017453293 (PI/180 deg-to-rad)
+0x215B5  1A4A:0715  fmul qword [0x1d08]                    ; INT 38h  DS:1D08 = [f64] 0.017453293 (PI/180 deg-to-rad)
 0x215BA  1A4A:071A  sub sp,0x8                             ; x86
-0x215BD  1A4A:071D  fstp dword [bp-0x12]                   ; INT 39h
+0x215BD  1A4A:071D  fstp qword [bp-0x12]                   ; INT 39h
 0x215C1  1A4A:0721  wait                                   ; INT 3Dh
-0x215C3  1A4A:0723  call word 0x0:word 0x1204              ; x86
+0x215C3  1A4A:0723  call word 0x0:word 0x1204              ; x86  → _sin
 0x215C8  1A4A:0728  add sp,0x8                             ; x86
 0x215CB  1A4A:072B  mov ax,[bp+0xa]                        ; x86
 0x215CE  1A4A:072E  mov [bp-0xa],ax                        ; x86
 0x215D1  1A4A:0731  fild word [bp-0xa]                     ; INT 3Bh
-0x215D5  1A4A:0735  fcmovne st1                            ; INT 3Ah
-0x215D8  1A4A:0738  fstp dword [bp-0x8]                    ; INT 39h
+0x215D5  1A4A:0735  fmulp st1                              ; INT 3Ah
+0x215D8  1A4A:0738  fstp qword [bp-0x8]                    ; INT 39h
 0x215DC  1A4A:073C  wait                                   ; INT 3Dh
-0x215DE  1A4A:073E  fld dword [bp-0x8]                     ; INT 39h
-0x215E2  1A4A:0742  fisttp qword [bp-0x8]                  ; INT 38h
-0x215E6  1A4A:0746  fadd dword [0x1d20]                    ; INT 35h  DS:1D20 = [f32] 5000.0 (max effective distance)
-0x215EB  1A4A:074B  fisttp qword [0x512a]                  ; INT 38h  DS:512A
-0x215F0  1A4A:0750  db db f9 (/7 mod=3 rm=1)               ; INT 3Ah
-0x215F3  1A4A:0753  call word 0x0:word 0x14df              ; x86
+0x215DE  1A4A:073E  fld qword [bp-0x8]                     ; INT 39h
+0x215E2  1A4A:0742  fmul qword [bp-0x8]                    ; INT 38h
+0x215E6  1A4A:0746  fld dword [0x1d20]                     ; INT 35h  DS:1D20 = [f32] 5000.0 (max effective distance)
+0x215EB  1A4A:074B  fmul qword [0x512a]                    ; INT 38h  DS:512A
+0x215F0  1A4A:0750  fdivp st1                              ; INT 3Ah
+0x215F3  1A4A:0753  call word 0x0:word 0x14df              ; x86  → _ftol
 0x215F8  1A4A:0758  push ax                                ; x86
 0x215F9  1A4A:0759  mov ax,[bp+0x6]                        ; x86
 0x215FC  1A4A:075C  pop dx                                 ; x86
 0x215FD  1A4A:075D  sub ax,dx                              ; x86
 0x215FF  1A4A:075F  leave                                  ; x86
-0x21600  1A4A:0760  retf                                   ; x86
+0x21600  1A4A:0760  retf                                   ; x86  ; --- end ---
 0x21601  1A4A:0761  leave                                  ; x86
-0x21602  1A4A:0762  retf                                   ; x86
+0x21602  1A4A:0762  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x21603 ===
+; ============================================================
 0x21603  1A4A:0763  enter word 0x2,byte 0x0                ; x86
 0x21607  1A4A:0767  push si                                ; x86
 0x21608  1A4A:0768  push di                                ; x86
 0x21609  1A4A:0769  cmp [0x519a],sp                        ; x86
 0x2160D  1A4A:076D  ja 0x774                               ; x86
-0x2160F  1A4A:076F  call word 0x0:word 0xa2ce              ; x86
+0x2160F  1A4A:076F  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x21614  1A4A:0774  cmp word [0x1c78],0x64                 ; x86
 0x21619  1A4A:0779  jnz 0x77d                              ; x86
 0x2161B  1A4A:077B  jmp 0x7b5                              ; x86
@@ -662,7 +686,7 @@
 0x2168D  1A4A:07ED  imul ax,ax,0x6c                        ; x86
 0x21690  1A4A:07F0  les bx,word [0xceb8]                   ; x86
 0x21694  1A4A:07F4  add bx,ax                              ; x86
-0x21696  1A4A:07F6  fld dword [bp+0x16]                    ; INT 39h
+0x21696  1A4A:07F6  fld qword [bp+0x16]                    ; INT 39h
 0x2169A  1A4A:07FA  fcomp st5                              ; INT 3Ch
 0x2169D  1A4A:07FD  pop di                                 ; x86
 0x2169E  1A4A:07FE  add al,0x8b                            ; x86
@@ -671,7 +695,7 @@
 0x216A4  1A4A:0804  wait                                   ; INT 3Dh
 0x216A6  1A4A:0806  les bx,word [0xceb8]                   ; x86
 0x216AA  1A4A:080A  add bx,ax                              ; x86
-0x216AC  1A4A:080C  fld dword [bp+0x1e]                    ; INT 39h
+0x216AC  1A4A:080C  fld qword [bp+0x1e]                    ; INT 39h
 0x216B0  1A4A:0810  fcomp st5                              ; INT 3Ch
 0x216B3  1A4A:0813  pop di                                 ; x86
 0x216B4  1A4A:0814  or al,0x8b                             ; x86
@@ -809,7 +833,7 @@
 0x21849  1A4A:09A9  imul ax,ax,0x6c                        ; x86
 0x2184C  1A4A:09AC  les bx,word [0xceb8]                   ; x86
 0x21850  1A4A:09B0  add bx,ax                              ; x86
-0x21852  1A4A:09B2  fld dword [0x1d24]                     ; INT 39h  DS:1D24
+0x21852  1A4A:09B2  fld qword [0x1d24]                     ; INT 39h  DS:1D24
 0x21857  1A4A:09B7  fcomp st5                              ; INT 3Ch
 0x2185A  1A4A:09BA  pop di                                 ; x86
 0x2185B  1A4A:09BB  xor cl,[bp+di+0x6bc7]                  ; x86
@@ -879,13 +903,13 @@
 0x2192C  1A4A:0A8C  pop di                                 ; x86
 0x2192D  1A4A:0A8D  pop si                                 ; x86
 0x2192E  1A4A:0A8E  leave                                  ; x86
-0x2192F  1A4A:0A8F  retf                                   ; x86
+0x2192F  1A4A:0A8F  retf                                   ; x86  ; --- end ---
 0x21930  1A4A:0A90  push bp                                ; x86
 0x21931  1A4A:0A91  mov bp,sp                              ; x86
 0x21933  1A4A:0A93  push si                                ; x86
 0x21934  1A4A:0A94  cmp [0x519a],sp                        ; x86
 0x21938  1A4A:0A98  ja 0xa9f                               ; x86
-0x2193A  1A4A:0A9A  call word 0x0:word 0xa2ce              ; x86
+0x2193A  1A4A:0A9A  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x2193F  1A4A:0A9F  xor si,si                              ; x86
 0x21941  1A4A:0AA1  jmp 0xb16                              ; x86
 0x21943  1A4A:0AA3  mov ax,si                              ; x86
@@ -934,13 +958,17 @@
 0x219BA  1A4A:0B1A  jl 0xaa3                               ; x86
 0x219BC  1A4A:0B1C  pop si                                 ; x86
 0x219BD  1A4A:0B1D  pop bp                                 ; x86
-0x219BE  1A4A:0B1E  retf                                   ; x86
+0x219BE  1A4A:0B1E  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x219BF ===
+; ============================================================
 0x219BF  1A4A:0B1F  enter word 0x1c,byte 0x0               ; x86
 0x219C3  1A4A:0B23  push si                                ; x86
 0x219C4  1A4A:0B24  push di                                ; x86
 0x219C5  1A4A:0B25  cmp [0x519a],sp                        ; x86
 0x219C9  1A4A:0B29  ja 0xb30                               ; x86
-0x219CB  1A4A:0B2B  call word 0x0:word 0xa2ce              ; x86
+0x219CB  1A4A:0B2B  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x219D0  1A4A:0B30  cmp word [0x1c78],0x0                  ; x86
 0x219D5  1A4A:0B35  jnz 0xb3a                              ; x86
 0x219D7  1A4A:0B37  jmp 0x1345                             ; x86
@@ -1034,23 +1062,23 @@
 0x21ADD  1A4A:0C3D  fcomp st4                              ; INT 3Ch
 0x21AE0  1A4A:0C40  dec di                                 ; x86
 0x21AE1  1A4A:0C41  db 0x0c                                ; x86
-0x21AE2  1A4A:0C42  fcmovnb st1                            ; INT 3Ah
-0x21AE5  1A4A:0C45  fstp dword [bp-0x8]                    ; INT 39h
-0x21AE9  1A4A:0C49  fld dword [bp-0x8]                     ; INT 39h
-0x21AED  1A4A:0C4D  fcomp qword [0x1d2c]                   ; INT 34h  DS:1D2C = [f32] 1000000.0 (distance squared threshold)
-0x21AF2  1A4A:0C52  fnstcw [bp-0xe]                        ; INT 39h
+0x21AE2  1A4A:0C42  faddp st1                              ; INT 3Ah
+0x21AE5  1A4A:0C45  fstp qword [bp-0x8]                    ; INT 39h
+0x21AE9  1A4A:0C49  fld qword [bp-0x8]                     ; INT 39h
+0x21AED  1A4A:0C4D  fcomp dword [0x1d2c]                   ; INT 34h  DS:1D2C = [f32] 1000000.0 (distance squared threshold)
+0x21AF2  1A4A:0C52  fnstsw [bp-0xe]                        ; INT 39h
 0x21AF6  1A4A:0C56  wait                                   ; INT 3Dh
 0x21AF8  1A4A:0C58  mov ax,[bp-0xe]                        ; x86
 0x21AFB  1A4A:0C5B  sahf                                   ; x86
 0x21AFC  1A4A:0C5C  jna 0xcd3                              ; x86
-0x21AFE  1A4A:0C5E  fld dword [bp-0x8]                     ; INT 39h
+0x21AFE  1A4A:0C5E  fld qword [bp-0x8]                     ; INT 39h
 0x21B02  1A4A:0C62  sub sp,0x8                             ; x86
-0x21B05  1A4A:0C65  fstp dword [bp-0x28]                   ; INT 39h
+0x21B05  1A4A:0C65  fstp qword [bp-0x28]                   ; INT 39h
 0x21B09  1A4A:0C69  wait                                   ; INT 3Dh
-0x21B0B  1A4A:0C6B  call word 0x0:word 0xfc8               ; x86
+0x21B0B  1A4A:0C6B  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x21B10  1A4A:0C70  add sp,0x8                             ; x86
-0x21B13  1A4A:0C73  fdiv qword [0x1d30]                    ; INT 34h  DS:1D30 = [f32] 1000.0 (scaling factor)
-0x21B18  1A4A:0C78  fstp dword [bp-0x8]                    ; INT 39h
+0x21B13  1A4A:0C73  fdiv dword [0x1d30]                    ; INT 34h  DS:1D30 = [f32] 1000.0 (scaling factor)
+0x21B18  1A4A:0C78  fstp qword [bp-0x8]                    ; INT 39h
 0x21B1C  1A4A:0C7C  mov ax,si                              ; x86
 0x21B1E  1A4A:0C7E  imul ax,ax,0x6c                        ; x86
 0x21B21  1A4A:0C81  wait                                   ; INT 3Dh
@@ -1059,7 +1087,7 @@
 0x21B29  1A4A:0C89  fcomp st5                              ; INT 3Ch
 0x21B2C  1A4A:0C8C  inc di                                 ; x86
 0x21B2D  1A4A:0C8D  db 0x04                                ; x86
-0x21B2E  1A4A:0C8E  fnsave [bp-0x8]                        ; INT 38h
+0x21B2E  1A4A:0C8E  fdiv qword [bp-0x8]                    ; INT 38h
 0x21B32  1A4A:0C92  mov ax,si                              ; x86
 0x21B34  1A4A:0C94  imul ax,ax,0x6c                        ; x86
 0x21B37  1A4A:0C97  les bx,word [0xceb8]                   ; x86
@@ -1075,7 +1103,7 @@
 0x21B4F  1A4A:0CAF  fcomp st5                              ; INT 3Ch
 0x21B52  1A4A:0CB2  inc di                                 ; x86
 0x21B53  1A4A:0CB3  db 0x0c                                ; x86
-0x21B54  1A4A:0CB4  fnsave [bp-0x8]                        ; INT 38h
+0x21B54  1A4A:0CB4  fdiv qword [bp-0x8]                    ; INT 38h
 0x21B58  1A4A:0CB8  mov ax,si                              ; x86
 0x21B5A  1A4A:0CBA  imul ax,ax,0x6c                        ; x86
 0x21B5D  1A4A:0CBD  les bx,word [0xceb8]                   ; x86
@@ -1083,20 +1111,20 @@
 0x21B63  1A4A:0CC3  fcomp st5                              ; INT 3Ch
 0x21B66  1A4A:0CC6  pop di                                 ; x86
 0x21B67  1A4A:0CC7  db 0x0c                                ; x86
-0x21B68  1A4A:0CC8  fadd dword [0x1d2c]                    ; INT 35h  DS:1D2C = [f32] 1000000.0 (distance squared threshold)
-0x21B6D  1A4A:0CCD  fstp dword [bp-0x8]                    ; INT 39h
+0x21B68  1A4A:0CC8  fld dword [0x1d2c]                     ; INT 35h  DS:1D2C = [f32] 1000000.0 (distance squared threshold)
+0x21B6D  1A4A:0CCD  fstp qword [bp-0x8]                    ; INT 39h
 0x21B71  1A4A:0CD1  wait                                   ; INT 3Dh
 0x21B73  1A4A:0CD3  cmp word [0x5146],0x1                  ; x86
 0x21B78  1A4A:0CD8  jnz 0xd05                              ; x86
-0x21B7A  1A4A:0CDA  fld dword [bp-0x8]                     ; INT 39h
+0x21B7A  1A4A:0CDA  fld qword [bp-0x8]                     ; INT 39h
 0x21B7E  1A4A:0CDE  sub sp,0x8                             ; x86
-0x21B81  1A4A:0CE1  fstp dword [bp-0x28]                   ; INT 39h
+0x21B81  1A4A:0CE1  fstp qword [bp-0x28]                   ; INT 39h
 0x21B85  1A4A:0CE5  wait                                   ; INT 3Dh
-0x21B87  1A4A:0CE7  call word 0x0:word 0xfc8               ; x86
+0x21B87  1A4A:0CE7  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x21B8C  1A4A:0CEC  add sp,0x8                             ; x86
-0x21B8F  1A4A:0CEF  fmul qword [0x1ca2]                    ; INT 34h  DS:1CA2
-0x21B94  1A4A:0CF4  fadd qword [0x1d30]                    ; INT 34h  DS:1D30 = [f32] 1000.0 (scaling factor)
-0x21B99  1A4A:0CF9  call word 0x0:word 0x14df              ; x86
+0x21B8F  1A4A:0CEF  fmul dword [0x1ca2]                    ; INT 34h  DS:1CA2
+0x21B94  1A4A:0CF4  fadd dword [0x1d30]                    ; INT 34h  DS:1D30 = [f32] 1000.0 (scaling factor)
+0x21B99  1A4A:0CF9  call word 0x0:word 0x14df              ; x86  → _ftol
 0x21B9E  1A4A:0CFE  push ax                                ; x86
 0x21B9F  1A4A:0CFF  call word 0x0:word 0xa281              ; x86
 0x21BA4  1A4A:0D04  pop cx                                 ; x86
@@ -1107,7 +1135,7 @@
 0x21BB0  1A4A:0D10  fcomp st5                              ; INT 3Ch
 0x21BB3  1A4A:0D13  inc di                                 ; x86
 0x21BB4  1A4A:0D14  db 0x04                                ; x86
-0x21BB5  1A4A:0D15  fisttp qword [0xceac]                  ; INT 38h  DS:CEAC
+0x21BB5  1A4A:0D15  fmul qword [0xceac]                    ; INT 38h  DS:CEAC
 0x21BBA  1A4A:0D1A  mov ax,si                              ; x86
 0x21BBC  1A4A:0D1C  imul ax,ax,0x6c                        ; x86
 0x21BBF  1A4A:0D1F  les bx,word [0xceb8]                   ; x86
@@ -1130,7 +1158,7 @@
 0x21BE7  1A4A:0D47  fcomp st5                              ; INT 3Ch
 0x21BEA  1A4A:0D4A  inc di                                 ; x86
 0x21BEB  1A4A:0D4B  db 0x0c                                ; x86
-0x21BEC  1A4A:0D4C  fisttp qword [0xceac]                  ; INT 38h  DS:CEAC
+0x21BEC  1A4A:0D4C  fmul qword [0xceac]                    ; INT 38h  DS:CEAC
 0x21BF1  1A4A:0D51  mov ax,si                              ; x86
 0x21BF3  1A4A:0D53  imul ax,ax,0x6c                        ; x86
 0x21BF6  1A4A:0D56  les bx,word [0xceb8]                   ; x86
@@ -1153,7 +1181,7 @@
 0x21C1E  1A4A:0D7E  fcomp st5                              ; INT 3Ch
 0x21C21  1A4A:0D81  inc di                                 ; x86
 0x21C22  1A4A:0D82  db 0x04                                ; x86
-0x21C23  1A4A:0D83  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x21C23  1A4A:0D83  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
 0x21C28  1A4A:0D88  mov ax,si                              ; x86
 0x21C2A  1A4A:0D8A  imul ax,ax,0x6c                        ; x86
 0x21C2D  1A4A:0D8D  wait                                   ; INT 3Dh
@@ -1162,7 +1190,7 @@
 0x21C35  1A4A:0D95  fcomp st5                              ; INT 3Ch
 0x21C38  1A4A:0D98  inc di                                 ; x86
 0x21C39  1A4A:0D99  db 0x0c                                ; x86
-0x21C3A  1A4A:0D9A  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x21C3A  1A4A:0D9A  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
 0x21C3F  1A4A:0D9F  mov ax,si                              ; x86
 0x21C41  1A4A:0DA1  imul ax,ax,0x6c                        ; x86
 0x21C44  1A4A:0DA4  wait                                   ; INT 3Dh
@@ -1171,10 +1199,10 @@
 0x21C4C  1A4A:0DAC  cmp word [es:bx+0x4a],0x1              ; x86
 0x21C51  1A4A:0DB1  jnz 0xdb6                              ; x86
 0x21C53  1A4A:0DB3  jmp 0xe69                              ; x86
-0x21C56  1A4A:0DB6  fld dword [0x5178]                     ; INT 39h  DS:5178
-0x21C5B  1A4A:0DBB  fsubr st0                              ; INT 35h
-0x21C5E  1A4A:0DBE  fcmovnu st1                            ; INT 3Ah
-0x21C61  1A4A:0DC1  fnstcw [bp-0xe]                        ; INT 39h
+0x21C56  1A4A:0DB6  fld qword [0x5178]                     ; INT 39h  DS:5178
+0x21C5B  1A4A:0DBB  fld1                                   ; INT 35h
+0x21C5E  1A4A:0DBE  fcompp                                 ; INT 3Ah
+0x21C61  1A4A:0DC1  fnstsw [bp-0xe]                        ; INT 39h
 0x21C65  1A4A:0DC5  wait                                   ; INT 3Dh
 0x21C67  1A4A:0DC7  mov ax,[bp-0xe]                        ; x86
 0x21C6A  1A4A:0DCA  sahf                                   ; x86
@@ -1186,7 +1214,7 @@
 0x21C78  1A4A:0DD8  fcomp st5                              ; INT 3Ch
 0x21C7B  1A4A:0DDB  inc di                                 ; x86
 0x21C7C  1A4A:0DDC  db 0x04                                ; x86
-0x21C7D  1A4A:0DDD  fisttp qword [0x5178]                  ; INT 38h  DS:5178
+0x21C7D  1A4A:0DDD  fmul qword [0x5178]                    ; INT 38h  DS:5178
 0x21C82  1A4A:0DE2  mov ax,si                              ; x86
 0x21C84  1A4A:0DE4  imul ax,ax,0x6c                        ; x86
 0x21C87  1A4A:0DE7  les bx,word [0xceb8]                   ; x86
@@ -1202,7 +1230,7 @@
 0x21C9F  1A4A:0DFF  fcomp st5                              ; INT 3Ch
 0x21CA2  1A4A:0E02  inc di                                 ; x86
 0x21CA3  1A4A:0E03  db 0x0c                                ; x86
-0x21CA4  1A4A:0E04  fisttp qword [0x5178]                  ; INT 38h  DS:5178
+0x21CA4  1A4A:0E04  fmul qword [0x5178]                    ; INT 38h  DS:5178
 0x21CA9  1A4A:0E09  mov ax,si                              ; x86
 0x21CAB  1A4A:0E0B  imul ax,ax,0x6c                        ; x86
 0x21CAE  1A4A:0E0E  les bx,word [0xceb8]                   ; x86
@@ -1218,7 +1246,7 @@
 0x21CC6  1A4A:0E26  fcomp st5                              ; INT 3Ch
 0x21CC9  1A4A:0E29  inc di                                 ; x86
 0x21CCA  1A4A:0E2A  db 0x0c                                ; x86
-0x21CCB  1A4A:0E2B  frstor [0xce9c]                        ; INT 38h  DS:CE9C
+0x21CCB  1A4A:0E2B  fsub qword [0xce9c]                    ; INT 38h  DS:CE9C
 0x21CD0  1A4A:0E30  mov ax,si                              ; x86
 0x21CD2  1A4A:0E32  imul ax,ax,0x6c                        ; x86
 0x21CD5  1A4A:0E35  les bx,word [0xceb8]                   ; x86
@@ -1234,7 +1262,7 @@
 0x21CED  1A4A:0E4D  fcomp st5                              ; INT 3Ch
 0x21CF0  1A4A:0E50  inc di                                 ; x86
 0x21CF1  1A4A:0E51  db 0x04                                ; x86
-0x21CF2  1A4A:0E52  fld qword [0xcea4]                     ; INT 38h  DS:CEA4
+0x21CF2  1A4A:0E52  fadd qword [0xcea4]                    ; INT 38h  DS:CEA4
 0x21CF7  1A4A:0E57  mov ax,si                              ; x86
 0x21CF9  1A4A:0E59  imul ax,ax,0x6c                        ; x86
 0x21CFC  1A4A:0E5C  les bx,word [0xceb8]                   ; x86
@@ -1285,7 +1313,7 @@
 0x21D75  1A4A:0ED5  imul ax,ax,0x6c                        ; x86
 0x21D78  1A4A:0ED8  les bx,word [0xceb8]                   ; x86
 0x21D7C  1A4A:0EDC  add bx,ax                              ; x86
-0x21D7E  1A4A:0EDE  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x21D7E  1A4A:0EDE  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
 0x21D83  1A4A:0EE3  fcomp st5                              ; INT 3Ch
 0x21D86  1A4A:0EE6  pop di                                 ; x86
 0x21D87  1A4A:0EE7  add al,0x8b                            ; x86
@@ -1294,7 +1322,7 @@
 0x21D8D  1A4A:0EED  wait                                   ; INT 3Dh
 0x21D8F  1A4A:0EEF  les bx,word [0xceb8]                   ; x86
 0x21D93  1A4A:0EF3  add bx,ax                              ; x86
-0x21D95  1A4A:0EF5  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x21D95  1A4A:0EF5  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
 0x21D9A  1A4A:0EFA  fcomp st5                              ; INT 3Ch
 0x21D9D  1A4A:0EFD  pop di                                 ; x86
 0x21D9E  1A4A:0EFE  or al,0x8b                             ; x86
@@ -1325,7 +1353,7 @@
 0x21DE7  1A4A:0F47  fcomp st4                              ; INT 3Ch
 0x21DEA  1A4A:0F4A  pop di                                 ; x86
 0x21DEB  1A4A:0F4B  db 0x14                                ; x86
-0x21DEC  1A4A:0F4C  fnstcw [bp-0xe]                        ; INT 39h
+0x21DEC  1A4A:0F4C  fnstsw [bp-0xe]                        ; INT 39h
 0x21DF0  1A4A:0F50  wait                                   ; INT 3Dh
 0x21DF2  1A4A:0F52  mov ax,[bp-0xe]                        ; x86
 0x21DF5  1A4A:0F55  sahf                                   ; x86
@@ -1344,7 +1372,7 @@
 0x21E19  1A4A:0F79  fcomp st4                              ; INT 3Ch
 0x21E1C  1A4A:0F7C  pop di                                 ; x86
 0x21E1D  1A4A:0F7D  db 0x1c                                ; x86
-0x21E1E  1A4A:0F7E  fnstcw [bp-0xe]                        ; INT 39h
+0x21E1E  1A4A:0F7E  fnstsw [bp-0xe]                        ; INT 39h
 0x21E22  1A4A:0F82  wait                                   ; INT 3Dh
 0x21E24  1A4A:0F84  mov ax,[bp-0xe]                        ; x86
 0x21E27  1A4A:0F87  sahf                                   ; x86
@@ -1402,14 +1430,14 @@
 0x21EB3  1A4A:1013  inc word [es:bx+0x30]                  ; x86
 0x21EB7  1A4A:1017  cmp word [0x1c7a],0x0                  ; x86
 0x21EBC  1A4A:101C  jz 0x105d                              ; x86
-0x21EBE  1A4A:101E  fsubr st0                              ; INT 35h
-0x21EC1  1A4A:1021  fstp dword [bp-0x1c]                   ; INT 39h
+0x21EBE  1A4A:101E  fld1                                   ; INT 35h
+0x21EC1  1A4A:1021  fstp qword [bp-0x1c]                   ; INT 39h
 0x21EC5  1A4A:1025  mov ax,si                              ; x86
 0x21EC7  1A4A:1027  imul ax,ax,0x6c                        ; x86
 0x21ECA  1A4A:102A  wait                                   ; INT 3Dh
 0x21ECC  1A4A:102C  les bx,word [0xceb8]                   ; x86
 0x21ED0  1A4A:1030  add bx,ax                              ; x86
-0x21ED2  1A4A:1032  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x21ED2  1A4A:1032  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
 0x21ED7  1A4A:1037  fcomp st5                              ; INT 3Ch
 0x21EDA  1A4A:103A  pop di                                 ; x86
 0x21EDB  1A4A:103B  add al,0x8b                            ; x86
@@ -1418,7 +1446,7 @@
 0x21EE1  1A4A:1041  wait                                   ; INT 3Dh
 0x21EE3  1A4A:1043  les bx,word [0xceb8]                   ; x86
 0x21EE7  1A4A:1047  add bx,ax                              ; x86
-0x21EE9  1A4A:1049  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x21EE9  1A4A:1049  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
 0x21EEE  1A4A:104E  fcomp st5                              ; INT 3Ch
 0x21EF1  1A4A:1051  pop di                                 ; x86
 0x21EF2  1A4A:1052  db 0x0c                                ; x86
@@ -1427,16 +1455,16 @@
 0x21EFB  1A4A:105B  jmp 0x108a                             ; x86
 0x21EFD  1A4A:105D  cmp word [0x5154],0x3                  ; x86
 0x21F02  1A4A:1062  jnz 0x1071                             ; x86
-0x21F04  1A4A:1064  fld dword [0x1d34]                     ; INT 39h  DS:1D34
-0x21F09  1A4A:1069  fstp dword [bp-0x1c]                   ; INT 39h
+0x21F04  1A4A:1064  fld qword [0x1d34]                     ; INT 39h  DS:1D34
+0x21F09  1A4A:1069  fstp qword [bp-0x1c]                   ; INT 39h
 0x21F0D  1A4A:106D  wait                                   ; INT 3Dh
 0x21F0F  1A4A:106F  jmp 0x108a                             ; x86
 0x21F11  1A4A:1071  cmp word [0x5154],0x2                  ; x86
 0x21F16  1A4A:1076  jnz 0x107f                             ; x86
-0x21F18  1A4A:1078  fld dword [0x1d3c]                     ; INT 39h  DS:1D3C
+0x21F18  1A4A:1078  fld qword [0x1d3c]                     ; INT 39h  DS:1D3C
 0x21F1D  1A4A:107D  jmp 0x1084                             ; x86
-0x21F1F  1A4A:107F  fld dword [0x1d44]                     ; INT 39h  DS:1D44
-0x21F24  1A4A:1084  fstp dword [bp-0x1c]                   ; INT 39h
+0x21F1F  1A4A:107F  fld qword [0x1d44]                     ; INT 39h  DS:1D44
+0x21F24  1A4A:1084  fstp qword [bp-0x1c]                   ; INT 39h
 0x21F28  1A4A:1088  wait                                   ; INT 3Dh
 0x21F2A  1A4A:108A  mov ax,si                              ; x86
 0x21F2C  1A4A:108C  imul ax,ax,0x6c                        ; x86
@@ -1451,8 +1479,8 @@
 0x21F47  1A4A:10A7  fcomp st5                              ; INT 3Ch
 0x21F4A  1A4A:10AA  inc di                                 ; x86
 0x21F4B  1A4A:10AB  db 0x32                                ; x86
-0x21F4C  1A4A:10AC  fisttp qword [bp-0x1c]                 ; INT 38h
-0x21F50  1A4A:10B0  fstp dword [bp-0x1c]                   ; INT 39h
+0x21F4C  1A4A:10AC  fmul qword [bp-0x1c]                   ; INT 38h
+0x21F50  1A4A:10B0  fstp qword [bp-0x1c]                   ; INT 39h
 0x21F54  1A4A:10B4  mov ax,si                              ; x86
 0x21F56  1A4A:10B6  imul ax,ax,0x6c                        ; x86
 0x21F59  1A4A:10B9  wait                                   ; INT 3Dh
@@ -1461,7 +1489,7 @@
 0x21F61  1A4A:10C1  fcomp st5                              ; INT 3Ch
 0x21F64  1A4A:10C4  inc di                                 ; x86
 0x21F65  1A4A:10C5  db 0x32                                ; x86
-0x21F66  1A4A:10C6  fisttp qword [0x1d24]                  ; INT 38h  DS:1D24
+0x21F66  1A4A:10C6  fmul qword [0x1d24]                    ; INT 38h  DS:1D24
 0x21F6B  1A4A:10CB  mov ax,si                              ; x86
 0x21F6D  1A4A:10CD  imul ax,ax,0x6c                        ; x86
 0x21F70  1A4A:10D0  les bx,word [0xceb8]                   ; x86
@@ -1509,7 +1537,7 @@
 0x21FDE  1A4A:113E  fcomp st5                              ; INT 3Ch
 0x21FE1  1A4A:1141  inc di                                 ; x86
 0x21FE2  1A4A:1142  db 0x04                                ; x86
-0x21FE3  1A4A:1143  fisttp qword [bp-0x1c]                 ; INT 38h
+0x21FE3  1A4A:1143  fmul qword [bp-0x1c]                   ; INT 38h
 0x21FE7  1A4A:1147  mov ax,si                              ; x86
 0x21FE9  1A4A:1149  imul ax,ax,0x6c                        ; x86
 0x21FEC  1A4A:114C  les bx,word [0xceb8]                   ; x86
@@ -1528,7 +1556,7 @@
 0x2200D  1A4A:116D  fcomp st5                              ; INT 3Ch
 0x22010  1A4A:1170  inc di                                 ; x86
 0x22011  1A4A:1171  db 0x0c                                ; x86
-0x22012  1A4A:1172  fisttp qword [bp-0x1c]                 ; INT 38h
+0x22012  1A4A:1172  fmul qword [bp-0x1c]                   ; INT 38h
 0x22016  1A4A:1176  mov ax,si                              ; x86
 0x22018  1A4A:1178  imul ax,ax,0x6c                        ; x86
 0x2201B  1A4A:117B  les bx,word [0xceb8]                   ; x86
@@ -1698,7 +1726,11 @@
 0x221E5  1A4A:1345  pop di                                 ; x86
 0x221E6  1A4A:1346  pop si                                 ; x86
 0x221E7  1A4A:1347  leave                                  ; x86
-0x221E8  1A4A:1348  retf                                   ; x86
+0x221E8  1A4A:1348  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x221E9 ===
+; ============================================================
 0x221E9  1A4A:1349  enter word 0x8,byte 0x0                ; x86
 0x221ED  1A4A:134D  push si                                ; x86
 0x221EE  1A4A:134E  push di                                ; x86
@@ -1706,7 +1738,7 @@
 0x221F2  1A4A:1352  mov di,[bp+0x8]                        ; x86
 0x221F5  1A4A:1355  cmp [0x519a],sp                        ; x86
 0x221F9  1A4A:1359  ja 0x1360                              ; x86
-0x221FB  1A4A:135B  call word 0x0:word 0xa2ce              ; x86
+0x221FB  1A4A:135B  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x22200  1A4A:1360  cmp si,[0xef42]                        ; x86
 0x22204  1A4A:1364  jl 0x136f                              ; x86
 0x22206  1A4A:1366  cmp si,[0xef3c]                        ; x86
@@ -1822,16 +1854,16 @@
 0x22327  1A4A:1487  jnz 0x14f1                             ; x86
 0x22329  1A4A:1489  cmp di,[0xef38]                        ; x86
 0x2232D  1A4A:148D  jnz 0x14d3                             ; x86
-0x2232F  1A4A:148F  fld dword [0x1d4c]                     ; INT 39h  DS:1D4C
-0x22334  1A4A:1494  fstp qword [0xe4e4]                    ; INT 38h  DS:E4E4
-0x22339  1A4A:1499  fnstcw [bp-0x2]                        ; INT 39h
+0x2232F  1A4A:148F  fld qword [0x1d4c]                     ; INT 39h  DS:1D4C
+0x22334  1A4A:1494  fcomp qword [0xe4e4]                   ; INT 38h  DS:E4E4
+0x22339  1A4A:1499  fnstsw [bp-0x2]                        ; INT 39h
 0x2233D  1A4A:149D  wait                                   ; INT 3Dh
 0x2233F  1A4A:149F  mov ax,[bp-0x2]                        ; x86
 0x22342  1A4A:14A2  sahf                                   ; x86
 0x22343  1A4A:14A3  jnc 0x14d3                             ; x86
-0x22345  1A4A:14A5  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x2234A  1A4A:14AA  fcomp qword [0x1cf2]                   ; INT 34h  DS:1CF2
-0x2234F  1A4A:14AF  fnstcw [bp-0x2]                        ; INT 39h
+0x22345  1A4A:14A5  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x2234A  1A4A:14AA  fcomp dword [0x1cf2]                   ; INT 34h  DS:1CF2
+0x2234F  1A4A:14AF  fnstsw [bp-0x2]                        ; INT 39h
 0x22353  1A4A:14B3  wait                                   ; INT 3Dh
 0x22355  1A4A:14B5  mov ax,[bp-0x2]                        ; x86
 0x22358  1A4A:14B8  sahf                                   ; x86
@@ -2002,19 +2034,19 @@
 0x22536  1A4A:1696  jmp 0x16fb                             ; x86
 0x22538  1A4A:1698  jmp 0x16fb                             ; x86
 0x2253A  1A4A:169A  mov word [0x1c7e],0x1                  ; x86
-0x22540  1A4A:16A0  fadd dword [0x1d54]                    ; INT 35h  DS:1D54 = [f32] 0.75 (coefficient)
-0x22545  1A4A:16A5  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x2254A  1A4A:16AA  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x2254F  1A4A:16AF  fadd dword [0x1d54]                    ; INT 35h  DS:1D54 = [f32] 0.75 (coefficient)
-0x22554  1A4A:16B4  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x22559  1A4A:16B9  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
-0x2255E  1A4A:16BE  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x22563  1A4A:16C3  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x22568  1A4A:16C8  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x2256D  1A4A:16CD  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x22572  1A4A:16D2  fcmovnb st1                            ; INT 3Ah
-0x22575  1A4A:16D5  fcomp qword [0x1d58]                   ; INT 34h  DS:1D58 = [f32] 2000.0 (scaling)
-0x2257A  1A4A:16DA  fnstcw [bp-0x2]                        ; INT 39h
+0x22540  1A4A:16A0  fld dword [0x1d54]                     ; INT 35h  DS:1D54 = [f32] 0.75 (coefficient)
+0x22545  1A4A:16A5  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x2254A  1A4A:16AA  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x2254F  1A4A:16AF  fld dword [0x1d54]                     ; INT 35h  DS:1D54 = [f32] 0.75 (coefficient)
+0x22554  1A4A:16B4  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x22559  1A4A:16B9  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x2255E  1A4A:16BE  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x22563  1A4A:16C3  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x22568  1A4A:16C8  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x2256D  1A4A:16CD  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x22572  1A4A:16D2  faddp st1                              ; INT 3Ah
+0x22575  1A4A:16D5  fcomp dword [0x1d58]                   ; INT 34h  DS:1D58 = [f32] 2000.0 (scaling)
+0x2257A  1A4A:16DA  fnstsw [bp-0x2]                        ; INT 39h
 0x2257E  1A4A:16DE  wait                                   ; INT 3Dh
 0x22580  1A4A:16E0  mov ax,[bp-0x2]                        ; x86
 0x22583  1A4A:16E3  sahf                                   ; x86
@@ -2306,7 +2338,7 @@
 0x228D7  1A4A:1A37  pop di                                 ; x86
 0x228D8  1A4A:1A38  pop si                                 ; x86
 0x228D9  1A4A:1A39  leave                                  ; x86
-0x228DA  1A4A:1A3A  retf                                   ; x86
+0x228DA  1A4A:1A3A  retf                                   ; x86  ; --- end ---
 0x228DB  1A4A:1A3B  push bp                                ; x86
 0x228DC  1A4A:1A3C  mov bp,sp                              ; x86
 0x228DE  1A4A:1A3E  push si                                ; x86
@@ -2315,7 +2347,7 @@
 0x228E3  1A4A:1A43  mov di,[bp+0x8]                        ; x86
 0x228E6  1A4A:1A46  cmp [0x519a],sp                        ; x86
 0x228EA  1A4A:1A4A  ja 0x1a51                              ; x86
-0x228EC  1A4A:1A4C  call word 0x0:word 0xa2ce              ; x86
+0x228EC  1A4A:1A4C  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x228F1  1A4A:1A51  cmp word [bp+0xa],0x0                  ; x86
 0x228F5  1A4A:1A55  jz 0x1a5a                              ; x86
 0x228F7  1A4A:1A57  jmp 0x1b17                             ; x86
@@ -2408,7 +2440,11 @@
 0x22A10  1A4A:1B70  pop di                                 ; x86
 0x22A11  1A4A:1B71  pop si                                 ; x86
 0x22A12  1A4A:1B72  pop bp                                 ; x86
-0x22A13  1A4A:1B73  retf                                   ; x86
+0x22A13  1A4A:1B73  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x22A14 ===
+; ============================================================
 0x22A14  1A4A:1B74  enter word 0x2a,byte 0x0               ; x86
 0x22A18  1A4A:1B78  push si                                ; x86
 0x22A19  1A4A:1B79  push di                                ; x86
@@ -2416,7 +2452,7 @@
 0x22A1D  1A4A:1B7D  mov di,[bp+0x8]                        ; x86
 0x22A20  1A4A:1B80  cmp [0x519a],sp                        ; x86
 0x22A24  1A4A:1B84  ja 0x1b8b                              ; x86
-0x22A26  1A4A:1B86  call word 0x0:word 0xa2ce              ; x86
+0x22A26  1A4A:1B86  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x22A2B  1A4A:1B8B  cmp word [bp+0xa],0x0                  ; x86
 0x22A2F  1A4A:1B8F  jz 0x1b94                              ; x86
 0x22A31  1A4A:1B91  jmp 0x1d48                             ; x86
@@ -2747,14 +2783,18 @@
 0x22DF6  1A4A:1F56  pop di                                 ; x86
 0x22DF7  1A4A:1F57  pop si                                 ; x86
 0x22DF8  1A4A:1F58  leave                                  ; x86
-0x22DF9  1A4A:1F59  retf                                   ; x86
+0x22DF9  1A4A:1F59  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x22DFA ===
+; ============================================================
 0x22DFA  1A4A:1F5A  enter word 0x6,byte 0x0                ; x86
 0x22DFE  1A4A:1F5E  push si                                ; x86
 0x22DFF  1A4A:1F5F  push di                                ; x86
 0x22E00  1A4A:1F60  mov si,[bp+0x6]                        ; x86
 0x22E03  1A4A:1F63  cmp [0x519a],sp                        ; x86
 0x22E07  1A4A:1F67  ja 0x1f6e                              ; x86
-0x22E09  1A4A:1F69  call word 0x0:word 0xa2ce              ; x86
+0x22E09  1A4A:1F69  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x22E0E  1A4A:1F6E  mov bx,[0xe4da]                        ; x86
 0x22E12  1A4A:1F72  add bx,bx                              ; x86
 0x22E14  1A4A:1F74  mov ax,[bx-0x1bee]                     ; x86
@@ -2909,22 +2949,22 @@
 0x22FB8  1A4A:2118  pop di                                 ; x86
 0x22FB9  1A4A:2119  pop si                                 ; x86
 0x22FBA  1A4A:211A  leave                                  ; x86
-0x22FBB  1A4A:211B  retf                                   ; x86
+0x22FBB  1A4A:211B  retf                                   ; x86  ; --- end ---
 0x22FBC  1A4A:211C  push bp                                ; x86
 0x22FBD  1A4A:211D  mov bp,sp                              ; x86
 0x22FBF  1A4A:211F  cmp [0x519a],sp                        ; x86
 0x22FC3  1A4A:2123  ja 0x212a                              ; x86
-0x22FC5  1A4A:2125  call word 0x0:word 0xa2ce              ; x86
+0x22FC5  1A4A:2125  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x22FCA  1A4A:212A  cmp word [0x514e],0x0                  ; x86
 0x22FCF  1A4A:212F  jz 0x2133                              ; x86
 0x22FD1  1A4A:2131  pop bp                                 ; x86
-0x22FD2  1A4A:2132  retf                                   ; x86
+0x22FD2  1A4A:2132  retf                                   ; x86  ; --- end ---
 0x22FD3  1A4A:2133  mov bx,[0xe4da]                        ; x86
 0x22FD7  1A4A:2137  add bx,bx                              ; x86
 0x22FD9  1A4A:2139  cmp word [bx-0x1cb6],0x0               ; x86
 0x22FDE  1A4A:213E  jnz 0x2142                             ; x86
 0x22FE0  1A4A:2140  pop bp                                 ; x86
-0x22FE1  1A4A:2141  retf                                   ; x86
+0x22FE1  1A4A:2141  retf                                   ; x86  ; --- end ---
 0x22FE2  1A4A:2142  mov bx,[0xe4da]                        ; x86
 0x22FE6  1A4A:2146  add bx,bx                              ; x86
 0x22FE8  1A4A:2148  mov ax,[bx-0x1bee]                     ; x86
@@ -3005,9 +3045,9 @@
 0x230BD  1A4A:221D  call word far [0x1c8a]                 ; x86
 0x230C1  1A4A:2221  add sp,0x6                             ; x86
 0x230C4  1A4A:2224  pop bp                                 ; x86
-0x230C5  1A4A:2225  retf                                   ; x86
+0x230C5  1A4A:2225  retf                                   ; x86  ; --- end ---
 0x230C6  1A4A:2226  pop bp                                 ; x86
-0x230C7  1A4A:2227  retf                                   ; x86
+0x230C7  1A4A:2227  retf                                   ; x86  ; --- end ---
 0x230C8  1A4A:2228  push bp                                ; x86
 0x230C9  1A4A:2229  mov bp,sp                              ; x86
 0x230CB  1A4A:222B  push si                                ; x86
@@ -3016,7 +3056,7 @@
 0x230D0  1A4A:2230  mov di,[bp+0x8]                        ; x86
 0x230D3  1A4A:2233  cmp [0x519a],sp                        ; x86
 0x230D7  1A4A:2237  ja 0x223e                              ; x86
-0x230D9  1A4A:2239  call word 0x0:word 0xa2ce              ; x86
+0x230D9  1A4A:2239  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x230DE  1A4A:223E  inc word [0xce94]                      ; x86
 0x230E2  1A4A:2242  push word 0x1                          ; x86
 0x230E4  1A4A:2244  call word 0x32c2:word 0xa79            ; x86
@@ -3097,12 +3137,12 @@
 0x231D3  1A4A:2333  pop di                                 ; x86
 0x231D4  1A4A:2334  pop si                                 ; x86
 0x231D5  1A4A:2335  pop bp                                 ; x86
-0x231D6  1A4A:2336  retf                                   ; x86
+0x231D6  1A4A:2336  retf                                   ; x86  ; --- end ---
 0x231D7  1A4A:2337  push bp                                ; x86
 0x231D8  1A4A:2338  mov bp,sp                              ; x86
 0x231DA  1A4A:233A  cmp [0x519a],sp                        ; x86
 0x231DE  1A4A:233E  ja 0x2345                              ; x86
-0x231E0  1A4A:2340  call word 0x0:word 0xa2ce              ; x86
+0x231E0  1A4A:2340  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x231E5  1A4A:2345  mov bx,[0xe4da]                        ; x86
 0x231E9  1A4A:2349  add bx,bx                              ; x86
 0x231EB  1A4A:234B  mov ax,[bx-0x1cb6]                     ; x86
@@ -3155,14 +3195,18 @@
 0x2328D  1A4A:23ED  call word far [bx+0x26a]               ; x86
 0x23291  1A4A:23F1  add sp,0x4                             ; x86
 0x23294  1A4A:23F4  pop bp                                 ; x86
-0x23295  1A4A:23F5  retf                                   ; x86
+0x23295  1A4A:23F5  retf                                   ; x86  ; --- end ---
 0x23296  1A4A:23F6  pop bp                                 ; x86
-0x23297  1A4A:23F7  retf                                   ; x86
+0x23297  1A4A:23F7  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x23298 ===
+; ============================================================
 0x23298  1A4A:23F8  enter word 0x6,byte 0x0                ; x86
 0x2329C  1A4A:23FC  push si                                ; x86
 0x2329D  1A4A:23FD  cmp [0x519a],sp                        ; x86
 0x232A1  1A4A:2401  ja 0x2408                              ; x86
-0x232A3  1A4A:2403  call word 0x0:word 0xa2ce              ; x86
+0x232A3  1A4A:2403  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x232A8  1A4A:2408  mov word [bp-0x2],0x0                  ; x86
 0x232AD  1A4A:240D  call word 0x3912:word 0x465            ; x86
 0x232B2  1A4A:2412  call word 0x162c:word 0x238            ; x86
@@ -3202,13 +3246,17 @@
 0x23322  1A4A:2482  jmp 0x2484                             ; x86
 0x23324  1A4A:2484  pop si                                 ; x86
 0x23325  1A4A:2485  leave                                  ; x86
-0x23326  1A4A:2486  retf                                   ; x86
+0x23326  1A4A:2486  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x23327 ===
+; ============================================================
 0x23327  1A4A:2487  enter word 0x30,byte 0x0               ; x86
 0x2332B  1A4A:248B  push si                                ; x86
 0x2332C  1A4A:248C  push di                                ; x86
 0x2332D  1A4A:248D  cmp [0x519a],sp                        ; x86
 0x23331  1A4A:2491  ja 0x2498                              ; x86
-0x23333  1A4A:2493  call word 0x0:word 0xa2ce              ; x86
+0x23333  1A4A:2493  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x23338  1A4A:2498  mov word [0xce9a],0x3                  ; x86
 0x2333E  1A4A:249E  les bx,word [bp+0x6]                   ; x86
 0x23341  1A4A:24A1  mov ax,[bp+0xa]                        ; x86
@@ -3224,9 +3272,9 @@
 0x23361  1A4A:24C1  add sp,0x4                             ; x86
 0x23364  1A4A:24C4  mov [bp-0x2a],si                       ; x86
 0x23367  1A4A:24C7  fild word [bp-0x2a]                    ; INT 3Bh
-0x2336B  1A4A:24CB  fsubr st6                              ; INT 35h
-0x2336E  1A4A:24CE  fcmovnu st1                            ; INT 3Ah
-0x23371  1A4A:24D1  fnstcw [bp-0x2a]                       ; INT 39h
+0x2336B  1A4A:24CB  fldz                                   ; INT 35h
+0x2336E  1A4A:24CE  fcompp                                 ; INT 3Ah
+0x23371  1A4A:24D1  fnstsw [bp-0x2a]                       ; INT 39h
 0x23375  1A4A:24D5  wait                                   ; INT 3Dh
 0x23377  1A4A:24D7  mov ax,[bp-0x2a]                       ; x86
 0x2337A  1A4A:24DA  sahf                                   ; x86
@@ -3235,9 +3283,9 @@
 0x23380  1A4A:24E0  jmp 0x2502                             ; x86
 0x23382  1A4A:24E2  mov [bp-0x2a],si                       ; x86
 0x23385  1A4A:24E5  fild word [bp-0x2a]                    ; INT 3Bh
-0x23389  1A4A:24E9  fsubr st6                              ; INT 35h
-0x2338C  1A4A:24EC  fcmovnu st1                            ; INT 3Ah
-0x2338F  1A4A:24EF  fnstcw [bp-0x2a]                       ; INT 39h
+0x23389  1A4A:24E9  fldz                                   ; INT 35h
+0x2338C  1A4A:24EC  fcompp                                 ; INT 3Ah
+0x2338F  1A4A:24EF  fnstsw [bp-0x2a]                       ; INT 39h
 0x23393  1A4A:24F3  wait                                   ; INT 3Dh
 0x23395  1A4A:24F5  mov ax,[bp-0x2a]                       ; x86
 0x23398  1A4A:24F8  sahf                                   ; x86
@@ -3246,20 +3294,20 @@
 0x2339E  1A4A:24FE  jmp 0x2502                             ; x86
 0x233A0  1A4A:2500  xor ax,ax                              ; x86
 0x233A2  1A4A:2502  push ax                                ; x86
-0x233A3  1A4A:2503  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x233A8  1A4A:2508  fsubr st6                              ; INT 35h
-0x233AB  1A4A:250B  fcmovnu st1                            ; INT 3Ah
-0x233AE  1A4A:250E  fnstcw [bp-0x2a]                       ; INT 39h
+0x233A3  1A4A:2503  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x233A8  1A4A:2508  fldz                                   ; INT 35h
+0x233AB  1A4A:250B  fcompp                                 ; INT 3Ah
+0x233AE  1A4A:250E  fnstsw [bp-0x2a]                       ; INT 39h
 0x233B2  1A4A:2512  wait                                   ; INT 3Dh
 0x233B4  1A4A:2514  mov ax,[bp-0x2a]                       ; x86
 0x233B7  1A4A:2517  sahf                                   ; x86
 0x233B8  1A4A:2518  jna 0x251f                             ; x86
 0x233BA  1A4A:251A  mov ax,0xffff                          ; x86
 0x233BD  1A4A:251D  jmp 0x253d                             ; x86
-0x233BF  1A4A:251F  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x233C4  1A4A:2524  fsubr st6                              ; INT 35h
-0x233C7  1A4A:2527  fcmovnu st1                            ; INT 3Ah
-0x233CA  1A4A:252A  fnstcw [bp-0x2a]                       ; INT 39h
+0x233BF  1A4A:251F  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x233C4  1A4A:2524  fldz                                   ; INT 35h
+0x233C7  1A4A:2527  fcompp                                 ; INT 3Ah
+0x233CA  1A4A:252A  fnstsw [bp-0x2a]                       ; INT 39h
 0x233CE  1A4A:252E  wait                                   ; INT 3Dh
 0x233D0  1A4A:2530  mov ax,[bp-0x2a]                       ; x86
 0x233D3  1A4A:2533  sahf                                   ; x86
@@ -3273,9 +3321,9 @@
 0x233E2  1A4A:2542  jmp 0x25c9                             ; x86
 0x233E5  1A4A:2545  mov [bp-0x2a],di                       ; x86
 0x233E8  1A4A:2548  fild word [bp-0x2a]                    ; INT 3Bh
-0x233EC  1A4A:254C  fsubr st6                              ; INT 35h
-0x233EF  1A4A:254F  fcmovnu st1                            ; INT 3Ah
-0x233F2  1A4A:2552  fnstcw [bp-0x2a]                       ; INT 39h
+0x233EC  1A4A:254C  fldz                                   ; INT 35h
+0x233EF  1A4A:254F  fcompp                                 ; INT 3Ah
+0x233F2  1A4A:2552  fnstsw [bp-0x2a]                       ; INT 39h
 0x233F6  1A4A:2556  wait                                   ; INT 3Dh
 0x233F8  1A4A:2558  mov ax,[bp-0x2a]                       ; x86
 0x233FB  1A4A:255B  sahf                                   ; x86
@@ -3284,9 +3332,9 @@
 0x23401  1A4A:2561  jmp 0x2583                             ; x86
 0x23403  1A4A:2563  mov [bp-0x2a],di                       ; x86
 0x23406  1A4A:2566  fild word [bp-0x2a]                    ; INT 3Bh
-0x2340A  1A4A:256A  fsubr st6                              ; INT 35h
-0x2340D  1A4A:256D  fcmovnu st1                            ; INT 3Ah
-0x23410  1A4A:2570  fnstcw [bp-0x2a]                       ; INT 39h
+0x2340A  1A4A:256A  fldz                                   ; INT 35h
+0x2340D  1A4A:256D  fcompp                                 ; INT 3Ah
+0x23410  1A4A:2570  fnstsw [bp-0x2a]                       ; INT 39h
 0x23414  1A4A:2574  wait                                   ; INT 3Dh
 0x23416  1A4A:2576  mov ax,[bp-0x2a]                       ; x86
 0x23419  1A4A:2579  sahf                                   ; x86
@@ -3295,20 +3343,20 @@
 0x2341F  1A4A:257F  jmp 0x2583                             ; x86
 0x23421  1A4A:2581  xor ax,ax                              ; x86
 0x23423  1A4A:2583  push ax                                ; x86
-0x23424  1A4A:2584  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23429  1A4A:2589  fsubr st6                              ; INT 35h
-0x2342C  1A4A:258C  fcmovnu st1                            ; INT 3Ah
-0x2342F  1A4A:258F  fnstcw [bp-0x2a]                       ; INT 39h
+0x23424  1A4A:2584  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23429  1A4A:2589  fldz                                   ; INT 35h
+0x2342C  1A4A:258C  fcompp                                 ; INT 3Ah
+0x2342F  1A4A:258F  fnstsw [bp-0x2a]                       ; INT 39h
 0x23433  1A4A:2593  wait                                   ; INT 3Dh
 0x23435  1A4A:2595  mov ax,[bp-0x2a]                       ; x86
 0x23438  1A4A:2598  sahf                                   ; x86
 0x23439  1A4A:2599  jna 0x25a0                             ; x86
 0x2343B  1A4A:259B  mov ax,0xffff                          ; x86
 0x2343E  1A4A:259E  jmp 0x25be                             ; x86
-0x23440  1A4A:25A0  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23445  1A4A:25A5  fsubr st6                              ; INT 35h
-0x23448  1A4A:25A8  fcmovnu st1                            ; INT 3Ah
-0x2344B  1A4A:25AB  fnstcw [bp-0x2a]                       ; INT 39h
+0x23440  1A4A:25A0  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23445  1A4A:25A5  fldz                                   ; INT 35h
+0x23448  1A4A:25A8  fcompp                                 ; INT 3Ah
+0x2344B  1A4A:25AB  fnstsw [bp-0x2a]                       ; INT 39h
 0x2344F  1A4A:25AF  wait                                   ; INT 3Dh
 0x23451  1A4A:25B1  mov ax,[bp-0x2a]                       ; x86
 0x23454  1A4A:25B4  sahf                                   ; x86
@@ -3325,78 +3373,78 @@
 0x2346F  1A4A:25CF  mov [bp-0x2a],si                       ; x86
 0x23472  1A4A:25D2  fild word [bp-0x2a]                    ; INT 3Bh
 0x23476  1A4A:25D6  sub sp,0x8                             ; x86
-0x23479  1A4A:25D9  fstp dword [bp-0x3c]                   ; INT 39h
+0x23479  1A4A:25D9  fstp qword [bp-0x3c]                   ; INT 39h
 0x2347D  1A4A:25DD  wait                                   ; INT 3Dh
 0x2347F  1A4A:25DF  mov [bp-0x2a],di                       ; x86
 0x23482  1A4A:25E2  fild word [bp-0x2a]                    ; INT 3Bh
 0x23486  1A4A:25E6  sub sp,0x8                             ; x86
-0x23489  1A4A:25E9  fstp dword [bp-0x44]                   ; INT 39h
+0x23489  1A4A:25E9  fstp qword [bp-0x44]                   ; INT 39h
 0x2348D  1A4A:25ED  wait                                   ; INT 3Dh
-0x2348F  1A4A:25EF  call word 0x0:word 0x1421              ; x86
+0x2348F  1A4A:25EF  call word 0x0:word 0x1421              ; x86  → _atan2
 0x23494  1A4A:25F4  add sp,0x10                            ; x86
-0x23497  1A4A:25F7  fstp dword [bp-0x8]                    ; INT 39h
-0x2349B  1A4A:25FB  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x23497  1A4A:25F7  fstp qword [bp-0x8]                    ; INT 39h
+0x2349B  1A4A:25FB  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
 0x234A0  1A4A:2600  sub sp,0x8                             ; x86
-0x234A3  1A4A:2603  fstp dword [bp-0x3c]                   ; INT 39h
-0x234A7  1A4A:2607  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x234A3  1A4A:2603  fstp qword [bp-0x3c]                   ; INT 39h
+0x234A7  1A4A:2607  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
 0x234AC  1A4A:260C  sub sp,0x8                             ; x86
-0x234AF  1A4A:260F  fstp dword [bp-0x44]                   ; INT 39h
+0x234AF  1A4A:260F  fstp qword [bp-0x44]                   ; INT 39h
 0x234B3  1A4A:2613  wait                                   ; INT 3Dh
-0x234B5  1A4A:2615  call word 0x0:word 0x1421              ; x86
+0x234B5  1A4A:2615  call word 0x0:word 0x1421              ; x86  → _atan2
 0x234BA  1A4A:261A  add sp,0x10                            ; x86
-0x234BD  1A4A:261D  fstp dword [bp-0x10]                   ; INT 39h
-0x234C1  1A4A:2621  fld dword [bp-0x10]                    ; INT 39h
-0x234C5  1A4A:2625  frstor [bp-0x8]                        ; INT 38h
-0x234C9  1A4A:2629  fmul qword [0x1d5c]                    ; INT 34h  DS:1D5C = [f32] 2.0 (doubling)
-0x234CE  1A4A:262E  fstp dword [bp-0x8]                    ; INT 39h
-0x234D2  1A4A:2632  fld dword [bp-0x8]                     ; INT 39h
+0x234BD  1A4A:261D  fstp qword [bp-0x10]                   ; INT 39h
+0x234C1  1A4A:2621  fld qword [bp-0x10]                    ; INT 39h
+0x234C5  1A4A:2625  fsub qword [bp-0x8]                    ; INT 38h
+0x234C9  1A4A:2629  fmul dword [0x1d5c]                    ; INT 34h  DS:1D5C = [f32] 2.0 (doubling)
+0x234CE  1A4A:262E  fstp qword [bp-0x8]                    ; INT 39h
+0x234D2  1A4A:2632  fld qword [bp-0x8]                     ; INT 39h
 0x234D6  1A4A:2636  sub sp,0x8                             ; x86
-0x234D9  1A4A:2639  fstp dword [bp-0x3c]                   ; INT 39h
+0x234D9  1A4A:2639  fstp qword [bp-0x3c]                   ; INT 39h
 0x234DD  1A4A:263D  wait                                   ; INT 3Dh
-0x234DF  1A4A:263F  call word 0x0:word 0x13d1              ; x86
+0x234DF  1A4A:263F  call word 0x0:word 0x13d1              ; x86  → _cos
 0x234E4  1A4A:2644  add sp,0x8                             ; x86
-0x234E7  1A4A:2647  fstp dword [bp-0x18]                   ; INT 39h
-0x234EB  1A4A:264B  fld dword [bp-0x8]                     ; INT 39h
+0x234E7  1A4A:2647  fstp qword [bp-0x18]                   ; INT 39h
+0x234EB  1A4A:264B  fld qword [bp-0x8]                     ; INT 39h
 0x234EF  1A4A:264F  sub sp,0x8                             ; x86
-0x234F2  1A4A:2652  fstp dword [bp-0x3c]                   ; INT 39h
+0x234F2  1A4A:2652  fstp qword [bp-0x3c]                   ; INT 39h
 0x234F6  1A4A:2656  wait                                   ; INT 3Dh
-0x234F8  1A4A:2658  call word 0x0:word 0x1204              ; x86
+0x234F8  1A4A:2658  call word 0x0:word 0x1204              ; x86  → _sin
 0x234FD  1A4A:265D  add sp,0x8                             ; x86
-0x23500  1A4A:2660  fstp dword [bp-0x20]                   ; INT 39h
-0x23504  1A4A:2664  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x23509  1A4A:2669  fsub st0                               ; INT 35h
-0x2350C  1A4A:266C  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x23511  1A4A:2671  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23516  1A4A:2676  fsub st0                               ; INT 35h
-0x23519  1A4A:2679  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
-0x2351E  1A4A:267E  fld dword [bp-0x18]                    ; INT 39h
-0x23522  1A4A:2682  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23527  1A4A:2687  fld dword [bp-0x20]                    ; INT 39h
-0x2352B  1A4A:268B  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x23530  1A4A:2690  fcmovnb st1                            ; INT 3Ah
-0x23533  1A4A:2693  fstp dword [bp-0x28]                   ; INT 39h
-0x23537  1A4A:2697  fld dword [bp-0x18]                    ; INT 39h
-0x2353B  1A4A:269B  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x23540  1A4A:26A0  fld dword [bp-0x20]                    ; INT 39h
-0x23544  1A4A:26A4  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23549  1A4A:26A9  fucomi st1                             ; INT 3Ah
-0x2354C  1A4A:26AC  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
-0x23551  1A4A:26B1  fld dword [bp-0x28]                    ; INT 39h
-0x23555  1A4A:26B5  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x2355A  1A4A:26BA  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x2355F  1A4A:26BF  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23564  1A4A:26C4  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23569  1A4A:26C9  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2356E  1A4A:26CE  fcmovnb st1                            ; INT 3Ah
+0x23500  1A4A:2660  fstp qword [bp-0x20]                   ; INT 39h
+0x23504  1A4A:2664  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x23509  1A4A:2669  fchs                                   ; INT 35h
+0x2350C  1A4A:266C  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x23511  1A4A:2671  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23516  1A4A:2676  fchs                                   ; INT 35h
+0x23519  1A4A:2679  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x2351E  1A4A:267E  fld qword [bp-0x18]                    ; INT 39h
+0x23522  1A4A:2682  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23527  1A4A:2687  fld qword [bp-0x20]                    ; INT 39h
+0x2352B  1A4A:268B  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x23530  1A4A:2690  faddp st1                              ; INT 3Ah
+0x23533  1A4A:2693  fstp qword [bp-0x28]                   ; INT 39h
+0x23537  1A4A:2697  fld qword [bp-0x18]                    ; INT 39h
+0x2353B  1A4A:269B  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x23540  1A4A:26A0  fld qword [bp-0x20]                    ; INT 39h
+0x23544  1A4A:26A4  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23549  1A4A:26A9  fsubp st1                              ; INT 3Ah
+0x2354C  1A4A:26AC  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x23551  1A4A:26B1  fld qword [bp-0x28]                    ; INT 39h
+0x23555  1A4A:26B5  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x2355A  1A4A:26BA  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x2355F  1A4A:26BF  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23564  1A4A:26C4  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23569  1A4A:26C9  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2356E  1A4A:26CE  faddp st1                              ; INT 3Ah
 0x23571  1A4A:26D1  sub sp,0x8                             ; x86
-0x23574  1A4A:26D4  fstp dword [bp-0x3c]                   ; INT 39h
+0x23574  1A4A:26D4  fstp qword [bp-0x3c]                   ; INT 39h
 0x23578  1A4A:26D8  wait                                   ; INT 3Dh
-0x2357A  1A4A:26DA  call word 0x0:word 0xfc8               ; x86
+0x2357A  1A4A:26DA  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x2357F  1A4A:26DF  add sp,0x8                             ; x86
-0x23582  1A4A:26E2  fdiv qword [0x1cc8]                    ; INT 34h  DS:1CC8
-0x23587  1A4A:26E7  fstp dword [bp-0x18]                   ; INT 39h
-0x2358B  1A4A:26EB  fld dword [bp-0x18]                    ; INT 39h
-0x2358F  1A4A:26EF  call word 0x0:word 0x14df              ; x86
+0x23582  1A4A:26E2  fdiv dword [0x1cc8]                    ; INT 34h  DS:1CC8
+0x23587  1A4A:26E7  fstp qword [bp-0x18]                   ; INT 39h
+0x2358B  1A4A:26EB  fld qword [bp-0x18]                    ; INT 39h
+0x2358F  1A4A:26EF  call word 0x0:word 0x14df              ; x86  → _ftol
 0x23594  1A4A:26F4  mov [bp-0x2c],ax                       ; x86
 0x23597  1A4A:26F7  mov dx,[bp+0x8]                        ; x86
 0x2359A  1A4A:26FA  mov ax,[bp+0x6]                        ; x86
@@ -3408,23 +3456,27 @@
 0x235AB  1A4A:270B  push word [bp-0x30]                    ; x86
 0x235AE  1A4A:270E  call word 0x3912:word 0x4b2            ; x86
 0x235B3  1A4A:2713  add sp,0x8                             ; x86
-0x235B6  1A4A:2716  fld dword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
-0x235BB  1A4A:271B  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x235C0  1A4A:2720  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x235C5  1A4A:2725  fld dword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
-0x235CA  1A4A:272A  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x235CF  1A4A:272F  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x235B6  1A4A:2716  fld qword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
+0x235BB  1A4A:271B  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x235C0  1A4A:2720  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x235C5  1A4A:2725  fld qword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
+0x235CA  1A4A:272A  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x235CF  1A4A:272F  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
 0x235D4  1A4A:2734  wait                                   ; INT 3Dh
 0x235D6  1A4A:2736  xor ax,ax                              ; x86
 0x235D8  1A4A:2738  jmp 0x273a                             ; x86
 0x235DA  1A4A:273A  pop di                                 ; x86
 0x235DB  1A4A:273B  pop si                                 ; x86
 0x235DC  1A4A:273C  leave                                  ; x86
-0x235DD  1A4A:273D  retf                                   ; x86
+0x235DD  1A4A:273D  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x235DE ===
+; ============================================================
 0x235DE  1A4A:273E  enter word 0x12,byte 0x0               ; x86
 0x235E2  1A4A:2742  cmp [0x519a],sp                        ; x86
 0x235E6  1A4A:2746  ja 0x274d                              ; x86
-0x235E8  1A4A:2748  call word 0x0:word 0xa2ce              ; x86
+0x235E8  1A4A:2748  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x235ED  1A4A:274D  mov ax,[0xef3c]                        ; x86
 0x235F0  1A4A:2750  sub ax,[0xef42]                        ; x86
 0x235F4  1A4A:2754  inc ax                                 ; x86
@@ -3441,26 +3493,26 @@
 0x23611  1A4A:2771  pop cx                                 ; x86
 0x23612  1A4A:2772  add ax,[0xef40]                        ; x86
 0x23616  1A4A:2776  mov [bp-0xc],ax                        ; x86
-0x23619  1A4A:2779  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x2361E  1A4A:277E  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23623  1A4A:2783  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23628  1A4A:2788  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2362D  1A4A:278D  fcmovnb st1                            ; INT 3Ah
-0x23630  1A4A:2790  fstp dword [bp-0x8]                    ; INT 39h
-0x23634  1A4A:2794  fld dword [bp-0x8]                     ; INT 39h
-0x23638  1A4A:2798  fstp qword [0x1d68]                    ; INT 38h  DS:1D68 = [f64] 0.001 (epsilon threshold)
-0x2363D  1A4A:279D  fnstcw [bp-0xe]                        ; INT 39h
+0x23619  1A4A:2779  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x2361E  1A4A:277E  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23623  1A4A:2783  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23628  1A4A:2788  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2362D  1A4A:278D  faddp st1                              ; INT 3Ah
+0x23630  1A4A:2790  fstp qword [bp-0x8]                    ; INT 39h
+0x23634  1A4A:2794  fld qword [bp-0x8]                     ; INT 39h
+0x23638  1A4A:2798  fcomp qword [0x1d68]                   ; INT 38h  DS:1D68 = [f64] 0.001 (epsilon threshold)
+0x2363D  1A4A:279D  fnstsw [bp-0xe]                        ; INT 39h
 0x23641  1A4A:27A1  wait                                   ; INT 3Dh
 0x23643  1A4A:27A3  mov ax,[bp-0xe]                        ; x86
 0x23646  1A4A:27A6  sahf                                   ; x86
 0x23647  1A4A:27A7  jna 0x27c4                             ; x86
-0x23649  1A4A:27A9  fld dword [bp-0x8]                     ; INT 39h
+0x23649  1A4A:27A9  fld qword [bp-0x8]                     ; INT 39h
 0x2364D  1A4A:27AD  sub sp,0x8                             ; x86
-0x23650  1A4A:27B0  fstp dword [bp-0x1a]                   ; INT 39h
+0x23650  1A4A:27B0  fstp qword [bp-0x1a]                   ; INT 39h
 0x23654  1A4A:27B4  wait                                   ; INT 3Dh
-0x23656  1A4A:27B6  call word 0x0:word 0xfc8               ; x86
+0x23656  1A4A:27B6  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x2365B  1A4A:27BB  add sp,0x8                             ; x86
-0x2365E  1A4A:27BE  fstp dword [bp-0x8]                    ; INT 39h
+0x2365E  1A4A:27BE  fstp qword [bp-0x8]                    ; INT 39h
 0x23662  1A4A:27C2  wait                                   ; INT 3Dh
 0x23664  1A4A:27C4  push ds                                ; x86
 0x23665  1A4A:27C5  push word 0xe4e4                       ; x86
@@ -3468,12 +3520,12 @@
 0x23669  1A4A:27C9  push word 0xe4dc                       ; x86
 0x2366C  1A4A:27CC  call word 0x2bf9:word 0x3f4            ; x86
 0x23671  1A4A:27D1  add sp,0x8                             ; x86
-0x23674  1A4A:27D4  fld dword [bp-0x8]                     ; INT 39h
-0x23678  1A4A:27D8  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x2367D  1A4A:27DD  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x23682  1A4A:27E2  fld dword [bp-0x8]                     ; INT 39h
-0x23686  1A4A:27E6  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2368B  1A4A:27EB  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x23674  1A4A:27D4  fld qword [bp-0x8]                     ; INT 39h
+0x23678  1A4A:27D8  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x2367D  1A4A:27DD  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x23682  1A4A:27E2  fld qword [bp-0x8]                     ; INT 39h
+0x23686  1A4A:27E6  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2368B  1A4A:27EB  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
 0x23690  1A4A:27F0  wait                                   ; INT 3Dh
 0x23692  1A4A:27F2  mov dx,[bp+0x8]                        ; x86
 0x23695  1A4A:27F5  mov ax,[bp+0x6]                        ; x86
@@ -3492,16 +3544,16 @@
 0x236BA  1A4A:281A  add sp,0x4                             ; x86
 0x236BD  1A4A:281D  mov word [0xce9a],0x3                  ; x86
 0x236C3  1A4A:2823  leave                                  ; x86
-0x236C4  1A4A:2824  retf                                   ; x86
+0x236C4  1A4A:2824  retf                                   ; x86  ; --- end ---
 0x236C5  1A4A:2825  leave                                  ; x86
-0x236C6  1A4A:2826  retf                                   ; x86
+0x236C6  1A4A:2826  retf                                   ; x86  ; --- end ---
 0x236C7  1A4A:2827  push bp                                ; x86
 0x236C8  1A4A:2828  mov bp,sp                              ; x86
 0x236CA  1A4A:282A  push si                                ; x86
 0x236CB  1A4A:282B  mov si,[bp+0x6]                        ; x86
 0x236CE  1A4A:282E  cmp [0x519a],sp                        ; x86
 0x236D2  1A4A:2832  ja 0x2839                              ; x86
-0x236D4  1A4A:2834  call word 0x0:word 0xa2ce              ; x86
+0x236D4  1A4A:2834  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x236D9  1A4A:2839  mov ax,si                              ; x86
 0x236DB  1A4A:283B  imul ax,ax,0x6c                        ; x86
 0x236DE  1A4A:283E  les bx,word [0xceb8]                   ; x86
@@ -3541,14 +3593,18 @@
 0x2374F  1A4A:28AF  jmp 0x28b1                             ; x86
 0x23751  1A4A:28B1  pop si                                 ; x86
 0x23752  1A4A:28B2  pop bp                                 ; x86
-0x23753  1A4A:28B3  retf                                   ; x86
+0x23753  1A4A:28B3  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x23754 ===
+; ============================================================
 0x23754  1A4A:28B4  enter word 0x8,byte 0x0                ; x86
 0x23758  1A4A:28B8  push si                                ; x86
 0x23759  1A4A:28B9  push di                                ; x86
 0x2375A  1A4A:28BA  mov si,[bp+0x6]                        ; x86
 0x2375D  1A4A:28BD  cmp [0x519a],sp                        ; x86
 0x23761  1A4A:28C1  ja 0x28c8                              ; x86
-0x23763  1A4A:28C3  call word 0x0:word 0xa2ce              ; x86
+0x23763  1A4A:28C3  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x23768  1A4A:28C8  les bx,word [bp+0x8]                   ; x86
 0x2376B  1A4A:28CB  mov dx,[es:bx+0x2]                     ; x86
 0x2376F  1A4A:28CF  mov ax,[es:bx]                         ; x86
@@ -3587,8 +3643,8 @@
 0x237CA  1A4A:292A  mov ax,[es:bx+0xe]                     ; x86
 0x237CE  1A4A:292E  mov [bp-0x8],ax                        ; x86
 0x237D1  1A4A:2931  fild word [bp-0x8]                     ; INT 3Bh
-0x237D5  1A4A:2935  fucomi st1                             ; INT 3Ah
-0x237D8  1A4A:2938  call word 0x0:word 0x14df              ; x86
+0x237D5  1A4A:2935  fsubp st1                              ; INT 3Ah
+0x237D8  1A4A:2938  call word 0x0:word 0x14df              ; x86  → _ftol
 0x237DD  1A4A:293D  mov di,ax                              ; x86
 0x237DF  1A4A:293F  cmp di,0xfffffffffffffff1              ; x86
 0x237E2  1A4A:2942  jl 0x2949                              ; x86
@@ -3626,9 +3682,9 @@
 0x2383F  1A4A:299F  fcomp st5                              ; INT 3Ch
 0x23842  1A4A:29A2  inc di                                 ; x86
 0x23843  1A4A:29A3  db 0x04                                ; x86
-0x23844  1A4A:29A4  fsubr st6                              ; INT 35h
-0x23847  1A4A:29A7  fcmovnu st1                            ; INT 3Ah
-0x2384A  1A4A:29AA  fnstcw [bp-0x8]                        ; INT 39h
+0x23844  1A4A:29A4  fldz                                   ; INT 35h
+0x23847  1A4A:29A7  fcompp                                 ; INT 3Ah
+0x2384A  1A4A:29AA  fnstsw [bp-0x8]                        ; INT 39h
 0x2384E  1A4A:29AE  wait                                   ; INT 3Dh
 0x23850  1A4A:29B0  mov ax,[bp-0x8]                        ; x86
 0x23853  1A4A:29B3  sahf                                   ; x86
@@ -3646,8 +3702,8 @@
 0x2386F  1A4A:29CF  push cx                                ; x86
 0x23870  1A4A:29D0  mov [bp-0x8],ax                        ; x86
 0x23873  1A4A:29D3  fild word [bp-0x8]                     ; INT 3Bh
-0x23877  1A4A:29D7  fdivr qword [0x1cf2]                   ; INT 34h  DS:1CF2
-0x2387C  1A4A:29DC  fcmovnb st1                            ; INT 3Ah
+0x23877  1A4A:29D7  fdivr dword [0x1cf2]                   ; INT 34h  DS:1CF2
+0x2387C  1A4A:29DC  faddp st1                              ; INT 3Ah
 0x2387F  1A4A:29DF  jmp 0x29f6                             ; x86
 0x23881  1A4A:29E1  mov ax,si                              ; x86
 0x23883  1A4A:29E3  imul ax,ax,0x6c                        ; x86
@@ -3656,7 +3712,7 @@
 0x2388C  1A4A:29EC  fcomp st5                              ; INT 3Ch
 0x2388F  1A4A:29EF  inc di                                 ; x86
 0x23890  1A4A:29F0  db 0x0c                                ; x86
-0x23891  1A4A:29F1  fadd qword [0x1cf2]                    ; INT 34h  DS:1CF2
+0x23891  1A4A:29F1  fadd dword [0x1cf2]                    ; INT 34h  DS:1CF2
 0x23896  1A4A:29F6  mov ax,si                              ; x86
 0x23898  1A4A:29F8  imul ax,ax,0x6c                        ; x86
 0x2389B  1A4A:29FB  les bx,word [0xceb8]                   ; x86
@@ -3669,13 +3725,13 @@
 0x238AA  1A4A:2A0A  pop di                                 ; x86
 0x238AB  1A4A:2A0B  pop si                                 ; x86
 0x238AC  1A4A:2A0C  leave                                  ; x86
-0x238AD  1A4A:2A0D  retf                                   ; x86
+0x238AD  1A4A:2A0D  retf                                   ; x86  ; --- end ---
 0x238AE  1A4A:2A0E  push bp                                ; x86
 0x238AF  1A4A:2A0F  mov bp,sp                              ; x86
 0x238B1  1A4A:2A11  push si                                ; x86
 0x238B2  1A4A:2A12  cmp [0x519a],sp                        ; x86
 0x238B6  1A4A:2A16  ja 0x2a1d                              ; x86
-0x238B8  1A4A:2A18  call word 0x0:word 0xa2ce              ; x86
+0x238B8  1A4A:2A18  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x238BD  1A4A:2A1D  xor si,si                              ; x86
 0x238BF  1A4A:2A1F  jmp 0x2a35                             ; x86
 0x238C1  1A4A:2A21  mov ax,si                              ; x86
@@ -3693,11 +3749,15 @@
 0x238DB  1A4A:2A3B  jmp 0x2a3d                             ; x86
 0x238DD  1A4A:2A3D  pop si                                 ; x86
 0x238DE  1A4A:2A3E  pop bp                                 ; x86
-0x238DF  1A4A:2A3F  retf                                   ; x86
+0x238DF  1A4A:2A3F  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x238E0 ===
+; ============================================================
 0x238E0  1A4A:2A40  enter word 0x4,byte 0x0                ; x86
 0x238E4  1A4A:2A44  cmp [0x519a],sp                        ; x86
 0x238E8  1A4A:2A48  ja 0x2a4f                              ; x86
-0x238EA  1A4A:2A4A  call word 0x0:word 0xa2ce              ; x86
+0x238EA  1A4A:2A4A  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x238EF  1A4A:2A4F  les bx,word [bp+0x6]                   ; x86
 0x238F2  1A4A:2A52  cmp word [es:bx+0x96],0x0              ; x86
 0x238F8  1A4A:2A58  jng 0x2a78                             ; x86

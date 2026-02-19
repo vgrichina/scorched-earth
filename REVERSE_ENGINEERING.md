@@ -181,6 +181,163 @@ Total: 52 bytes
 | 569 | 0x0239 | Splitting (MIRV) | MIRV, Death's Head |
 | 957 | 0x03BD | Riot (earth-moving) | Riot Blast, Riot Bomb |
 
+### Weapon Behavior Dispatch (VERIFIED)
+
+#### Central Dispatch (file 0x1C6C8)
+
+The weapon fire handler dispatches through far pointers stored in the weapon struct. BhvType is the code offset within the handler's segment, and BhvSeg is the segment paragraph address. Together they form a `lcall [weapon_idx * 52 + DS:0x1200]` indirect far call.
+
+```c
+void weapon_fire_handler(int x, int y) {
+    DS:CE94++;                        // shot counter
+    projectile_t *proj = &proj_array[DS:E4DA];  // stride 0x6C
+
+    if (proj->flags_3a & 0x01) {
+        // MIRV sub-warhead special case
+        DS:CEBC--;                    // warhead counter
+        lcall 0x25D5:0x0239;          // mirv handler
+        if (DS:CEBC <= 0) lcall 0x25D5:0x0009;  // cleanup
+    } else {
+        // Generic dispatch through weapon struct far pointer
+        lcall [DS:E344 * 0x34 + 0x1200];  // weapon_struct.bhv_handler
+    }
+}
+```
+
+#### Handler Segment Map
+
+Each weapon behavior type has its handler in a **dedicated code segment**, NOT all in extras.cpp:
+
+| Handler | Segment | File Offset | Weapons |
+|---------|---------|-------------|---------|
+| Standard projectile | 0x3D1E | 0x43BE0 | Baby Missile, Missile, Baby Nuke, Nuke |
+| MIRV/Death's Head | 0x25D5 | 0x2C750 | MIRV, Death's Head |
+| Roller | 0x2FBD | 0x365D0 | Baby Roller, Roller, Heavy Roller |
+| Napalm/fire | 0x26E6 | 0x2D860 | Napalm, Hot Napalm, Ton of Dirt |
+| Funky Bomb/scatter | 0x1DCE | 0x246E0 | Funky Bomb |
+| LeapFrog/bounce | 0x2382 | 0x2A220 | LeapFrog |
+| Digger/tunnel | 0x151B | 0x1BBB0 | Diggers, Sandhogs, Riot Bomb |
+| Dirt adding | 0x15A0 | 0x1C400 | Dirt Clod, Dirt Ball, Heavy Sandhog |
+
+#### MIRV / Death's Head (BhvType 0x0239, Segment 0x25D5)
+
+**Apogee detection** (file 0x25B30): Compares velocity sign against stored "last sign" fields. When sign flips in either axis → split triggered.
+
+```c
+// Per-frame update detects apex of trajectory arc
+int mirv_per_frame() {
+    double vx = (double)proj->origin_x - proj->fpos_x;
+    double vy = proj->fpos_y - (double)proj->origin_y;
+
+    int split_flag = 0;
+    if (sign(vx) != proj->last_sign_x) split_flag = 1;  // +0x66
+    if (sign(vy) != proj->last_sign_y) split_flag = 1;  // +0x68
+
+    if (split_flag && proj->split_type == 1) {  // +0x6A
+        spawn_sub_warheads();  // 6 sub-warheads, 12-byte stride
+        do_crater(pos_x, pos_y);
+        kill_projectile(DS:E4DA);
+        return 0;  // consumed
+    }
+    return 1;  // still in flight
+}
+```
+
+**Sub-warhead damage** (file 0x2C759): `damage = (radius - dist) * 100 / radius`, capped at 110. Death's Head (param=1) uses wider spread table than MIRV (param=0) via DS:529E.
+
+#### Funky Bomb (BhvType 0x0000, Segment 0x1DCE)
+
+BhvType=0 but with non-zero BhvSeg=0x1DCE — offset 0 is literally the entry point.
+
+```c
+void funky_bomb_handler(int x, int y) {
+    int blast_radius = weapon_param;  // 80
+
+    // Direct hit check
+    if (hit_player && !shielded)
+        apply_damage(1, blast_radius / 10, hit_player);
+
+    // Spawn 5-10 sub-bombs
+    int num_bombs = random(6) + 5;
+    for (int i = 0; i < num_bombs; i++) {
+        sub_x = random(2 * radius) - radius + x;  // scatter within 2x radius
+        sub_y = screen_top;                         // fall from top
+        clamp(&sub_x, screen_left, screen_right);
+    }
+    // Simulate sub-bombs falling under gravity
+    // Each triggers small explosion on terrain contact
+}
+```
+
+#### Roller (BhvType 0x0003, Segment 0x2FBD)
+
+Two-phase: impact handler (0x365D3) + per-frame terrain follower (0x3684B).
+
+```c
+void roller_on_impact(int x, int y) {
+    // Determine roll direction from horizontal velocity
+    int direction = (DS:E4DC > 0.0) ? 1 : -1;
+
+    // Scan terrain left and right to find deeper valley
+    int left_depth = scan_terrain_depth(x, -1);
+    int right_depth = scan_terrain_depth(x, +1);
+    // Roll toward deeper valley; fall back to velocity direction
+
+    // Spawn rolling projectile with terrain-follower callback
+    proj->callback_seg = 0x2FBD;   // +0x4E
+    proj->callback_off = 0x027B;   // +0x4C
+    proj->roll_direction = direction;  // +0x66
+}
+
+void roller_per_frame() {
+    // Gravity acceleration: speed += gravity * factor
+    // Terrain pixel test: color >= 0x69 (105) = solid
+    // Follow surface contour, handle walls (wrap/bounce/explode)
+    // Explode on player contact or edge of screen
+}
+```
+
+- Terrain threshold: pixel color >= 0x69 (105)
+- Supports all wall types during rolling (wrap-around, concrete, rubber, etc.)
+- Rolling speed increases via gravity: `speed += gravity * acceleration_factor`
+
+#### Napalm / Hot Napalm (BhvType 0x01A0, Segment 0x26E6)
+
+99-slot particle pool with 6-byte particle structs (x, y, next_ptr).
+
+```c
+void napalm_handler(int x, int y) {
+    int param = weapon_param;  // 15=Napalm, 20=Hot Napalm, -20=Ton of Dirt
+
+    if (param < 0) {
+        param = -param;
+        DS:E702 = 0x50;       // dirt palette (brown)
+    } else {
+        DS:E702 = 0xFE;       // fire palette (bright)
+    }
+    if (param > 20) param = 20;  // max 20 simultaneous particles
+
+    // Main simulation loop:
+    //   1. Allocate particle from 99-slot circular pool
+    //   2. Animate flame with random flicker (40x10 grid)
+    //   3. Particles spread outward, fall under gravity
+    //   4. Burn/melt terrain on contact, damage nearby players
+    //   5. Velocity dampened 0.7x per frame (DS:1D60)
+    //   6. Stop when speed² < 0.001 (DS:1D68 epsilon)
+}
+```
+
+- Negative param (Ton of Dirt = -20) switches to dirt mode with brown palette
+- Circular allocation with recycling after all 99 slots used once
+- Sorted linked list maintains render order by Y position
+- Same 0.7x velocity falloff constant as the damage system
+
+#### Popcorn Bomb (Special Case)
+
+No weapon struct data. Hardcoded special case in the projectile physics loop, before the dispatch mechanism is reached.
+
+**Intermediate files**: `disasm/weapon_dispatch_decoded.txt`, `disasm/extras_decoded.txt`
+
 ---
 
 ## UI System (from binary strings)
@@ -300,8 +457,41 @@ Small, Medium, Large (at 0x058538, 0x058553, 0x05855A)
 - Copyright: "%s %s Copyright (c) 1991-1995 Wendell Hicken" (0x05AF4F)
 - Shareware nags: "Register Scorch!", "Pay for Scorch!", "What more do you want for $20?"
 - Terrain: "Cavern" mode string at 0x058F6D
-- Easter egg strings: "ASGARD", "frondheim", "ragnarok", "mayhem", "nofloat" (cheat codes?)
+- Cheat strings: "ASGARD", "frondheim", "ragnarok", "mayhem", "nofloat" (see Cheat Codes section)
 - Config file: "scorch.cfg" (0x05AF44), debug: "scorch.dbg" (0x057CB4)
+
+### Cheat Codes (VERIFIED — fully traced)
+
+Handler function at file offset 0x02A42D. Uses `getenv()` and `stricmp()` for matching.
+
+| Activation | String | Flag | DS Offset | Effect |
+|-----------|--------|------|-----------|--------|
+| `SET ASGARD=frondheim` | frondheim | cheat_mode=1 | DS:0x6E64 | **Monochrome debug overlay** — renders debug text to B000:0000 (MDA/Hercules VRAM), 80x25 chars, scrolling. Wendell Hicken's second-monitor debug console. |
+| `SET ASGARD=ragnarok` | ragnarok | cheat_mode=2 | DS:0x6E64 | **Debug log to file** — opens `scorch.dbg` in write-text mode, all debug output goes to file instead of overlay. |
+| `SCORCH.EXE mayhem` | mayhem | mayhem_flag=1 | DS:0x50F2 | **All weapons, max ammo** — sets every weapon type (1-47) to quantity 99 at round init. |
+| `SCORCH.EXE nofloat` | nofloat | nofloat_flag=1 | DS:0x1C84 | **Disable FPU physics** — skips FPU-based terrain settling loop, uses coarse integer positions. For machines without 8087/80287 coprocessor. |
+| `SCORCH.EXE <name>` | player name | human_player=idx | DS:0x6E26 | **Select human player** — matches against registered player names (base DS:0x6B66, stride 0x44, up to 9 players). |
+
+```c
+void process_args(int argc, char far **argv) {
+    char far *env_val = getenv("ASGARD");
+    if (env_val == NULL || stricmp(env_val, "frondheim") != 0)
+        cheat_mode = 0;          // DS:6E64 = disabled
+    if (stricmp(env_val, "ragnarok") == 0)
+        cheat_mode = 2;          // DS:6E64 = file debug
+
+    for (int i = 1; i < argc; i++) {
+        // Check player names first
+        for (int j = 0; j < num_players; j++)
+            if (stricmp(argv[i], player_names[j]) == 0) { human_player = j; break; }
+        if (stricmp(argv[i], "mayhem") == 0)  { mayhem_flag = 1; continue; }
+        if (stricmp(argv[i], "nofloat") == 0) { nofloat_flag = 1; continue; }
+        cfg_file = argv[i];      // unrecognized = config path
+    }
+}
+```
+
+**Key finding**: ASGARD/frondheim/ragnarok are **debug modes**, not gameplay cheats. Only `mayhem` (all weapons) affects gameplay. `nofloat` is a compatibility switch for FPU-less machines.
 
 ---
 
@@ -416,15 +606,138 @@ The explosion code lives in code segment **0x1A4A** (file base 0x20EA0, ~11 KB).
 | DS:0x1D60 | f64 | 0.7 | Damage falloff coefficient |
 | DS:0x1D68 | f64 | 0.001 | Minimum damage threshold |
 
-**Inferred damage formula**:
+**Damage formula (TRACED from FPU decode — rotation-based, not polynomial)**:
+
+The actual damage system uses a 2D rotation of the projectile velocity vector, not a simple
+distance falloff. Damage is proportional to impact speed, with directional weighting.
+
+Three functions implement the core damage logic (all in extras.cpp segment):
+
+```c
+// =====================================================================
+// Function 1: apply_damage_to_player (file 0x23327-0x235DD)
+// Called per-player by the explosion iteration loop.
+// Returns: 1 = projectile still approaching (skip), 0 = damage applied
+// =====================================================================
+// Globals:
+//   DS:E4DC (f64) = projectile velocity X
+//   DS:E4E4 (f64) = projectile velocity Y
+//   DS:1C7A (u16) = "damage applied" flag
+//   DS:CE9A (u16) = state counter (set to 3)
+//   DS:1D5C (f32) = 2.0    DS:1CC8 (f32) = 100.0
+//   DS:1D60 (f64) = 0.7 (velocity falloff per hit)
+
+int apply_damage_to_player(player_t far *player, int expl_x, int expl_y) {
+    DS:CE9A = 3;
+
+    int dx = expl_x - player->x;       // player.x at +0x0E
+    int dy = player->y - expl_y;        // player.y at +0x10
+
+    on_screen(expl_y, expl_x);          // visibility check (0x32C2:0x1519)
+
+    // Sign comparison: is the projectile approaching or receding?
+    // If velocity points same direction as player→explosion displacement
+    // in BOTH axes, projectile hasn't passed yet — skip damage.
+    int sign_dx = sign(dx);    // -1, 0, or +1
+    int sign_vx = sign(DS:E4DC);
+    if (sign_dx == sign_vx) {
+        int sign_dy = sign(dy);
+        int sign_vy = sign(DS:E4E4);
+        if (sign_dy == sign_vy)
+            return 1;          // still approaching, don't apply yet
+    }
+
+    // Projectile has passed or is receding — compute damage
+    DS:1C7A = 1;               // flag: damage was applied this frame
+
+    // Angle from explosion to player
+    double angle1 = atan2((double)dy, (double)dx);
+
+    // Projectile direction angle
+    double angle2 = atan2(DS:E4E4, DS:E4DC);
+
+    // Double the angular difference for rotation
+    double adjusted = (angle2 - angle1) * 2.0;
+
+    double cos_val = cos(adjusted);
+    double sin_val = sin(adjusted);
+
+    // Negate velocity (reverse direction for impact calculation)
+    DS:E4DC = -DS:E4DC;
+    DS:E4E4 = -DS:E4E4;
+
+    // 2D rotation of negated velocity vector
+    double new_vx = cos_val * DS:E4DC + sin_val * DS:E4E4;
+    double new_vy = cos_val * DS:E4E4 - sin_val * DS:E4DC;
+
+    DS:E4DC = new_vx;
+    DS:E4E4 = new_vy;
+
+    // Damage = rotated speed magnitude / 100
+    double distance = sqrt(new_vx * new_vx + new_vy * new_vy);
+    int damage = (int)(distance / 100.0);
+
+    apply_damage(player, damage, 0);     // 0x3912:0x4B2
+
+    // Attenuate velocity for subsequent player hits
+    DS:E4DC *= 0.7;
+    DS:E4E4 *= 0.7;
+
+    return 0;
+}
+
+
+// =====================================================================
+// Function 2: scatter_damage (file 0x235DE-0x236C4)
+// Called for scatter-type weapons (Funky Bomb, etc.).
+// Picks a random screen point, applies fixed 10 damage, then
+// triggers another explosion processing pass at that point.
+// =====================================================================
+
+void scatter_damage(player_t far *player) {
+    // Random point within visible screen bounds
+    int rand_x = random(screen_max_x - screen_min_x + 1) + screen_min_x;
+    int rand_y = random(screen_max_y - screen_min_y + 1) + screen_min_y;
+    // screen bounds: DS:EF3C/EF42 (x), DS:EF38/EF40 (y)
+
+    // Normalize velocity if above epsilon threshold
+    double mag_sq = DS:E4DC * DS:E4DC + DS:E4E4 * DS:E4E4;
+    if (mag_sq > 0.001) {
+        double mag = sqrt(mag_sq);
+        normalize_vector(&DS:E4DC, &DS:E4E4);  // 0x2BF9:0x3F4
+        DS:E4DC *= mag;
+        DS:E4E4 *= mag;
+    }
+
+    // Apply fixed 10 damage to this player
+    apply_damage(player, 10, 0);
+
+    // Trigger explosion processing at random point
+    // (iterates all players near rand_x, rand_y)
+    process_explosion_at(rand_x, rand_y);    // file 0x22DFA
+
+    DS:CE9A = 3;
+}
+
+
+// =====================================================================
+// Function 3: post_damage_cleanup (file 0x236C7+)
+// Called after damage is applied to decrement weapon counters.
+// =====================================================================
+
+void post_damage_cleanup(int player_index) {
+    player_t *p = &players[player_index];   // stride 0x6C, base DS:CEB8
+    sub_struct_t *sub = p->sub_ptr;          // far ptr at +0x2A
+    sub->counter--;                          // +0x2E: warhead/charge counter
+    p->flag_3c = 0;                          // +0x3C: clear active flag
+}
 ```
-distance = sqrt(dx*dx + dy*dy)
-if distance > max_radius: damage = 0
-else:
-    normalized = distance / max_radius
-    damage = base_damage * (1.0 - normalized^0.7)  // polynomial falloff
-    damage *= random(0.98, 1.02)                    // +-2% variation
-```
+
+**Key insight**: The old "polynomial falloff" hypothesis was **incorrect**. The actual algorithm
+uses atan2/cos/sin rotation to compute how much of the projectile's remaining velocity is
+directed at each player. Damage is speed-based (faster impact = more damage), reduced by
+0.7× per player hit. The rotation step effectively computes a directional impact factor —
+a direct hit transfers full velocity, while a glancing angle transfers less.
 
 **Energy/shield subtraction**:
 - Inner blast: **17 points** (`sub es:[bx+0x4A], 0x11`)
@@ -512,9 +825,227 @@ else:
 | Unknown | Unknown | 0x058478 | *(placeholder?)* |
 | Sentient | Sentient | 0x058480 | Highest |
 
-### AI Solver (shark.cpp at 0x05BEDA)
+### AI Solver (shark.cpp at 0x05BEDA) — TRACED
 
 Code segment **0x3167** (file base ~0x38070). Uses Borland INT 34h-3Dh FPU emulation.
+
+**AI solver pseudocode (from FPU decode of `ai_solver_decoded.txt`)**:
+
+The AI solver is a **step-by-step projectile simulation** — not a closed-form ballistic equation.
+It normalizes the direction toward the target, steps one pixel at a time checking `fg_getpixel`
+for terrain/player collisions, and decrements scaled gravity each pass to try flatter arcs.
+
+```c
+// =====================================================================
+// Function 1: ai_select_target (file 0x24F01-0x24FCE)
+// Iterates all players, finds closest alive enemy within threshold.
+// Target struct stride = 0xCA (202 bytes), base at DS:D568.
+// =====================================================================
+
+int ai_select_target(int my_x, int my_y) {
+    for (int i = 0; i < max_players /* DS:50D4 */; i++) {
+        target_t *candidate = &targets[i];  // DS:D568 + i * 0xCA
+
+        player_t *me = &players[DS:E4DA];   // stride 0x6C, base DS:CEB8
+        if (me->sub_ptr == candidate)        // +0x2A: skip self
+            continue;
+        if (candidate->alive == 0)           // +0x18: skip dead
+            continue;
+
+        int dist = compute_distance(my_x, my_y, candidate->x, candidate->y);
+        if (dist >= DS:5186)                 // distance threshold
+            continue;
+
+        // Store target in player struct
+        me->target_ptr = candidate;          // +0x3E/+0x40
+        me->target_x = candidate->x;        // +0x44
+        me->target_y = candidate->y;        // +0x46
+        return 1;  // target found
+    }
+    return 0;  // no valid target
+}
+
+
+// =====================================================================
+// Function 2: ai_solve_trajectory (file 0x24FCF-0x254E8) — MAIN SOLVER
+// Step-by-step simulation. Decrements scaled_gravity by 1.0 each pass.
+// =====================================================================
+
+void ai_solve_trajectory(void) {
+    // Compute scaled gravity
+    DS:31F4 = DS:CEAC * DS:31FC;  // gravity * multiplier
+
+    player_t *me = &players[DS:E4DA];
+    double pos_x = me->f64_x;       // +0x14 (f64, via INT 3Ch)
+    double pos_y = me->f64_y;       // +0x1C (f64)
+    int cur_ix = (int)pos_x;
+    int cur_iy = (int)pos_y;
+
+    // === OUTER LOOP: try arcs, reducing gravity each pass ===
+    while (DS:31F4 > 0.0) {
+        // Direction to target (Chebyshev normalization)
+        double dx = (double)me->target_x - pos_x;
+        double dy = (double)me->target_y - pos_y;
+        double max_comp = max(abs(dx), abs(dy));
+        if (max_comp == 0.0) break;  // at target
+
+        dx /= max_comp;  dy /= max_comp;  // normalize to [-1,1]
+
+        // Compute next integer position
+        int next_ix = (int)(pos_x + dx);
+        int next_iy = (int)(pos_y + dy);
+        int step_x = next_ix - cur_ix;
+        int step_y = next_iy - cur_iy;
+
+        if (step_x == 0 && step_y == 0) {
+            pos_x += dx;  pos_y += dy;     // sub-pixel advance
+            goto next_pass;
+        }
+
+        // Check pixel at next position
+        int pixel = fg_getpixel(next_ix, next_iy);
+
+        if (pixel >= 0x69)                  // sky/background
+            goto advance;
+        if (pixel < 0x50) {                 // hit a player/entity
+            int idx = pixel / 8;
+            if (&targets[idx] == me->target_ptr)
+                goto advance;               // hit our target = success
+            // Hit obstacle — try lateral movement or abort
+        }
+        // ... terrain collision handling, wall-hugging logic ...
+
+    advance:
+        pos_x += dx;  pos_y += dy;
+        cur_ix += step_x;  cur_iy += step_y;
+
+        // Store velocity components as output
+        DS:E4DC = (double)step_x;           // global vx
+        DS:E4E4 = (double)step_y;           // global vy
+
+        // Check if reached target
+        if (me->target_x == cur_ix && me->target_y == cur_iy) {
+            // SUCCESS — draw crosshair, fire
+            return;
+        }
+
+    next_pass:
+        DS:31F4 -= 1.0;                     // try flatter arc
+    }
+
+    // Gravity exhausted — store final position
+    me->field_00 = cur_ix;
+    me->field_02 = cur_iy;
+    me->f64_x = pos_x;
+    me->f64_y = pos_y;
+}
+
+
+// =====================================================================
+// Function 3: ai_compute_power (file 0x254E9-0x2589B)
+// Ballistic power calculator. Given angle and target, computes
+// required power using projectile range formula with sin/cos.
+// =====================================================================
+
+int ai_compute_power(tank_t far *tank, int target_x, int target_y, int recurse) {
+    // Determine firing direction from turret angle
+    int dir = (tank->angle < 90) ? 1 : (tank->angle > 90) ? -1 : tank->direction;
+
+    // Convert angle to radians, compute barrel tip position
+    double angle_rad = (double)effective_angle * DS:320C;  // pi/180
+    double barrel_x = cos(full_angle_rad) * power + tank->x;
+    double barrel_y = tank->y - sin(angle_rad) * power;
+
+    // Relative offset to target
+    double dx = (double)target_x - barrel_x;
+    double dy = barrel_y - (double)target_y;
+
+    // Ballistic formula: power^2 = ref_dist * dx^2 / (cos^2 * sin_component)
+    double cos_a = cos(angle_rad);
+    double sin_component = sin(2 * angle_rad) * dx - dy;
+    double power_sq = DS:3214 * cos_a * cos_a * sin_component;
+
+    if (power_sq == 0.0) {
+        if (recurse == 0) { tank->angle++; /* retry */ }
+        else return -2;
+    }
+
+    double power_val = sqrt(abs(ref_dist * dx * dx / power_sq)) * DS:3218;
+    return (int)power_val;
+}
+
+
+// =====================================================================
+// Function 4-5: ai_wind_correction (file 0x2589C-0x25DC0)
+// Two variants. Checks if wind opposes shot direction.
+// If so: abort or zero velocity. Otherwise: apply correction
+// proportional to gravity / dist^(1/4).
+// =====================================================================
+
+int ai_wind_correction(void) {
+    player_t *me = &players[DS:E4DA];
+    double dx = (double)me->target_x - me->f64_x;
+    double dy = me->f64_y - (double)me->target_y;
+
+    // Check if wind opposes direction
+    if ((dx > 0 && me->wind_x < 0) || (dx < 0 && me->wind_x > 0))
+        return abort_or_zero();
+    if ((dy > 0 && me->wind_y > 0) || (dy < 0 && me->wind_y < 0))
+        return abort_or_zero();
+
+    double dist_sq = dx * dx + dy * dy;
+    if (dist_sq < DS:321C) return 1;     // too close
+
+    // Correction = gravity * constant / dist^(1/4)
+    double correction = DS:3224 * DS:CEAC / sqrt(sqrt(dist_sq));
+    me->vel_x += correction * dx;
+    me->vel_y += correction * dy;
+    return 1;
+}
+
+
+// =====================================================================
+// Function 6-7: ai_inject_noise (file 0x25DE9-0x2610F)
+// Generates 2-5 sinusoidal harmonics with random amplitude/frequency.
+// Difficulty param controls wavelength (higher = smaller noise = more accurate).
+// Harmonics are summed per-column to produce aim wobble.
+// =====================================================================
+
+void ai_inject_noise(int difficulty, int arc_center) {
+    double wavelength_x = DS:322E / (double)(difficulty * 2);
+    double wavelength_y = DS:3236 / 10.0;
+    double amp_decay = wavelength_x * DS:323E;
+
+    int x_pos = arc_center - 30;
+    int n = 0;  // DS:322C = harmonic count
+
+    while (x_pos > 10 && n < 5) {
+        amplitude[n] = random_float() * (double)x_pos * DS:3242;
+
+        // Rejection-sample frequency into valid band
+        do { frequency[n] = random_float() * amp_decay; }
+        while (frequency[n] >= wavelength_x || frequency[n] <= wavelength_y);
+
+        phase[n] = (double)random_int(300);
+
+        x_pos = (int)((double)x_pos - amplitude[n] * DS:3246);
+        amp_decay *= DS:323E;
+        n++;
+    }
+    if (n < 2) goto retry;  // need at least 2 harmonics
+}
+
+// Noise application: for each column in firing arc:
+//   displacement = base_y + SUM(amplitude[h] * sin(frequency[h] * (phase[h] + step)))
+// This produces smooth sinusoidal aim wobble proportional to AI difficulty.
+```
+
+**Key architecture insight**: The AI does NOT use a closed-form ballistic equation to solve for
+angle/power. Instead, it uses **pixel-level ray marching** — stepping one pixel at a time along
+a normalized direction vector, reading screen pixels via `fg_getpixel` to detect terrain and
+players. The gravity parameter is decremented by 1.0 each outer pass, scanning progressively
+flatter trajectory arcs. This brute-force approach is why the AI is called "shark" — it swims
+through the screen pixel by pixel until it finds the target.
 
 ### AI Accuracy Parameters (VERIFIED)
 
@@ -615,20 +1146,137 @@ Shields require Battery charges to maintain energy across turns. Without batteri
 
 ### Player Struct Shield Fields
 
+See full **Player Data Structures** section for complete layout. Shield-relevant fields in the sub-struct (0xCA):
+
 | Offset | Field |
 |--------|-------|
-| +0x96 | Shield energy remaining (HP) |
-| +0xC6 | Far pointer to shield config entry (16 bytes) |
 | +0x0E | X position |
 | +0x10 | Y position |
-| +0x92 | Turret angle |
+| +0x92 | Turret angle (fine) |
 | +0x94 | Turret direction (-1 or 1) |
+| +0x96 | Shield energy remaining (HP) |
+| +0xC6 | Far pointer to shield config entry (16 bytes) |
 
 ### Mag Deflector / Super Mag
 
 These are **not shield types** — they modify projectile trajectories through the physics system rather than absorbing damage. Work via separate deflection zone mechanics.
 
 **Intermediate files**: `disasm/shields_code.txt`, `disasm/shield_mechanics.txt`
+
+---
+
+## Player Data Structures (VERIFIED)
+
+### Architecture: Two-Level Player Records
+
+The game uses a **two-level player data structure**:
+
+1. **Player struct** (0x6C = 108 bytes) — compact record for hot-loop iteration (explosion damage, projectile sim). Contains per-frame state: positions, velocities, targets, callbacks, wind, fire mode.
+2. **Target/sub struct** (0xCA = 202 bytes) — full tank state with turret, shields, AI targeting, power, linked-list nodes, config pointers. Each player's player struct points to one of these via far pointer at +0x2A/+0x2C.
+
+**Access patterns:**
+- Player: `mov ax,[DS:E4DA]; imul ax,ax,0x6C; les bx,[DS:CEB8]; add bx,ax`
+- Sub/target: `imul ax,ax,0xCA; add ax,0xD568` or via `les bx,[DS:5182]`
+- Pixel color on screen ÷ 8 = sub-struct index (each player owns 8 consecutive VGA colors)
+
+### Player Struct (stride 0x6C = 108 bytes, base DS:CEB8)
+
+Current player index at DS:E4DA.
+
+| Offset | Size | Type | Field | Evidence |
+|--------|------|------|-------|----------|
+| +0x00 | 2 | int16 | cur_ix | Integer X position. Written by AI solver (extras 0x216C5) |
+| +0x02 | 2 | int16 | cur_iy | Integer Y position. Written after +0x00 (extras 0x216D6, ai_solver 0x254AF) |
+| +0x04 | 8 | f64 | fpu_slot_04 | FPU store target. INT 3Ch FSTP. Likely step_x or velocity_x |
+| +0x0C | 8 | f64 | fpu_slot_0C | FPU store target. INT 3Ch FSTP. Likely step_y or velocity_y |
+| +0x14 | 8 | f64 | world_x | Float64 world X. Loaded/stored via INT 3Ch FLD/FSTP. AI trajectory uses this |
+| +0x1C | 8 | f64 | world_y | Float64 world Y. FLD qword [bx+0x1C] in damage_formula.txt |
+| +0x24 | 2 | int16 | guidance_type | Guidance/weapon mode. Compared to DS:D54E/D550. Set to 0 when consumed |
+| +0x26 | 2 | int16 | weapon_index | Weapon type index. Read at extras 0x22114 to index weapon struct table |
+| +0x28 | 2 | int16 | blast_radius | Explosion radius. Set from sub+0xA0 + 0x6E, or default 0x78 (120) |
+| +0x2A | 4 | fptr | sub_ptr | Far pointer to own sub-struct. `les bx,[es:bx+0x2a]` to follow |
+| +0x2E | 2 | int16 | warhead_count | Warhead counter. `dec [es:bx+0x2e]` post-damage (0x236E8). Set to 1 at 0x217AA |
+| +0x30 | 2 | int16 | mirv_counter | MIRV index. Set to 0 at 0x21869, inc at 0x21EB3, cmp to 6 at 0x21F35 |
+| +0x3A | 2 | uint16 | flags | Bitfield. `or word [es:bx+0x3a],0x1` = set active/hit bit (0x21427, 0x21570) |
+| +0x3C | 2 | int16 | active | In-flight flag. Set to 1 at 0x2171D, cleared at 0x236F7 |
+| +0x3E | 4 | fptr | target_ptr | Far pointer to TARGET's sub-struct. Written by ai_select_target (0x24F85) |
+| +0x44 | 2 | int16 | target_x | Target X (copied from target sub+0x0E). Written at 0x24F9D |
+| +0x46 | 2 | int16 | target_y | Target Y (copied from target sub+0x10). Written at 0x24FB5 |
+| +0x48 | 2 | int16 | hit_flag | Collision flag. Set to 0 at 0x21685, set to 1 at 0x2299B |
+| +0x4A | 2 | int16 | energy | Shield absorption. `sub es:[bx+0x4A],0x11` (17 pts inner), `0x10` (16 pts outer) |
+| +0x4C | 4 | fptr | callback | Far function pointer. Called via `call far [es:bx+0x4c]` at 0x21A85. Seg=0x1E50 (shark.cpp) |
+| +0x50 | 4 | fptr | callback2 | Second far callback. `call far [es:bx+0x50]` at 0x220FF. Set to 0 at 0x21771 |
+| +0x54 | 2 | int16 | damage_type | Explosion type code. Set to 2 at 0x21397 |
+| +0x56 | 16 | f64[] | fpu_workspace | FPU store area for intermediate calculations |
+| +0x66 | 2 | int16 | wind_x | Wind X component. Checked in wind correction (ai_solver 0x2592A) |
+| +0x68 | 2 | int16 | wind_y | Wind Y component. Checked in wind correction (ai_solver 0x25997) |
+| +0x6A | 2 | int16 | fire_mode | 1=direct fire, 2=guided. `cmp [es:bx+0x6a],0x1` at ai_solver 0x25A08 |
+
+### Target/Sub Struct (stride 0xCA = 202 bytes, base DS:D568)
+
+Full tank state record. Global pointer at DS:5182/5184.
+
+| Offset | Size | Type | Field | Evidence |
+|--------|------|------|-------|----------|
+| +0x00 | 2 | int16 | struct_type | Compared to 6 at extras 0x213FC. Identifies struct variant |
+| +0x02 | 2 | int16 | power | Power value. Read at ai_solver 0x25588 |
+| +0x04 | 4 | fptr | fn_ptr | Power mult / far call target in projectile iteration (0x220BE) |
+| +0x08 | 4 | fptr | linked_next | Linked list next. `les bx,[es:bx+0x8]` at 0x239B8 |
+| +0x0C | 4 | fptr | linked_prev | Linked list prev / shield flags. `les bx,[es:bx+0xc]` at 0x239DF |
+| +0x0E | 2 | int16 | x_pos | X position (pixels). `sub ax,[es:bx+0xe]` in damage calc (0x23344) |
+| +0x10 | 2 | int16 | y_pos | Y position (pixels). `mov ax,[es:bx+0x10]` in damage calc (0x2334D) |
+| +0x18 | 2 | int16 | alive | Alive flag. `cmp [es:bx+0x18],0x0` in ai_select_target (0x24F46) |
+| +0x22 | 2 | int16 | active_shield | Shield type index. Dispatch: `shl bx,4; call far [bx+0x26e]` at 0x231B0 |
+| +0x24 | 2 | int16 | defense_counter | Defense/parachute counter. Checked at 0x2263D |
+| +0x26 | 2 | int16 | projectile_type | Current weapon type for shot. Read at 0x21964 |
+| +0x28 | 2 | int16 | explosion_radius | Explosion radius param. Set from +0xA0 at 0x218A1 |
+| +0x2A | 4 | fptr | warhead_ptr | Far pointer to warhead/projectile data. `les bx,[es:bx+0x2a]` at 0x2188A |
+| +0x2E | 2 | int16 | warhead_count | Charge counter. `dec [es:bx+0x2e]` at 0x236E8, `inc` at 0x21662 |
+| +0x30 | 2 | int16 | mirv_index | MIRV sub-warhead index. 0→6 (6 sub-warheads) |
+| +0x32 | 2 | int16 | turret_angle | Turret angle (0-180°). `cmp [es:bx+0x32],0x5a` (90°) at ai_solver 0x25500 |
+| +0x34 | 2 | int16 | power_level | Current power for shot |
+| +0x38 | 2 | int16 | retry_counter | AI retry counter. If > 4, resets target (ai_solver line 170) |
+| +0x3A | 2 | uint16 | flags | Status flags. `test byte [es:bx+0x3a],0x1` at 0x23114 |
+| +0x3C | 2 | int16 | active | In-flight flag. `cmp [es:bx+0x3c],0x0` at 0x2163F |
+| +0x44 | 2 | int16 | proj_target_x | Projectile target X. `cmp [es:bx+0x44],si` at 0x22720 |
+| +0x46 | 2 | int16 | proj_target_y | Projectile target Y. `cmp [es:bx+0x46],di` at 0x2266C |
+| +0x48 | 2 | int16 | collision_flag | Hit detection. Set to 0 at 0x21685, set to 1 at 0x2299B |
+| +0x4A | 2 | int16 | energy_field | Energy/shield. Set to 0 at 0x2190B, -1 at 0x2191E, 1 at 0x21DAC |
+| +0x4C | 4 | fptr | callback | Far callback. `call far [es:bx+0x4c]` at 0x21A85 |
+| +0x50 | 4 | fptr | callback2 | Second callback. `call far [es:bx+0x50]` at 0x220FF |
+| +0x66 | 2 | int16 | wind_x | Wind X. Written at 0x226C3. Checked in wind correction |
+| +0x68 | 2 | int16 | wind_y | Wind Y. Written at 0x226D3 |
+| +0x6A | 2 | int16 | fire_mode | 1=direct, 2=guided. Set at 0x226E5, 0x22868 |
+| +0x7A | 2 | int16 | dead_flag | Death/elimination. Separate from +0x18 (alive) |
+| +0x92 | 2 | int16 | turret_angle_2 | Fine turret angle. `cmp 0x4b` (75°), `cmp 0xf` (15°) at 0x21456-0x214B5 |
+| +0x94 | 2 | int16 | turret_direction | Direction (-1 or 1). Read at 0x21462 (negated), ai_solver 0x2551E |
+| +0x96 | 2 | int16 | shield_energy | Shield HP remaining. `cmp [es:bx+0x96],0x0` at 0x238F2 |
+| +0xA0 | 2 | int16 | base_radius | Base explosion radius. Value + 0x6E → player+0x28 |
+| +0xA2 | 4 | uint32 | max_power | 32-bit max power. Low: `[es:bx+0xa2]`, High: `[es:bx+0xa4]` |
+| +0xAE | 4 | fptr | ai_target | AI target far pointer. `mov ax,[es:bx+0xae]` at 0x217E4 |
+| +0xB6 | 4 | fptr | name_ptr | Far pointer to player name string |
+| +0xC6 | 4 | fptr | shield_cfg | Far pointer to shield config entry. `les bx,[es:bx+0xc6]` at 0x22469 |
+
+### Key Relationships
+
+```
+DS:CEB8 → Player[0..9] (stride 0x6C)
+             │
+             ├── +0x2A/2C: far ptr ──→ DS:D568 → Sub[0..9] (stride 0xCA)
+             │                                      ├── +0x0E/+0x10: x,y pos
+             │                                      ├── +0x18: alive
+             │                                      ├── +0x32: turret angle
+             │                                      ├── +0x96: shield HP
+             │                                      ├── +0xB6: name ptr
+             │                                      └── +0xC6: shield cfg ptr
+             │
+             ├── +0x3E/40: far ptr ──→ TARGET's Sub struct
+             ├── +0x44/46: target x,y (cached copy)
+             ├── +0x14/1C: world x,y (f64)
+             └── +0x4C/50: callback far ptrs
+```
+
+**Intermediate files**: `disasm/ai_solver_decoded.txt`, `disasm/damage_decoded.txt`, `disasm/extras_decoded.txt`
 
 ---
 
@@ -838,6 +1486,11 @@ All located in `disasm/` directory:
 | **`terrain_palettes_search.txt`** | **All 7 terrain type palettes with gradient calculations** |
 | **`damage_formula.txt`** | **Explosion/damage system: functions, constants, formula** |
 | **`war_quotes.txt`** | **All 15 war quotes with attributions** |
+| **`fpu_decode.py`** | **Borland INT 34h-3Dh FPU instruction decoder script** |
+| **`ai_solver_decoded.txt`** | **AI solver (shark.cpp) with decoded FPU instructions** |
+| **`damage_decoded.txt`** | **Damage system (extras.cpp) with decoded FPU instructions** |
+| **`extras_decoded.txt`** | **Explosion system with decoded FPU instructions** |
+| **`borland_rtl.txt`** | **Borland RTL function signatures (sin, cos, atan2, sqrt, etc.)** |
 
 ---
 
@@ -849,7 +1502,7 @@ All located in `disasm/` directory:
 
 2. ~~**Terrain color palettes**~~ — **RESOLVED**. All 7 terrain types fully documented with gradient formulas. Palettes are generated algorithmically in code, not stored as raw data.
 
-3. ~~**Explosion/damage formula**~~ — **PARTIALLY RESOLVED**. Core damage function at file 0x22BDF (93 FPU calls). Constants: PI/180, 0.7 falloff, +-2% randomization, polynomial coefficients. Three explosion types (single/MIRV-6/particle-8).
+3. ~~**Explosion/damage formula**~~ — **RESOLVED**. Fully traced via FPU decoder. Not a polynomial falloff — uses 2D rotation of velocity vector (atan2/cos/sin). Damage = rotated speed / 100, attenuated 0.7× per hit. See pseudocode above.
 
 4. ~~**AI accuracy parameters**~~ — **RESOLVED**. Switch at 0x29505 pushes noise values per AI type (Moron=[50,50,50] through Spoiler=[63,63,63]). Cyborg/Unknown randomize to type 0-5. Sentient has **corrupted vtable** (second linker data overlap bug).
 
@@ -867,38 +1520,29 @@ All located in `disasm/` directory:
    - Check the official HTML manual bundled with the game download
    - Ref: `disasm/accessory_prices.txt`
 
-9. **AI trajectory solver internals** — Code segment 0x3167 identified. Need to decode how the AI calculates angle+power given target position, gravity, wind. Look for INT 34h-3Dh FPU patterns in this segment.
-   - Ref: `disasm/ai_solver.txt`, `disasm/ai_code.txt`
-   - Try: r2 disassemble segment 0x3167 (file ~0x38070), decode INT 34h-3Dh sequences
+9. ~~**AI trajectory solver internals**~~ — **RESOLVED**. Not a closed-form ballistic equation — uses pixel-level ray marching via `fg_getpixel`. Steps one pixel at a time, decrements gravity each pass. Full pseudocode for 7 functions (target selection, main solver, power calc, wind correction x2, noise injection x2) traced from FPU decode.
 
-10. **Exact polynomial damage curve** — Core function at 0x22BDF uses coefficients -1.875, -1.75, -2.0, 0.7. Need full INT 34h-3Dh decode to get precise formula.
-   - Ref: `disasm/damage_formula.txt`
-   - Try: Write a Borland FPU emulation decoder script, apply to 0x22BDF region
+10. ~~**Exact polynomial damage curve**~~ — **RESOLVED**. Not a polynomial — uses velocity rotation. Full pseudocode traced via FPU decoder. See "Damage formula" section above.
 
-11. **Tank rendering dimensions** — Exact pixel dimensions of tank body, turret, barrel for faithful reproduction. Likely in `icons.cpp` (5 assert references suggest complex drawing code).
-   - Ref: icons.cpp code segments 0x1F7F-0x1F9B (file ~0x263F0)
+11. ~~**Tank rendering dimensions**~~ — **RESOLVED**. Dome: 7px wide, 5px tall (base line + 4px rise), 3D shading with left/right color asymmetry. Body: 66x12px (HUD), 101x11 virtual units (viewer) with 10 gradient bands. Barrel: Bresenham-like pixel iterator, max ~400 steps, angle capped at 20. Color system: VGA 80-104, 8 per player. See "Tank Rendering" section.
 
 ### MEDIUM PRIORITY
 
-12. **Popcorn Bomb / Funky Bomb behavior** — bhvType=0 (Funky) or no struct (Popcorn). Funky has bhvSub=0x1DCE (handler ptr). Need to trace the behavior dispatch to understand scatter/split mechanics.
+12. ~~**Popcorn Bomb / Funky Bomb behavior**~~ — **RESOLVED**. Funky Bomb (BhvType=0, Seg=0x1DCE) spawns 5-10 sub-bombs from screen top, scatter within 2x blast radius (160px). Popcorn Bomb has no struct — hardcoded special case before dispatch. Full dispatch architecture documented with handler segment map. See "Weapon Behavior Dispatch" section.
 
-13. **Player struct full layout** — Partial fields known from shield+explosion code:
-   - +0x0E/+0x10: x/y position, +0x12/+0x14: dimensions
-   - +0x4A: energy/shield field, +0x92: turret angle, +0x94: turret direction
-   - +0x96: shield energy, +0xC6: shield config ptr, +0xB6: name far ptr
-   - Need: cash, score, health, inventory array, team, AI type, alive flag
+13. ~~**Player struct full layout**~~ — **RESOLVED**. Two-level architecture: Player struct (0x6C/108 bytes, base DS:CEB8) + Target/sub struct (0xCA/202 bytes, base DS:D568). 30+ player fields and 40+ sub-struct fields mapped with file offset evidence. See "Player Data Structures" section above.
 
-14. **Napalm/fire particle system** — bhvType 0x01A0 (Napalm, Hot Napalm, Ton of Dirt). How fire particles spread and deal damage over time.
+14. ~~**Napalm/fire particle system**~~ — **RESOLVED**. 99-slot particle pool (6-byte structs), negative param = dirt mode (brown 0x50 vs fire 0xFE), max 20 simultaneous particles, 0.7x velocity dampening/frame, circular allocation with recycling. See "Weapon Behavior Dispatch" section.
 
-15. **Roller physics** — bhvType 0x0003. How rollers interact with terrain slopes, velocity on hills, detonation conditions.
+15. ~~**Roller physics**~~ — **RESOLVED**. Two-phase: impact handler scans terrain left/right for deeper valley to determine roll direction, then spawns rolling projectile with per-frame terrain-follower callback. Gravity acceleration increases speed. Supports all wall types. Terrain threshold = pixel >= 0x69. See "Weapon Behavior Dispatch" section.
 
-16. **MIRV split mechanics** — bhvType 0x0239. How/when MIRV splits at apogee, sub-warhead distribution pattern, Death's Head wider spread.
+16. ~~**MIRV split mechanics**~~ — **RESOLVED**. Apogee detected via velocity sign flip (stored last_sign at +0x66/+0x68). At split: 6 sub-warheads (12-byte stride). Damage = (radius-dist)*100/radius, capped at 110. Death's Head uses wider spread table (param=1 vs param=0). See "Weapon Behavior Dispatch" section.
 
 17. **Laser/beam weapons** — How Laser and Plasma Laser render and deal damage (continuous beam vs projectile).
 
 ### LOW PRIORITY
 
-18. **Cheat codes** — "ASGARD", "frondheim", "ragnarok", "mayhem", "nofloat". Trace string references to find what each activates.
+18. ~~**Cheat codes**~~ — **RESOLVED**. All 5 cheat/debug codes fully traced. ASGARD=frondheim (MDA debug overlay), ASGARD=ragnarok (file debug log), mayhem (all weapons x99), nofloat (disable FPU physics), player name selection. See "Cheat Codes" section above.
 
 19. **Tosser/Unknown/Sentient AI details** — Tosser is functional (noise=[63,23]). Unknown randomizes to 0-5. Sentient has corrupted vtable — confirm non-functional.
 
@@ -911,6 +1555,308 @@ All located in `disasm/` directory:
 23. **Sound system** — How sound effects are triggered, what format they use, Fastgraph sound integration.
 
 24. **Simultaneous/Synchronous play modes** — How these differ from Sequential in the main game loop (play.cpp).
+
+---
+
+## Tank Rendering — icons.cpp (VERIFIED from disassembly)
+
+### Overview
+
+Tank rendering in Scorched Earth v1.50 is implemented primarily in `icons.cpp` (code segment 0x1F7F+, file base ~0x263F0). The tank is drawn pixel-by-pixel using Fastgraph V4.02 graphics library calls through an indirect function pointer table in the data segment.
+
+### Fastgraph Function Pointer Table (Indirect Calls)
+
+| DS Offset | Function | Params | Cleanup | Description |
+|-----------|----------|--------|---------|-------------|
+| 0xEEF4 | `fg_point` wrapper | 3 words | 6 bytes | `point(x, y, color)` — draws single pixel |
+| 0xEEF8 | `fg_getpixel` wrapper | 2 words | 4 bytes | `getpixel(x, y)` — returns color in AX |
+| 0xEF04 | `fg_locate`/`fg_move` | 2 words | 4 bytes | Move cursor position |
+| 0xEF08 | `fg_setcolor` | 1 word | 2 bytes | Set drawing color |
+| 0xEF0C | `draw_hline` wrapper | 4 words | 8 bytes | `hline(minx, maxx, y, color)` — horizontal line |
+| 0xEF10 | `draw_vline` wrapper | 4 words | 8 bytes | `vline(x, miny, maxy, color)` — vertical line |
+| 0xEF14 | `fg_drect` wrapper | 5 words | 10 bytes | `drect(minx, miny, maxx, maxy, color)` — filled rectangle |
+
+### Key Global Variables
+
+| DS Offset | Purpose |
+|-----------|---------|
+| 0xEF22 | Current tank drawing color (player-specific) |
+| 0xEF24 | Tank body shadow/outline color |
+| 0xEF26 | Dome highlight color (right side) |
+| 0xEF28 | Background/fill color |
+| 0xEF2E | Dome base line color (direction 1) |
+| 0xEF30 | Dome outline color (left side) |
+| 0xEF32 | Dome base line color (direction 2) |
+| 0xEF3C | Screen left boundary |
+| 0xEF3E | Screen width |
+| 0xEF40 | Screen/viewport Y base |
+| 0xEF42 | Screen right boundary |
+| 0xEF46 | Sound/animation effects enabled flag |
+| 0xE344 | Current player index |
+| 0xE346 | Barrel start X position |
+| 0xE348 | Barrel start Y position |
+| 0xE6FC | Horizontal base coordinate (for HUD/info panels) |
+| 0xE702 | Tank facing direction (0x50=left, 0xFE=right) |
+| 0x5182/0x5184 | Current player struct far pointer |
+
+### Player/Target Struct Layout
+
+- **Stride**: 0xCA (202 bytes)
+- **Array base**: DS:0xD568 (calculated as: pixel_color / 8 * 0xCA + 0xD568)
+- **Key fields**:
+  - `+0x08`: Direction/scale multiplier
+  - `+0x0E`: Player X position (screen pixels)
+  - `+0x10`: Player Y position (screen pixels)
+  - `+0x12`: Barrel X velocity/offset
+  - `+0x14`: Barrel Y velocity/offset
+  - `+0x36`: Selected weapon index
+  - `+0x92`: Equipment parameter
+  - `+0xB2`: Far pointer to weapon/sprite sub-struct (stride 0x6C = 108 bytes)
+
+### Tank Color Scheme
+
+- **Tank body pixel colors**: 0x50-0x68 (80-104), 8 colors per player
+- **Player index from color**: `pixel_color / 8`
+- **Sky/background threshold**: color >= 0x69 (105)
+- **Special boundary colors**: 0x96 (150) and 0xA9 (169) — wall/obstacle detection
+- **Tank hit marker**: 0xC8 (200) — drawn on top of damaged tank pixels
+- **Dome gradient**: Uses 3 separate color globals (0xEF26, 0xEF2E, 0xEF30, 0xEF32)
+
+### Turret Dome — Pixel-by-Pixel Pattern (file offset 0x2694C)
+
+Function signature: `draw_dome(start_x, center_y, x_step)`
+
+The dome is drawn as a series of `fg_point` calls forming a semicircular cap. Parameters:
+- `si` = start_x (initially `[bp+6]`)
+- `di` = center_y (`[bp+8]`)
+- `[bp+0xa]` = x_step (horizontal advance per column group)
+- Color from global `[0xEF22]`
+
+**Pixel map** (21 total fg_point calls across 7 column groups):
+
+```
+Column 1 (x = si):
+  fg_point(si, di, color)             → center
+
+  si -= x_step
+
+Column 2 (x = si):
+  fg_point(si, di-1, color)           → center-1
+  fg_point(si, di, color)             → center
+  fg_point(si, di+1, color)           → center+1
+
+  si -= x_step
+
+Column 3 (x = si):
+  fg_point(si, di-2, color)           → center-2
+  fg_point(si, di+2, color)           → center+2
+  fg_point(si, di-1, color)           → center-1
+  fg_point(si, di, color)             → center
+  fg_point(si, di+1, color)           → center+1
+
+  si -= x_step
+
+Columns 4-7: Repeat the 3-pixel pattern (di-1, di, di+1) with x_step decrements
+  Each column: fg_point at (si, di-1), (si, di), (si, di+1)
+  Then: si -= x_step
+```
+
+**Dome dimensions**:
+- Height: 5 pixels (Y offsets: -2 to +2 from center_y)
+- Width: 7 columns with x_step spacing between them
+- Total width = 6 * x_step + 1 pixels (depends on x_step parameter)
+- The dome is asymmetric: column 1 is 1px, column 2 is 3px, column 3 is 5px, columns 4-7 are 3px each
+- This creates a rounded cap shape that peaks at center (5px tall) and tapers to 1px at the starting edge
+
+The function spans from 0x2694C to 0x26AB2 (retf at 0x26AB2), 358 bytes.
+
+### In-Game Tank Dome (Alternate Rendering Path)
+
+Found at file offset 0x3FC9A (within the per-frame tank drawing routine). This draws the dome using the actual player position:
+
+**Direction 1 dome** (barrel pointing right):
+```
+Base position: si = player_X, y_base = player_Y + 11
+
+Horizontal line:  hline(si, si+6, y_base-6, dome_base_color)     ← 7px base line
+
+Dome pixels (left side, color=[0xEF30]):
+  point(si+0, y_base-7)    ← ascending
+  point(si+1, y_base-8)
+  point(si+2, y_base-9)
+  point(si+3, y_base-10)   ← peak (4px above base line)
+
+Dome pixels (right side, color=[0xEF26] = highlight):
+  point(si+4, y_base-9)    ← descending
+  point(si+5, y_base-8)
+  point(si+6, y_base-7)
+```
+
+**Direction 2 dome** (barrel pointing left):
+```
+Horizontal line:  hline(si, si+6, y_base-4, dome_base_color)     ← 7px base line
+
+Dome pixels (left side):
+  point(si+0, y_base-3)
+  point(si+1, y_base-2)
+  point(si+2, y_base-1)
+
+Dome pixels (right side = highlight):
+  point(si+3, y_base+0)    ← peak at base level
+  point(si+4, y_base-1)
+  point(si+5, y_base-2)
+  point(si+6, y_base-3)
+```
+
+**In-game dome dimensions**: 7 pixels wide, 5 pixels tall (base line + 4 pixel rise), with left/right color asymmetry for 3D shading effect.
+
+### Tank Body Rectangle
+
+The tank body is drawn as a filled rectangle using `fg_drect` (via `[0xEF14]` or wrapper `0x3dab:0xb`).
+
+**In the equipment/HUD panel** (file offset 0x26C76):
+```
+fg_drect_wrapper(
+  [0xe6fc] + 0x18,    // minx = horizontal_base + 24
+  [0xef40] + 5,        // miny = vertical_base + 5
+  [0xe6fc] + 0x59,    // maxx = horizontal_base + 89
+  [0xef40] + 0x10,    // maxy = vertical_base + 16
+  [0xef28]             // color = background fill color
+)
+```
+Panel body dimensions: **66 pixels wide x 12 pixels tall** (89-24+1 = 66, 16-5+1 = 12).
+
+**In the virtual coordinate tank viewer** (file offset 0x27745-0x2781E):
+Uses a virtual coordinate system set up with `fg_setworld(100, 100, 240, 165)`:
+
+Tank body gradient bands (10 bands, loop si=0..9):
+```
+For each band si:
+  y_range = 118 to 128 (10 virtual units tall)
+  x_range = si*10+105 to si*10+115 (10 virtual units wide per band)
+
+  Draw outlined rectangle:
+    hline(si*10+105, si*10+115, 118, [0x6e2a])    top edge
+    hline(si*10+105, si*10+115, 128, [0x6e2a])    bottom edge
+    vline(si*10+105, 118, 128, [0x6e2a])           left edge
+    vline(si*10+115, 118, 128, [0x6e2a])           right edge
+```
+Virtual body dimensions: **101 units wide x 11 units tall** (105 to 205 horizontal, 118 to 128 vertical).
+
+Tank treads (below body):
+```
+wrapper(125, 135, 50, 20, [0xef28])
+```
+Virtual treads: **50 units wide x 20 units tall** at position (125, 135).
+
+### Barrel Drawing — Main Draw Tank Function (file offset 0x27000-0x275B3)
+
+The barrel is drawn using an iterative stepping algorithm similar to Bresenham's line algorithm.
+
+**Function signature**: `draw_barrel(player_x)` — enter 0x22 (34 bytes local variables)
+
+**Key parameters**:
+- Barrel angle from weapon struct: `[0xe344] * 0x34 + 0x120E`
+- Angle magnitude capped at **20** (0x14)
+- Direction: negative angle → left (0x50), positive → right (0xFE)
+
+**Algorithm**:
+1. Read angle, determine direction
+2. Initialize starting position from player struct `[0xE346]`, `[0xE348]`
+3. Initialize state: max iterations = 99 (`[0xE9B2]`), step size = 2 (`[0xE9B4]`)
+4. Main loop (up to 1000 iterations timeout):
+   - Advance position using stepping algorithm entries (stride 6 array at `[bx-0x18AC]`, `[bx-0x18AA]`)
+   - Draw pixel at current position using `fg_point` (right-facing) or `fg_move` (left-facing)
+   - Track bounding box: update min/max X (`[bp-0xa]`, `[bp-0xe]`) and Y (`[bp-0xc]`, `[bp-0x10]`)
+   - Every **20 pixels** (`[bp-8]` counter), record a waypoint in array at `[bx-0x18FC]`
+   - Increment waypoint counter `[0xE9B8]`
+5. Loop terminates when waypoints count >= angle magnitude OR error flag set
+
+**Barrel length**: `angle_value` waypoints x 20 pixels per waypoint interval.
+Maximum barrel = 20 * 20 = **~400 pixel steps** (theoretical maximum).
+
+**Bounding box expansion** (post-render, for redraw region):
+```
+X: waypoint_x + 0xFFD3 (-45) to waypoint_x + 0x2D (+45)   → 91 pixel margin
+Y: waypoint_y + 0xFFE2 (-30) to waypoint_y + 0x14 (+20)    → 51 pixel margin
+```
+
+**Post-barrel rendering**:
+After barrel is drawn, the function enters a cleanup/animation phase:
+- Iterates through recorded waypoints (0 to `[0xE9B8]`)
+- For each waypoint, calls `fg_locate` with (0x1E, 0xAA)
+- Calls display delay functions
+- Scans pixels in the bounding box region for tank hit detection (color >= 0xAA)
+- Calls terrain restoration function `0x32C2:0x1519` for damaged pixels
+
+### Tank Placement — Terrain Scanning (file offset 0x26AB3-0x26D3D)
+
+**Function signature**: `place_tank(x_offset)` — enter 0x12 (18 bytes local variables)
+
+This function places the tank on terrain after a move (e.g., gravity settling, Jump Jets):
+
+1. Calculate new X: `player_x + x_offset`
+2. Calculate scan position: `player_x + (player[0x08] * x_offset)` — direction-scaled
+3. Scan UPWARD from terrain using `fg_getpixel`:
+   - If pixel color < 0x69 (105): found sky → increment counter, move up
+   - If counter reaches **4**: terrain too steep → abort placement
+   - Check for special colors 0x96 (150) and 0xA9 (169): wall boundaries
+4. On success: update player position, call rendering functions
+
+### Tank Hit Detection (file offset 0x27A85)
+
+**Function signature**: `check_tank_hit(x, y)` — simple function
+
+Algorithm:
+```
+pixel = fg_getpixel(x, y)
+player_index = pixel / 8
+player_struct = DS:0xD568 + player_index * 0xCA
+
+if (player_struct == current_player):
+    return  // skip self
+
+if (pixel >= 0x50 && pixel <= 0x68):  // color range 80-104
+    return 1  // hit a tank!
+
+fg_point(x, y, 0xC8)  // draw hit marker (color 200)
+```
+
+### Summary of Dimensions
+
+| Component | Width (px) | Height (px) | Notes |
+|-----------|-----------|-------------|-------|
+| Turret dome (icons.cpp version) | 6*x_step+1 | 5 | Semicircular, 21 pixel calls |
+| Turret dome (in-game) | 7 | 5 | 7px base line + 4px rise |
+| Tank body (HUD panel) | 66 | 12 | Filled rectangle on equipment screen |
+| Tank body (virtual viewer) | ~101 | ~11 | 10 gradient bands in virtual coords |
+| Tank treads (virtual viewer) | 50 | 20 | Below body in virtual coords |
+| Barrel max length | ~400 steps | 1 | Iterative pixel-by-pixel drawing |
+| Barrel bounding margin | 91 (X) | 51 (Y) | Redraw region around waypoints |
+| Tank pixel color range | N/A | N/A | Colors 80-104 (0x50-0x68) |
+| Players (max) | N/A | N/A | 8 colors per player, color/8 = index |
+
+### Key Function Addresses (file offsets)
+
+| Address | Function | Description |
+|---------|----------|-------------|
+| 0x2694C | `draw_dome_pixels()` | Pixel-by-pixel dome drawing (21 fg_point calls) |
+| 0x26AB3 | `place_tank()` | Terrain scanning and tank placement |
+| 0x26C3E | *(continuation)* | Tank HUD panel rendering (rectangles + text) |
+| 0x26E31 | `set_dome_params()` | Store 2 params to globals 0x99FE/0x9A00 |
+| 0x26E44 | `random_dome_color()` | Uses random(0x43), accesses array at 0x53B0 |
+| 0x26E6B | `find_anim_slot()` | Find free slot in animation queue (max 101 entries) |
+| 0x26EDA | `record_barrel_point()` | Record barrel waypoint in animation queue |
+| 0x26F9E | `random_wind_update()` | Random viewport offset update (wind visual) |
+| 0x27000 | `draw_barrel()` | **Main barrel drawing function** — Bresenham-like iterator |
+| 0x275B7 | `get_anim_state()` | Return animation state from `[0xE9BA]` |
+| 0x275CC | `check_pixel_bounds()` | Pixel color/bounds checking for barrel path |
+| 0x276C1 | `calc_anim_distance()` | Distance between animation queue entries |
+| 0x27709 | `tank_body_viewer()` | Virtual-coord tank body with gradient bands |
+| 0x27A85 | `check_tank_hit()` | Pixel color → player index hit detection |
+| 0x27B1D | `draw_tank_sprite()` | Animated tank sprite rendering with bitmap |
+| 0x28698 | `capture_sprite()` | Sprite/bitmap capture from screen region |
+| 0x28830 | `render_sprite_pixel()` | Pixel-level bitmap rendering with fg_point |
 
 ---
 

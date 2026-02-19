@@ -7,11 +7,13 @@ readable x87 mnemonics. Uses ndisasm for both reconstructed FPU opcodes
 and regular x86 instruction decoding.
 
 Usage:
-    python3 fpu_decode.py <exe_path> <start_offset> <end_or_length> [-c]
+    python3 fpu_decode.py <exe_path> <start_offset> <end_or_length> [-c] [-f]
 
     Offsets are file offsets (hex with 0x prefix or decimal).
     End can be absolute offset or +length (e.g. +1024).
     -c enables DS constant annotations.
+    -f enables far call annotations (Borland RTL function labels)
+        and function boundary markers (enter/retf).
 """
 
 import sys
@@ -19,24 +21,28 @@ import struct
 import subprocess
 import tempfile
 import os
+import re
 
 # INT number -> x87 base opcode byte
+# Mapping verified via Ralf Brown's Interrupt List (RBIL):
+#   INT 34h = D8h, INT 35h = D9h, etc. (sequential: opcode = 0xD8 + INT - 0x34)
 INT_TO_OPCODE = {
-    0x34: 0xDC,  # qword memory (fmul/fsub qword)
-    0x35: 0xD8,  # dword memory / register (fadd/fmul/fcomp dword)
-    0x36: 0xDA,  # dword int memory (fiadd/fimul dword)
-    0x37: 0xDE,  # word int memory / register (fiadd/fistp word)
-    0x38: 0xDD,  # qword memory (fld/fst/fstp qword)
-    0x39: 0xD9,  # dword memory (fld/fstp/fldcw/fnstcw dword)
-    0x3A: 0xDB,  # register forms (fcomi variants)
-    0x3B: 0xDF,  # word int memory (fild/fistp word)
-    0x3C: 0xD8,  # near-data segment variant (same base as 35h)
+    0x34: 0xD8,  # ESC0: dword memory / register (fadd/fmul/fcomp/fsub dword)
+    0x35: 0xD9,  # ESC1: dword memory / misc (fld/fst/fldcw/fnstcw/fsqrt/fsin/fcos)
+    0x36: 0xDA,  # ESC2: dword int memory (fiadd/fimul/ficom dword)
+    0x37: 0xDB,  # ESC3: dword int memory / misc (fild/fist/fistp dword, fcomi)
+    0x38: 0xDC,  # ESC4: qword memory / register (fadd/fmul/fsub/fdiv qword)
+    0x39: 0xDD,  # ESC5: qword memory / misc (fld/fst/fstp qword, frstor/fsave)
+    0x3A: 0xDE,  # ESC6: word int memory / register (fiadd/fimul word, faddp/fmulp)
+    0x3B: 0xDF,  # ESC7: word int memory / misc (fild/fistp word, fnstsw ax)
+    0x3C: 0xD8,  # near-data segment variant (DS: segment override + ESC0)
     # 0x3D = FWAIT (special)
-    # 0x3E = D9 register-only forms (special)
+    # 0x3E = D9 register-only forms (special, 4-byte: CD 3E xx 90)
 }
 
 # DS segment constants for annotation
 DS_CONSTANTS = {
+    0x1CC8: ("f32", 100.0, "distance divisor"),
     0x1D08: ("f64", 0.0174532930, "PI/180 deg-to-rad"),
     0x1D10: ("f64", 1.02, "+2% damage randomization"),
     0x1D18: ("f64", 0.98, "-2% damage randomization"),
@@ -53,6 +59,22 @@ DS_CONSTANTS = {
     0x1D5C: ("f32", 2.0, "doubling"),
     0x1D60: ("f64", 0.7, "damage falloff"),
     0x1D68: ("f64", 0.001, "epsilon threshold"),
+}
+
+# Known far call targets: (seg, offset) -> label
+# Borland RTL math functions identified by decoding function entry points.
+# Call targets use the segment:offset from the CALL FAR instruction operands,
+# where segment 0x0 means "same segment as caller" (resolved by relocation).
+KNOWN_CALLS = {
+    (0x0, 0x1204): "_sin",           # INT 35h fsin at file 0x7C04
+    (0x0, 0x13D1): "_cos",           # INT 35h fcos at file 0x7DD1
+    (0x0, 0x0FC8): "_sqrt",          # INT 35h fsqrt at file 0x79C8
+    (0x0, 0x14DF): "_ftol",          # fnstcw/fldcw/fistp at file 0x7EDF
+    (0x0, 0x1421): "_atan2",         # fdivrp/fptan + quadrant adj at file 0x7E21
+    (0x0, 0x04DC): "_tan",           # fptan at file 0x6EDC
+    (0x0, 0x0500): "_fabs",          # clr sign bit + fld at file 0x6F00
+    (0x0, 0xA2CE): "__stkchk",       # cmp sp,[DS:519A] stack overflow check
+    (0x0, 0x1E97): "_malloc",        # memory allocation
 }
 
 
@@ -460,11 +482,42 @@ def decode_region_fast(exe_data, file_start, file_end, annotate_constants=False)
     return results
 
 
-def format_output(results):
+def annotate_call(mnemonic):
+    """Check if a mnemonic is a far call to a known function.
+
+    Returns the label string or None.
+    """
+    # Match patterns like: call word 0x0:word 0x1421
+    #                   or: call 0x0:0x1421
+    m = re.match(r'call\s+(?:word\s+)?0x([0-9a-f]+):(?:word\s+)?0x([0-9a-f]+)', mnemonic, re.I)
+    if m:
+        seg = int(m.group(1), 16)
+        off = int(m.group(2), 16)
+        return KNOWN_CALLS.get((seg, off))
+    return None
+
+
+def format_output(results, annotate_calls=False):
     """Format decode results into aligned columns."""
     lines = []
     for file_off, seg, off, mnemonic, annotation in results:
-        line = f"0x{file_off:05X}  {seg:04X}:{off:04X}  {mnemonic:<38s} {annotation}"
+        extra = ""
+        if annotate_calls:
+            # Annotate known far calls
+            label = annotate_call(mnemonic)
+            if label:
+                extra = f"  → {label}"
+            # Function boundary markers
+            mnemonic_stripped = mnemonic.strip().lower()
+            if mnemonic_stripped.startswith('enter '):
+                lines.append("")
+                lines.append(f"; {'=' * 60}")
+                lines.append(f"; === FUNCTION at file 0x{file_off:05X} ===")
+                lines.append(f"; {'=' * 60}")
+            elif mnemonic_stripped in ('retf', 'ret') or mnemonic_stripped.startswith('retf '):
+                extra += "  ; --- end ---"
+
+        line = f"0x{file_off:05X}  {seg:04X}:{off:04X}  {mnemonic:<38s} {annotation}{extra}"
         lines.append(line)
     return '\n'.join(lines)
 
@@ -503,6 +556,7 @@ def main():
         end = parse_offset(end_arg)
 
     annotate = '-c' in sys.argv
+    annotate_calls_flag = '-f' in sys.argv
 
     with open(exe_path, 'rb') as f:
         exe_data = f.read()
@@ -517,7 +571,7 @@ def main():
         print(f"Warning: clamped end to file size 0x{end:X}", file=sys.stderr)
 
     results = decode_region_fast(exe_data, start, end, annotate)
-    output = format_output(results)
+    output = format_output(results, annotate_calls=annotate_calls_flag)
     print(output)
     print_stats(results)
 

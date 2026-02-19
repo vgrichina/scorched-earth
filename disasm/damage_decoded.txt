@@ -15,13 +15,17 @@
 0x23322  1C90:0022  jmp 0x24                               ; x86
 0x23324  1C90:0024  pop si                                 ; x86
 0x23325  1C90:0025  leave                                  ; x86
-0x23326  1C90:0026  retf                                   ; x86
+0x23326  1C90:0026  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x23327 ===
+; ============================================================
 0x23327  1C90:0027  enter word 0x30,byte 0x0               ; x86
 0x2332B  1C90:002B  push si                                ; x86
 0x2332C  1C90:002C  push di                                ; x86
 0x2332D  1C90:002D  cmp [0x519a],sp                        ; x86
 0x23331  1C90:0031  ja 0x38                                ; x86
-0x23333  1C90:0033  call word 0x0:word 0xa2ce              ; x86
+0x23333  1C90:0033  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x23338  1C90:0038  mov word [0xce9a],0x3                  ; x86
 0x2333E  1C90:003E  les bx,word [bp+0x6]                   ; x86
 0x23341  1C90:0041  mov ax,[bp+0xa]                        ; x86
@@ -37,9 +41,9 @@
 0x23361  1C90:0061  add sp,0x4                             ; x86
 0x23364  1C90:0064  mov [bp-0x2a],si                       ; x86
 0x23367  1C90:0067  fild word [bp-0x2a]                    ; INT 3Bh
-0x2336B  1C90:006B  fsubr st6                              ; INT 35h
-0x2336E  1C90:006E  fcmovnu st1                            ; INT 3Ah
-0x23371  1C90:0071  fnstcw [bp-0x2a]                       ; INT 39h
+0x2336B  1C90:006B  fldz                                   ; INT 35h
+0x2336E  1C90:006E  fcompp                                 ; INT 3Ah
+0x23371  1C90:0071  fnstsw [bp-0x2a]                       ; INT 39h
 0x23375  1C90:0075  wait                                   ; INT 3Dh
 0x23377  1C90:0077  mov ax,[bp-0x2a]                       ; x86
 0x2337A  1C90:007A  sahf                                   ; x86
@@ -48,9 +52,9 @@
 0x23380  1C90:0080  jmp 0xa2                               ; x86
 0x23382  1C90:0082  mov [bp-0x2a],si                       ; x86
 0x23385  1C90:0085  fild word [bp-0x2a]                    ; INT 3Bh
-0x23389  1C90:0089  fsubr st6                              ; INT 35h
-0x2338C  1C90:008C  fcmovnu st1                            ; INT 3Ah
-0x2338F  1C90:008F  fnstcw [bp-0x2a]                       ; INT 39h
+0x23389  1C90:0089  fldz                                   ; INT 35h
+0x2338C  1C90:008C  fcompp                                 ; INT 3Ah
+0x2338F  1C90:008F  fnstsw [bp-0x2a]                       ; INT 39h
 0x23393  1C90:0093  wait                                   ; INT 3Dh
 0x23395  1C90:0095  mov ax,[bp-0x2a]                       ; x86
 0x23398  1C90:0098  sahf                                   ; x86
@@ -59,20 +63,20 @@
 0x2339E  1C90:009E  jmp 0xa2                               ; x86
 0x233A0  1C90:00A0  xor ax,ax                              ; x86
 0x233A2  1C90:00A2  push ax                                ; x86
-0x233A3  1C90:00A3  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x233A8  1C90:00A8  fsubr st6                              ; INT 35h
-0x233AB  1C90:00AB  fcmovnu st1                            ; INT 3Ah
-0x233AE  1C90:00AE  fnstcw [bp-0x2a]                       ; INT 39h
+0x233A3  1C90:00A3  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x233A8  1C90:00A8  fldz                                   ; INT 35h
+0x233AB  1C90:00AB  fcompp                                 ; INT 3Ah
+0x233AE  1C90:00AE  fnstsw [bp-0x2a]                       ; INT 39h
 0x233B2  1C90:00B2  wait                                   ; INT 3Dh
 0x233B4  1C90:00B4  mov ax,[bp-0x2a]                       ; x86
 0x233B7  1C90:00B7  sahf                                   ; x86
 0x233B8  1C90:00B8  jna 0xbf                               ; x86
 0x233BA  1C90:00BA  mov ax,0xffff                          ; x86
 0x233BD  1C90:00BD  jmp 0xdd                               ; x86
-0x233BF  1C90:00BF  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x233C4  1C90:00C4  fsubr st6                              ; INT 35h
-0x233C7  1C90:00C7  fcmovnu st1                            ; INT 3Ah
-0x233CA  1C90:00CA  fnstcw [bp-0x2a]                       ; INT 39h
+0x233BF  1C90:00BF  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x233C4  1C90:00C4  fldz                                   ; INT 35h
+0x233C7  1C90:00C7  fcompp                                 ; INT 3Ah
+0x233CA  1C90:00CA  fnstsw [bp-0x2a]                       ; INT 39h
 0x233CE  1C90:00CE  wait                                   ; INT 3Dh
 0x233D0  1C90:00D0  mov ax,[bp-0x2a]                       ; x86
 0x233D3  1C90:00D3  sahf                                   ; x86
@@ -86,9 +90,9 @@
 0x233E2  1C90:00E2  jmp 0x169                              ; x86
 0x233E5  1C90:00E5  mov [bp-0x2a],di                       ; x86
 0x233E8  1C90:00E8  fild word [bp-0x2a]                    ; INT 3Bh
-0x233EC  1C90:00EC  fsubr st6                              ; INT 35h
-0x233EF  1C90:00EF  fcmovnu st1                            ; INT 3Ah
-0x233F2  1C90:00F2  fnstcw [bp-0x2a]                       ; INT 39h
+0x233EC  1C90:00EC  fldz                                   ; INT 35h
+0x233EF  1C90:00EF  fcompp                                 ; INT 3Ah
+0x233F2  1C90:00F2  fnstsw [bp-0x2a]                       ; INT 39h
 0x233F6  1C90:00F6  wait                                   ; INT 3Dh
 0x233F8  1C90:00F8  mov ax,[bp-0x2a]                       ; x86
 0x233FB  1C90:00FB  sahf                                   ; x86
@@ -97,9 +101,9 @@
 0x23401  1C90:0101  jmp 0x123                              ; x86
 0x23403  1C90:0103  mov [bp-0x2a],di                       ; x86
 0x23406  1C90:0106  fild word [bp-0x2a]                    ; INT 3Bh
-0x2340A  1C90:010A  fsubr st6                              ; INT 35h
-0x2340D  1C90:010D  fcmovnu st1                            ; INT 3Ah
-0x23410  1C90:0110  fnstcw [bp-0x2a]                       ; INT 39h
+0x2340A  1C90:010A  fldz                                   ; INT 35h
+0x2340D  1C90:010D  fcompp                                 ; INT 3Ah
+0x23410  1C90:0110  fnstsw [bp-0x2a]                       ; INT 39h
 0x23414  1C90:0114  wait                                   ; INT 3Dh
 0x23416  1C90:0116  mov ax,[bp-0x2a]                       ; x86
 0x23419  1C90:0119  sahf                                   ; x86
@@ -108,20 +112,20 @@
 0x2341F  1C90:011F  jmp 0x123                              ; x86
 0x23421  1C90:0121  xor ax,ax                              ; x86
 0x23423  1C90:0123  push ax                                ; x86
-0x23424  1C90:0124  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23429  1C90:0129  fsubr st6                              ; INT 35h
-0x2342C  1C90:012C  fcmovnu st1                            ; INT 3Ah
-0x2342F  1C90:012F  fnstcw [bp-0x2a]                       ; INT 39h
+0x23424  1C90:0124  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23429  1C90:0129  fldz                                   ; INT 35h
+0x2342C  1C90:012C  fcompp                                 ; INT 3Ah
+0x2342F  1C90:012F  fnstsw [bp-0x2a]                       ; INT 39h
 0x23433  1C90:0133  wait                                   ; INT 3Dh
 0x23435  1C90:0135  mov ax,[bp-0x2a]                       ; x86
 0x23438  1C90:0138  sahf                                   ; x86
 0x23439  1C90:0139  jna 0x140                              ; x86
 0x2343B  1C90:013B  mov ax,0xffff                          ; x86
 0x2343E  1C90:013E  jmp 0x15e                              ; x86
-0x23440  1C90:0140  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23445  1C90:0145  fsubr st6                              ; INT 35h
-0x23448  1C90:0148  fcmovnu st1                            ; INT 3Ah
-0x2344B  1C90:014B  fnstcw [bp-0x2a]                       ; INT 39h
+0x23440  1C90:0140  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23445  1C90:0145  fldz                                   ; INT 35h
+0x23448  1C90:0148  fcompp                                 ; INT 3Ah
+0x2344B  1C90:014B  fnstsw [bp-0x2a]                       ; INT 39h
 0x2344F  1C90:014F  wait                                   ; INT 3Dh
 0x23451  1C90:0151  mov ax,[bp-0x2a]                       ; x86
 0x23454  1C90:0154  sahf                                   ; x86
@@ -138,78 +142,78 @@
 0x2346F  1C90:016F  mov [bp-0x2a],si                       ; x86
 0x23472  1C90:0172  fild word [bp-0x2a]                    ; INT 3Bh
 0x23476  1C90:0176  sub sp,0x8                             ; x86
-0x23479  1C90:0179  fstp dword [bp-0x3c]                   ; INT 39h
+0x23479  1C90:0179  fstp qword [bp-0x3c]                   ; INT 39h
 0x2347D  1C90:017D  wait                                   ; INT 3Dh
 0x2347F  1C90:017F  mov [bp-0x2a],di                       ; x86
 0x23482  1C90:0182  fild word [bp-0x2a]                    ; INT 3Bh
 0x23486  1C90:0186  sub sp,0x8                             ; x86
-0x23489  1C90:0189  fstp dword [bp-0x44]                   ; INT 39h
+0x23489  1C90:0189  fstp qword [bp-0x44]                   ; INT 39h
 0x2348D  1C90:018D  wait                                   ; INT 3Dh
-0x2348F  1C90:018F  call word 0x0:word 0x1421              ; x86
+0x2348F  1C90:018F  call word 0x0:word 0x1421              ; x86  → _atan2
 0x23494  1C90:0194  add sp,0x10                            ; x86
-0x23497  1C90:0197  fstp dword [bp-0x8]                    ; INT 39h
-0x2349B  1C90:019B  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x23497  1C90:0197  fstp qword [bp-0x8]                    ; INT 39h
+0x2349B  1C90:019B  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
 0x234A0  1C90:01A0  sub sp,0x8                             ; x86
-0x234A3  1C90:01A3  fstp dword [bp-0x3c]                   ; INT 39h
-0x234A7  1C90:01A7  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x234A3  1C90:01A3  fstp qword [bp-0x3c]                   ; INT 39h
+0x234A7  1C90:01A7  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
 0x234AC  1C90:01AC  sub sp,0x8                             ; x86
-0x234AF  1C90:01AF  fstp dword [bp-0x44]                   ; INT 39h
+0x234AF  1C90:01AF  fstp qword [bp-0x44]                   ; INT 39h
 0x234B3  1C90:01B3  wait                                   ; INT 3Dh
-0x234B5  1C90:01B5  call word 0x0:word 0x1421              ; x86
+0x234B5  1C90:01B5  call word 0x0:word 0x1421              ; x86  → _atan2
 0x234BA  1C90:01BA  add sp,0x10                            ; x86
-0x234BD  1C90:01BD  fstp dword [bp-0x10]                   ; INT 39h
-0x234C1  1C90:01C1  fld dword [bp-0x10]                    ; INT 39h
-0x234C5  1C90:01C5  frstor [bp-0x8]                        ; INT 38h
-0x234C9  1C90:01C9  fmul qword [0x1d5c]                    ; INT 34h  DS:1D5C = [f32] 2.0 (doubling)
-0x234CE  1C90:01CE  fstp dword [bp-0x8]                    ; INT 39h
-0x234D2  1C90:01D2  fld dword [bp-0x8]                     ; INT 39h
+0x234BD  1C90:01BD  fstp qword [bp-0x10]                   ; INT 39h
+0x234C1  1C90:01C1  fld qword [bp-0x10]                    ; INT 39h
+0x234C5  1C90:01C5  fsub qword [bp-0x8]                    ; INT 38h
+0x234C9  1C90:01C9  fmul dword [0x1d5c]                    ; INT 34h  DS:1D5C = [f32] 2.0 (doubling)
+0x234CE  1C90:01CE  fstp qword [bp-0x8]                    ; INT 39h
+0x234D2  1C90:01D2  fld qword [bp-0x8]                     ; INT 39h
 0x234D6  1C90:01D6  sub sp,0x8                             ; x86
-0x234D9  1C90:01D9  fstp dword [bp-0x3c]                   ; INT 39h
+0x234D9  1C90:01D9  fstp qword [bp-0x3c]                   ; INT 39h
 0x234DD  1C90:01DD  wait                                   ; INT 3Dh
-0x234DF  1C90:01DF  call word 0x0:word 0x13d1              ; x86
+0x234DF  1C90:01DF  call word 0x0:word 0x13d1              ; x86  → _cos
 0x234E4  1C90:01E4  add sp,0x8                             ; x86
-0x234E7  1C90:01E7  fstp dword [bp-0x18]                   ; INT 39h
-0x234EB  1C90:01EB  fld dword [bp-0x8]                     ; INT 39h
+0x234E7  1C90:01E7  fstp qword [bp-0x18]                   ; INT 39h
+0x234EB  1C90:01EB  fld qword [bp-0x8]                     ; INT 39h
 0x234EF  1C90:01EF  sub sp,0x8                             ; x86
-0x234F2  1C90:01F2  fstp dword [bp-0x3c]                   ; INT 39h
+0x234F2  1C90:01F2  fstp qword [bp-0x3c]                   ; INT 39h
 0x234F6  1C90:01F6  wait                                   ; INT 3Dh
-0x234F8  1C90:01F8  call word 0x0:word 0x1204              ; x86
+0x234F8  1C90:01F8  call word 0x0:word 0x1204              ; x86  → _sin
 0x234FD  1C90:01FD  add sp,0x8                             ; x86
-0x23500  1C90:0200  fstp dword [bp-0x20]                   ; INT 39h
-0x23504  1C90:0204  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x23509  1C90:0209  fsub st0                               ; INT 35h
-0x2350C  1C90:020C  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x23511  1C90:0211  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23516  1C90:0216  fsub st0                               ; INT 35h
-0x23519  1C90:0219  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
-0x2351E  1C90:021E  fld dword [bp-0x18]                    ; INT 39h
-0x23522  1C90:0222  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23527  1C90:0227  fld dword [bp-0x20]                    ; INT 39h
-0x2352B  1C90:022B  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x23530  1C90:0230  fcmovnb st1                            ; INT 3Ah
-0x23533  1C90:0233  fstp dword [bp-0x28]                   ; INT 39h
-0x23537  1C90:0237  fld dword [bp-0x18]                    ; INT 39h
-0x2353B  1C90:023B  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x23540  1C90:0240  fld dword [bp-0x20]                    ; INT 39h
-0x23544  1C90:0244  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23549  1C90:0249  fucomi st1                             ; INT 3Ah
-0x2354C  1C90:024C  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
-0x23551  1C90:0251  fld dword [bp-0x28]                    ; INT 39h
-0x23555  1C90:0255  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x2355A  1C90:025A  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x2355F  1C90:025F  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23564  1C90:0264  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23569  1C90:0269  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2356E  1C90:026E  fcmovnb st1                            ; INT 3Ah
+0x23500  1C90:0200  fstp qword [bp-0x20]                   ; INT 39h
+0x23504  1C90:0204  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x23509  1C90:0209  fchs                                   ; INT 35h
+0x2350C  1C90:020C  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x23511  1C90:0211  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23516  1C90:0216  fchs                                   ; INT 35h
+0x23519  1C90:0219  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x2351E  1C90:021E  fld qword [bp-0x18]                    ; INT 39h
+0x23522  1C90:0222  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23527  1C90:0227  fld qword [bp-0x20]                    ; INT 39h
+0x2352B  1C90:022B  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x23530  1C90:0230  faddp st1                              ; INT 3Ah
+0x23533  1C90:0233  fstp qword [bp-0x28]                   ; INT 39h
+0x23537  1C90:0237  fld qword [bp-0x18]                    ; INT 39h
+0x2353B  1C90:023B  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x23540  1C90:0240  fld qword [bp-0x20]                    ; INT 39h
+0x23544  1C90:0244  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23549  1C90:0249  fsubp st1                              ; INT 3Ah
+0x2354C  1C90:024C  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x23551  1C90:0251  fld qword [bp-0x28]                    ; INT 39h
+0x23555  1C90:0255  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x2355A  1C90:025A  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x2355F  1C90:025F  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23564  1C90:0264  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23569  1C90:0269  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2356E  1C90:026E  faddp st1                              ; INT 3Ah
 0x23571  1C90:0271  sub sp,0x8                             ; x86
-0x23574  1C90:0274  fstp dword [bp-0x3c]                   ; INT 39h
+0x23574  1C90:0274  fstp qword [bp-0x3c]                   ; INT 39h
 0x23578  1C90:0278  wait                                   ; INT 3Dh
-0x2357A  1C90:027A  call word 0x0:word 0xfc8               ; x86
+0x2357A  1C90:027A  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x2357F  1C90:027F  add sp,0x8                             ; x86
-0x23582  1C90:0282  fdiv qword [0x1cc8]                    ; INT 34h  DS:1CC8
-0x23587  1C90:0287  fstp dword [bp-0x18]                   ; INT 39h
-0x2358B  1C90:028B  fld dword [bp-0x18]                    ; INT 39h
-0x2358F  1C90:028F  call word 0x0:word 0x14df              ; x86
+0x23582  1C90:0282  fdiv dword [0x1cc8]                    ; INT 34h  DS:1CC8
+0x23587  1C90:0287  fstp qword [bp-0x18]                   ; INT 39h
+0x2358B  1C90:028B  fld qword [bp-0x18]                    ; INT 39h
+0x2358F  1C90:028F  call word 0x0:word 0x14df              ; x86  → _ftol
 0x23594  1C90:0294  mov [bp-0x2c],ax                       ; x86
 0x23597  1C90:0297  mov dx,[bp+0x8]                        ; x86
 0x2359A  1C90:029A  mov ax,[bp+0x6]                        ; x86
@@ -221,23 +225,27 @@
 0x235AB  1C90:02AB  push word [bp-0x30]                    ; x86
 0x235AE  1C90:02AE  call word 0x3912:word 0x4b2            ; x86
 0x235B3  1C90:02B3  add sp,0x8                             ; x86
-0x235B6  1C90:02B6  fld dword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
-0x235BB  1C90:02BB  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x235C0  1C90:02C0  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x235C5  1C90:02C5  fld dword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
-0x235CA  1C90:02CA  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x235CF  1C90:02CF  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x235B6  1C90:02B6  fld qword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
+0x235BB  1C90:02BB  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x235C0  1C90:02C0  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x235C5  1C90:02C5  fld qword [0x1d60]                     ; INT 39h  DS:1D60 = [f64] 0.7 (damage falloff)
+0x235CA  1C90:02CA  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x235CF  1C90:02CF  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
 0x235D4  1C90:02D4  wait                                   ; INT 3Dh
 0x235D6  1C90:02D6  xor ax,ax                              ; x86
 0x235D8  1C90:02D8  jmp 0x2da                              ; x86
 0x235DA  1C90:02DA  pop di                                 ; x86
 0x235DB  1C90:02DB  pop si                                 ; x86
 0x235DC  1C90:02DC  leave                                  ; x86
-0x235DD  1C90:02DD  retf                                   ; x86
+0x235DD  1C90:02DD  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x235DE ===
+; ============================================================
 0x235DE  1C90:02DE  enter word 0x12,byte 0x0               ; x86
 0x235E2  1C90:02E2  cmp [0x519a],sp                        ; x86
 0x235E6  1C90:02E6  ja 0x2ed                               ; x86
-0x235E8  1C90:02E8  call word 0x0:word 0xa2ce              ; x86
+0x235E8  1C90:02E8  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x235ED  1C90:02ED  mov ax,[0xef3c]                        ; x86
 0x235F0  1C90:02F0  sub ax,[0xef42]                        ; x86
 0x235F4  1C90:02F4  inc ax                                 ; x86
@@ -254,26 +262,26 @@
 0x23611  1C90:0311  pop cx                                 ; x86
 0x23612  1C90:0312  add ax,[0xef40]                        ; x86
 0x23616  1C90:0316  mov [bp-0xc],ax                        ; x86
-0x23619  1C90:0319  fld dword [0xe4dc]                     ; INT 39h  DS:E4DC
-0x2361E  1C90:031E  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x23623  1C90:0323  fld dword [0xe4e4]                     ; INT 39h  DS:E4E4
-0x23628  1C90:0328  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2362D  1C90:032D  fcmovnb st1                            ; INT 3Ah
-0x23630  1C90:0330  fstp dword [bp-0x8]                    ; INT 39h
-0x23634  1C90:0334  fld dword [bp-0x8]                     ; INT 39h
-0x23638  1C90:0338  fstp qword [0x1d68]                    ; INT 38h  DS:1D68 = [f64] 0.001 (epsilon threshold)
-0x2363D  1C90:033D  fnstcw [bp-0xe]                        ; INT 39h
+0x23619  1C90:0319  fld qword [0xe4dc]                     ; INT 39h  DS:E4DC
+0x2361E  1C90:031E  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x23623  1C90:0323  fld qword [0xe4e4]                     ; INT 39h  DS:E4E4
+0x23628  1C90:0328  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2362D  1C90:032D  faddp st1                              ; INT 3Ah
+0x23630  1C90:0330  fstp qword [bp-0x8]                    ; INT 39h
+0x23634  1C90:0334  fld qword [bp-0x8]                     ; INT 39h
+0x23638  1C90:0338  fcomp qword [0x1d68]                   ; INT 38h  DS:1D68 = [f64] 0.001 (epsilon threshold)
+0x2363D  1C90:033D  fnstsw [bp-0xe]                        ; INT 39h
 0x23641  1C90:0341  wait                                   ; INT 3Dh
 0x23643  1C90:0343  mov ax,[bp-0xe]                        ; x86
 0x23646  1C90:0346  sahf                                   ; x86
 0x23647  1C90:0347  jna 0x364                              ; x86
-0x23649  1C90:0349  fld dword [bp-0x8]                     ; INT 39h
+0x23649  1C90:0349  fld qword [bp-0x8]                     ; INT 39h
 0x2364D  1C90:034D  sub sp,0x8                             ; x86
-0x23650  1C90:0350  fstp dword [bp-0x1a]                   ; INT 39h
+0x23650  1C90:0350  fstp qword [bp-0x1a]                   ; INT 39h
 0x23654  1C90:0354  wait                                   ; INT 3Dh
-0x23656  1C90:0356  call word 0x0:word 0xfc8               ; x86
+0x23656  1C90:0356  call word 0x0:word 0xfc8               ; x86  → _sqrt
 0x2365B  1C90:035B  add sp,0x8                             ; x86
-0x2365E  1C90:035E  fstp dword [bp-0x8]                    ; INT 39h
+0x2365E  1C90:035E  fstp qword [bp-0x8]                    ; INT 39h
 0x23662  1C90:0362  wait                                   ; INT 3Dh
 0x23664  1C90:0364  push ds                                ; x86
 0x23665  1C90:0365  push word 0xe4e4                       ; x86
@@ -281,12 +289,12 @@
 0x23669  1C90:0369  push word 0xe4dc                       ; x86
 0x2366C  1C90:036C  call word 0x2bf9:word 0x3f4            ; x86
 0x23671  1C90:0371  add sp,0x8                             ; x86
-0x23674  1C90:0374  fld dword [bp-0x8]                     ; INT 39h
-0x23678  1C90:0378  fisttp qword [0xe4dc]                  ; INT 38h  DS:E4DC
-0x2367D  1C90:037D  fstp dword [0xe4dc]                    ; INT 39h  DS:E4DC
-0x23682  1C90:0382  fld dword [bp-0x8]                     ; INT 39h
-0x23686  1C90:0386  fisttp qword [0xe4e4]                  ; INT 38h  DS:E4E4
-0x2368B  1C90:038B  fstp dword [0xe4e4]                    ; INT 39h  DS:E4E4
+0x23674  1C90:0374  fld qword [bp-0x8]                     ; INT 39h
+0x23678  1C90:0378  fmul qword [0xe4dc]                    ; INT 38h  DS:E4DC
+0x2367D  1C90:037D  fstp qword [0xe4dc]                    ; INT 39h  DS:E4DC
+0x23682  1C90:0382  fld qword [bp-0x8]                     ; INT 39h
+0x23686  1C90:0386  fmul qword [0xe4e4]                    ; INT 38h  DS:E4E4
+0x2368B  1C90:038B  fstp qword [0xe4e4]                    ; INT 39h  DS:E4E4
 0x23690  1C90:0390  wait                                   ; INT 3Dh
 0x23692  1C90:0392  mov dx,[bp+0x8]                        ; x86
 0x23695  1C90:0395  mov ax,[bp+0x6]                        ; x86
@@ -305,16 +313,16 @@
 0x236BA  1C90:03BA  add sp,0x4                             ; x86
 0x236BD  1C90:03BD  mov word [0xce9a],0x3                  ; x86
 0x236C3  1C90:03C3  leave                                  ; x86
-0x236C4  1C90:03C4  retf                                   ; x86
+0x236C4  1C90:03C4  retf                                   ; x86  ; --- end ---
 0x236C5  1C90:03C5  leave                                  ; x86
-0x236C6  1C90:03C6  retf                                   ; x86
+0x236C6  1C90:03C6  retf                                   ; x86  ; --- end ---
 0x236C7  1C90:03C7  push bp                                ; x86
 0x236C8  1C90:03C8  mov bp,sp                              ; x86
 0x236CA  1C90:03CA  push si                                ; x86
 0x236CB  1C90:03CB  mov si,[bp+0x6]                        ; x86
 0x236CE  1C90:03CE  cmp [0x519a],sp                        ; x86
 0x236D2  1C90:03D2  ja 0x3d9                               ; x86
-0x236D4  1C90:03D4  call word 0x0:word 0xa2ce              ; x86
+0x236D4  1C90:03D4  call word 0x0:word 0xa2ce              ; x86  → __stkchk
 0x236D9  1C90:03D9  mov ax,si                              ; x86
 0x236DB  1C90:03DB  imul ax,ax,0x6c                        ; x86
 0x236DE  1C90:03DE  les bx,word [0xceb8]                   ; x86
