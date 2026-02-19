@@ -158,6 +158,7 @@ export const WPN = {
   DIRT_CLOD: 28,
   EARTH_DISRUPTER: 34,
   LASER: 35,
+  PLASMA_LASER: 36,
   LAST_WEAPON: 34,   // last true projectile weapon
   FIRST_ACCESSORY: 35,
 };

@@ -2,7 +2,7 @@
 // Phase 6: Title screen, config menu, full game flow
 
 import { config } from './config.js';
-import { initFramebuffer, blit, setPixel, fillRect } from './framebuffer.js';
+import { initFramebuffer, blit, setPixel, getPixel, fillRect } from './framebuffer.js';
 import { initPalette, BLACK } from './palette.js';
 import { generateTerrain, drawSky, drawTerrain } from './terrain.js';
 import { placeTanks, drawAllTanks, players } from './tank.js';
@@ -101,28 +101,68 @@ function drawAllProjectiles() {
   }
 }
 
-// Draw laser sight line from barrel tip
+// Laser sight state for sweep animation (RE: draw_laser_sight at file 0x36321)
+const laserState = {
+  displayAngle: -1,  // current visual angle in radians (-1 = uninitialized)
+  lastPlayerIdx: -1, // track player changes to reset sweep
+};
+const LASER_ANGLE_STEP = 0.3;  // radians per frame (RE: DS:6108 ~0.3 rad)
+
+// Draw laser sight line from barrel tip (RE: segment 0x2F76:0x01C1)
+// Original sweeps from old angle to new angle in ~0.3 rad steps
+// Standard Laser: green (0x78=120), blends with terrain
+// Plasma Laser: white (0xFE=254), overwrites background
 function drawLaserSight(player) {
   if (!player.alive) return;
   // Check if player has Laser (idx 35) or Plasma Laser (idx 36)
-  if (player.inventory[WPN.LASER] <= 0 && player.inventory[36] <= 0) return;
+  const hasLaser = player.inventory[WPN.LASER] > 0;
+  const hasPlasma = player.inventory[WPN.PLASMA_LASER] > 0;
+  if (!hasLaser && !hasPlasma) return;
 
+  // Plasma takes priority (RE: type==1 check)
+  const isPlasma = hasPlasma;
+  const color = isPlasma ? 254 : 120;  // RE: 0xFE white vs 0x78 green
+
+  const targetAngleRad = player.angle * Math.PI / 180;
+
+  // Reset sweep on player change
+  if (laserState.lastPlayerIdx !== player.index) {
+    laserState.displayAngle = targetAngleRad;
+    laserState.lastPlayerIdx = player.index;
+  }
+
+  // Initialize on first use
+  if (laserState.displayAngle < 0) {
+    laserState.displayAngle = targetAngleRad;
+  }
+
+  // Sweep animation: step display angle toward target (RE: angle_rad += ANGLE_STEP)
+  const diff = targetAngleRad - laserState.displayAngle;
+  if (Math.abs(diff) > LASER_ANGLE_STEP) {
+    laserState.displayAngle += Math.sign(diff) * LASER_ANGLE_STEP;
+  } else {
+    laserState.displayAngle = targetAngleRad;
+  }
+
+  const angleRad = laserState.displayAngle;
   const barrelLength = 12;
   const domeTopY = player.y - 4 - 4;
-  const angleRad = player.angle * Math.PI / 180;
   const startX = Math.round(player.x + Math.cos(angleRad) * barrelLength);
   const startY = Math.round(domeTopY - Math.sin(angleRad) * barrelLength);
 
-  // Extend laser line to screen edge
-  const maxDist = 400;
+  // RE: dx = sin(angle_rad) * (-power) — power controls laser reach (0-1000 pixels)
+  const maxDist = player.power;
   const endX = Math.round(player.x + Math.cos(angleRad) * maxDist);
   const endY = Math.round(domeTopY - Math.sin(angleRad) * maxDist);
 
-  const isPlasma = player.inventory[36] > 0;
-  const color = isPlasma ? 199 : 179;  // bright yellow vs dark red
-
   bresenhamLine(startX, startY, endX, endY, (x, y) => {
     if (x >= 0 && x < config.screenWidth && y >= 0 && y < config.screenHeight) {
+      if (!isPlasma) {
+        // Standard laser: terrain blend mode (RE: EC4E == 0x78)
+        // Skip pixels matching 254 (RE: EC4C mask) and terrain pixels >= 105
+        const existing = getPixel(x, y);
+        if (existing === 254 || existing >= 105) return;
+      }
       setPixel(x, y, color);
     }
   });

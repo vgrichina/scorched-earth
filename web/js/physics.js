@@ -40,6 +40,7 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     vx,
     vy,
     trail: [],
+    age: 0,
     weaponIdx: weaponIdx ?? 2,
     attackerIdx: attackerIdx ?? 0,
     // Optional fields set by behaviors
@@ -141,6 +142,9 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // Rollers in rolling mode handled by behavior system
   if (proj.rolling) return 'flying';
 
+  // Track projectile age for spawn grace period
+  proj.age++;
+
   // Store trail point
   proj.trail.push({ x: Math.round(proj.x), y: Math.round(proj.y) });
   if (proj.trail.length > 200) proj.trail.shift();
@@ -183,7 +187,8 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   }
 
   // 7. Collision detection via pixel color (only when on-screen and below HUD)
-  if (sx >= 0 && sx < config.screenWidth && sy >= 15 && sy < config.screenHeight) {
+  // Skip first 2 steps to clear barrel/body area (spawn grace period)
+  if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= 15 && sy < config.screenHeight) {
     const pixel = getPixelFn(sx, sy);
 
     // Tank hit: pixel < 80 and pixel > 0 (player colors are 0-79)
