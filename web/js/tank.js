@@ -7,12 +7,14 @@ import { setPixel, hline } from './framebuffer.js';
 import { getTerrainY, terrain } from './terrain.js';
 import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
+import { createInventory, WPN } from './weapons.js';
 
 // Tank dimensions
 const TANK_WIDTH = 7;
 const DOME_HEIGHT = 5;      // 4px rise + 1px base line
 const BODY_HEIGHT = 4;
 const BARREL_LENGTH = 12;
+const FALL_SPEED = 2;       // pixels per frame when falling
 
 // Player state
 export const players = [];
@@ -28,6 +30,24 @@ export function createPlayer(index, name) {
     alive: true,
     energy: 100,
     cash: config.startCash,
+
+    // Phase 3: weapon inventory
+    inventory: createInventory(),
+    selectedWeapon: WPN.BABY_MISSILE,
+
+    // Phase 3: falling state
+    falling: false,
+    fallTargetY: 0,
+
+    // Phase 4: AI + shields
+    aiType: 0,           // 0 = human
+    activeShield: 0,     // shield type index
+    shieldEnergy: 0,
+    batteries: 0,
+
+    // Phase 5: scoring
+    score: 0,
+    wins: 0,
   };
 }
 
@@ -56,6 +76,32 @@ export function placeTanks(numPlayers) {
   }
 }
 
+// Reset existing players for a new round and reposition on terrain
+// Preserves identity (name, aiType, score, cash, wins, inventory)
+export function resetAndPlaceTanks() {
+  const width = config.screenWidth;
+  const margin = 20;
+  const usable = width - 2 * margin;
+  const numPlayers = players.length;
+  const spacing = Math.floor(usable / numPlayers);
+
+  for (let i = 0; i < numPlayers; i++) {
+    const p = players[i];
+    p.alive = true;
+    p.energy = 100;
+    p.angle = 90;
+    p.power = 500;
+    p.falling = false;
+    p.shieldEnergy = 0;
+    p.activeShield = 0;
+
+    const baseX = margin + Math.floor(spacing * (i + 0.5));
+    p.x = clamp(baseX, margin, width - margin - 1);
+    flattenTerrainAt(p.x);
+    p.y = getTerrainY(p.x);
+  }
+}
+
 // Flatten a small area of terrain under the tank
 function flattenTerrainAt(cx) {
   const halfW = Math.floor(TANK_WIDTH / 2);
@@ -75,6 +121,56 @@ function flattenTerrainAt(cx) {
       terrain[x] = avgY;
     }
   }
+}
+
+// Check all tanks and start falling if terrain was removed beneath them
+export function checkTanksFalling() {
+  let anyFalling = false;
+  for (const player of players) {
+    if (!player.alive) continue;
+    const terrainY = getTerrainY(player.x);
+    if (terrainY > player.y + 1) {  // terrain is below tank
+      player.falling = true;
+      player.fallTargetY = terrainY;
+      anyFalling = true;
+    }
+  }
+  return anyFalling;
+}
+
+// Step falling animation for all tanks, returns true while any are still falling
+export function stepFallingTanks() {
+  let anyFalling = false;
+  for (const player of players) {
+    if (!player.alive || !player.falling) continue;
+
+    // Move tank downward
+    player.y += FALL_SPEED;
+
+    // Check if reached terrain
+    const terrainY = getTerrainY(player.x);
+    if (player.y >= terrainY) {
+      player.y = terrainY;
+      player.falling = false;
+
+      // Fall damage: 1 point per 5 pixels fallen
+      const fallDist = terrainY - player.fallTargetY;
+      if (fallDist > 10) {
+        const damage = Math.floor(fallDist / 5);
+        player.energy -= damage;
+        if (player.energy <= 0) {
+          player.energy = 0;
+          player.alive = false;
+        }
+      }
+
+      // Flatten terrain at landing spot
+      flattenTerrainAt(player.x);
+    } else {
+      anyFalling = true;
+    }
+  }
+  return anyFalling;
 }
 
 // Draw a single tank

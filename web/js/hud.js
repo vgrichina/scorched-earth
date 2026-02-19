@@ -1,11 +1,12 @@
 // Scorched Earth - HUD Display
-// Power bar, angle, wind indicator, player name
+// Power bar, angle, wind indicator, player name, weapon + ammo
 // All rendered into the indexed framebuffer using 8x8 bitmap font
 
 import { config } from './config.js';
 import { hline, fillRect } from './framebuffer.js';
 import { drawText } from './font.js';
 import { BLACK } from './palette.js';
+import { WEAPONS } from './weapons.js';
 
 // HUD layout constants (from RE: 2 rows at top of screen)
 const HUD_Y = 1;
@@ -14,7 +15,7 @@ const BAR_WIDTH = 62;
 const ROW2_Y = HUD_Y + 7;
 
 // Draw the full HUD into the framebuffer
-export function drawHud(player, wind) {
+export function drawHud(player, wind, round) {
   // Background strip (true black)
   fillRect(0, 0, config.screenWidth - 1, 14, BLACK);
 
@@ -50,10 +51,14 @@ export function drawHud(player, wind) {
   const hpColor = player.energy > 50 ? 150 : (player.energy > 25 ? 199 : 179);
   drawText(276, HUD_Y, String(player.energy), hpColor);
 
-  // --- Row 2: Weapon name | Wind ---
+  // --- Row 2: Weapon name + ammo | Wind ---
 
-  // Weapon name
-  drawText(2, ROW2_Y, 'Baby Missile', 199);  // yellow fire color
+  // Weapon name and ammo count
+  const weapon = WEAPONS[player.selectedWeapon];
+  const weaponName = weapon ? weapon.name : 'Baby Missile';
+  const ammo = player.inventory[player.selectedWeapon];
+  const ammoStr = ammo === -1 ? '' : ` x${ammo}`;
+  drawText(2, ROW2_Y, weaponName + ammoStr, 199);  // yellow fire color
 
   // Wind display
   const windBarX = 170;
@@ -90,5 +95,10 @@ export function drawHud(player, wind) {
   } else {
     const sign = wind > 0 ? '>' : '<';
     drawText(240, ROW2_Y, sign + Math.abs(wind), 150);
+  }
+
+  // Round number (if provided)
+  if (round) {
+    drawText(296, ROW2_Y, 'R' + round, 150);
   }
 }

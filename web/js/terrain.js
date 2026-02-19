@@ -8,6 +8,9 @@ import { setPixel, hline } from './framebuffer.js';
 // Terrain height map: terrain[x] = top Y of ground at column x
 export const terrain = new Uint16Array(config.screenWidth);
 
+// Ceiling terrain for cavern mode: ceilingTerrain[x] = bottom Y of ceiling at column x
+export const ceilingTerrain = new Uint16Array(config.screenWidth);
+
 // Sky region: rows 0 to ~14 reserved for HUD, rest is playfield
 const HUD_HEIGHT = 14;
 const PLAYFIELD_TOP = HUD_HEIGHT;
@@ -18,6 +21,9 @@ export function generateTerrain() {
   const width = config.screenWidth;
   const yStart = PLAYFIELD_TOP;
   const yEnd = PLAYFIELD_BOTTOM;
+
+  // Reset ceiling terrain
+  ceilingTerrain.fill(0);
 
   switch (config.landType) {
     case 0: // Flat
@@ -30,8 +36,17 @@ export function generateTerrain() {
     default:
       generateRolling(width, yStart, yEnd);
       break;
+    case 3: // Mountain
+      generateMountain(width, yStart, yEnd);
+      break;
     case 4: // V-Shaped
       generateVShaped(width, yStart, yEnd);
+      break;
+    case 5: // Castle
+      generateCastle(width, yStart, yEnd);
+      break;
+    case 6: // Cavern
+      generateCavern(width, yStart, yEnd);
       break;
   }
 }
@@ -59,6 +74,127 @@ function generateVShaped(width, yStart, yEnd) {
   for (let x = 0; x < width; x++) {
     const dist = Math.abs(x - center) / center;
     terrain[x] = Math.floor(lowY - (lowY - highY) * dist);
+  }
+}
+
+// Mountain terrain: sharp peaks with multiple overlaid random walk passes
+function generateMountain(width, yStart, yEnd) {
+  // Start with high base
+  for (let x = 0; x < width; x++) {
+    terrain[x] = yEnd - 1;
+  }
+
+  // Multiple passes of sharp peaks overlaid
+  const passes = 3;
+  for (let pass = 0; pass < passes; pass++) {
+    let y = random(yEnd - yStart - 80) + yStart + 50;
+    let walkDelta = 0;
+
+    for (let col = 0; col < width; col++) {
+      const proposedY = clamp(Math.floor(y), yStart + 20, yEnd - 1);
+      // Take the minimum (highest peak) across passes
+      if (proposedY < terrain[col]) {
+        terrain[col] = proposedY;
+      }
+
+      // High bump chance, low flat chance for sharp peaks
+      if (random(100) < 8) {
+        // Rare flat segments
+      } else {
+        walkDelta = random(5) - 2;  // {-2, -1, 0, +1, +2}
+        if (random(100) < 40) {
+          walkDelta *= 2;  // sharper peaks
+        }
+      }
+
+      y += walkDelta;
+
+      if (y < yStart + 25) {
+        y = yStart + 25;
+        if (walkDelta < 0) walkDelta = 2;
+      }
+      if (y > yEnd - 1) {
+        y = yEnd - 1;
+        if (walkDelta > 0) walkDelta = -1;
+      }
+    }
+  }
+}
+
+// Castle terrain: flat base with rectangular rampart towers at intervals
+function generateCastle(width, yStart, yEnd) {
+  // Generate a gentle rolling base
+  const baseY = Math.floor((yStart + yEnd) * 0.65);
+  for (let x = 0; x < width; x++) {
+    terrain[x] = baseY + random(5) - 2;
+  }
+
+  // Add castle towers at regular intervals
+  const towerCount = 4 + random(3);  // 4-6 towers
+  const towerSpacing = Math.floor(width / (towerCount + 1));
+
+  for (let t = 0; t < towerCount; t++) {
+    const cx = towerSpacing * (t + 1) + random(20) - 10;
+    const towerWidth = 10 + random(8);
+    const towerHeight = 30 + random(25);
+    const towerTop = baseY - towerHeight;
+
+    // Tower body
+    for (let x = cx - towerWidth; x <= cx + towerWidth; x++) {
+      if (x >= 0 && x < width) {
+        terrain[x] = Math.min(terrain[x], towerTop);
+      }
+    }
+
+    // Crenellations on top
+    const crenWidth = 3;
+    for (let x = cx - towerWidth; x <= cx + towerWidth; x += crenWidth * 2) {
+      for (let bx = x; bx < x + crenWidth && bx <= cx + towerWidth; bx++) {
+        if (bx >= 0 && bx < width) {
+          terrain[bx] = Math.min(terrain[bx], towerTop - 5);
+        }
+      }
+    }
+  }
+}
+
+// Cavern terrain: ceiling + floor with open space between
+function generateCavern(width, yStart, yEnd) {
+  const midY = Math.floor((yStart + yEnd) / 2);
+  const gap = 50 + random(20);  // min gap between ceiling and floor
+
+  // Generate floor using rolling algorithm
+  let floorY = midY + Math.floor(gap / 2);
+  let floorDelta = 0;
+  for (let col = 0; col < width; col++) {
+    terrain[col] = clamp(Math.floor(floorY), midY, yEnd - 1);
+
+    if (random(100) < 20) {
+      // maintain momentum
+    } else {
+      floorDelta = random(3) - 1;
+      if (random(100) < 15) floorDelta *= 2;
+    }
+    floorY += floorDelta;
+    if (floorY < midY) { floorY = midY; if (floorDelta < 0) floorDelta = 1; }
+    if (floorY > yEnd - 1) { floorY = yEnd - 1; if (floorDelta > 0) floorDelta = 0; }
+  }
+
+  // Generate ceiling
+  let ceilY = midY - Math.floor(gap / 2);
+  let ceilDelta = 0;
+  for (let col = 0; col < width; col++) {
+    ceilingTerrain[col] = clamp(Math.floor(ceilY), yStart, midY - 10);
+
+    if (random(100) < 20) {
+      // maintain
+    } else {
+      ceilDelta = random(3) - 1;
+      if (random(100) < 15) ceilDelta *= 2;
+    }
+    ceilY += ceilDelta;
+    if (ceilY < yStart + 15) { ceilY = yStart + 15; if (ceilDelta < 0) ceilDelta = 1; }
+    if (ceilY > midY - 10) { ceilY = midY - 10; if (ceilDelta > 0) ceilDelta = -1; }
   }
 }
 
@@ -97,14 +233,36 @@ function generateRolling(width, yStart, yEnd) {
   }
 }
 
-// Draw sky gradient (VGA 80-103 mapped to screen rows)
+// Draw sky (VGA 80-103 mapped to screen rows)
+// Supports: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function drawSky() {
   const width = config.screenWidth;
   const skyHeight = PLAYFIELD_BOTTOM;
 
+  // Base gradient fill (all sky types use the palette gradient)
   for (let y = 0; y < skyHeight; y++) {
     const palIdx = 80 + Math.floor(y * 23 / (skyHeight - 1));
     hline(0, width - 1, y, palIdx);
+  }
+
+  // Stars: scatter white pixels
+  if (config.skyType === 2) {
+    for (let i = 0; i < 80; i++) {
+      const sx = random(width);
+      const sy = random(skyHeight - HUD_HEIGHT) + HUD_HEIGHT;
+      const brightness = random(3);
+      // Use explosion palette white-ish entries for stars
+      setPixel(sx, sy, brightness === 0 ? 199 : 189);
+    }
+  }
+
+  // Storm: occasional bright lightning pixels
+  if (config.skyType === 3) {
+    for (let i = 0; i < 15; i++) {
+      const sx = random(width);
+      const sy = random(skyHeight - HUD_HEIGHT) + HUD_HEIGHT;
+      setPixel(sx, sy, 199);
+    }
   }
 }
 
@@ -119,12 +277,19 @@ export function drawTerrain() {
   const globalRange = Math.max(bottom - globalTop, 1);
 
   for (let x = 0; x < width; x++) {
+    // Draw floor terrain
     const top = terrain[x];
-
     for (let y = top; y <= bottom; y++) {
-      // Map absolute Y position to palette: higher Y (deeper) = lower palette index
       const palIdx = 120 + Math.floor((bottom - y) * 29 / globalRange);
       setPixel(x, y, palIdx);
+    }
+
+    // Draw ceiling terrain (cavern mode)
+    if (config.landType === 6 && ceilingTerrain[x] > 0) {
+      for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
+        const palIdx = 120 + Math.floor((y - PLAYFIELD_TOP) * 29 / globalRange);
+        setPixel(x, y, palIdx);
+      }
     }
   }
 }

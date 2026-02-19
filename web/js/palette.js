@@ -84,13 +84,60 @@ export function setupPlayerPalette() {
 
 // --- Sky palette (VGA 80-103, 24 entries) ---
 // Entry 104 reserved for system black
+// 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function setupSkyPalette(skyType) {
-  for (let i = 0; i < 24; i++) {
-    const t = i / 23;
-    const r = Math.floor(t * 20);
-    const g = Math.floor(t * 20 + (1 - t) * 5);
-    const b = Math.floor(40 + t * 23);
-    setEntry(80 + i, r, g, b);
+  switch (skyType) {
+    case 1: // Shaded — gentle variation on plain
+      for (let i = 0; i < 24; i++) {
+        const t = i / 23;
+        const r = Math.floor(t * 15 + random(5));
+        const g = Math.floor(t * 15 + (1 - t) * 8 + random(3));
+        const b = Math.floor(35 + t * 28);
+        setEntry(80 + i, r, g, b);
+      }
+      break;
+    case 2: // Stars — black background
+      for (let i = 0; i < 24; i++) {
+        setEntry(80 + i, 0, 0, Math.floor(i * 0.5));
+      }
+      break;
+    case 3: // Storm — dark grey gradient
+      for (let i = 0; i < 24; i++) {
+        const t = i / 23;
+        const grey = Math.floor(8 + t * 15);
+        setEntry(80 + i, grey, grey, Math.floor(grey * 1.1));
+      }
+      break;
+    case 4: // Sunset — warm orange to purple gradient
+      for (let i = 0; i < 24; i++) {
+        const t = i / 23;
+        const r = Math.floor(63 - t * 35);
+        const g = Math.floor(20 - t * 15);
+        const b = Math.floor(10 + t * 40);
+        setEntry(80 + i, Math.max(0, r), Math.max(0, g), Math.min(63, b));
+      }
+      break;
+    case 5: // Cavern — dark brownish
+      for (let i = 0; i < 24; i++) {
+        const t = i / 23;
+        setEntry(80 + i, Math.floor(5 + t * 8), Math.floor(3 + t * 5), Math.floor(2 + t * 3));
+      }
+      break;
+    case 6: // Black — solid black
+      for (let i = 0; i < 24; i++) {
+        setEntry(80 + i, 0, 0, 0);
+      }
+      break;
+    case 0: // Plain — gradient blue (default)
+    default:
+      for (let i = 0; i < 24; i++) {
+        const t = i / 23;
+        const r = Math.floor(t * 20);
+        const g = Math.floor(t * 20 + (1 - t) * 5);
+        const b = Math.floor(40 + t * 23);
+        setEntry(80 + i, r, g, b);
+      }
+      break;
   }
 }
 
