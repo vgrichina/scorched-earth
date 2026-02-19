@@ -329,8 +329,9 @@ export function gameTick() {
           if (!projectiles[i].active) projectiles.splice(i, 1);
         }
 
-        if (!anyActive && !isExplosionActive()) {
-          // No more projectiles or explosions
+        if (!anyActive) {
+          // No more projectiles — transition to explosion state
+          // (stepExplosion will animate any active explosions before checking aftermath)
           game.state = STATE.EXPLOSION;
           break;
         }

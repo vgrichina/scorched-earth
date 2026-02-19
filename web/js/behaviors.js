@@ -11,7 +11,7 @@ import { players } from './tank.js';
 
 // Guidance weapon indices
 const GUIDANCE = { HEAT: 37, BAL: 38, HORZ: 39, VERT: 40 };
-const GUIDANCE_STRENGTH = 0.04;  // correction per step
+const GUIDANCE_STRENGTH = 2.0;  // correction per second (0.04 per-step / dt=0.02)
 
 // Behavior dispatch — called when a projectile hits something
 // Returns: { explode: bool, radius: number, spawn: projectile[], dirtAdd: bool, skipDamage: bool }
@@ -82,7 +82,7 @@ function bhvRoller(proj, weapon, hitResult) {
 
     // Determine roll direction from horizontal velocity
     proj.rollDir = proj.vx >= 0 ? 1 : -1;
-    proj.rollSpeed = Math.max(1, Math.abs(proj.vx) * 0.5);
+    proj.rollSpeed = Math.max(1, Math.abs(proj.vx) * 0.01);  // per-sec → per-step (0.5 * dt)
 
     return { explode: false, radius: 0, spawn: [], dirtAdd: false, skipDamage: true, keepAlive: true };
   }
@@ -177,8 +177,8 @@ function mirvFlightCheck(proj, weapon) {
       spawn.push({
         x: proj.x,
         y: proj.y,
-        vx: proj.vx + Math.sin(angle) * 2,
-        vy: proj.vy - Math.abs(Math.cos(angle)) * 0.5,
+        vx: proj.vx + Math.sin(angle) * 100,
+        vy: proj.vy - Math.abs(Math.cos(angle)) * 25,
         weaponIdx: proj.weaponIdx,
         attackerIdx: proj.attackerIdx,
         isSubWarhead: true,
@@ -203,12 +203,12 @@ function bhvNapalm(proj, weapon) {
 
   for (let i = 0; i < particleCount; i++) {
     const angle = (Math.random() * Math.PI * 2);
-    const speed = Math.random() * 3 + 1;
+    const speed = Math.random() * 150 + 50;  // per-second (was 3+1 per-step)
     spawn.push({
       x: proj.x,
       y: proj.y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.5 + 1,  // bias upward
+      vy: Math.sin(angle) * speed * 0.5 + 50,  // bias upward
       weaponIdx: proj.weaponIdx,
       attackerIdx: proj.attackerIdx,
       isNapalmParticle: true,
@@ -243,7 +243,7 @@ function bhvTunnel(proj, weapon) {
 function bhvPlasma(proj, weapon) {
   // Plasma Blast (param=0): radius based on speed
   const speed = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy);
-  const radius = weapon.param === 0 ? Math.floor(speed * 5 + 10) : 25;
+  const radius = weapon.param === 0 ? Math.floor(speed * 0.1 + 10) : 25;  // per-sec scale (was *5 per-step)
   return { explode: true, radius, spawn: [], dirtAdd: false, skipDamage: false };
 }
 
@@ -262,12 +262,12 @@ function bhvLiquid(proj) {
   const spawn = [];
   for (let i = 0; i < 15; i++) {
     const angle = (Math.random() * Math.PI * 2);
-    const speed = Math.random() * 2 + 0.5;
+    const speed = Math.random() * 100 + 25;  // per-second (was 2+0.5 per-step)
     spawn.push({
       x: proj.x,
       y: proj.y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.3 + 0.5,
+      vy: Math.sin(angle) * speed * 0.3 + 25,
       weaponIdx: proj.weaponIdx,
       attackerIdx: proj.attackerIdx,
       isNapalmParticle: true,
@@ -296,8 +296,8 @@ function bhvFunky(proj, weapon) {
     spawn.push({
       x: clamp(spreadX, 10, config.screenWidth - 10),
       y: 16,  // just below HUD
-      vx: (Math.random() - 0.5) * 2,
-      vy: -(Math.random() * 2 + 1),  // downward
+      vx: (Math.random() - 0.5) * 100,  // per-second (was *2 per-step)
+      vy: -(Math.random() * 100 + 50),  // downward, per-second
       weaponIdx: 2,  // sub-bombs act as Baby Missiles
       attackerIdx: proj.attackerIdx,
       isSubWarhead: true,
@@ -377,7 +377,7 @@ export function napalmParticleStep(proj) {
 
   // Check if speed is below threshold
   const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-  if (speedSq < 0.01) return { remove: true };
+  if (speedSq < 25) return { remove: true };  // per-sec² threshold (was 0.01 per-step²)
 
   // Napalm particles interact with terrain
   const sx = Math.round(proj.x);

@@ -5,10 +5,11 @@
 import { config } from './config.js';
 import { clamp } from './utils.js';
 
-// Physics tuning (calibrated for 320x200 screen)
-const MAX_SPEED = 8;       // pixels/step at power=1000
-const GRAVITY = 0.098;     // per-step downward acceleration
-const WIND_SCALE = 0.003;  // wind value → per-step horizontal acceleration
+// Physics tuning — per-second values matching original RE scale (dt=0.02)
+export const DT = 0.02;           // timestep per physics step (from RE)
+const MAX_SPEED = 400;             // pixels/sec at power=1000
+const GRAVITY = 4.9;               // pixels/sec² downward acceleration
+const WIND_SCALE = 0.15;           // wind value → pixels/sec² horizontal acceleration
 
 // Wall types (from RE: ELASTIC config)
 export const WALL = {
@@ -152,16 +153,16 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   }
 
   // 2. Gravity (reduce upward velocity)
-  proj.vy -= GRAVITY;
+  proj.vy -= GRAVITY * DT;
 
   // 3. Wind (horizontal only, from RE) — skip for napalm particles
   if (!proj.isNapalmParticle) {
-    proj.vx += wind * WIND_SCALE;
+    proj.vx += wind * WIND_SCALE * DT;
   }
 
   // 4. Integrate position (screen coords: y increases downward)
-  proj.x += proj.vx;
-  proj.y -= proj.vy;  // subtract because screen y is inverted
+  proj.x += proj.vx * DT;
+  proj.y -= proj.vy * DT;  // subtract because screen y is inverted
 
   // 5. Wall collision
   const wallResult = handleWallCollision(proj);

@@ -132,9 +132,10 @@ function solveBallistic(shooter, target) {
   const dx = target.x - shooter.x;
   const dy = -(target.y - shooter.y);  // positive = up in world coords
 
-  const gravity = 0.098;  // must match physics.js GRAVITY
-  const windAccel = game_wind() * 0.003;  // must match physics.js WIND_SCALE
-  const maxSpeed = 8;  // must match physics.js MAX_SPEED
+  const dt = 0.02;  // must match physics.js DT
+  const gravity = 4.9;  // must match physics.js GRAVITY (per-second²)
+  const windAccel = game_wind() * 0.15;  // must match physics.js WIND_SCALE (per-second²)
+  const maxSpeed = 400;  // must match physics.js MAX_SPEED (per-second)
 
   // Effective horizontal distance accounting for wind
   // Wind pushes projectile, so adjust target position
@@ -183,10 +184,10 @@ function solveBallistic(shooter, target) {
       const maxSteps = 500;
 
       for (let step = 0; step < maxSteps; step++) {
-        pvy -= gravity;
-        pvx += windAccel;
-        px += pvx;
-        py += pvy;  // world coords
+        pvy -= gravity * dt;
+        pvx += windAccel * dt;
+        px += pvx * dt;
+        py += pvy * dt;  // world coords
 
         // Check if we've passed the target x
         if ((dx > 0 && px >= dx) || (dx < 0 && px <= dx)) {
@@ -220,10 +221,10 @@ function solveBallistic(shooter, target) {
 
       let px = 0, py = 0, pvx = vx, pvy = vy;
       for (let step = 0; step < 500; step++) {
-        pvy -= gravity;
-        pvx += windAccel;
-        px += pvx;
-        py += pvy;
+        pvy -= gravity * dt;
+        pvx += windAccel * dt;
+        px += pvx * dt;
+        py += pvy * dt;
 
         if ((dx > 0 && px >= dx) || (dx < 0 && px <= dx)) {
           const error = Math.abs(py - dy) + Math.abs(px - dx) * 0.5;
