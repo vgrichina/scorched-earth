@@ -1,0 +1,550 @@
+## Sky/Landscape Mode System — ranges.cpp (VERIFIED from disassembly)
+
+**NOTE**: The original task #20 assumed "Cavern" was a terrain type. In fact, "Cavern" is one of
+8 **sky modes** (DS:0x5110) that controls BOTH sky palette rendering AND terrain shape generation.
+The sky type variable and terrain generation switch are the same variable: DS:0x5110.
+
+### Sky Type Enum (DS:0x5110)
+
+Config key: `SKY=%s` (save at DS:0x08F8, load at DS:0x0454)
+
+| Index | Name     | Terrain Jump Target | Visual Characteristics |
+|-------|----------|--------------------|-----------------------|
+| 0     | Plain    | file 0x3E700       | Default flat terrain, basic sky gradient |
+| 1     | Shaded   | file 0x4758B       | Simple terrain gen, only types >1 get complex terrain |
+| 2     | Stars    | file 0x4726B       | Star-based sky palette |
+| 3     | Storm    | file 0x42103       | Storm sky; terrain checks at 0x3EC49, 0x3ED19 |
+| 4     | Sunset   | file 0x3F587       | Sunset gradient sky |
+| 5     | Cavern   | file 0x44BDD       | Uses mountain .mtn files (DS:0x50D8=1) |
+| 6     | Black    | file 0x3E700       | Underground mode — black sky, dark palette, no flash |
+| 7     | Random   | (N/A, runtime)     | Randomizes to 0-5 via `random(6)` at startup |
+
+**Name table**: DS:0x621C (8 far pointers, initialized at file 0x3AEA0)
+
+Source far pointers for name table initialization:
+```
+DS:0x621C[0] <- DS:0x22FC -> "Plain"
+DS:0x6220[1] <- DS:0x2300 -> "Shaded"
+DS:0x6224[2] <- DS:0x2304 -> "Stars"
+DS:0x6228[3] <- DS:0x2308 -> "Storm"
+DS:0x622C[4] <- DS:0x230C -> "Sunset"
+DS:0x6230[5] <- DS:0x2404 -> "Cavern"
+DS:0x6234[6] <- DS:0x2310 -> "Black"
+DS:0x6238[7] <- DS:0x20DC -> "Random"
+```
+
+### Terrain Generation Dispatch (file 0x3971F)
+
+Main terrain generation function. Entry: file 0x3971F (ranges.cpp, segment 0x32D0).
+
+```c
+void generateTerrain() {
+    int skyType = DS:0x5110;       // sky mode (0-7)
+    int bp_2 = skyType;            // saved for later
+
+    int screenHeightRange = DS:EF38 - DS:EF40;   // max_y - min_y
+    DS:ECB8 = screenHeightRange;
+
+    // If random mode was active and needs re-selection
+    if (skyType == DS:0x624E) {    // 624E holds max (7 = "Random")
+        DS:0x623C = 1;             // mark random land active
+        skyType = random(6);       // 0-5 (Plain through Cavern)
+        DS:0x5110 = skyType;
+
+        // Skip Cavern (5) if no .mtn files available
+        if (DS:0x621A != 0 && skyType == 5) {
+            goto re_randomize;     // loop back to random(6)
+        }
+    }
+
+    // Mountain mode flag
+    if (skyType == 5) {
+        DS:0x50D8 = 1;            // Cavern uses mountain .mtn terrain
+    } else {
+        DS:0x50D8 = 0;
+    }
+
+    // Allocate terrain buffers (if not cached)
+    if (DS:0x624A == 0) {
+        DS:0x6246:0x6248 = malloc((screenWidth+1) * 4);  // ceiling data array
+        // ... allocate per-column bitmap buffers ...
+        DS:0x623E:0x6240 = malloc((screenWidth+1) * 2);  // floor height array
+    }
+
+    // Terrain shape pre-processing (sky > 1 gets complex terrain)
+    if (skyType <= 1) goto flatTerrain;
+    if (DS:0x6310 != 0) goto flatTerrain;
+
+    // Complex terrain: bumpiness, slopes, text overlay, etc.
+    // ... terrain shaping code ...
+
+    // Jump table dispatch by sky type
+    switch (skyType) {   // at file 0x39943: jmp [cs:bx+0xA18]
+        case 0: goto type0_plain;     // file 0x3E700 (shared with Black)
+        case 1: goto type1_shaded;    // file 0x4758B
+        case 2: goto type2_stars;     // file 0x4726B
+        case 3: goto type3_storm;     // file 0x42103
+        case 4: goto type4_sunset;    // file 0x3F587
+        case 5: goto type5_cavern;    // file 0x44BDD (mountain/mtn file-based)
+        case 6: goto type6_black;     // file 0x3E700 (same handler as Plain)
+    }
+}
+```
+
+Jump table location: file 0x3A118 (cs:0x0A18), 7 word entries.
+
+### "Cavern" Sky (Type 5) — Mountain Terrain
+
+When SKY=Cavern (type 5):
+- Uses mountain .mtn file-based terrain generation (same handler as "Mountain" terrains)
+- Sets DS:0x50D8 = 1 (mountain mode flag)
+- If no .mtn files available (DS:0x621A == 0), random mode re-rolls to skip it
+- Terrain handler at file 0x44BDD loads external .mtn terrain data
+- At file 0x29488: Skips random background weather check
+
+**Key point**: "Cavern" (type 5) does NOT create ceiling+floor terrain. It is visually similar to
+mountain mode with standard sky rendering. The name is misleading.
+
+### "Black" Sky (Type 6) — Underground Visual Mode
+
+When SKY=Black (type 6), the game creates an underground visual environment:
+- Uses Plain terrain generation (same handler as type 0, file 0x3E700)
+- Flat terrain with simple height calculation: `height[col] = (max_y - col) * 0x1D / screenHeightRange + 0x78`
+
+But the visual rendering changes dramatically via 7 code patches:
+
+#### 1. Black Sky Palette (file 0x285A7)
+```c
+// In sky gradient generation loop
+if (DS:0x5110 == 6) {
+    setPaletteEntry(idx, 0, 0, 0);   // all black, no sky gradient
+} else {
+    // Normal sky gradient with R/G/B based on position
+}
+```
+
+#### 2. Terrain Column Colors — Darkened (file 0x32FF4)
+```c
+// In terrain column color rendering
+if (DS:0x5110 == 6) {
+    // Use darkened terrain palette: values attenuated via call 0x32C2:0x0A26
+    // RGB values right-shifted (divided by 8) for dark underground look
+} else {
+    // Normal terrain palette via call 0x456B:0x0005
+}
+```
+
+#### 3. Ground Color — Dark Base (file 0x33061)
+```c
+if (DS:0x5110 == 6) {
+    // Ground uses palette index 0x50 with attenuated RGB from DS:DD4C-DD50
+} else {
+    // Normal ground color
+}
+```
+
+#### 4. Ceiling/Underground Palette (file 0x3A0A9)
+```c
+// Called during terrain palette setup
+if (DS:0x5110 == 6) {
+    if (param != 0) {
+        // Ceiling palette: 40 entries (0x00-0x27) from table at DS:-0x2156
+        //   Read R,G,B from table (stride 3), set via setPaletteEntry
+        // Ground palette: entries 0x28-0x69 from table at DS:-0x22A2
+    } else {
+        // All palette entries 0x00-0x69+ set to black (0,0,0)
+        //   First 40 entries black, then remaining entries black
+    }
+    return;
+}
+// Normal palette rendering (non-cave)
+```
+
+The ceiling palette table at DS offset -0x2156 (wrapping to DS:0xDEAA) contains 40 RGB triplets
+for the "ceiling" gradient. The floor/ground palette at -0x22A2 (wrapping to DS:0xDD5E) has another
+set of triplets for the terrain surface.
+
+#### 5. Skip Terrain Edge Fading (file 0x31925)
+```c
+if (DS:0x5110 == 6) {
+    goto skipFade;   // no terrain edge fade effect in underground mode
+}
+// Normal terrain fading loop
+```
+
+#### 6. Skip Tank Color Setup (file 0x390F7)
+```c
+if (DS:0x5110 == 6) {
+    goto skipTankColor;  // tank palette not modified in underground mode
+}
+// Normal tank palette coloring
+```
+
+#### 7. Skip White Flash Effect (file 0x3F2D1)
+```c
+if (DS:0x5110 == 6) {
+    return;              // no explosion white-flash in underground mode
+}
+// Set palette 0xFF to white (0x3F,0x3F,0x3F) for flash
+```
+
+### Random Sky Selection
+
+At file 0x3978E:
+```c
+skyType = random(6);    // generates 0-5 (Plain through Cavern)
+DS:0x5110 = skyType;
+```
+
+Only types 0-5 are in the random rotation. Type 6 (Black/underground) and type 7 (Random itself)
+are excluded. Type 5 (Cavern/mountain) is also conditionally excluded if no .mtn files exist.
+
+### Terrain Height Arrays
+
+```
+DS:0x6242/0x6244  — Far pointer to floor height array (word per column, malloc'd)
+DS:0x6246/0x6248  — Far pointer to ceiling bitmap data array (4 bytes per column)
+DS:0x623E/0x6240  — Far pointer to secondary height array (word per column)
+DS:0x624A         — Terrain cache validity flag (-1 = invalid, 0 = not allocated, 1 = valid)
+DS:0x624E         — Max sky type index (7 = "Random")
+DS:0x623C         — Random land active flag
+DS:0x50D8         — Mountain mode flag (1 = using .mtn file terrain)
+DS:0x621A         — Mountain files available flag (0 = no .mtn files)
+DS:0xECB8         — Screen height range (max_y - min_y)
+```
+
+### Config Variables
+
+```
+DS:0x5110  — Sky type (0-7), saved as SKY=%s
+DS:0x516E  — LAND1 value (0-100, terrain bumpiness parameter)
+DS:0x????  — LAND2 value (similar, loaded at 0x1A081)
+DS:0x5150  — FLATLAND flag (0=Off, 1=On)
+DS:0x623C  — RANDOM_LAND flag
+DS:0x5132  — MTN_PERCENT (double, mountain scan percentage)
+```
+
+### Summary: Answering the Original Questions
+
+**Q: Does Cavern mode create ceiling + floor?**
+A: No. "Cavern" (type 5) uses mountain .mtn terrain — no ceiling. The "underground" visual
+(dark palette, black sky, ceiling palette) is actually triggered by "Black" sky (type 6), which
+uses flat terrain generation but with dramatically altered rendering. The naming is misleading.
+
+**Q: What triggers Cavern mode?**
+A: Setting SKY=Cavern in config, or random selection (types 0-5). SKY=Black gives the underground look.
+
+**Q: Special wall/boundary behavior?**
+A: Type 6 (Black/underground) skips terrain edge fading, tank palette setup, and white flash effects.
+There is no ceiling collision or special boundary physics — the "underground" effect is purely visual.
+
+---
+
+## Shop/Equipment System — equip.cpp (VERIFIED from disassembly)
+
+### Equipment Initialization (file 0x1D5D4)
+
+Entry: file 0x1D5D4 (equip.cpp, segment 0x16BC, offset 0x0014).
+
+```c
+void equipInit() {
+    if (DS:0x1BB8 != 0) return;   // already initialized check
+    DS:0x1BB8 = 0;                // clear init flag
+
+    // Find boundaries of free/non-free weapons
+    // Iterate weapon array to find first "free" weapon
+    int firstFree = -1;
+    for (int i = 0; i < totalWeapons; i++) {
+        if (weapon[i].price == 0) {
+            firstFree = i;
+            break;
+        }
+    }
+    DS:0xE4F0 = firstFree;       // first free weapon index
+
+    // Count non-free weapons
+    int count = 0;
+    for (int i = 0; i < totalWeapons; i++) {
+        if (weapon[i].price != 0) count++;
+    }
+    DS:0xE4F2 = count;           // number of purchasable weapons
+
+    // Map 16 category boundaries via findWeaponByName()
+    DS:0xD546 = findWeaponByName("Smoke Tracer");    // First free-market weapon
+    DS:0xD548 = DS:0xD546 - 1;                       // Last free weapon - 1
+    DS:0xD54A = findWeaponByName("Heat Guidance");
+    DS:0xD54C = findWeaponByName("Bal Guidance");
+    DS:0xD54E = findWeaponByName("Horz Guidance");
+    DS:0xD550 = findWeaponByName("Vert Guidance");
+    DS:0xD552 = findWeaponByName("Lazy Boy");
+    DS:0xD554 = findWeaponByName("Parachute");
+    DS:0xD556 = findWeaponByName("Battery");
+    DS:0xD558 = findWeaponByName("Mag Deflector");
+    DS:0xD55A = findWeaponByName("Shield");
+    DS:0xD55C = findWeaponByName("Warp Shield");
+    DS:0xD55E = findWeaponByName("Teleport Shield");
+    DS:0xD560 = findWeaponByName("Flicker Shield");
+    DS:0xD562 = findWeaponByName("Force Shield");
+    DS:0xD564 = findWeaponByName("Heavy Shield");
+    DS:0xD566 = findWeaponByName("Super Mag");
+
+    // Enable/disable items based on arms level (DS:0x518A)
+    // Items above the arms level threshold are disabled
+}
+```
+
+### Category Boundary System
+
+The 16 `findWeaponByName` calls define boundaries that partition the weapon list into shop categories.
+The weapon list (from the name pointer table at DS:0x1FBC) is ordered so these boundaries create
+contiguous ranges:
+
+```
+Weapons 0..D546-1     = Basic free weapons (Tracer, Baby Missile, etc.)
+Weapons D546..D54A-1  = Purchasable projectile weapons (Smoke Tracer through Sandhog)
+Weapons D54A..D552-1  = Guidance systems (Heat, Bal, Horz, Vert)
+Weapons D552          = Lazy Boy
+Weapons D554          = Parachute
+Weapons D556          = Battery
+Weapons D558..D55A-1  = Magnetic items (Mag Deflector)
+Weapons D55A..end     = Shields (Shield, Warp, Teleport, Flicker, Force, Heavy, Super Mag)
+```
+
+### Item Name Pointer Table (DS:0x1FBC)
+
+45 far pointers (DS segment 0x4F38) mapping weapon indices to name strings:
+
+```
+[0]  Smoke Tracer      [12] Digger            [24] Heat Guidance
+[1]  Baby Roller       [13] Heavy Digger      [25] Bal Guidance
+[2]  Roller            [14] Baby Sandhog      [26] Horz Guidance
+[3]  Heavy Roller      [15] Sandhog           [27] Vert Guidance
+[4]  Plasma Blast      [16] Heavy Sandhog     [28] Lazy Boy
+[5]  Riot Charge       [17] Dirt Clod         [29] Parachute
+[6]  Riot Blast        [18] Dirt Ball         [30] Battery
+[7]  Riot Bomb         [19] Ton of Dirt       [31] ~Batteries: (UI label)
+[8]  Heavy Riot Bomb   [20] Liquid Dirt       [32+] Shields & defense items
+[9]  Baby Digger       [21] Dirt Charge
+[10] Digger            [22] Laser
+[11] Baby Roller(?)    [23] Plasma Laser
+```
+
+Note: This table at DS:0x1FBC appears to be a secondary name table used during equipment init.
+The primary weapon struct name pointers are populated at runtime by the name init function at
+file 0x1D905, which copies from the main name table at DS:0x1F90+ into weapon structs (stride 0x34).
+
+### Item Disable Logic (file 0x1D820)
+
+Items are enabled/disabled based on configuration flags:
+
+```c
+void updateItemAvailability() {
+    // Free market mode
+    if (DS:0x50FE == 0) {
+        // Items restricted by category
+    }
+
+    // Scoring mode: Earth Disrupter only in 100-point mode
+    if (DS:0x5158 == 0x64) {
+        enableItem("Earth Disrupter");
+    } else {
+        disableItem("Earth Disrupter");
+    }
+
+    // Contact trigger config
+    if (DS:0x513A == 0) {
+        disableItem("Contact Trigger");
+    }
+
+    // Useless items flag
+    if (DS:0x5168 == 0) {
+        // Disable "useless" items (Tracer, etc.)
+    }
+
+    // Parachute config
+    if (DS:0x5162 == 0) {
+        disableItem("Parachute");
+    }
+
+    // Play mode restrictions
+    switch (DS:0x5188) {
+        case 0: break;                           // Standard: all items available
+        case 1: /* restrict some items */ break;  // Limited mode
+        case 2: /* restrict more items */ break;  // More restricted
+    }
+}
+```
+
+Config flag locations:
+```
+DS:0x50FE  — Free market flag (1 = all items purchasable)
+DS:0x5158  — Scoring mode (0x64 = 100-point mode, enables Earth Disrupter)
+DS:0x513A  — Contact trigger enabled flag
+DS:0x5168  — Useless items flag (0 = hide tracers etc.)
+DS:0x5162  — Parachute available flag
+DS:0x5188  — Play mode (0=Standard, 1=Limited, 2=Restricted)
+DS:0x518A  — Arms level (0-4, controls which tier of items is available)
+```
+
+### Shop UI Function (file 0x1DBB5)
+
+Entry: file 0x1DBB5 (equip.cpp, segment 0x171B, offset 0x0005).
+
+```c
+void shopScreen(Player *player) {
+    // Check play mode
+    if (DS:0x5188 == 0 || DS:0x5188 == 2) {
+        // Draw player info bar
+        fillRect(DS:EF28, DS:518E+11, DS:E9DE-1, DS:518E, DS:E9DC);
+        setColor(player->color);           // player->+0x1A
+        drawString(player->name_ptr);       // player->+0xB6/0xB8
+    }
+
+    // Draw current equipment status
+    drawEquipmentBar(player, DS:0x5182:0x5184);
+
+    // Auto-buy for computer players (if DS:0x5118 > 1)
+    if (DS:0x5118 > 1 || player->isComputer != 0) {   // player->+0x22
+        autoBuyForComputer(player);
+    }
+
+    // Save current money values
+    si = player->money_lo;      // player->+0x0E
+    di = player->money_hi;      // player->+0x10
+
+    // Clear shop action flag
+    player->shopAction = 0;     // player->+0x18
+
+    // Set initial item view
+    selectCategory(player, 0, 1);
+
+    // Display balance and set round interest
+    displayBalance(player, 1, 0);
+    applyInterest(player);
+
+    // Random shop action (11 possible actions, 0-10)
+    int action = random(0x0B);
+
+    // Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll
+    if (DS:0x50D8 != 0 && action == 8) {
+        goto reroll;
+    }
+
+    // Dispatch via jump table (12 cases)
+    switch (action) {          // at file 0x1DCC9: jmp [cs:bx+0x39D]
+        case 0:  buyWeaponCategory(player->color); sellBack(player); showDelay(10, 100); break;
+        case 1:  buyWeaponCategory(player->color); buyGuidance(1, DS:0x1242); break;
+        case 2:  buyWeaponCategory(player->color); buySpecific(0, DS:0x1242, ...); delay(100); buyGuidance(1, DS:0x1276); break;
+        case 3:  buyWeaponCategory(player->color); buySpecific(0, DS:0x1242, ...); delay(100); buyAccessory(0, DS:0x1276); break;
+        case 4:  displayMoney(); break;
+        case 5:  buyShields(); break;
+        case 6:  buyDefense(); break;
+        case 7:  showEquipmentSummary(); break;
+        case 8:  /* same as case 1 */ break;
+        case 9:  buyMountainGear(); break;
+        case 10: sellEquipment(); break;
+        case 11: displayInventory(); break;
+    }
+}
+```
+
+### Shop Jump Table (file 0x1DF4D)
+
+12 word entries (cases 0-11):
+```
+case 0:  cs:0x011E (file 0x1DCCE)  — Buy weapon category + sell back
+case 1:  cs:0x0145 (file 0x1DCF5)  — Buy weapon + guidance
+case 2:  cs:0x015A (file 0x1DD0A)  — Buy weapon + specific item + guidance
+case 3:  cs:0x0187 (file 0x1DD37)  — Buy weapon + specific item + accessory
+case 4:  cs:0x01E5 (file 0x1DD95)  — Display money
+case 5:  cs:0x0200 (file 0x1DDB0)  — Buy shields
+case 6:  cs:0x0219 (file 0x1DDC9)  — Buy defense items
+case 7:  cs:0x023E (file 0x1DDEE)  — Show equipment summary
+case 8:  cs:0x0262 (file 0x1DE12)  — Buy guidance (same as case 1)
+case 9:  cs:0x0270 (file 0x1DE20)  — Buy mountain gear
+case 10: cs:0x0279 (file 0x1DE29)  — Sell equipment
+case 11: cs:0x02A9 (file 0x1DE59)  — Display inventory
+```
+
+**Note**: The `random(0x0B)` gives values 0-10, so case 11 is only reached through
+fallthrough or explicit call. The mountain mode check (DS:0x50D8 != 0 && action == 8)
+forces re-roll when in mountain terrain, skipping the guidance action.
+
+### Price System
+
+Weapon prices are stored at weapon struct offset +0x04 (uint16). Max quantities at +0x06.
+The shop UI reads prices directly from the weapon struct array at DS:0x11F6 + index * 0x34.
+
+Key pricing facts (from binary struct data):
+- Cheapest weapon: Tracer at $10
+- Most expensive projectile: Sandhog at $25,000
+- Shields range: $1,000 (Flicker Shield) to $40,000 (Shield, Super Mag)
+- Items 50-56 have corrupt prices due to linker bug (debug strings overlap struct data)
+
+### Player Inventory Storage
+
+Player weapon quantities are stored in the player struct (stride 0x6C, base DS:CEB8).
+The equipment system reads/writes inventory counts via offsets within the player struct.
+Based on the player struct analysis (see Player Data Structures section):
+
+```
+Player struct weapon inventory offsets (estimated from field mapping):
+  +0x0E    — Money (low word)
+  +0x10    — Money (high word)
+  +0x18    — Shop action flag
+  +0x1A    — Player color index
+  +0x22    — Is computer flag
+  +0xB6/B8 — Name string far pointer
+```
+
+The actual per-weapon inventory counts are stored in the associated Target/sub struct
+(stride 0xCA, base DS:D568), which has enough space for quantity fields for all weapon types.
+
+### findWeaponByName Function
+
+Called 16 times during init to locate category boundary indices. Takes a weapon name string
+as parameter, searches the weapon name table linearly, returns the weapon index where the
+name matches. If not found, triggers the assert: "Failed to identify item" (at DS:0x1BBA,
+file 0x05793A).
+
+### Weapon Name Initialization (file 0x1D905)
+
+```c
+void initWeaponNames() {
+    // Copy far pointers from name table at DS:0x1F90+
+    // to weapon struct name fields (offset +0x00, stride 0x34)
+    for (int i = 0; i < numWeapons; i++) {
+        weapon[i].namePtr = nameTable[i];  // 4-byte far pointer copy
+    }
+}
+```
+
+### Config Interaction
+
+The shop system interacts with these config save/load format strings:
+```
+LAND1=%d      (DS:0x0937) — Terrain parameter 1 (0-100)
+LAND2=%d      (DS:0x0941) — Terrain parameter 2 (0-100)
+FLATLAND=%s   (DS:0x094B) — On/Off flag for flat terrain
+PLAY_MODE=%s  (DS:0x09E6) — Standard/Limited/Restricted
+```
+
+Play mode name table at DS:0x62F4 (runtime-populated, similar structure to sky name table).
+The play mode variable DS:0x5188 indexes into this table for config save/load.
+
+---
+
+### Summary
+
+**Task #20 (Cavern Terrain Mode)**: RESOLVED. "Cavern" is sky type 5, which uses mountain .mtn
+terrain generation. The "underground" visual effect (black sky, dark palette, ceiling palette,
+no flash, skip fade/tank color) is triggered by sky type 6 ("Black"), not "Cavern". There is
+no ceiling+floor terrain geometry — the underground look is purely a palette/rendering effect
+applied over flat terrain. Cavern (5) and Black (6) are separate sky modes with different
+terrain generators but confusingly close names.
+
+**Task #22 (Shop/Equipment System)**: RESOLVED. The shop in equip.cpp uses a 16-category system
+with boundaries defined by findWeaponByName() lookups at init time. The shop UI function
+dispatches through a 12-case jump table with random action selection for computer players.
+Items are enabled/disabled based on 6 config flags (free market, scoring mode, triggers,
+useless items, parachute, play mode) and the arms level setting.

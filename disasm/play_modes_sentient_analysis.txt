@@ -1,0 +1,363 @@
+Play Modes & Sentient AI Analysis
+===================================
+Scorched Earth v1.50 — Reverse Engineering Analysis
+Date: 2026-02-18
+
+=====================================================================
+PART 1: PLAY MODES — play.cpp (Task #24)
+=====================================================================
+
+PLAY MODE VARIABLE
+------------------
+Location: DS:0x5188 (file 0x5AF08)
+Values:
+  0 = Sequential
+  1 = Simultaneous
+  2 = Synchronous
+
+Config string: "PLAY_MODE" at DS:0x052C
+Format string: "PLAY_MODE=%s\n" at DS:0x09E6
+Mode name strings:
+  DS:0x2803 (file 0x58583): "Sequential"
+  DS:0x280E (file 0x5858E): "Simultaneous"
+  DS:0x281B (file 0x5859B): "Synchronous"
+
+36 code references to DS:0x5188 found across the binary, spanning
+extras.cpp, player.cpp, play.cpp, icons.cpp, shields.cpp, and shark.cpp.
+
+
+PLAY MODE BEHAVIORAL DIFFERENCES
+---------------------------------
+
+1. SEQUENTIAL (mode 0) — "Classic" turn-based
+   - One player acts at a time
+   - Player aims turret with animated smooth rotation toward target angle
+   - After firing, projectile resolves fully before next player's turn
+   - Full display update per turn (terrain, status bar, tank highlighting)
+   - Fire callback far pointer (player struct +0xAE/+0xB0) is USED
+   - Turn advances to next alive player after each shot resolves
+   - Status bar shows current player's info only
+
+2. SIMULTANEOUS (mode 1) — All players aim at once
+   - All players set angles/power simultaneously
+   - Fire callback pointers at player struct +0xAE and +0xB0 are
+     CLEARED TO NULL (file 0x3063A-0x30645):
+       les bx, [0x5182]
+       mov word [es:bx+0xB0], 0   ; clear fire segment
+       mov word [es:bx+0xAE], 0   ; clear fire offset
+   - This disables per-player fire callbacks, enabling batch firing
+   - Timer countdown at DS:0xD506 controls aiming phase duration
+   - All projectiles resolve simultaneously after all players fire
+   - Unique status bar display (different from Sequential/Synchronous)
+   - Screen wrapping enabled for projectiles that exit horizontally:
+     if x < left_bound: x += (right - left + 1)
+     if x > right_bound: x -= (right - left + 1)
+     (file 0x29C8C-0x29CC2 and 0x29DB4-0x29DED)
+   - AI players use different dispatch: flag at DS:0x510E set to 1
+     (file 0x292CA: mov word [0x510E], 1)
+   - Multiple sub-systems check mode=1 for special handling:
+     * Tank rendering (icons.cpp): 0x26F74, 0x27718, 0x27940, 0x27ADE,
+       0x27D12, 0x27E25, 0x2842C
+     * Shield system (shields.cpp): 0x3854D, 0x38628
+     * AI solver (shark.cpp): 0x3170F, 0x319C6, 0x31CDD, 0x31F68
+     * Player management: 0x2316B, 0x2322E, 0x23717
+
+3. SYNCHRONOUS (mode 2) — Sequential aim, simultaneous fire
+   - Players aim one at a time (like Sequential)
+   - But projectiles all fire simultaneously (like Simultaneous)
+   - 3 code references specifically check mode=2:
+     * 0x1D8EA: Fire phase handling
+     * 0x1DBCD: Combined check with mode=0 for display updates
+     * 0x306FE: Round completion handling
+   - At 0x1DBC6: "if mode==0 OR mode==2" — groups Sequential and
+     Synchronous for certain display behaviors
+   - Aiming UI is sequential, but fire resolution is batched
+
+
+KEY FUNCTIONS IN PLAY.CPP
+--------------------------
+
+File 0x30560 (seg ~0x29B6): Turn handler
+  - Contains the main per-turn logic
+  - At 0x3056D: checks if Simultaneous mode — skips individual aiming
+  - At 0x30577: calls input handler (0x0A69:0x0002)
+  - Reads player angle (+0x92), direction (+0x94), target (+0x9E)
+  - Smooth turret animation: clamps step to [-15, +15] pixels/frame
+  - Delay 15ms (push 0x0F) between animation frames
+  - For Simultaneous: clears fire callback pointers instead of animating
+
+File 0x30652 (seg ~0x29B6): Fire check
+  - Checks alive player count (DS:0x5118) > 1
+  - Checks player state at +0x22 (ready to fire flag)
+
+File 0x29280 (seg 0x2288): AI type dispatch
+  - Copies original AI type DS:0x5156 → effective type DS:0x5154
+  - Randomizes types 6 (Cyborg) and 7 (Unknown) to 0-5
+  - Calls AI accuracy dispatch (0x29505)
+  - Sets DS:0x510E flag: 1 for Simultaneous AI, 0 otherwise
+
+File 0x29505 (seg 0x22B0): AI accuracy parameters
+  - Switch on DS:0x5154 (effective AI type), bounds-checked <= 5
+  - Types 0-5 push noise values, call trajectory solver at 0x456B:0x0005
+
+
+SCREEN WRAPPING (Simultaneous/Synchronous only)
+------------------------------------------------
+When play mode != 0 (Sequential), projectiles wrap horizontally:
+
+  File 0x29C98 (function at 0x29C68):
+    cmp word [0x5154], 0    ; if AI type == human (type 0)
+    jnz skip                ; non-human: skip wrapping
+    ; (humans in Sequential get no wrapping)
+
+  The wrapping code at 0x29CA8-0x29CC2:
+    if x < screen_left (DS:0xEF42):
+      x += screen_width + 1
+    else:
+      x -= screen_width + 1
+
+  This only applies to non-Sequential modes (mode 1 or 2).
+  Same wrapping logic duplicated at 0x29DB4-0x29DED for the
+  secondary collision check function.
+
+
+TURN ADVANCEMENT
+-----------------
+Turn cycles through alive players. After each player fires (or timer
+expires in Simultaneous), the game advances to the next alive player
+index. The current player index is stored in DS:0xE4DA and the player
+far pointer in DS:0x5182/0x5184.
+
+
+=====================================================================
+PART 2: SENTIENT AI — shark.cpp (Task #19)
+=====================================================================
+
+AI TYPE ENUMERATION
+--------------------
+Type 0: Human (player-controlled)
+Type 1: Moron      — noise [50, 50, 50]
+Type 2: Shooter    — noise [23]
+Type 3: Poolshark  — noise [23]
+Type 4: Tosser     — noise [63, 23]
+Type 5: Chooser    — noise [63, 63, 23]
+Type 6: Spoiler    — noise [63, 63, 63]
+     (Note: game UI shows as type 6, but Cyborg in manual)
+Type 7: Cyborg     — randomized to 0-5 at runtime
+Type 8: Unknown    — randomized to 0-5 at runtime
+Type 9: Sentient   — CORRUPTED VTABLE, non-functional
+
+Name strings:
+  DS:0x2700 (file 0x58480): "Sentient"
+  DS:0x2709 (file 0x58489): "Sentient?" (with question mark)
+
+
+AI VTABLE STRUCTURE
+--------------------
+Two-level indirection:
+
+Level 1: Pointer table at DS:0x02E2 (file 0x056062)
+  Array of far pointers (4 bytes each: offset, segment).
+  Each entry points to a 16-byte vtable block within DS.
+
+Level 2: Vtable blocks at DS:0x0272 (file 0x055FF2)
+  Each block has 4 far function pointers (4 bytes each = 16 bytes total).
+  Slot layout per type:
+    slot[0]: Reserved (always NULL for valid types)
+    slot[1]: AI init function
+    slot[2]: Primary AI action function
+    slot[3]: Secondary AI action function
+
+
+POINTER TABLE DUMP (DS:0x02E2)
+-------------------------------
+Entry[0] at DS:0x02E2 → 4F38:0272  (→ Human vtable block at DS:0x0272)
+Entry[1] at DS:0x02E6 → 4F38:0282  (→ Moron vtable at DS:0x0282)
+Entry[2] at DS:0x02EA → 4F38:0292  (→ Shooter vtable at DS:0x0292)
+Entry[3] at DS:0x02EE → 4F38:02A2  (→ Poolshark vtable at DS:0x02A2)
+Entry[4] at DS:0x02F2 → 4F38:02B2  (→ Tosser vtable at DS:0x02B2)
+Entry[5] at DS:0x02F6 → 4F38:02C2  (→ Chooser vtable at DS:0x02C2)
+Entry[6] at DS:0x02FA → 4F38:02D2  (→ Spoiler vtable at DS:0x02D2)
+Entry[7] at DS:0x02FE → 6F53:0007  (CORRUPTED — reads from string data)
+Entry[8] at DS:0x0302 → 656D:6420  (CORRUPTED — reads from string data)
+Entry[9] at DS:0x0306 → 2062:6D75  (CORRUPTED — reads from string data)
+
+Entries 7-9 overlap with the string "Some dumb tank: %s\n" at DS:0x0300:
+  DS:0x0300: 53 6F 6D 65 20 64 75 6D 62 20 74 61 6E 6B 3A 20  Some dumb tank:
+  DS:0x0310: 25 73 0A 00                                        %s..
+
+The pointer table has exactly 7 valid entries (indices 0-6).
+Starting at DS:0x02FE (entry[7]), the data is the ASCII string
+"Some dumb tank: %s\n" misinterpreted as far pointers.
+
+
+VTABLE BLOCK CONTENTS
+-----------------------
+Block[0] at DS:0x0272 — Human:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 262C:004E (human input init)
+  slot[2]: 262C:0241 (human input handler)
+  slot[3]: 0000:0000 (NULL)
+
+Block[1] at DS:0x0282 — Moron:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 320D:007E (Moron-specific solver)
+  slot[3]: 320D:0380 (Moron secondary)
+
+Block[2] at DS:0x0292 — Shooter:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 315D:000C (Shooter solver)
+  slot[3]: 315D:0241 (Shooter secondary)
+
+Block[3] at DS:0x02A2 — Poolshark:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 3B6B:0007 (Poolshark solver)
+  slot[3]: 3B6B:00FE (Poolshark secondary)
+
+Block[4] at DS:0x02B2 — Tosser:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 1132:000F (Tosser solver)
+  slot[3]: 1132:00F0 (Tosser secondary)
+
+Block[5] at DS:0x02C2 — Chooser:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 34B2:0163 (Chooser solver)
+  slot[3]: 34B2:02F3 (Chooser secondary)
+
+Block[6] at DS:0x02D2 — Spoiler:
+  slot[0]: 0000:0000 (NULL)
+  slot[1]: 11B5:05F7 (common AI init)
+  slot[2]: 14C8:03E3 (Spoiler solver)
+  slot[3]: 14C8:0501 (Spoiler secondary)
+
+Block[7] at DS:0x02E2 — INVALID (overlaps with pointer table itself!):
+  slot[0]: 4F38:0272 (this IS entry[0] of the pointer table)
+  slot[1]: 4F38:0282 (this IS entry[1] of the pointer table)
+  slot[2]: 4F38:0292 (this IS entry[2] of the pointer table)
+  slot[3]: 4F38:02A2 (this IS entry[3] of the pointer table)
+
+Block[8] at DS:0x02F2 — INVALID (overlaps with tail of pointer table):
+  slot[0]: 4F38:02B2 (entry[4])
+  slot[1]: 4F38:02C2 (entry[5])
+  slot[2]: 4F38:02D2 (entry[6])
+  slot[3]: 6F53:0007 (entry[7] = garbage)
+
+
+AI TYPE DISPATCH CODE (file 0x29280)
+--------------------------------------
+  0x2929F  mov ax, [0x5156]       ; load original AI type
+  0x292A2  mov [0x5154], ax       ; copy to effective type
+  0x292A5  cmp word [0x5154], 6   ; Cyborg?
+  0x292AA  jz randomize           ; yes → randomize
+  0x292AC  cmp word [0x5154], 7   ; Unknown?
+  0x292B1  jnz skip               ; no → use as-is
+  randomize:
+  0x292B3  push 6                 ; random(6) → 0-5
+  0x292B5  call random
+  0x292BA  pop cx
+  0x292BB  mov [0x5154], ax       ; overwrite effective type
+  skip:
+
+AI ACCURACY DISPATCH (file 0x29505):
+  0x29513  mov bx, [0x5154]       ; load effective type
+  0x29517  cmp bx, 5              ; bounds check
+  0x2951A  ja exit                ; type > 5 → skip (no crash, no action)
+
+
+SENTIENT CORRUPTION ANALYSIS
+------------------------------
+
+The vtable system supports exactly 7 AI types (Human + 6 AI personalities).
+The data layout is:
+
+  DS:0x0272 .. DS:0x02E1  = 7 vtable blocks (7 × 16 = 112 bytes)
+  DS:0x02E2 .. DS:0x02FD  = 7 pointer table entries (7 × 4 = 28 bytes)
+  DS:0x02FE .. DS:0x0300  = padding/gap
+  DS:0x0300 .. DS:0x0313  = "Some dumb tank: %s\n\0" string
+
+When indexing the pointer table for type N:
+  pointer_table_entry = DS:0x02E2 + N * 4
+
+For types 0-6, this reads valid 4F38:xxxx far pointers.
+For type 7 (Cyborg), the entry at DS:0x02FE = 6F53:0007 (ASCII "So" + 0x07 0x00)
+For type 8 (Unknown), the entry at DS:0x0302 = 656D:6420 (ASCII "me d")
+
+However, Cyborg (type 7) and Unknown (type 8) are ALWAYS randomized to
+types 0-5 BEFORE the vtable dispatch occurs (at file 0x292A5-0x292BB).
+The randomization code specifically checks types 6 and 7 (not 7 and 8),
+suggesting the game uses 0-based indexing where:
+  Internal type 0 = Human
+  Internal type 1-6 = Moron through Spoiler
+  Internal type 6 = Cyborg (randomized)
+  Internal type 7 = Unknown (randomized)
+  Internal type 8 = Sentient (NOT randomized, NOT bounds-checked)
+
+CRITICAL: Sentient (type 8) is NOT covered by the randomization code
+(which only checks types 6 and 7). If a player is set to type 8:
+
+1. The dispatch at 0x292A5-0x292B1 does NOT match (6 or 7), so
+   the effective type remains 8.
+
+2. The vtable pointer table lookup at DS:0x02E2 + 8*4 = DS:0x0302
+   reads 656D:6420 — a wild far pointer into address space at
+   physical address (0x656D << 4) + 0x6420 = 0x6BAF0 + 0x6420 = 0x71F10.
+   This is almost certainly unmapped memory in a standard DOS
+   environment, which would cause a crash or undefined behavior.
+
+3. Even if the pointer happened to land on readable memory, the
+   "vtable block" it points to would contain random data interpreted
+   as 4 far function pointers, any of which could crash the system.
+
+4. The AI accuracy dispatch at 0x29505 bounds-checks against 5
+   (cmp bx, 5; ja exit), so type 8 would skip accuracy setup
+   entirely — resulting in uninitialized noise parameters.
+
+
+CONCLUSION: SENTIENT IS NON-FUNCTIONAL
+---------------------------------------
+
+Sentient (type 8) has a corrupted vtable because:
+
+1. The pointer table at DS:0x02E2 was allocated for exactly 7 entries
+   (types 0-6), but the game defines 9 AI types (0-8).
+
+2. Types 6 (Cyborg) and 7 (Unknown) work around this limitation by
+   randomizing to types 0-5 at runtime, never actually using their
+   "vtable" entries.
+
+3. Type 8 (Sentient) has NO such workaround. It attempts to read a
+   vtable pointer from string data ("Some dumb tank: %s\n"),
+   producing a wild far pointer that would crash DOS.
+
+4. The "Sentient?" string (with question mark) at DS:0x2709 suggests
+   the developer was uncertain about this AI type's implementation.
+
+5. This is structurally identical to the weapon struct overflow bug
+   previously documented — both are cases of insufficient table
+   allocation with higher-indexed entries reading from unrelated data.
+
+If Sentient were to be made functional, it would need:
+  - A valid vtable block (16 bytes) with 4 far function pointers
+  - A valid pointer table entry pointing to that block
+  - Entry in the randomization check OR its own dispatch path
+  - Noise parameters in the accuracy dispatch switch
+
+
+RELATED FUNCTION: "Some dumb tank" string
+-------------------------------------------
+The string "Some dumb tank: %s\n" at DS:0x0300 is likely a debug/error
+message used when an invalid AI type is encountered. The vtable at
+0x351C0-0x35211 uses DS:0x0272 in a loop bounded by DS:0x02FE, which
+is the count of valid vtable entries (value = 7, but coincidentally
+also the first byte of the corrupted pointer). This suggests the game
+has some awareness that only 7 types are valid.
+
+
+=====================================================================
+END OF ANALYSIS
+=====================================================================

@@ -1,0 +1,344 @@
+Score System Analysis — score.cpp (segment 0x30B2, file base 0x37520)
+=====================================================================
+
+Decoded from SCORCH.EXE v1.50 using fpu_decode.py and radare2.
+
+== Key Variables ==
+
+DS:0x5188  Scoring mode config: 0=Standard, 1=Corporate, 2=Vicious
+DS:0x5148  Teams enabled: 0=disabled, nonzero=enabled
+DS:0xE340  Round counter (increments each round)
+DS:0x50D4  Number of players
+DS:0x50EA  Score display mode / end-of-round scoring flag
+DS:0x515A  Interest earned (Standard mode only, signed)
+DS:0xE1EC  Score table base (stride 0x16 = 22 bytes per entry)
+DS:0xE1F0  Score event counter table (entry +0 = count, indexed by event type)
+
+== Sub-struct Fields Used (base DS:0xD568, stride 0xCA) ==
+
++0x18  Alive status (0 = dead, nonzero = alive)
++0x30  Player index / team number
++0x34  Displayed cash (cached for HUD animation)
++0x52  Hit stats array (per-attacker tracking)
++0x66  Hit counter (another stat per-attacker)
++0x96  Shield energy
++0x9C  Max cash (computed: max_power * 1000 / interest_rate)
++0x9E  Current cash/score
++0xA0  Base radius / player_id
++0xA2  Max power (32-bit, +0xA2 low, +0xA4 high)
++0xAC  Wins counter (incremented per round survived)
+
+== Function: same_team (0x2A16:0x198D, file 0x324ED) ==
+
+same_team(player_a, player_b):
+  if player_a.player_id == player_b.player_id:
+    return depends_on_context (same player = special case)
+  switch (DS:0x50EA):
+    case: compare player_a.team_number vs player_b.team_number
+      if equal: return 0  (SAME team)
+      if different: return 1  (DIFFERENT team)
+
+Return value: 0 = same team, nonzero = different team.
+
+== Function: score_on_damage (score.cpp offset 0x168, file 0x37688) ==
+
+Called from:
+  - player.cpp (0x31C73) with damage_type=0 (weapon projectile damage)
+  - shields.cpp (0x38416, 0x38449) with damage_type=1 (shield/collision damage)
+
+Prototype:
+  score_on_damage(attacker_ptr, target_ptr, damage_amount, damage_type)
+    attacker_ptr:  far ptr to current player's sub-struct [bp+6/8]
+    target_ptr:    far ptr to damaged player's sub-struct [bp+a/c]
+    damage_amount: 32-bit signed, POSITIVE value (HP removed) [bp+e/10]
+    damage_type:   0=weapon damage, 1=shield damage [bp+12]
+
+Logic:
+  if attacker_ptr == NULL: return
+
+  is_different_team = same_team(attacker, target)
+
+  switch(damage_type):
+    case 0 (weapon damage):
+      if DS:0x5148 == 0: break  // scoring disabled or no teams config
+      if is_different_team:
+        // REWARD: hit an enemy
+        score = damage_amount * 30        // 32-bit multiply by 0x1E
+        add_score(attacker, score)
+      else (same team):
+        if attacker == target: break      // self-hit: no penalty
+        // PENALTY: friendly fire
+        score = damage_amount * (-30)     // 32-bit multiply by 0xFFFFFFE2
+        score = score / 2                 // 32-bit divide -> damage * (-15)
+        add_score(attacker, score)
+
+    case 1 (shield damage):
+      if DS:0x5148 == 0: break
+      if is_different_team:
+        // REWARD: damaged enemy shield
+        score = damage_amount * 2         // left shift by 1
+        add_score(attacker, score)
+      else (same team):
+        if attacker == target: break
+        // PENALTY: damaged friendly shield
+        score = damage_amount * (-2)      // 32-bit multiply by 0xFFFFFFFE
+        score = score / 2                 // -> damage * (-1)
+        add_score(attacker, score)
+
+    default: break (no scoring for unrecognized types)
+
+Summary multipliers:
+                    Weapon (type 0)    Shield (type 1)
+  Enemy hit:        +30x damage        +2x damage
+  Friendly fire:    -15x damage        -1x damage
+  Self-hit:         no change          no change
+
+== Function: score_on_death (score.cpp offset 0xC3, file 0x375E3) ==
+
+Called from:
+  - equip.cpp (0x1DC2B) when a player/tank is destroyed
+
+Prototype:
+  score_on_death(attacker_ptr, victim_ptr)
+    attacker_ptr: far ptr to attacking player's sub-struct [bp+6/8]
+    victim_ptr:   far ptr to dead player's sub-struct [bp+a/c]
+
+Logic:
+  if attacker_ptr == NULL: return
+
+  is_different_team = same_team(attacker, victim)
+
+  if is_different_team:
+    // BOUNTY: killed an enemy
+    if DS:0x5148 != 0 (teams enabled):
+      add_score(attacker, +500)          // 0x1F4
+    else (no teams):
+      add_score(attacker, +4000)         // 0xFA0
+  else (same team):
+    if attacker != victim:
+      // PENALTY: killed a teammate
+      add_score(attacker, -2000)         // 0xFFFFF830
+    else:
+      // PENALTY: self-destruction
+      add_score(attacker, -1500)         // 0xFFFFFA24
+    // Stat update: victim.hit_array[attacker.base_radius] += 5
+
+Note: This function is called unconditionally regardless of scoring mode
+(Standard/Corporate/Vicious). All modes use the same death scoring.
+
+== Function: end_of_round_scoring (file 0x37381) ==
+
+Called from the post-fire handler at 0x30705 (play.cpp).
+Skipped when scoring mode == 2 (Vicious).
+Called for both Standard and Corporate modes.
+
+Logic:
+  if DS:0x5148 != 0 (teams enabled):
+    pool = (double)(round_number * 500 + 5000)
+    for each alive player:
+      pool += (double)(max_power * 30)
+      pool += (double)(shield_energy * 2)
+      player.wins++
+    for each alive player:
+      share = (int)(pool / round_number)
+      add_score(player, share)
+
+  else (no teams):
+    pool = num_players * 1000 + round_number * 4000
+    for each alive player:
+      player.wins++
+      add_score(player, pool / round_number)
+
+== Function: score_event_distribute (file 0x37520, score.cpp offset 0x000) ==
+
+Called through function pointer registration. Distributes score for
+a named event (indexed by 'di', range 0-9) to all matching players.
+
+Logic:
+  assert(event_index < 10)
+  score_table[event_index].count++
+  share = score_amount / 10
+
+  store share into score_table[event_index] at DS:0xE1EC base
+
+  for each player si (0 to num_players):
+    if player[si].team_number == event_index:
+      if player[si].alive:
+        player[si].wins++
+        add_score(player[si], full_share)
+      else (dead):
+        add_score(player[si], share / 2)  // dead players get half
+
+== Function: add_score (score.cpp offset 0x2B9, file 0x377D9) ==
+
+Adds a 32-bit score amount to a player's score table entry.
+Called from all scoring functions above.
+
+Prototype:
+  add_score(player_ptr, score_32bit)
+
+Logic:
+  if DS:0x50EA != 0:
+    display scoring event with player name (from score table at +0x30)
+  bignum_add(player.score_accumulator, score_32bit)
+  finalize/compare score entries
+
+Score table: DS:0xE1EC, stride 0x16 (22 bytes) per entry.
+Score accumulated separately from cash (cash = DS:sub+0x9E).
+
+== Function: add_cash (0x2A16:0xABE, file 0x3161E) ==
+
+Modifies a player's current cash value (sub-struct +0x9E).
+Distinct from add_score - cash is for buying weapons.
+
+Prototype:
+  add_cash(player_ptr, amount)
+
+Logic:
+  if sound_enabled: delay(20)
+  new_value = player.cash_9E + amount
+  set_cash(player_ptr, new_value)
+
+set_cash(player_ptr, value):
+  if value < 0: value = 0
+  if value > player.max_cash_9C: value = max_cash_9C
+  player.cash_9E = value
+  update HUD display
+
+Called from 6 locations (power adjustments + HUD animation):
+  - 0x188DC: HUD cash display animation (clamped delta ±15 per frame)
+  - 0x2FAB2: Power adjustment (fine: ±1, coarse: ±15)
+  - 0x30607: Cash display sync during round transition
+  - 0x391F0: Fine power up (+2 per tick)
+  - 0x39206: Fine power down (-2 per tick)
+  - 0x393E8: HUD display animation during gameplay
+
+== Function: calculate_max_cash (0x2A16:0x73, file 0x31663) ==
+
+Computes the maximum cash a player can hold.
+
+Logic:
+  max_cash = (max_power * 1000) / interest_rate
+  player.max_cash_9C = max_cash
+  if player.cash_9E > max_cash: set_cash(player, max_cash)
+
+== Function: interest_display (0x223A:0x17D, file 0x28F1D) ==
+
+Standard mode only. Called at 0x307B9 when scoring mode == 0.
+Displays "Earned interest" message with the interest amount from DS:0x515A.
+
+== Scoring Mode Dispatch (post-fire handler at 0x30652, play.cpp) ==
+
+After a shot is fired and damage resolved:
+
+1. Decrement weapon inventory for fired weapon
+2. Save current weapon selection
+3. if scoring_mode != 2 (not Vicious):
+     call end_of_round_scoring()          // Standard + Corporate only
+4. Advance to next weapon
+5. Fire projectile with angle/power parameters
+6. Check if current weapon is depleted; handle auto-switch
+7. if scoring_mode == 0 (Standard):
+     call interest_display()              // Standard only
+     if DS:0x5158 == 100: display HUD update
+8. (Corporate has its own display block for weapon selection UI)
+
+== Corporate Mode Specifics ==
+
+Corporate mode (DS:0x5188 == 1):
+  - Per-damage scoring: DISABLED (score_on_damage mode parameter is damage
+    type, not game mode; but Corporate receives no damage-type scoring calls
+    because the function skips for unrecognized types)
+  - Actually: Corporate uses the SAME score_on_damage as Standard (mode 0
+    calls come from player.cpp regardless of game scoring mode). The
+    difference is in DISPLAY: Corporate hides individual score changes.
+  - Death scoring: SAME as Standard (+500/+4000 / -2000 / -1500)
+  - End-of-round scoring: SAME pool distribution as Standard
+  - Interest display: HIDDEN (Standard-only display call skipped)
+  - Score display: SECRET - set_cash function has special Corporate path
+    that uses a different display method (call at 0x316CE)
+  - The FPU-based profit calculation at file 0x37964 computes:
+      profit = weapon_cost[slot] * round_count * interest_rate / base_cost
+
+== Vicious Mode Specifics ==
+
+Vicious mode (DS:0x5188 == 2):
+  - Per-damage scoring: SAME formulas as Standard (weapon type uses 30x/-15x)
+  - Death scoring: SAME as Standard (+500/+4000 / -2000 / -1500)
+  - End-of-round scoring: DISABLED (skipped at 0x306FE check)
+  - Interest: NONE
+  - Key difference: No end-of-round pool bonuses for surviving.
+    Score comes purely from damage dealt and kills.
+
+== Summary: Scoring Mode Comparison ==
+
+Event               Standard         Corporate        Vicious
+-----------         --------         ---------        -------
+Weapon damage hit   +30x damage      +30x damage      +30x damage
+Shield damage hit   +2x damage       +2x damage       +2x damage
+Friendly fire wpn   -15x damage      -15x damage      -15x damage
+Friendly fire shd   -1x damage       -1x damage       -1x damage
+Self-hit            no change        no change        no change
+Kill enemy (teams)  +500             +500             +500
+Kill enemy (no tm)  +4000            +4000            +4000
+Kill teammate       -2000            -2000            -2000
+Self-destruction    -1500            -1500            -1500
+End-of-round pool   YES              YES              NO
+Interest display    YES              HIDDEN           NO
+Score display       Visible          HIDDEN           Visible
+
+Key insight: Standard and Corporate share the same scoring formulas.
+Corporate mode's uniqueness is that scores are HIDDEN during play and
+revealed at the end. Vicious mode's uniqueness is that end-of-round
+survival bonuses are disabled - only kill rewards and damage scoring
+contribute.
+
+== Score Table Structure ==
+
+Base: DS:0xE1EC
+Stride: 0x16 (22 bytes) per entry
+Indexed by event type (0-9)
+
+Fields per entry (offsets within 22-byte record):
+  +0x00: Event count (word, incremented per occurrence)
+  +0x04: Accumulated score value (bignum)
+  Other fields: display/formatting data
+
+The score table is separate from player cash (sub-struct +0x9E).
+Cash = spendable currency for weapons.
+Score = cumulative performance metric.
+
+== File Offsets Quick Reference ==
+
+Function                     File Offset    Segment:Offset
+---------------------------  -----------    ---------------
+score_event_distribute       0x37520        0x30B2:0x000
+score_on_death               0x375E3        0x30B2:0x0C3 (= 0x3098:0x263)
+score_on_damage              0x37688        0x30B2:0x168 (= 0x3098:0x308)
+add_score (internal)         0x377D9        0x30B2:0x2B9
+end_of_round_scoring         0x37381        0x30B2-0x13F (file 0x37381)
+interest_calculation (FPU)   0x37964        score.cpp+0x444
+score_dialog_setup           0x37CA0        score.cpp+0x780
+same_team                    0x324ED        0x2A16:0x198D
+add_cash                     0x3161E        0x2A16:0xABE
+set_cash                     0x316CE        0x2A16:0x0DE
+calculate_max_cash           0x31663        0x2A16:0x73
+interest_display             0x28F1D        0x223A:0x17D
+
+== Key Strings ==
+
+DS:0x27E0  "Standard"
+DS:0x27F1  "Corporate"
+DS:0x27FB  "Vicious"
+DS:0x2C3B  "Score"
+DS:0x295B  "~Scoring Mode:"
+DS:0x2A9F  "Final Scoring"
+DS:0x275D  "Cash"
+DS:0x2930  "~Cash at Start:"
+DS:0x2920  "~Interest Rate:"
+DS:0x2EDF  "Earned interest"
+DS:0x2CE9  "No Winner"
+DS:0x2D07  "Winners-First"
+DS:0x2D15  "Round-Robin"
+DS:0x2C0B  "Mass kill everyone?"
+DS:0x2DDD  "Cash Left:"

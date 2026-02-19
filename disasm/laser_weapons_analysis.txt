@@ -1,0 +1,169 @@
+==========================================================================================
+SCORCHED EARTH v1.50 - LASER / PLASMA LASER ANALYSIS
+Binary: SCORCH.EXE (16-bit DOS MZ executable)
+Analysis tool: radare2 + Python FPU decoder
+==========================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+Laser and Plasma Laser are ACCESSORIES, not fireable beam weapons. They provide a
+visual "laser sight" targeting line during aiming. They have no weapon behavior
+function pointer -- their struct fields BhvType:BhvSub are 0x0000:0x0000 (NULL).
+
+The code segment 0x2F76 contains behavior functions for Plasma Blast, Riot Charge,
+Riot Blast, and Riot Bomb alongside the Laser targeting line display function.
+The Laser accessory shares this code segment but is invoked through the aiming UI,
+not through the weapon dispatch system.
+
+==========================================================================================
+1. WEAPON STRUCT DATA
+==========================================================================================
+
+Laser (weapon index 35, struct index 33):
+  DS:0x18AA (file 0x5762A)
+  Price: 10,000 | Bundle: 6 | Arms Level: 2
+  Behavior fn: NULL (0x0000:0x0000)
+  All fields +0x10 through +0x32: zero
+
+Plasma Laser (weapon index 36, struct index 34):
+  DS:0x18DE (file 0x5765E)
+  Price: 10,000 | Bundle: 2 | Arms Level: 2
+  Behavior fn: NULL (0x0000:0x0000)
+  All fields +0x10 through +0x32: zero
+
+==========================================================================================
+2. ACCESSORY BOUNDARY
+==========================================================================================
+
+equipInit (file 0x1D5D4) establishes:
+  DS:E4F0 = 33 (Laser = FIRST accessory index)
+  DS:D548 = 32 (Earth Disrupter = LAST weapon index)
+
+Weapon cycling (file 0x30910) wraps at E4F0:
+  if (player+0x16 >= E4F0) -> wrap to 0
+  if (player+0x16 < 0) -> wrap to E4F0-1
+
+Laser/Plasma Laser cannot be selected as fireable weapons.
+
+==========================================================================================
+3. LASER TARGETING LINE FUNCTION
+==========================================================================================
+
+Function: file 0x36321, segment 0x2F76:0x01C1
+Params: (x, y, angle, end_angle, power, type)
+
+Pseudocode:
+  angle_rad = angle * PI/180;
+  end_angle_rad = end_angle * PI/180;
+
+  if (type == 1) {    // Plasma Laser
+      EC4C = -1;      // no erase mask
+      EC4E = 0xFE;    // bright white
+  } else {            // Standard Laser
+      EC4C = 0xFE;    // erase on white pixels
+      EC4E = 0x78;    // green/turquoise
+  }
+
+  while (angle_rad < end_angle_rad) {
+      dx = sin(angle_rad) * (-power);
+      dy = cos(angle_rad) * power;
+      bresenham_line(old, new, pixel_callback_0x2F76_0111);
+      angle_rad += ~0.3_rad;
+  }
+  bresenham_line(old, final);  // exact end angle
+
+==========================================================================================
+4. PER-PIXEL CALLBACK (0x2F76:0x0111, file 0x36271)
+==========================================================================================
+
+Per pixel along Bresenham line:
+  - Check screen bounds (EF42/EF3C/EF40/EF38)
+  - Handle cavern wrapping (DS:510E)
+  - If EC4C != -1: only draw where pixel matches EC4C
+  - If EC4E == 0x78: terrain blend (0x32C2:0x1519)
+  - Otherwise: fg_point with color EC4E
+  - Track furthest reach in EC50/EC52
+
+==========================================================================================
+5. BEHAVIOR FUNCTION POINTER REINTERPRETATION
+==========================================================================================
+
+Struct fields +0x0A/+0x0C are a FAR FUNCTION POINTER (offset:segment),
+dispatched at file 0x2120A: call word far [bx + 0x1200]
+
+Corrected handler map (verified from struct data + relocations):
+  0x3D1E:0x0021  Standard projectile (Missiles, Nukes)
+  0x3D1E:0x0002  Tracer (Tracer, Smoke Tracer)
+  0x2FBD:0x0003  Roller (Baby/Heavy Roller)
+  0x2F76:0x000D  Plasma (Plasma Blast, Riot Charge)
+  0x2F76:0x03BD  Riot (Riot Blast, Riot Bomb)
+  0x2382:0x0006  LeapFrog
+  0x151B:0x000A  Digger/Sandhog
+  0x15A0:0x0009  Dirt adding
+  0x15A0:0x0081  Liquid Dirt
+  0x162C:0x013E  Dirt Charge
+  0x2770:0x0009  Dirt Tower
+  0x26E6:0x01A0  Napalm/fire
+  0x25D5:0x0239  MIRV/Death's Head
+  0x2319:0x0004  Earth Disrupter
+  0x1DCE:0x0000  Funky Bomb
+  0x0000:0x0000  Accessories (Laser, Guidance, Shields)
+
+==========================================================================================
+6. LASER vs PLASMA LASER
+==========================================================================================
+
+  Property      | Laser           | Plasma Laser
+  --------------|-----------------|------------------
+  Price         | 10,000          | 10,000
+  Bundle size   | 6 uses/buy      | 2 uses/buy
+  Arms level    | 2               | 2
+  Sight color   | 0x78 (green)    | 0xFE (white)
+  Erase mode    | 0xFE mask       | -1 (no mask)
+  Type flag     | 0               | 1
+
+Laser: green targeting line, blends with terrain, 6 uses per buy.
+Plasma Laser: bright white line, overwrites background, 2 uses per buy.
+
+==========================================================================================
+7. CODE LOCATIONS
+==========================================================================================
+
+  draw_laser_sight      0x36321  0x2F76:0x01C1
+  laser_pixel_callback  0x36271  0x2F76:0x0111
+  plasma_blast_handler  0x3616D  0x2F76:0x000D
+  riot_blast_handler    0x3651D  0x2F76:0x03BD
+  roller_on_impact      0x365D3  0x2FBD:0x0003
+  roller_per_frame      0x3684B  0x2FBD:0x027B
+  weapon_dispatch       0x211A0  0x1A7A:0x0000
+  equipInit             0x1D5D4
+  weapon_cycle          0x30910
+  fire_weapon           0x30652
+  bresenham_line        0x1E2E3  0x171B:0x0733
+
+==========================================================================================
+8. DS VARIABLES
+==========================================================================================
+
+  E344  Current weapon struct index
+  E4EE  Active weapon for fire dispatch
+  E4F0  First accessory index (=33)
+  D548  Last weapon index (=32)
+  EC4C  Laser sight erase color
+  EC4E  Laser sight draw color
+  EC50  Laser sight tracking X
+  EC52  Laser sight tracking Y
+  6100  PI/180 deg-to-rad constant
+  6108  Angular step (~0.3 rad)
+  60F8  Angle parameter table
+  60FC  Angle parameter table 2
+
+==========================================================================================
+CONCLUSIONS
+==========================================================================================
+
+1. Laser/Plasma Laser are ACCESSORIES providing visual targeting aids.
+2. Targeting line uses Bresenham with per-pixel coloring (green vs white).
+3. Code segment 0x2F76 shared between laser sight and plasma/riot beams.
+4. BhvType/BhvSub are far function pointers, not abstract type codes.
+5. NULL pointer (0:0) indicates accessories/non-weapons.

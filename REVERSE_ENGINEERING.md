@@ -150,15 +150,15 @@ Total: 52 bytes
 | 47 | Warp Shield | 1,500 | 1 | 3 | 0x0000 | 0 | Teleport on hit |
 | 48 | Teleport Shield | 10,000 | 10 | 3 | 0x0000 | 0 | Shield variant |
 | 49 | Flicker Shield | 1,000 | 25 | 3 | 0x0000 | 0 | Cheapest shield |
-| 50 | Force Shield | **CORRUPT** | | | | | *(struct overlaps equip.cpp string)* |
-| 51 | Heavy Shield | **CORRUPT** | | | | | *(struct overlaps debug strings)* |
-| 52 | Super Mag | **CORRUPT** | | | | | *(struct overlaps format strings)* |
-| 53 | Patriot Missiles | **CORRUPT** | | | | | *(struct overlaps format strings)* |
-| 54 | Auto Defense | **CORRUPT** | | | | | *(struct overlaps float constants)* |
-| 55 | Fuel Tank | **CORRUPT** | | | | | *(struct overlaps debug strings)* |
-| 56 | Contact Trigger | **CORRUPT** | | | | | *(struct overlaps float constants)* |
+| 50 | Force Shield | 25,000 | 3 | 4 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
+| 51 | Heavy Shield | 30,000 | 2 | 4 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
+| 52 | Super Mag | 40,000 | 2 | 4 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
+| 53 | Patriot Missiles | ??? | — | — | 0x0000 | 0 | *(binary corrupt — not listed in official manual)* |
+| 54 | Auto Defense | 1,500 | 1 | 2 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
+| 55 | Fuel Tank | 10,000 | 10 | 2 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
+| 56 | Contact Trigger | 1,000 | 25 | 1 | 0x0000 | 0 | *(binary corrupt — price from official manual)* |
 
-**Status**: Items 2-49 fully verified. Items 50-56 have a **data layout bug** — the Borland C++ linker placed the `equip.cpp` debug string and `"Failed to identify item"` assert message at file offset 0x05793A, which is exactly where item 50's struct starts (0x056F76 + 48×52 = 0x05793A). The game code reads prices only from the struct field (`[bx + 0x11FA]`) with no fallback, so items 50-56 have garbage prices at runtime. This is a confirmed linker-era bug in v1.50.
+**Status**: Items 2-49 fully verified from binary struct data. Items 50-56 have a **data layout bug** — the Borland C++ linker placed the `equip.cpp` debug string and `"Failed to identify item"` assert message at file offset 0x05793A, which is exactly where item 50's struct starts (0x056F76 + 48×52 = 0x05793A). The game code reads prices only from the struct field (`[bx + 0x11FA]`) with no fallback, so items 50-56 have garbage prices at runtime. This is a confirmed linker-era bug in v1.50. **Intended prices for 50-56 recovered from the official Scorched Earth manual** (abandonwaredos.com bundle). Patriot Missiles (idx 53) are not listed in the manual — possibly a hidden/debug item or added after the manual was printed.
 
 **Intermediate files**: `disasm/weapon_data_corrected.txt`, `disasm/weapon_name_ptrtable.txt`, `disasm/weapon_structs.txt`, `disasm/accessory_prices.txt`
 
@@ -337,6 +337,51 @@ void napalm_handler(int x, int y) {
 No weapon struct data. Hardcoded special case in the projectile physics loop, before the dispatch mechanism is reached.
 
 **Intermediate files**: `disasm/weapon_dispatch_decoded.txt`, `disasm/extras_decoded.txt`
+
+
+
+#### Laser / Plasma Laser Accessories (VERIFIED)
+
+Laser and Plasma Laser are **accessories**, not fireable beam weapons. They have NULL behavior function pointers (`0x0000:0x0000`) and are classified as accessories by `equipInit` (file 0x1D5D4).
+
+**Key discovery**: Struct fields `+0x0A`/`+0x0C` are a **far function pointer** (offset:segment), dispatched at file 0x2120A via `call word far [bx + 0x1200]`. NULL pointers indicate non-weapon accessories.
+
+**Accessory boundary**: `DS:E4F0 = 33` (Laser), `DS:D548 = 32` (Earth Disrupter = last weapon). Weapon cycling wraps at this boundary.
+
+**Targeting line function** (file 0x36321, segment 0x2F76:0x01C1):
+
+```c
+void draw_laser_sight(int x, int y, int angle, int end_angle, int power, int type) {
+    double angle_rad = angle * PI_180;      // DS:6100
+    double end_rad = end_angle * PI_180;
+    if (type == 1) {        // Plasma Laser
+        DS:EC4C = 0xFFFF;   // no erase mask
+        DS:EC4E = 0xFE;     // bright white (254)
+    } else {                // Standard Laser
+        DS:EC4C = 0xFE;     // erase on white pixels
+        DS:EC4E = 0x78;     // green/turquoise (120)
+    }
+    while (angle_rad < end_rad) {
+        int dx = (int)(sin(angle_rad) * (-power));
+        int dy = (int)(cos(angle_rad) * power);
+        bresenham_line(old_pos, new_pos, pixel_callback);
+        angle_rad += ANGLE_STEP;  // DS:6108 ~0.3 rad
+    }
+    bresenham_line(old_pos, final_pos, pixel_callback);
+}
+```
+
+**Per-pixel callback** (file 0x36271, segment 0x2F76:0x0111): checks bounds, cavern wrapping. Laser (0x78) blends with terrain; Plasma Laser (0xFE) overwrites background.
+
+| Property | Laser | Plasma Laser |
+|----------|-------|--------------|
+| Price | 10,000 | 10,000 |
+| Bundle | 6 uses/buy | 2 uses/buy |
+| Arms Level | 2 | 2 |
+| Sight Color | 0x78 (green) | 0xFE (white) |
+| Erase Mode | 0xFE mask | -1 (no mask) |
+
+Code segment 0x2F76 is shared between laser sight display and Plasma Blast/Riot beam animations (`plasma_blast_handler` at 0x2F76:0x000D, `riot_blast_handler` at 0x2F76:0x03BD).
 
 ---
 
@@ -1064,14 +1109,28 @@ Common handler pushes **0x9D (157)** as max trajectory distance parameter, then 
 
 ### AI Type Dispatch (VERIFIED)
 
-AI vtable at **DS:0x027A** (16 bytes per type, 4 far function pointers each):
+Two-level vtable indirection:
 
-- **Types 0-5** (Moron-Spoiler): Have real code segment function pointers
-- **Type 6 (Cyborg)**: First 2 ptrs are real (segment 0x14C8), last 2 are **NULL** (point to DS:0x0272/0x0282 = zeroed data). At runtime, **randomized to type 0-5** before dispatch.
-- **Type 7 (Unknown)**: ALL 4 vtable entries are **NULL** pointers (DS:0x0292-0x02C2). Randomized to type 0-5 at runtime — effectively a random AI personality each turn.
-- **Type 8 (Sentient)**: Vtable **overflows into string data** (entries [1]-[3] decode to ASCII `"oS"`, `"d me"`, `" bum"`). This is a **second data layout bug** identical to the weapon struct corruption. Sentient appears non-functional in v1.50.
+**Level 1 — Pointer table** at **DS:0x02E2** (file 0x056062): Array of 7 far pointers (4 bytes each), each pointing to a 16-byte vtable block within DS (segment 0x4F38).
 
-Dispatch code at file 0x29280 (segment 0x223A):
+**Level 2 — Vtable blocks** at **DS:0x0272** (file 0x055FF2): Each block has 4 far function pointers (slot[0]=reserved/NULL, slot[1]=AI init, slot[2]=primary action, slot[3]=secondary action).
+
+| Type | Name | Pointer Table Entry | Vtable Block | slot[1] (init) | slot[2] (primary) | slot[3] (secondary) |
+|------|------|--------------------|--------------|---------|-----------|----|
+| 0 | Human | DS:0x02E2 → 4F38:0272 | DS:0x0272 | 262C:004E | 262C:0241 | NULL |
+| 1 | Moron | DS:0x02E6 → 4F38:0282 | DS:0x0282 | 11B5:05F7 | 320D:007E | 320D:0380 |
+| 2 | Shooter | DS:0x02EA → 4F38:0292 | DS:0x0292 | 11B5:05F7 | 315D:000C | 315D:0241 |
+| 3 | Poolshark | DS:0x02EE → 4F38:02A2 | DS:0x02A2 | 11B5:05F7 | 3B6B:0007 | 3B6B:00FE |
+| 4 | Tosser | DS:0x02F2 → 4F38:02B2 | DS:0x02B2 | 11B5:05F7 | 1132:000F | 1132:00F0 |
+| 5 | Chooser | DS:0x02F6 → 4F38:02C2 | DS:0x02C2 | 11B5:05F7 | 34B2:0163 | 34B2:02F3 |
+| 6 | Spoiler | DS:0x02FA → 4F38:02D2 | DS:0x02D2 | 11B5:05F7 | 14C8:03E3 | 14C8:0501 |
+| 7 | Cyborg | DS:0x02FE → **6F53:0007** | CORRUPTED | Randomized to 0-5 at runtime |
+| 8 | Unknown | DS:0x0302 → **656D:6420** | CORRUPTED | Randomized to 0-5 at runtime |
+| 9 | Sentient | DS:0x0306 → **2062:6D75** | CORRUPTED | **NOT randomized — crashes DOS** |
+
+Entries 7-9 read from the string `"Some dumb tank: %s\n"` at DS:0x0300, misinterpreted as far pointers.
+
+Dispatch code at file 0x29280 (segment 0x2288):
 ```
 mov ax, [DS:5156]    ; load original AI type
 mov [DS:5154], ax    ; copy to effective type
@@ -1084,7 +1143,9 @@ randomize:
   mov [DS:5154], ax    ; overwrite effective type
 ```
 
-**Intermediate files**: `disasm/ai_code.txt`, `disasm/ai_solver.txt`
+Sentient (type 8) is **never randomized** and would index into garbage data. See "Sentient AI" section below for full corruption analysis.
+
+**Intermediate files**: `disasm/ai_code.txt`, `disasm/ai_solver.txt`, `disasm/play_modes_sentient_analysis.txt`
 
 ### Computer Player Names (Default)
 
@@ -1393,7 +1454,7 @@ palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 |------|----------|
 | Terrain palette function | file 0x03971F (CS=0x32C2:0x00FF) |
 | Terrain type switch | file 0x039951 (7-way jump table at CS:0x0A18) |
-| Terrain type variable | DS:0x5110 |
+| Sky/terrain type variable | DS:0x5110 (controls both sky palette AND terrain shape; see "Sky/Landscape Mode System" section) |
 | Base color table | DS:0x5036 (file 0x05ADB6) |
 | FP gradient constants | DS:0x6258-0x6270 (9.0, 10.0, 20.0, 63.0, 29.0, 31.0, 45.0) |
 | fg_setcolor | indirect via DS:0xEF08 |
@@ -1453,6 +1514,127 @@ Result: yellow (63,59,2) through orange to red-brown (63,20,20)
 
 ---
 
+## Sky/Landscape Mode System (VERIFIED)
+
+The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls both sky palette rendering AND terrain shape generation. Config key: `SKY=%s`.
+
+### Sky Type Enum (DS:0x5110)
+
+| Index | Name | Terrain Handler | Notes |
+|-------|------|----------------|-------|
+| 0 | Plain | file 0x3E700 | Flat terrain, basic sky gradient |
+| 1 | Shaded | file 0x4758B | Simple terrain, gentle shading |
+| 2 | Stars | file 0x4726B | Star-based sky palette |
+| 3 | Storm | file 0x42103 | Storm sky effects |
+| 4 | Sunset | file 0x3F587 | Sunset gradient sky |
+| 5 | Cavern | file 0x44BDD | Mountain .mtn terrain (DS:0x50D8=1) |
+| 6 | Black | file 0x3E700 | Underground visual mode (same terrain as Plain) |
+| 7 | Random | (runtime) | Randomizes to 0-5 via `random(6)` |
+
+### Key Data Locations
+
+| Item | Location |
+|------|----------|
+| Sky type variable | DS:0x5110 |
+| Sky name table | DS:0x621C (8 far ptrs, init at file 0x3AEA0) |
+| Max sky type | DS:0x624E (value 7 = "Random") |
+| Mountain mode flag | DS:0x50D8 (1 when type 5) |
+| Mountain files available | DS:0x621A (0 = no .mtn files) |
+| Random land flag | DS:0x623C |
+| Terrain jump table | file 0x3A118 (cs:0x0A18, 7 word entries) |
+| Terrain generation | file 0x3971F (main function in ranges.cpp) |
+| Sky palette rendering | file 0x285A7 (black sky check for type 6) |
+
+### "Black" Sky (Type 6) — Underground Visual Mode
+
+When SKY=Black, 7 code patches create an underground visual environment:
+
+1. **Black sky** (file 0x285A7): All sky palette entries set to (0,0,0)
+2. **Dark terrain** (file 0x32FF4): RGB values attenuated (right-shifted) for dark underground look
+3. **Dark ground** (file 0x33061): Ground color uses attenuated palette at index 0x50
+4. **Ceiling palette** (file 0x3A0A9): Special ceiling gradient (40 entries) + darkened floor gradient
+5. **No edge fade** (file 0x31925): Terrain edge fading skipped
+6. **No tank colors** (file 0x390F7): Tank palette setup skipped
+7. **No white flash** (file 0x3F2D1): Explosion flash effect disabled
+
+### Random Selection
+
+`random(6)` generates types 0-5 (Plain through Cavern). Type 6 (Black) and type 7 (Random) are excluded from random rotation. Type 5 (Cavern) is also excluded if no .mtn files exist.
+
+**Note**: Despite the name "Cavern" (type 5), it does NOT create a ceiling+floor cave — it uses mountain .mtn terrain files. The actual underground visual is "Black" (type 6) with flat terrain.
+
+**Intermediate files**: `disasm/cavern_shop_analysis.txt`
+
+---
+
+## Shop/Equipment System — equip.cpp (VERIFIED)
+
+### Equipment Initialization (file 0x1D5D4)
+
+The `equipInit()` function maps 16 category boundaries by calling `findWeaponByName()` for each boundary item. Results stored at DS:0xD546-0xD566:
+
+| DS Offset | Category Boundary Item |
+|-----------|----------------------|
+| DS:0xD546 | Smoke Tracer (first purchasable weapon) |
+| DS:0xD548 | (DS:0xD546 - 1, last free weapon) |
+| DS:0xD54A | Heat Guidance |
+| DS:0xD54C | Bal Guidance |
+| DS:0xD54E | Horz Guidance |
+| DS:0xD550 | Vert Guidance |
+| DS:0xD552 | Lazy Boy |
+| DS:0xD554 | Parachute |
+| DS:0xD556 | Battery |
+| DS:0xD558 | Mag Deflector |
+| DS:0xD55A | Shield |
+| DS:0xD55C | Warp Shield |
+| DS:0xD55E | Teleport Shield |
+| DS:0xD560 | Flicker Shield |
+| DS:0xD562 | Force Shield |
+| DS:0xD564 | Heavy Shield |
+| DS:0xD566 | Super Mag |
+
+Additional init variables:
+- DS:0xE4F0: first free weapon index
+- DS:0xE4F2: count of non-free (purchasable) weapons
+- DS:0x1BB8: init flag (prevent re-initialization)
+
+### Item Enable/Disable Config
+
+| DS Offset | Flag | Effect |
+|-----------|------|--------|
+| DS:0x50FE | Free market | 1 = all items purchasable |
+| DS:0x5158 | Scoring mode | 0x64 (100) enables Earth Disrupter |
+| DS:0x513A | Contact trigger | 0 = Contact Trigger disabled |
+| DS:0x5168 | Useless items | 0 = hide Tracers etc. |
+| DS:0x5162 | Parachute | 0 = Parachute disabled |
+| DS:0x5188 | Play mode | 0=Standard, 1=Limited, 2=Restricted |
+| DS:0x518A | Arms level | 0-4, gates item tier availability |
+
+### Shop UI (file 0x1DBB5)
+
+The shop screen dispatches through a 12-case jump table at file 0x1DF4D. For computer players, a random action (0-10) is selected via `random(0x0B)`:
+
+| Case | File Offset | Action |
+|------|-------------|--------|
+| 0 | 0x1DCCE | Buy weapon category + sell back |
+| 1 | 0x1DCF5 | Buy weapon + guidance |
+| 2 | 0x1DD0A | Buy weapon + specific item + guidance |
+| 3 | 0x1DD37 | Buy weapon + specific item + accessory |
+| 4 | 0x1DD95 | Display money |
+| 5 | 0x1DDB0 | Buy shields |
+| 6 | 0x1DDC9 | Buy defense items |
+| 7 | 0x1DDEE | Show equipment summary |
+| 8 | 0x1DE12 | Buy guidance (like case 1) |
+| 9 | 0x1DE20 | Buy mountain gear |
+| 10 | 0x1DE29 | Sell equipment |
+| 11 | 0x1DE59 | Display inventory |
+
+Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll (skip guidance in mountain terrain).
+
+**Intermediate files**: `disasm/cavern_shop_analysis.txt`
+
+---
+
 ## Intermediate Disassembly Files
 
 All located in `disasm/` directory:
@@ -1491,6 +1673,8 @@ All located in `disasm/` directory:
 | **`damage_decoded.txt`** | **Damage system (extras.cpp) with decoded FPU instructions** |
 | **`extras_decoded.txt`** | **Explosion system with decoded FPU instructions** |
 | **`borland_rtl.txt`** | **Borland RTL function signatures (sin, cos, atan2, sqrt, etc.)** |
+| **`play_modes_sentient_analysis.txt`** | **Play modes (Sequential/Simultaneous/Synchronous) and Sentient AI vtable corruption analysis** |
+| **`cavern_shop_analysis.txt`** | **Sky/landscape mode system (8 sky types) and shop/equipment system (16 categories, buy/sell flow)** |
 
 ---
 
@@ -1514,11 +1698,7 @@ All located in `disasm/` directory:
 
 ### HIGH PRIORITY (blocks game implementation)
 
-8. **Items 50-56 actual prices** — Binary has corrupt data. Web search found no external source. Options:
-   - Download Scorched Earth v1.2 from whicken.com and check if that binary has uncorrupted struct data
-   - Run v1.50 in DOSBox debugger, check if prices are fixed up at runtime
-   - Check the official HTML manual bundled with the game download
-   - Ref: `disasm/accessory_prices.txt`
+8. ~~**Items 50-56 actual prices**~~ — **RESOLVED**. Official Scorched Earth manual (bundled with game download on abandonwaredos.com) contains intended prices: Force Shield=$25K/3, Heavy Shield=$30K/2, Super Mag=$40K/2, Auto Defense=$1.5K/1, Fuel Tank=$10K/10, Contact Trigger=$1K/25. Patriot Missiles not listed in manual. Binary struct data confirmed corrupt (linker overlap bug) but prices now recovered from authoritative source.
 
 9. ~~**AI trajectory solver internals**~~ — **RESOLVED**. Not a closed-form ballistic equation — uses pixel-level ray marching via `fg_getpixel`. Steps one pixel at a time, decrements gravity each pass. Full pseudocode for 7 functions (target selection, main solver, power calc, wind correction x2, noise injection x2) traced from FPU decode.
 
@@ -1538,23 +1718,23 @@ All located in `disasm/` directory:
 
 16. ~~**MIRV split mechanics**~~ — **RESOLVED**. Apogee detected via velocity sign flip (stored last_sign at +0x66/+0x68). At split: 6 sub-warheads (12-byte stride). Damage = (radius-dist)*100/radius, capped at 110. Death's Head uses wider spread table (param=1 vs param=0). See "Weapon Behavior Dispatch" section.
 
-17. **Laser/beam weapons** — How Laser and Plasma Laser render and deal damage (continuous beam vs projectile).
+17. ~~**Laser/beam weapons**~~ — **RESOLVED**. Laser and Plasma Laser are ACCESSORIES (not fireable beam weapons). They provide a visual "laser sight" targeting line during aiming — Laser draws green (0x78), Plasma Laser draws white (0xFE). Both have NULL behavior function pointers (0:0). Targeting line at file 0x36321 uses Bresenham with per-pixel callback (0x2F76:0x0111). BhvType/BhvSub are far function pointers (offset:segment), not type codes. See `disasm/laser_weapons_analysis.txt`.
 
 ### LOW PRIORITY
 
 18. ~~**Cheat codes**~~ — **RESOLVED**. All 5 cheat/debug codes fully traced. ASGARD=frondheim (MDA debug overlay), ASGARD=ragnarok (file debug log), mayhem (all weapons x99), nofloat (disable FPU physics), player name selection. See "Cheat Codes" section above.
 
-19. **Tosser/Unknown/Sentient AI details** — Tosser is functional (noise=[63,23]). Unknown randomizes to 0-5. Sentient has corrupted vtable — confirm non-functional.
+19. ~~**Tosser/Unknown/Sentient AI details**~~ — **RESOLVED**. Tosser is functional (noise=[63,23]). Unknown (type 7) and Cyborg (type 6) randomize to 0-5 at runtime via dispatch at 0x292A5. Sentient (type 8) has **corrupted vtable** — pointer table at DS:0x02E2 has only 7 valid entries; Sentient's entry at DS:0x0302 reads ASCII string "Some dumb tank: %s\n" as a far pointer (656D:6420), producing a wild pointer crash. Confirmed non-functional in v1.50. See "Sentient AI" section below.
 
-20. **Cavern terrain mode** — "Cavern" string at 0x058F6D. Trace reference to find how this alternate mode works (ceiling + floor terrain?).
+20. ~~**Cavern terrain mode**~~ — **RESOLVED**. "Cavern" is sky type 5 (DS:0x5110), which uses mountain .mtn terrain generation — NOT ceiling+floor. The underground visual effect (black sky, dark palette, skip flash/fade) is triggered by sky type 6 ("Black"), not "Cavern". DS:0x5110 controls both sky palette and terrain shape via 7-entry jump table at file 0x3A118. 8 sky modes: Plain(0), Shaded(1), Stars(2), Storm(3), Sunset(4), Cavern(5), Black(6), Random(7). Name table at DS:0x621C initialized at file 0x3AEA0. See `disasm/cavern_shop_analysis.txt`.
 
-21. **Score system** — score.cpp at segment 0x30B2. Standard/Corporate/Vicious scoring mode formulas.
+21. ~~**Score system**~~ — **RESOLVED**. score.cpp at segment 0x30B2 (file base 0x37520). All three scoring modes traced: Standard, Corporate, and Vicious share the same per-damage and per-death formulas. Standard and Corporate include end-of-round survival pool bonuses; Vicious does not. Corporate mode hides scores during play. Per-weapon-damage: attacker gets +30x (enemy) or -15x (friendly fire). Per-shield-damage: +2x (enemy) or -1x (friendly). Kill bonuses: +500/+4000 (enemy), -2000 (teammate), -1500 (self). End-of-round pool: based on surviving players' max_power and shield_energy. See `disasm/score_system_analysis.txt` and "Score System" section below.
 
-22. **Equip.cpp shop system** — Equipment init at 0x16BD4 maps 16 categories via `findWeaponByName()`. Could clarify shop UI flow and buy/sell mechanics.
+22. ~~**Equip.cpp shop system**~~ — **RESOLVED**. Equipment init at file 0x1D5D4 maps 16 category boundaries via `findWeaponByName()` to DS:0xD546-0xD566 (Smoke Tracer through Super Mag). Shop UI at file 0x1DBB5 dispatches through 12-case jump table (file 0x1DF4D) with random action selection for AI. Items enabled/disabled by 6 config flags: free market (DS:0x50FE), scoring mode (DS:0x5158), triggers (DS:0x513A), useless items (DS:0x5168), parachute (DS:0x5162), play mode (DS:0x5188). Arms level (DS:0x518A) gates item tiers 0-4. See `disasm/cavern_shop_analysis.txt`.
 
 23. **Sound system** — How sound effects are triggered, what format they use, Fastgraph sound integration.
 
-24. **Simultaneous/Synchronous play modes** — How these differ from Sequential in the main game loop (play.cpp).
+24. ~~**Simultaneous/Synchronous play modes**~~ — **RESOLVED**. Play mode variable at DS:0x5188 (0=Sequential, 1=Simultaneous, 2=Synchronous). 36 code references across binary. Sequential: one-at-a-time turns with full display updates. Simultaneous: all aim at once, fire callbacks cleared (player +0xAE/+0xB0 = NULL), timer-controlled, projectile screen-wrapping enabled. Synchronous: sequential aiming + simultaneous firing. See "Play Modes" section below.
 
 ---
 
@@ -1857,6 +2037,306 @@ fg_point(x, y, 0xC8)  // draw hit marker (color 200)
 | 0x27B1D | `draw_tank_sprite()` | Animated tank sprite rendering with bitmap |
 | 0x28698 | `capture_sprite()` | Sprite/bitmap capture from screen region |
 | 0x28830 | `render_sprite_pixel()` | Pixel-level bitmap rendering with fg_point |
+
+---
+
+## Play Modes — play.cpp (VERIFIED from disassembly)
+
+### Overview
+
+Scorched Earth v1.50 supports three play modes controlled by the variable at **DS:0x5188** (file 0x5AF08). The mode is configured via `PLAY_MODE` in `scorch.cfg` and stored as an integer: 0=Sequential, 1=Simultaneous, 2=Synchronous.
+
+Mode name strings: `"Sequential"` at DS:0x2803, `"Simultaneous"` at DS:0x280E, `"Synchronous"` at DS:0x281B.
+
+**36 code references** to DS:0x5188 found across extras.cpp, player.cpp, play.cpp, icons.cpp, shields.cpp, and shark.cpp.
+
+### Mode Behaviors
+
+| Feature | Sequential (0) | Simultaneous (1) | Synchronous (2) |
+|---------|---------------|-------------------|-----------------|
+| Aiming | One player at a time | All players at once | One at a time |
+| Firing | After each aim | All at once (batch) | All at once (batch) |
+| Fire callback (+0xAE/+0xB0) | Active | Cleared to NULL | Active during aim |
+| Screen wrapping | Disabled | Enabled | Enabled |
+| Timer-controlled | No | Yes (DS:0xD506) | No |
+| Display updates | Full per-turn | Minimal during aim | Full during aim |
+| AI flag (DS:0x510E) | 0 | 1 | 0 |
+
+### Sequential Mode (0)
+
+Classic turn-based play. One player aims and fires at a time. The turn handler at file 0x30560 animates the turret rotation with smooth stepping (clamped to +/-15 pixels per frame, 15ms delay). After firing, the projectile resolves completely before advancing to the next alive player.
+
+Key code at file 0x3056D:
+```
+cmp word [0x5188], 1    ; Simultaneous?
+jnz use_sequential      ; no -> animate turret normally
+jmp clear_callbacks     ; yes -> skip animation
+```
+
+### Simultaneous Mode (1)
+
+All players aim simultaneously with a timer countdown. The fire callback far pointers in the player struct are cleared to prevent individual firing:
+
+```
+; File 0x3063A:
+les bx, [0x5182]               ; load current player ptr
+mov word [es:bx+0xB0], 0       ; clear fire callback segment
+mov word [es:bx+0xAE], 0       ; clear fire callback offset
+```
+
+After the timer expires, all projectiles fire and resolve simultaneously. Screen wrapping is enabled for projectiles that exit the viewport horizontally (file 0x29CA8-0x29CC2):
+```
+if x < screen_left:  x += (screen_right - screen_left + 1)
+if x > screen_right: x -= (screen_right - screen_left + 1)
+```
+
+The AI dispatch at file 0x292CA sets DS:0x510E = 1 to flag simultaneous AI behavior.
+
+### Synchronous Mode (2)
+
+Hybrid mode: players aim one at a time (like Sequential), but all projectiles fire simultaneously (like Simultaneous). Three code locations specifically check for mode 2:
+- File 0x1D8EA: Fire phase handling
+- File 0x1DBCD: Combined check with mode 0 for display behavior
+- File 0x306FE: Round completion handling
+
+At file 0x1DBC6, Sequential and Synchronous are grouped together (`if mode==0 OR mode==2`) for certain display update behaviors.
+
+### Key Functions
+
+| File Offset | Segment | Purpose |
+|-------------|---------|---------|
+| 0x30560 | ~0x29B6 | Turn handler: turret animation, mode-specific fire dispatch |
+| 0x30652 | ~0x29B6 | Fire check: alive player count, ready-to-fire flag |
+| 0x29280 | 0x2288 | AI type dispatch: randomize Cyborg/Unknown, set AI flags |
+| 0x29505 | 0x22B0 | AI accuracy: noise parameter switch (types 0-5 only) |
+
+**Intermediate file**: `disasm/play_modes_sentient_analysis.txt`
+
+---
+
+## Sentient AI — shark.cpp (VERIFIED from disassembly)
+
+### Overview
+
+Sentient is AI type 8 (or type 9 in the user-facing menu). It has a **corrupted vtable** due to the pointer table at DS:0x02E2 having only 7 valid entries (types 0-6). Sentient's pointer table entry reads from the ASCII string `"Some dumb tank: %s\n"`, producing a wild far pointer that would crash DOS. Sentient is **non-functional in v1.50**.
+
+### Corruption Mechanism
+
+The AI vtable uses two-level indirection:
+
+1. **Pointer table** at DS:0x02E2 (file 0x056062): 7 entries of 4 bytes each (total 28 bytes), spanning DS:0x02E2 to DS:0x02FD.
+
+2. **Vtable blocks** at DS:0x0272 (file 0x055FF2): 7 blocks of 16 bytes each, spanning DS:0x0272 to DS:0x02E1.
+
+The string `"Some dumb tank: %s\n"` begins at **DS:0x0300** (file 0x056080). When indexing the pointer table for type 8:
+
+```
+entry_address = DS:0x02E2 + 8 * 4 = DS:0x0302
+```
+
+This lands inside the string data at offset +2, reading the bytes `65 6D 64 20` ("me d") as a far pointer `656D:6420`. This points to physical address 0x6BAF0 + 0x6420 = 0x71F10, which is unmapped memory in standard DOS.
+
+### Why Cyborg and Unknown Don't Crash
+
+Types 6 (Cyborg) and 7 (Unknown) also have corrupted vtable entries, but the dispatch code at file 0x292A5 explicitly randomizes them to types 0-5 **before** any vtable access:
+
+```asm
+cmp word [0x5154], 6    ; Cyborg?
+jz randomize
+cmp word [0x5154], 7    ; Unknown?
+jnz skip                ; other types pass through unchanged
+randomize:
+  push 6
+  call random           ; random(0..5)
+  mov [0x5154], ax      ; overwrite with valid type
+```
+
+Type 8 (Sentient) is **not covered** by this check, so it passes through with its original value and attempts to use the corrupted vtable.
+
+### Additional Safety Gaps
+
+The AI accuracy dispatch at file 0x29505 bounds-checks against 5:
+```asm
+mov bx, [0x5154]       ; load effective AI type
+cmp bx, 5              ; bounds check
+ja exit                 ; type > 5: skip entirely
+```
+
+If Sentient somehow survived the vtable crash, it would have **uninitialized noise parameters** because the accuracy switch only handles types 0-5.
+
+### Evidence of Incomplete Implementation
+
+- The string `"Sentient?"` (with question mark) at DS:0x2709 suggests developer uncertainty
+- The `"Some dumb tank: %s\n"` debug string adjacent to the vtable data suggests the developer knew invalid AI types could occur
+- The vtable was sized for exactly 7 types (Human + 6 AI personalities), with Cyborg and Unknown designed as wrappers over the existing 6 AI types rather than independent implementations
+
+### Summary
+
+| Aspect | Status |
+|--------|--------|
+| Vtable pointer (DS:0x0302) | CORRUPTED: reads ASCII string as far pointer |
+| Randomization protection | ABSENT: only types 6, 7 are randomized |
+| Accuracy parameters | ABSENT: switch only covers types 0-5 |
+| Runtime behavior | CRASH: wild far pointer to unmapped DOS memory |
+| Conclusion | Sentient was never completed; non-functional in v1.50 |
+
+**Intermediate file**: `disasm/play_modes_sentient_analysis.txt`
+
+---
+
+## Score System — score.cpp (VERIFIED from disassembly)
+
+### Overview
+
+Score system implemented in `score.cpp` (segment 0x30B2, file base 0x37520). Three scoring modes configured via DS:0x5188: Standard (0), Corporate (1), Vicious (2). All three modes share the same per-damage and per-death formulas. The differences are:
+
+| Feature | Standard | Corporate | Vicious |
+|---------|----------|-----------|---------|
+| Per-damage scoring | Yes | Yes | Yes |
+| Per-death bonuses | Yes | Yes | Yes |
+| End-of-round pool | Yes | Yes | **No** |
+| Interest display | Yes | Hidden | No |
+| Score visibility | Visible | **Hidden** | Visible |
+
+### Per-Damage Scoring (score.cpp offset 0x168, file 0x37688)
+
+Called from `player.cpp` (weapon damage, type 0) and `shields.cpp` (shield damage, type 1) whenever damage is dealt. Scoring is applied to the **attacker**, not the victim.
+
+```
+score_on_damage(attacker, target, damage_amount, damage_type):
+    // damage_amount is POSITIVE (HP/shield points removed)
+    // damage_type: 0 = weapon, 1 = shield
+
+    if attacker == NULL: return
+    if teams_disabled (DS:0x5148 == 0): return
+
+    if different_team(attacker, target):
+        // REWARD for hitting enemy
+        if damage_type == 0:  score = damage * 30
+        if damage_type == 1:  score = damage * 2
+        add_score(attacker, score)
+
+    else if attacker != target:  // same team, not self
+        // PENALTY for friendly fire
+        if damage_type == 0:  score = damage * (-15)
+        if damage_type == 1:  score = damage * (-1)
+        add_score(attacker, score)
+
+    // Self-hits: no scoring change
+```
+
+**Multiplier summary:**
+
+| Situation | Weapon Damage (type 0) | Shield Damage (type 1) |
+|-----------|----------------------|----------------------|
+| Enemy hit | +30x | +2x |
+| Friendly fire | -15x | -1x |
+| Self-hit | 0 | 0 |
+
+### Per-Death Scoring (score.cpp offset 0xC3, file 0x375E3)
+
+Called from `equip.cpp` (file 0x1DC2B) when a tank is destroyed. Applied to the **attacker** (killer). Called unconditionally for all scoring modes.
+
+```
+score_on_death(attacker, victim):
+    if attacker == NULL: return
+
+    if different_team(attacker, victim):
+        // BOUNTY for killing enemy
+        if teams_enabled (DS:0x5148 != 0):
+            add_score(attacker, +500)
+        else:
+            add_score(attacker, +4000)
+
+    else if attacker != victim:
+        // PENALTY for killing teammate
+        add_score(attacker, -2000)
+
+    else:
+        // PENALTY for self-destruction
+        add_score(attacker, -1500)
+```
+
+### End-of-Round Scoring (file 0x37381)
+
+Called for Standard and Corporate modes after each round. **Skipped entirely for Vicious mode** (check at file 0x306FE: `cmp [0x5188], 2; jz skip`).
+
+```
+end_of_round_scoring():
+    if teams_enabled (DS:0x5148 != 0):
+        pool = round_number * 500 + 5000
+        for each alive player:
+            pool += max_power * 30
+            pool += shield_energy * 2
+            player.wins++
+        for each alive player:
+            share = pool / round_number
+            add_score(player, share)
+    else:
+        pool = num_players * 1000 + round_number * 4000
+        for each alive player:
+            player.wins++
+            add_score(player, pool / round_number)
+```
+
+### Score Storage
+
+Two separate systems track player performance:
+
+1. **Cash** (sub-struct +0x9E): Spendable currency for buying weapons. Modified by `add_cash()` (0x2A16:0xABE). Capped at 0 and `max_cash` (+0x9C). Max cash computed as: `max_power * 1000 / interest_rate`.
+
+2. **Score table** (DS:0xE1EC, stride 22 bytes): Cumulative performance metrics per event type (10 slots). Modified by `add_score()` (score.cpp offset 0x2B9). Uses bignum arithmetic for accumulation.
+
+### Interest System (Standard Mode Only)
+
+Standard mode has an interest mechanism displayed after each shot (file 0x28F1D, called at 0x307B9). The interest calculation at file 0x37964 uses FPU math:
+
+```
+profit = (weapon_cost[slot] * round_count * interest_rate) / base_cost
+```
+
+Interest amount stored at DS:0x515A (signed). Displayed as "Earned interest" with positive/negative formatting.
+
+### Corporate Mode Details
+
+Corporate mode uses identical scoring formulas to Standard. The key differences are:
+- **Hidden scores**: The `set_cash()` function (0x2A16:0x0DE) has a special Corporate path that uses a different display method, hiding individual score changes during gameplay.
+- **No interest display**: The interest display call at 0x307B9 is gated by `cmp [0x5188], 0` (Standard only).
+- **End-of-round pool**: Same formula as Standard.
+- **Reveal at end**: Final scores shown only at game end ("Final Scoring" dialog).
+
+### Vicious Mode Details
+
+Vicious mode uses the same per-damage and per-death formulas as Standard, but:
+- **No end-of-round pool**: The survival bonus is completely disabled. Score depends entirely on damage dealt and kills.
+- **No interest**: No interest mechanism.
+- **Visible scores**: Unlike Corporate, individual scores are displayed during play.
+
+### Team System (same_team function at 0x2A16:0x198D, file 0x324ED)
+
+```
+same_team(player_a, player_b):
+    if player_a.player_id (+0xA0) == player_b.player_id: special handling
+    compare player_a.team_number (+0x30) vs player_b.team_number (+0x30)
+    return 0 if same team, 1 if different team
+```
+
+Teams enabled/disabled via DS:0x5148. When teams are disabled, kill bounty increases from 500 to 4000.
+
+### Key File Offsets
+
+| Function | File Offset | Call Pattern |
+|----------|-------------|-------------|
+| `score_event_distribute` | 0x37520 | Callback via function pointer |
+| `score_on_death` | 0x375E3 | `lcall 0x3098:0x263` from equip.cpp |
+| `score_on_damage` | 0x37688 | `lcall 0x3098:0x308` from player.cpp, shields.cpp |
+| `add_score` | 0x377D9 | Near call within score.cpp |
+| `end_of_round_scoring` | 0x37381 | Near call from play.cpp post-fire handler |
+| `interest_calculation` | 0x37964 | FPU-based, within score.cpp |
+| `score_dialog_setup` | 0x37CA0 | `lcall` from UI system |
+| `same_team` | 0x324ED | `lcall 0x2A16:0x198D` |
+| `add_cash` | 0x3161E | `lcall 0x2A16:0xABE` (6 call sites) |
+| `set_cash` | 0x316CE | Near call from add_cash |
 
 ---
 
