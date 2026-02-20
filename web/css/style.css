@@ -11,10 +11,38 @@ body {
   align-items: center;
   min-height: 100vh;
   min-height: 100dvh;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'Press Start 2P', monospace;
   color: #ccc;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== Animations ===== */
+
+@keyframes fireGlow {
+  0%, 100% {
+    text-shadow:
+      0 0 10px #ff4400,
+      0 0 30px #cc3300,
+      0 0 60px rgba(170, 34, 0, 0.4);
+  }
+  50% {
+    text-shadow:
+      0 0 15px #ff6600,
+      0 0 40px #ff4400,
+      0 0 80px rgba(204, 51, 0, 0.6);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ===== Landing Page ===== */
@@ -30,56 +58,76 @@ body {
   text-align: center;
 }
 
+/* CRT scanline overlay */
+#landing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
 .landing-inner {
-  max-width: 480px;
+  max-width: 520px;
   padding: 2rem 1.5rem;
+  position: relative;
+  z-index: 2;
 }
 
 .title-glow {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: bold;
   color: #ff6600;
-  text-shadow:
-    0 0 10px #ff4400,
-    0 0 30px #cc3300,
-    0 0 60px rgba(170, 34, 0, 0.4);
-  letter-spacing: 0.12em;
-  margin-bottom: 0.3rem;
+  animation: fireGlow 2.5s ease-in-out infinite, fadeInUp 0.6s ease-out both;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
 }
 
 .version {
-  font-size: 1rem;
+  font-size: 0.65rem;
   color: #777;
   margin-bottom: 1.5rem;
+  animation: fadeInUp 0.6s ease-out 0.1s both;
 }
 
 .tagline {
-  font-size: 1.05rem;
+  font-size: 0.7rem;
   color: #ffaa44;
   font-style: italic;
   margin-bottom: 1.5rem;
+  animation: fadeInUp 0.6s ease-out 0.2s both;
 }
 
 .description {
-  font-size: 0.82rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
   color: #888;
-  line-height: 1.65;
+  line-height: 1.7;
   margin-bottom: 2.2rem;
+  animation: fadeInUp 0.6s ease-out 0.3s both;
 }
 
 #start-btn {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 1.35rem;
-  font-weight: bold;
-  padding: 0.75rem 2.5rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.9rem;
+  padding: 0.85rem 2.2rem;
   background: #bb3300;
   color: #fff;
   border: 2px solid #ff5500;
   border-radius: 4px;
   cursor: pointer;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   transition: background 0.15s, box-shadow 0.15s;
+  animation: fadeInUp 0.6s ease-out 0.4s both;
 }
 
 #start-btn:hover {
@@ -94,18 +142,24 @@ body {
 
 .controls-info {
   margin-top: 2.2rem;
-  font-size: 0.7rem;
+  font-size: 0.55rem;
   color: #555;
+  animation: fadeInUp 0.6s ease-out 0.5s both;
 }
 
 .controls-info kbd {
   display: inline-block;
   background: #1a1a1a;
   border: 1px solid #3a3a3a;
-  padding: 0.1rem 0.4rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 3px;
-  font-size: 0.68rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.5rem;
   color: #999;
+}
+
+.controls-hint-touch {
+  display: none;
 }
 
 /* ===== Game Container ===== */
@@ -123,11 +177,32 @@ body {
   display: flex;
 }
 
+/* CRT scanline overlay on game */
+#game-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
 #screen {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   width: min(960px, 100vw);
   height: min(600px, calc(100vw * 200 / 320));
+  border-radius: 4px;
+  box-shadow:
+    0 0 30px rgba(255, 85, 0, 0.08),
+    inset 0 0 60px rgba(0, 0, 0, 0.3);
+  touch-action: none;
 }
 
 /* ===== Fullscreen Toggle Button ===== */
@@ -164,15 +239,16 @@ body {
   color: #fff;
 }
 
-/* ===== Mobile Touch Controls ===== */
+/* ===== Mobile Touch Controls (horizontal bar) ===== */
 
 #touch-controls {
   display: none;
   width: 100%;
-  padding: 6px 10px;
-  padding-bottom: max(6px, env(safe-area-inset-bottom));
-  justify-content: space-between;
+  padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  justify-content: center;
   align-items: center;
+  gap: 10px;
   background: #0c0c0c;
   border-top: 1px solid #222;
   user-select: none;
@@ -180,23 +256,10 @@ body {
   touch-action: manipulation;
 }
 
-.tc-left, .tc-mid, .tc-right {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: center;
-}
-
-.tc-row {
-  display: flex;
-  gap: 5px;
-}
-
 .tc-btn {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 1rem;
-  font-weight: bold;
-  padding: 10px 16px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.6rem;
+  padding: 12px 16px;
   background: #1a1a1a;
   color: #ccc;
   border: 1px solid #3a3a3a;
@@ -205,7 +268,7 @@ body {
   user-select: none;
   -webkit-user-select: none;
   cursor: pointer;
-  min-width: 48px;
+  min-width: 52px;
   text-align: center;
   transition: background 0.08s;
 }
@@ -216,37 +279,33 @@ body {
   color: #fff;
 }
 
-.tc-sm {
-  padding: 7px 16px;
-  font-size: 0.85rem;
+.tc-esc {
+  color: #888;
+  font-size: 0.55rem;
+}
+
+.tc-wpn {
+  color: #aaa;
+}
+
+.tc-ok {
+  color: #aaa;
 }
 
 .tc-fire {
   background: #551100;
   color: #ff6600;
   border-color: #882200;
-  font-size: 1.15rem;
-  padding: 20px 28px;
+  font-size: 0.7rem;
+  padding: 16px 22px;
   border-radius: 50%;
-  min-width: 76px;
-  min-height: 76px;
+  min-width: 64px;
+  min-height: 64px;
 }
 
 .tc-fire:active {
   background: #cc4400;
   color: #fff;
-}
-
-.tc-wpn {
-  font-size: 0.8rem;
-  padding: 8px 14px;
-  color: #aaa;
-}
-
-.tc-ok {
-  font-size: 0.8rem;
-  padding: 8px 14px;
-  color: #aaa;
 }
 
 /* ===== Responsive / Mobile ===== */
@@ -262,20 +321,28 @@ body {
   }
 
   .title-glow {
-    font-size: 1.7rem;
+    font-size: 1.3rem;
   }
 
   .description {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
   }
 
   #start-btn {
-    font-size: 1.2rem;
-    padding: 0.7rem 2rem;
+    font-size: 0.8rem;
+    padding: 0.7rem 1.8rem;
   }
 
+  /* Show touch hint, hide keyboard hint */
   .controls-info {
+    display: block;
+  }
+  .controls-hint-desktop {
     display: none;
+  }
+  .controls-hint-touch {
+    display: block;
+    font-family: 'Press Start 2P', monospace;
   }
 }
 
@@ -322,20 +389,21 @@ body.fullscreen #fs-toggle {
 /* ===== Landing Fullscreen Button ===== */
 
 #start-fs-btn {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.85rem;
-  padding: 0.5rem 1.5rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.55rem;
+  padding: 0.55rem 1.2rem;
   background: transparent;
   color: #888;
   border: 1px solid #555;
   border-radius: 4px;
   cursor: pointer;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   margin-top: 0.8rem;
   display: block;
   margin-left: auto;
   margin-right: auto;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
+  animation: fadeInUp 0.6s ease-out 0.45s both;
 }
 
 #start-fs-btn:hover {
@@ -390,21 +458,16 @@ body.fullscreen #fs-toggle {
   }
 
   .tc-btn {
-    padding: 6px 12px;
-    font-size: 0.85rem;
-    min-width: 40px;
+    padding: 8px 12px;
+    font-size: 0.5rem;
+    min-width: 44px;
   }
 
   .tc-fire {
-    padding: 14px 20px;
-    min-width: 60px;
-    min-height: 60px;
-    font-size: 1rem;
-  }
-
-  .tc-sm {
-    padding: 4px 12px;
-    font-size: 0.75rem;
+    padding: 12px 16px;
+    min-width: 52px;
+    min-height: 52px;
+    font-size: 0.6rem;
   }
 }
 

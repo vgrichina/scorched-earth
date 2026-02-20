@@ -419,6 +419,7 @@ function gameLoop() {
 // Init sound on first user gesture (browser autoplay policy)
 window.addEventListener('keydown', () => initSound(), { once: true });
 window.addEventListener('click', () => initSound(), { once: true });
+window.addEventListener('touchstart', () => initSound(), { once: true });
 
 // Game states where H-key toggle and cheat codes should work
 // (not during TITLE, CONFIG, PLAYER_SETUP where keys are used for menus/name entry)

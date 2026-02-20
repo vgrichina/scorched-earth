@@ -3,7 +3,7 @@
 // EXE: sub-menus for terrain, sky, walls, scoring, player setup
 // States: TITLE → CONFIG → PLAYER_SETUP → game starts
 
-import { config } from './config.js';
+import { config, saveConfig } from './config.js';
 import { fillRect, hline } from './framebuffer.js';
 import { drawText, drawTextShadow } from './font.js';
 import { BLACK } from './palette.js';
@@ -116,6 +116,7 @@ function handleConfigInput() {
 
   // Proceed to player setup
   if (consumeKey('Enter') || consumeKey('Space')) {
+    saveConfig();
     initPlayerSetup();
     menu.screen = 'player_setup';
     menu.playerSetupIdx = 0;

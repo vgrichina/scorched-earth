@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Scorched Earth v1.50</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -21,10 +24,11 @@
       <button id="start-btn">START GAME</button>
       <button id="start-fs-btn">START FULLSCREEN</button>
       <div class="controls-info">
-        <p><kbd>&larr;</kbd><kbd>&rarr;</kbd> Angle
+        <p class="controls-hint-desktop"><kbd>&larr;</kbd><kbd>&rarr;</kbd> Angle
         &nbsp;&nbsp;<kbd>&uarr;</kbd><kbd>&darr;</kbd> Power
         &nbsp;&nbsp;<kbd>Tab</kbd> Weapon
         &nbsp;&nbsp;<kbd>Space</kbd> Fire</p>
+        <p class="controls-hint-touch">Swipe to aim &bull; Tap buttons to fire</p>
       </div>
     </div>
   </div>
@@ -35,23 +39,12 @@
     <button id="fs-toggle" title="Toggle fullscreen">&#x26F6;</button>
   </div>
 
-  <!-- Mobile Touch Controls -->
+  <!-- Mobile Touch Controls (horizontal bar) -->
   <div id="touch-controls">
-    <div class="tc-left">
-      <button class="tc-btn tc-sm" data-key="ArrowUp">&uarr;</button>
-      <div class="tc-row">
-        <button class="tc-btn" data-key="ArrowLeft">&larr;</button>
-        <button class="tc-btn" data-key="ArrowRight">&rarr;</button>
-      </div>
-      <button class="tc-btn tc-sm" data-key="ArrowDown">&darr;</button>
-    </div>
-    <div class="tc-mid">
-      <button class="tc-btn tc-wpn" data-key="Tab">WPN</button>
-      <button class="tc-btn tc-ok" data-key="Enter">OK</button>
-    </div>
-    <div class="tc-right">
-      <button class="tc-btn tc-fire" data-key="Space">FIRE</button>
-    </div>
+    <button class="tc-btn tc-esc" data-key="Escape">ESC</button>
+    <button class="tc-btn tc-wpn" data-key="Tab">WPN</button>
+    <button class="tc-btn tc-ok" data-key="Enter">OK</button>
+    <button class="tc-btn tc-fire" data-key="Space">FIRE</button>
   </div>
 
   <script>
@@ -61,7 +54,6 @@
       var rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
       if (rfs) {
         rfs.call(el).then(function() {
-          // Try to lock orientation to landscape on mobile
           if (screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape').catch(function() {});
           }
@@ -88,13 +80,11 @@
       }
     }
 
-    // Update body class on fullscreen change
     function onFullscreenChange() {
       if (isFullscreen()) {
         document.body.classList.add('fullscreen');
       } else {
         document.body.classList.remove('fullscreen');
-        // Unlock orientation when leaving fullscreen
         if (screen.orientation && screen.orientation.unlock) {
           screen.orientation.unlock();
         }
@@ -122,7 +112,6 @@
       startGame(true);
     });
 
-    // Fullscreen toggle button during gameplay
     document.getElementById('fs-toggle').addEventListener('click', function(e) {
       e.stopPropagation();
       toggleFullscreen();
@@ -155,6 +144,99 @@
         window.dispatchEvent(new KeyboardEvent('keyup', { code: key, bubbles: true }));
       });
     });
+
+    // ===== Swipe Gesture Controls on Canvas =====
+    (function() {
+      var canvas = document.getElementById('screen');
+      var DEAD_ZONE = 12;
+      var startX = 0;
+      var startY = 0;
+      var heldKeys = new Set();
+      var tracking = false;
+
+      function sendKey(code, type) {
+        window.dispatchEvent(new KeyboardEvent(type, { code: code, bubbles: true }));
+      }
+
+      function releaseAll() {
+        heldKeys.forEach(function(code) {
+          sendKey(code, 'keyup');
+        });
+        heldKeys.clear();
+        tracking = false;
+      }
+
+      function pressKey(code) {
+        if (!heldKeys.has(code)) {
+          heldKeys.add(code);
+          sendKey(code, 'keydown');
+        }
+      }
+
+      function releaseKey(code) {
+        if (heldKeys.has(code)) {
+          heldKeys.delete(code);
+          sendKey(code, 'keyup');
+        }
+      }
+
+      canvas.addEventListener('touchstart', function(e) {
+        if (e.touches.length !== 1) return;
+        var t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        tracking = true;
+        e.preventDefault();
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', function(e) {
+        if (!tracking || e.touches.length !== 1) return;
+        var t = e.touches[0];
+        var dx = t.clientX - startX;
+        var dy = t.clientY - startY;
+
+        // Horizontal: left/right for angle
+        if (dx < -DEAD_ZONE) {
+          pressKey('ArrowLeft');
+          releaseKey('ArrowRight');
+        } else if (dx > DEAD_ZONE) {
+          pressKey('ArrowRight');
+          releaseKey('ArrowLeft');
+        } else {
+          releaseKey('ArrowLeft');
+          releaseKey('ArrowRight');
+        }
+
+        // Vertical: up/down for power (inverted: swipe up = more power)
+        if (dy < -DEAD_ZONE) {
+          pressKey('ArrowUp');
+          releaseKey('ArrowDown');
+        } else if (dy > DEAD_ZONE) {
+          pressKey('ArrowDown');
+          releaseKey('ArrowUp');
+        } else {
+          releaseKey('ArrowUp');
+          releaseKey('ArrowDown');
+        }
+
+        e.preventDefault();
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', releaseAll, { passive: false });
+      canvas.addEventListener('touchcancel', releaseAll, { passive: false });
+    })();
+
+    // Init AudioContext on first touch (mobile browser autoplay policy)
+    document.addEventListener('touchstart', function() {
+      if (window.AudioContext || window.webkitAudioContext) {
+        try {
+          var ctx = new (window.AudioContext || window.webkitAudioContext)();
+          ctx.resume();
+          // Close it — the game module will create its own
+          ctx.close();
+        } catch(e) {}
+      }
+    }, { once: true });
   </script>
 
   <script type="module" src="js/main.js"></script>

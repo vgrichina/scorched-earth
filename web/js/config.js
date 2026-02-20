@@ -55,3 +55,46 @@ export const config = {
   hostileEnvironment: 0, // EXE: random lightning/meteor events
   talkProbability: 100,  // EXE: % chance of speech on fire/death
 };
+
+// Keys to persist in localStorage (exclude derived/constant values)
+const PERSIST_KEYS = [
+  'gravity', 'viscosity', 'wind', 'changeWind',
+  'landType', 'skyType', 'wallType',
+  'numPlayers', 'rounds', 'armsLevel',
+  'scoringMode', 'startCash', 'interest', 'freeTurns',
+  'talkingTanks', 'playOrder',
+  'soundEnabled', 'flySoundEnabled',
+  'fallingTanks', 'explosionScale', 'tracePaths', 'extraDirt',
+  'playMode', 'hostileEnvironment', 'talkProbability',
+];
+
+const STORAGE_KEY = 'scorched_earth_config';
+
+export function saveConfig() {
+  try {
+    const data = {};
+    for (const key of PERSIST_KEYS) {
+      data[key] = config[key];
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    // localStorage unavailable or full
+  }
+}
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    for (const key of PERSIST_KEYS) {
+      if (key in data && typeof data[key] === typeof config[key]) {
+        config[key] = data[key];
+      }
+    }
+  } catch (e) {
+    // Corrupt data — ignore
+  }
+}
+
+loadConfig();
