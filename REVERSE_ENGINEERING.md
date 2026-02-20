@@ -582,8 +582,24 @@ if (d > 0) {
 
 Per-step, per-projectile. **Note**: viscosity is multiplicative damping, NOT the differential form previously documented.
 
+The function is ~649 bytes and includes both Mag Deflector deflection and standard physics. The Mag Deflector section was previously undocumented (INT 3Ch encoding made it hard to trace).
+
 ```c
 void sim_step(projectile_t *proj) {
+    // 0. Mag Deflector in-flight deflection (file 0x21A80-0x21C3A)
+    //    Iterates all players (stride 0x6C, base DS:CEB8).
+    //    Per player: checks +0x3C (active flag), computes distance².
+    //    DS:1D2C = 1000000.0 (range² threshold = 1000px radius)
+    //    DS:1D30 = 1000.0 (normalization divisor)
+    //    If distSq <= 1000000.0:
+    //      normDist = sqrt(distSq) / 1000.0
+    //      velocity adjusted by (player_field / normDist) * dt
+    //    Stores result to DS:E4DC (vx), DS:E4E4 (vy)
+    //    NOTE: INT 3Ch encoding (ES: prefixed FPU ops on player sub-struct)
+    //    makes exact field accesses hard to decode — fpu_decode.py bug.
+    //    Conditional on DS:5146 flag: plays distance-based sound effect
+    //    via sqrt(distSq) * DS:1CA2 + 1000.0 → _ftol → call 0xA281
+
     // 1. Speed limit (DS:1CA2 = 1.5 speed-squared threshold)
     double speed_sq = proj->vx * proj->vx + proj->vy * proj->vy;
     if (speed_sq > 1.5) {
@@ -1308,9 +1324,64 @@ See full **Player Data Structures** section for complete layout. Shield-relevant
 
 ### Mag Deflector / Super Mag
 
-These are **not shield types** — they modify projectile trajectories through the physics system rather than absorbing damage. Work via separate deflection zone mechanics.
+These are **not shield types** — they modify projectile trajectories through the physics system rather than absorbing damage.
 
-**Intermediate files**: `disasm/shields_code.txt`, `disasm/shield_mechanics.txt`
+#### In-Flight Deflection (file 0x21A80-0x21C3A, inside sim_step)
+
+Integrated into the per-step simulation loop, BEFORE speed limit/position/viscosity/gravity/wind. Iterates all players per projectile step:
+
+```c
+// Per-player deflection check (inside sim_step at 0x21A80)
+for each player (stride 0x6C, base DS:CEB8):
+    if (!player.active) continue;       // +0x3C check
+
+    // Compute distance² from projectile to player
+    double dx = proj.x - player.x;
+    double dy = proj.y - player.y;
+    double distSq = dx*dx + dy*dy;
+
+    // Range check: DS:1D2C = 1000000.0 (1000px radius)
+    if (distSq > 1000000.0) {
+        // Out of range — reset distSq to threshold (DS:1D2C)
+        distSq = 1000000.0;            // 0x21B68: fld [0x1D2C]
+        goto skip_deflection;
+    }
+
+    // In range: normalize and deflect
+    double normDist = sqrt(distSq) / 1000.0;   // DS:1D30 = 1000.0
+    // Velocity adjusted: (field / normDist) * dt
+    // NOTE: exact field access unclear due to INT 3Ch encoding bug
+    //       (ES: prefixed FPU ops on player sub-struct not fully decoded)
+
+skip_deflection:
+    // Conditional sound: DS:5146 flag check
+    // if set: pitch = sqrt(distSq) * DS:1CA2 + 1000.0 → play sound
+
+    // Standard physics continues (speed limit, position, viscosity, gravity, wind)
+    // Velocity stored to DS:E4DC (vx), DS:E4E4 (vy) globals
+```
+
+**Key constants**:
+| DS Offset | Type | Value | Purpose |
+|-----------|------|-------|---------|
+| DS:1D2C | f32 | 1000000.0 | Distance² threshold (1000px range) |
+| DS:1D30 | f32 | 1000.0 | Normalization divisor |
+
+**Note**: The deflection scales as `1/normDist * dt` — NO additional multiplier. Web implementation previously had an erroneous `×30` factor that caused projectiles to reverse direction when multiple players had Mag Deflectors (e.g., after MAYHEM cheat).
+
+#### Collision Damping (file 0x235B6)
+
+On impact near a Mag Deflector player, velocity attenuated by 0.7× (same factor as multi-hit damage falloff):
+```c
+DS:E4DC *= 0.7;    // DS:1D60 = 0.7
+DS:E4E4 *= 0.7;
+```
+
+#### Super Mag (DS:0x1C76)
+
+Flag set on projectile at fire time (file 0x2142C: `mov word [0x1C76], 0x1`) when attacker has Super Mag inventory. **Bypasses collision damping** (checked at impact), but does NOT bypass in-flight deflection field.
+
+**Intermediate files**: `disasm/shields_code.txt`, `disasm/shield_mechanics.txt`, `disasm/extras_decoded.txt`
 
 ---
 

@@ -38,9 +38,11 @@ function getViscosityFactor() {
   return 1.0 - config.viscosity / 10000.0;
 }
 
-// EXE: Mag Deflector deflection zone constants
+// EXE: Mag Deflector in-flight deflection (file 0x21A80-0x21C3A, inside sim_step)
+// EXE: Iterates all players per step. Deflection strength = 1/normDist * dt.
 // EXE: DS:1D2C = 1000000.0 (distance² threshold = 1000px radius)
 // EXE: DS:1D30 = 1000.0 (normalization divisor)
+// EXE: No additional multiplier — scales as (direction / normDist) * dt only.
 const MAG_RANGE_SQ = 1000000.0;
 const MAG_RANGE = 1000.0;
 const MAG_DEFLECTOR_IDX = 45;
@@ -51,7 +53,7 @@ function applyMagDeflection(proj) {
     if (!player.alive) continue;
     if (player.index === proj.attackerIdx) continue;
 
-    // Check if this player has Mag Deflector or Super Mag in inventory (passive defense)
+    // EXE: checks player inventory for Mag Deflector (idx 45) or Super Mag (idx 52)
     const magCount = (player.inventory[MAG_DEFLECTOR_IDX] || 0) +
                      (player.inventory[SUPER_MAG_IDX] || 0);
     if (magCount <= 0) continue;
@@ -60,19 +62,19 @@ function applyMagDeflection(proj) {
     const dy = proj.y - (player.y - 4);  // center of tank body
     const distSq = dx * dx + dy * dy;
 
+    // EXE: fcomp [DS:1D2C] — range check, 1000px radius
     if (distSq > MAG_RANGE_SQ || distSq < 1.0) continue;
 
-    // EXE: normalizedDist = sqrt(distSq) / 1000.0
-    // Closer = stronger deflection. Push projectile AWAY from player.
+    // EXE: normDist = sqrt(distSq) / 1000.0 (DS:1D30)
     const dist = Math.sqrt(distSq);
     const normDist = Math.max(dist / MAG_RANGE, 0.05);  // cap to prevent infinity
 
-    // Deflection: push velocity away from player, strength = 1/normDist
+    // EXE: deflection = (direction / normDist) * dt — no extra multiplier
     const pushX = (dx / dist) / normDist;
     const pushY = (dy / dist) / normDist;
 
-    proj.vx += pushX * DT * 30;
-    proj.vy -= pushY * DT * 30;  // screen Y inverted
+    proj.vx += pushX * DT;
+    proj.vy -= pushY * DT;  // screen Y inverted
   }
 }
 
