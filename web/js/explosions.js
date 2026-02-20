@@ -10,7 +10,7 @@
 
 import { config } from './config.js';
 import { setPixel, getBackgroundColor } from './framebuffer.js';
-import { terrain, terrainBitmap } from './terrain.js';
+import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
 import { playExplosionSound } from './sound.js';
@@ -68,10 +68,10 @@ export function addDirt(cx, cy, radius) {
       if (dx * dx + dy * dy > r2) continue;
 
       const y = cy + dy;
-      if (y < 15 || y >= config.screenHeight) continue;
+      if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
 
       if (!terrainBitmap[y * W + x]) {
-        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - 15))));
+        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - PLAYFIELD_TOP))));
         terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
@@ -90,9 +90,9 @@ export function addDirtTower(cx, cy, height) {
     if (x < 0 || x >= W) continue;
     for (let dy = 0; dy < height; dy++) {
       const y = cy - dy;
-      if (y < 15 || y >= config.screenHeight) continue;
+      if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
       if (!terrainBitmap[y * W + x]) {
-        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - 15))));
+        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - PLAYFIELD_TOP))));
         terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
@@ -109,7 +109,7 @@ export function createTunnel(cx, cy, depth, goesDown) {
 
   for (let d = 0; d < depth; d++) {
     const y = cy + d * dir;
-    if (y < 15 || y >= config.screenHeight) break;
+    if (y < PLAYFIELD_TOP || y >= config.screenHeight) break;
 
     for (let dx = -tunnelWidth; dx <= tunnelWidth; dx++) {
       const x = cx + dx;
@@ -137,7 +137,7 @@ export function applyDisrupter(cx, cy, radius) {
   for (let x = left; x <= right; x++) {
     // Scan column from bottom up, let dirt fall to fill gaps
     let writeY = config.screenHeight - 1;
-    for (let y = config.screenHeight - 1; y >= 15; y--) {
+    for (let y = config.screenHeight - 1; y >= PLAYFIELD_TOP; y--) {
       const color = terrainBitmap[y * W + x];
       if (color) {
         if (y !== writeY) {
@@ -151,7 +151,7 @@ export function applyDisrupter(cx, cy, radius) {
       }
     }
     // Clear anything above the compacted terrain
-    for (let y = writeY; y >= 15; y--) {
+    for (let y = writeY; y >= PLAYFIELD_TOP; y--) {
       if (terrainBitmap[y * W + x]) {
         terrainBitmap[y * W + x] = 0;
         setPixel(x, y, getBackgroundColor(y));
@@ -165,7 +165,7 @@ export function applyDisrupter(cx, cy, radius) {
 // which may contain non-terrain overlay pixels like tanks or shields)
 function updateTerrainColumn(x) {
   const W = config.screenWidth;
-  for (let y = 15; y < config.screenHeight; y++) {
+  for (let y = PLAYFIELD_TOP; y < config.screenHeight; y++) {
     if (terrainBitmap[y * W + x]) {
       terrain[x] = y;
       return;

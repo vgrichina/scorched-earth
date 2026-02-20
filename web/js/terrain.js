@@ -28,9 +28,10 @@ const WIDTH = config.screenWidth;
 const HEIGHT = config.screenHeight;
 export const terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
 
-// Sky region: rows 0 to ~14 reserved for HUD, rest is playfield
-const HUD_HEIGHT = 14;
-const PLAYFIELD_TOP = HUD_HEIGHT;
+// Sky region: HUD occupies top rows, rest is playfield
+// EXE: two 12px rows (bar outline y to y+11), total ~26px from top
+export const HUD_HEIGHT = 26;
+export const PLAYFIELD_TOP = HUD_HEIGHT;
 const PLAYFIELD_BOTTOM = config.screenHeight - 1;
 
 // Generate terrain using random walk with momentum (from RE)

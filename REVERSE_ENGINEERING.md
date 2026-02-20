@@ -2908,14 +2908,69 @@ Count at DS:0xEA10. Populated at runtime based on HUD positions.
 
 ### HUD Layout (file 0x2FBCA)
 
-Two rows of status information:
-- **Row 1** (y = DS:0x518E): Player name, Power bar (62px wide), Angle
-- **Row 2** (y + 12px): Weapon name, Weapon bar, Wind display
-- Bar height: 6 pixels
-- Left margin: 5 pixels
+Two rows of status information, each 12px tall:
+- **Row 1** (y = DS:0x518E, default 5): Player name, Power bar (62px wide), Power value, Angle
+- **Row 2** (y + 0x0C = y + 12px): Weapon/label, Weapon/Wind bar, Wind display
 - Width check: extra elements shown when screen_width > 320 (DS:0xEF3E > 0x140)
 
-HUD strings: "Power" (DS:0x2AF8), "Angle" (DS:0x2AFE), "Wind" (DS:0x2B04), "No Wind" (DS:0x2B09)
+#### Detailed Disassembly (file 0x2FBCA-0x2FDF0+)
+
+**X-position computation** (dynamic, like original Fastgraph layout):
+```
+[0xe9d4] = 5                              ; left margin
+si = max(fg_getwidth(name)+8, fg_getwidth(label1)+fg_getwidth(":"))
+si = max(si, fg_getwidth(label2)+fg_getwidth(": "))
+[0xe9d6] = 5 + si                         ; bar_x (row 1 AND row 2 share same bar X)
+[0xe9d8] = [0xe9d6] + 0x3E + 0x0A        ; after_bar_x = bar_x + 62 + 10
+[0xe9e8] = 5                              ; row2 left margin (same as row1)
+[0xe9ea] = [0xe9d6]                       ; row2 bar_x = row1 bar_x
+[0xe9ec] = [0xe9ea] + 0x3E + 0x0A        ; row2 after_bar_x
+```
+
+**Row 1 rendering**:
+```
+fg_setcolor([0xef22])                      ; player color
+sprintf(buf, "%s:", player_name)           ; format "Wolfgang:"
+fg_text(buf, [0xe9d4]=5, [0x518e])         ; draw at (5, row1_y)
+fg_drect(bar_x-1, row1_y, bar_x+n*6, row1_y+0x0B)  ; bar outline (12px tall)
+fg_rect(bar_x, row1_y+1, bar_x+fill, row1_y+0x0A)   ; bar fill (10px tall)
+```
+
+**Row 2 rendering** (after checking flag [0x5142] != 0):
+```
+sprintf(buf, "%s:", label_at_[0x2364])     ; format "Power:" or weapon name
+fg_text(buf, [0xe9e8]=5, row1_y+0x0C)     ; draw at (5, row2_y)
+fg_drect(bar_x-1, row2_y, bar_x+n*6, row2_y+0x0B)  ; bar outline (12px tall)
+fg_rect(bar_x, row2_y+1, bar_x+fill, row2_y+0x0A)   ; bar fill (10px tall)
+sprintf(buf, "%s:", "Angle")               ; DS:0x2AFE
+fg_text(buf, [0xe9ec], row2_y)             ; draw after bar
+```
+
+#### Key Dimensions
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| Row 1 Y | DS:0x518E (default **5**) | Binary data segment |
+| Row 2 Y | Row1_Y + **12** (0x0C) | `add ax, 0xC` at 0x2FD6A |
+| Bar width | **62px** (0x3E) | `mov si, 0x3E` at 0x2FC26 |
+| Bar outline height | **12px** (y to y+11) | `add ax, 0xB` at 0x2FCF0 |
+| Bar fill height | **10px** (y+1 to y+10) | `inc ax`/`add ax,0xA` at 0x2FD2A/0x2FD17 |
+| Left margin | **5px** | `mov word [0xe9d4], 0x5` at 0x2FBDB |
+| After-bar gap | **10px** | `add ax, 0xA` at 0x2FC2E |
+| Bar outline | 4-sided rect (fg_drect) | Call at 0x2FD08 |
+| Background | fg_rect from (5, row1_y) to (screenW-5, [0xef40]-7) | Call at 0x2FCB0 |
+| Total HUD height | ~**26px** (2 rows × 12px + margins) | Computed from above |
+
+#### Label Strings (all use `"%s:"` format)
+
+| String | DS Offset | File Offset | Rendered |
+|--------|-----------|-------------|----------|
+| "Power" | DS:0x2AF8 | 0x058878 | "Power:" |
+| "Angle" | DS:0x2AFE | 0x05887E | "Angle:" |
+| "Wind" | DS:0x2B04 | 0x058884 | "Wind:" |
+| "No Wind" | DS:0x2B09 | 0x058889 | "No Wind:" |
+| Format | DS:0x576C | 0x05B4EC | "%s:" |
+| Format2 | DS:0x5769 | 0x05B4E9 | ": " |
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 

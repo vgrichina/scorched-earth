@@ -6,7 +6,7 @@
 import { config } from './config.js';
 import { initFramebuffer, blit, setPixel, getPixel, fillRect, vline } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
-import { generateTerrain, drawSky, drawTerrain, initSkyBackground } from './terrain.js';
+import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP } from './terrain.js';
 import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
@@ -391,7 +391,7 @@ function gameLoop() {
     const lx = game.hostileLightningX || 0;
     // Draw zigzag lightning bolt
     let x = lx;
-    for (let y = 15; y < config.screenHeight; y += 3) {
+    for (let y = PLAYFIELD_TOP; y < config.screenHeight; y += 3) {
       x += Math.floor(Math.random() * 5) - 2;
       vline(x, y, Math.min(y + 3, config.screenHeight - 1), 199);
       if (x - 1 >= 0) setPixel(x - 1, y + 1, 150);
