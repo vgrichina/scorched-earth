@@ -1,8 +1,8 @@
 # Scorched Earth v1.50
 
-The classic DOS artillery game (1995, Wendell Hicken), faithfully reverse-engineered from the original binary and rebuilt for the web.
+"The Mother of All Games" — the classic DOS artillery game (1995), reverse-engineered and rebuilt for the web.
 
-**Play now:** [scorched-earth.berrry.app](https://scorched-earth.berrry.app)
+### [Play now at scorched-earth.berrry.app](https://scorched-earth.berrry.app)
 
 ## Controls
 
