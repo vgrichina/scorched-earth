@@ -9,6 +9,8 @@ import { drawText, drawTextShadow } from './font.js';
 import { BLACK } from './palette.js';
 import { consumeKey } from './input.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
+         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
 
 // Menu state
 export const menu = {
@@ -177,33 +179,33 @@ function handlePlayerSetupInput() {
 export function drawTitleScreen() {
   fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
 
-  drawTextShadow(48, 30, 'SCORCHED  EARTH', 199, 0);
-  drawTextShadow(112, 44, 'v1.50', 150, 0);
+  drawTextShadow(48, 30, 'SCORCHED  EARTH', COLOR_HUD_HIGHLIGHT, 0);
+  drawTextShadow(112, 44, 'v1.50', COLOR_HUD_TEXT, 0);
 
-  drawText(56, 70, 'A Wendell Hicken game', 150);
-  drawText(72, 82, '(1995, Borland C++)', 150);
+  drawText(56, 70, 'A Wendell Hicken game', COLOR_HUD_TEXT);
+  drawText(72, 82, '(1995, Borland C++)', COLOR_HUD_TEXT);
 
-  drawText(32, 110, 'Web port - faithful RE', 150);
+  drawText(32, 110, 'Web port - faithful RE', COLOR_HUD_TEXT);
 
   if (Math.floor(menu.blinkTimer / 30) % 2 === 0) {
-    drawTextShadow(56, 150, 'Press SPACE to start', 199, 0);
+    drawTextShadow(56, 150, 'Press SPACE to start', COLOR_HUD_HIGHLIGHT, 0);
   }
 
-  drawText(40, 180, 'Arrow keys, Tab, Space', 150);
+  drawText(40, 180, 'Arrow keys, Tab, Space', COLOR_HUD_TEXT);
 }
 
 // Draw the config menu
 export function drawConfigScreen() {
   fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
 
-  drawTextShadow(72, 4, 'GAME  SETTINGS', 199, 0);
-  hline(8, 310, 14, 150);
+  drawTextShadow(72, 4, 'GAME  SETTINGS', COLOR_HUD_HIGHLIGHT, 0);
+  hline(8, 310, 14, COLOR_HUD_TEXT);
 
   for (let i = 0; i < CONFIG_OPTIONS.length; i++) {
     const opt = CONFIG_OPTIONS[i];
     const y = 20 + i * 14;
     const selected = i === menu.selectedOption;
-    const textColor = selected ? 199 : 150;
+    const textColor = selected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
 
     if (selected) {
       fillRect(6, y - 1, 312, y + 9, 1);
@@ -227,9 +229,9 @@ export function drawConfigScreen() {
   }
 
   const footerY = config.screenHeight - 18;
-  hline(8, 310, footerY - 4, 150);
-  drawText(8, footerY, 'UP/DOWN:Select  L/R:Adjust', 150);
-  drawText(8, footerY + 10, 'ENTER:Players  ESC:Back', 150);
+  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
+  drawText(8, footerY, 'UP/DOWN:Select  L/R:Adjust', COLOR_HUD_TEXT);
+  drawText(8, footerY + 10, 'ENTER:Players  ESC:Back', COLOR_HUD_TEXT);
 }
 
 // Draw the player setup screen
@@ -240,22 +242,22 @@ export function drawPlayerSetupScreen() {
   if (idx >= config.numPlayers) return;
 
   const setup = playerSetup[idx];
-  const baseColor = idx * 8 + 4;
+  const baseColor = idx * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
 
-  drawTextShadow(56, 10, 'PLAYER  SETUP', 199, 0);
-  hline(8, 310, 20, 150);
+  drawTextShadow(56, 10, 'PLAYER  SETUP', COLOR_HUD_HIGHLIGHT, 0);
+  hline(8, 310, 20, COLOR_HUD_TEXT);
 
   drawText(8, 30, `Player ${idx + 1} of ${config.numPlayers}`, baseColor);
 
   // Name field
   const nameSelected = menu.playerSetupField === 0;
-  const nameColor = nameSelected ? 199 : 150;
+  const nameColor = nameSelected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
   drawText(8, 50, 'Name:', nameColor);
   drawText(56, 50, setup.name, baseColor);
 
   // AI type field
   const aiSelected = menu.playerSetupField === 1;
-  const aiColor = aiSelected ? 199 : 150;
+  const aiColor = aiSelected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
   drawText(8, 68, 'Type:', aiColor);
   const typeName = AI_NAMES[setup.aiType] || 'Human';
   if (aiSelected) {
@@ -266,7 +268,7 @@ export function drawPlayerSetupScreen() {
 
   // Instructions
   const footerY = config.screenHeight - 18;
-  hline(8, 310, footerY - 4, 150);
-  drawText(8, footerY, 'UP/DOWN:Field  L/R:Adjust', 150);
-  drawText(8, footerY + 10, 'ENTER:Next Player  ESC:Back', 150);
+  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
+  drawText(8, footerY, 'UP/DOWN:Field  L/R:Adjust', COLOR_HUD_TEXT);
+  drawText(8, footerY + 10, 'ENTER:Next Player  ESC:Back', COLOR_HUD_TEXT);
 }

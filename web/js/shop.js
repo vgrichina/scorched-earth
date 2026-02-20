@@ -14,6 +14,8 @@ import { consumeKey, isKeyDown } from './input.js';
 import { random } from './utils.js';
 import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, CHAR_W,
+         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
 
 // Shop state
 const shop = {
@@ -165,28 +167,28 @@ export function drawShop(player) {
   // Full screen background
   fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
 
-  const baseColor = player.index * 8 + 4;
+  const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
 
   // Title bar
   drawTextShadow(8, 2, `${player.name}'s Shop`, baseColor, 0);
-  drawText(200, 2, `Cash: $${player.cash}`, 199);
+  drawText(200, 2, `Cash: $${player.cash}`, COLOR_HUD_HIGHLIGHT);
 
   // Category tabs
   for (let i = 0; i < CATEGORY_NAMES.length; i++) {
     const x = 8 + i * 78;
-    const color = i === shop.category ? 199 : 150;
+    const color = i === shop.category ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
     drawText(x, 14, CATEGORY_NAMES[i], color);
     if (i === shop.category) {
-      hline(x, x + CATEGORY_NAMES[i].length * 8 - 1, 22, color);
+      hline(x, x + CATEGORY_NAMES[i].length * CHAR_W - 1, 22, color);
     }
   }
 
   // Column headers
-  drawText(8, 28, 'Item', 150);
-  drawText(160, 28, 'Price', 150);
-  drawText(210, 28, 'Own', 150);
-  drawText(250, 28, 'Bndl', 150);
-  hline(8, 310, 36, 150);
+  drawText(8, 28, 'Item', COLOR_HUD_TEXT);
+  drawText(160, 28, 'Price', COLOR_HUD_TEXT);
+  drawText(210, 28, 'Own', COLOR_HUD_TEXT);
+  drawText(250, 28, 'Bndl', COLOR_HUD_TEXT);
+  hline(8, 310, 36, COLOR_HUD_TEXT);
 
   // Item list
   const startY = 40;
@@ -200,20 +202,20 @@ export function drawShop(player) {
 
     // Highlight bar for selected item
     if (selected) {
-      fillRect(6, y - 1, 312, y + 9, player.index * 8 + 1);
+      fillRect(6, y - 1, 312, y + 9, player.index * PLAYER_PALETTE_STRIDE + 1);
     }
 
-    const textColor = selected ? 199 : (canAfford ? 150 : 104 + 8);
+    const textColor = selected ? COLOR_HUD_HIGHLIGHT : (canAfford ? COLOR_HUD_TEXT : 104 + PLAYER_PALETTE_STRIDE);
     drawText(8, y, item.weapon.name, textColor);
     drawText(160, y, '$' + item.weapon.price, textColor);
     const owned = player.inventory[item.idx];
-    drawText(210, y, owned > 0 ? String(owned) : '-', owned > 0 ? baseColor : 150);
-    drawText(250, y, 'x' + item.weapon.bundle, 150);
+    drawText(210, y, owned > 0 ? String(owned) : '-', owned > 0 ? baseColor : COLOR_HUD_TEXT);
+    drawText(250, y, 'x' + item.weapon.bundle, COLOR_HUD_TEXT);
   }
 
   // Footer
   const footerY = config.screenHeight - 20;
-  hline(8, 310, footerY - 4, 150);
-  drawText(8, footerY, 'ENTER:Buy  DEL:Sell  TAB:Done', 150);
-  drawText(8, footerY + 10, 'LEFT/RIGHT:Category  UP/DOWN:Select', 150);
+  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
+  drawText(8, footerY, 'ENTER:Buy  DEL:Sell  TAB:Done', COLOR_HUD_TEXT);
+  drawText(8, footerY + 10, 'LEFT/RIGHT:Category  UP/DOWN:Select', COLOR_HUD_TEXT);
 }

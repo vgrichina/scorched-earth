@@ -22,6 +22,9 @@ import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
 import { initSound, toggleSound } from './sound.js';
 import { drawSpeechBubble } from './talk.js';
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, COLOR_HUD_WARNING,
+         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
+         FIRE_PAL_BASE } from './constants.js';
 
 function init() {
   const canvas = document.getElementById('screen');
@@ -89,7 +92,7 @@ function drawAllProjectiles() {
           const palIdx = proj.isDirtParticle ? 140 : (190 + Math.min(9, age));
           setPixel(p.x, p.y, palIdx);
         } else {
-          setPixel(p.x, p.y, age < 5 ? 199 : age < 10 ? 189 : 179);
+          setPixel(p.x, p.y, age < 5 ? COLOR_HUD_HIGHLIGHT : age < 10 ? 189 : COLOR_HUD_WARNING);
         }
       }
     }
@@ -99,13 +102,13 @@ function drawAllProjectiles() {
     const hy = Math.round(proj.y);
     if (hx >= 0 && hx < config.screenWidth && hy >= 0 && hy < config.screenHeight) {
       if (proj.isNapalmParticle) {
-        setPixel(hx, hy, proj.isDirtParticle ? 145 : 199);
+        setPixel(hx, hy, proj.isDirtParticle ? 145 : COLOR_HUD_HIGHLIGHT);
       } else {
-        setPixel(hx, hy, 199);
-        if (hx + 1 < config.screenWidth) setPixel(hx + 1, hy, 189);
-        if (hx - 1 >= 0) setPixel(hx - 1, hy, 189);
-        if (hy + 1 < config.screenHeight) setPixel(hx, hy + 1, 189);
-        if (hy - 1 >= 0) setPixel(hx, hy - 1, 189);
+        setPixel(hx, hy, COLOR_HUD_HIGHLIGHT);
+        if (hx + 1 < config.screenWidth) setPixel(hx + 1, hy, FIRE_PAL_BASE + 19);
+        if (hx - 1 >= 0) setPixel(hx - 1, hy, FIRE_PAL_BASE + 19);
+        if (hy + 1 < config.screenHeight) setPixel(hx, hy + 1, FIRE_PAL_BASE + 19);
+        if (hy - 1 >= 0) setPixel(hx, hy - 1, FIRE_PAL_BASE + 19);
       }
     }
   }
@@ -221,17 +224,17 @@ function drawRoundOver() {
   const alive = players.filter(p => p.alive);
 
   if (alive.length === 1) {
-    drawTextShadow(104, 60, alive[0].name + ' wins!', alive[0].index * 8 + 4, 0);
+    drawTextShadow(104, 60, alive[0].name + ' wins!', alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
   } else {
-    drawTextShadow(136, 60, 'Draw!', 150, 0);
+    drawTextShadow(136, 60, 'Draw!', COLOR_HUD_TEXT, 0);
   }
 
   // Show scores
-  drawTextShadow(8, 80, 'Scores:', 199, 0);
+  drawTextShadow(8, 80, 'Scores:', COLOR_HUD_HIGHLIGHT, 0);
   const board = getLeaderboard();
   for (let i = 0; i < board.length; i++) {
     const p = board[i];
-    const color = p.index * 8 + 4;
+    const color = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
     drawText(16, 92 + i * 10, `${p.name}: ${p.score}`, color);
   }
 
@@ -242,33 +245,33 @@ function drawRoundOver() {
     for (let i = 0; i < maxLines; i++) {
       const chunk = game.warQuote.substring(i * lineLen, (i + 1) * lineLen);
       if (!chunk) break;
-      drawTextShadow(8, 130 + i * 10, chunk, 150, 0);
+      drawTextShadow(8, 130 + i * 10, chunk, COLOR_HUD_TEXT, 0);
     }
   }
 
-  drawTextShadow(60, 170, `Round ${game.round}/${config.rounds}`, 150, 0);
-  drawTextShadow(60, 182, 'Press SPACE to continue', 150, 0);
+  drawTextShadow(60, 170, `Round ${game.round}/${config.rounds}`, COLOR_HUD_TEXT, 0);
+  drawTextShadow(60, 182, 'Press SPACE to continue', COLOR_HUD_TEXT, 0);
 }
 
 function drawGameOver() {
   fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
 
-  drawTextShadow(96, 20, 'GAME OVER', 199, 0);
+  drawTextShadow(96, 20, 'GAME OVER', COLOR_HUD_HIGHLIGHT, 0);
 
   // Final leaderboard
-  drawTextShadow(32, 40, 'Final Scores', 150, 0);
+  drawTextShadow(32, 40, 'Final Scores', COLOR_HUD_TEXT, 0);
 
   const board = getLeaderboard();
   for (let i = 0; i < board.length; i++) {
     const p = board[i];
-    const color = p.index * 8 + 4;
+    const color = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
     const medal = i === 0 ? '* ' : '  ';
     drawTextShadow(24, 60 + i * 14, `${medal}${p.name}`, color, 0);
-    drawText(200, 60 + i * 14, `${p.score} pts`, 150);
-    drawText(270, 60 + i * 14, `${p.wins}W`, 150);
+    drawText(200, 60 + i * 14, `${p.score} pts`, COLOR_HUD_TEXT);
+    drawText(270, 60 + i * 14, `${p.wins}W`, COLOR_HUD_TEXT);
   }
 
-  drawTextShadow(56, 160, 'Press SPACE to restart', 150, 0);
+  drawTextShadow(56, 160, 'Press SPACE to restart', COLOR_HUD_TEXT, 0);
 }
 
 // MAYHEM cheat code tracker
@@ -329,8 +332,8 @@ function gameLoop() {
     gameTick();
     fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
     const targetPlayer = players[game.screenHideTarget] || getCurrentPlayer();
-    drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * 8 + 4, 0);
-    drawTextShadow(72, 100, 'Press SPACE', 150, 0);
+    drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
+    drawTextShadow(72, 100, 'Press SPACE', COLOR_HUD_TEXT, 0);
     blit();
     requestAnimationFrame(gameLoop);
     return;
@@ -343,15 +346,15 @@ function gameLoop() {
     redrawWorld();
     fillRect(80, 60, 240, 130, 0);
     fillRect(82, 62, 238, 128, 1);
-    drawTextShadow(100, 68, 'SYSTEM MENU', 199, 0);
+    drawTextShadow(100, 68, 'SYSTEM MENU', COLOR_HUD_HIGHLIGHT, 0);
     const options = ['Mass Kill', 'New Game'];
     for (let i = 0; i < options.length; i++) {
       const y = 88 + i * 14;
-      const color = i === game.systemMenuOption ? 199 : 150;
+      const color = i === game.systemMenuOption ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
       if (i === game.systemMenuOption) fillRect(84, y - 1, 236, y + 9, 0);
       drawText(100, y, options[i], color);
     }
-    drawText(88, 116, 'ESC: Cancel', 150);
+    drawText(88, 116, 'ESC: Cancel', COLOR_HUD_TEXT);
     blit();
     requestAnimationFrame(gameLoop);
     return;
@@ -393,9 +396,9 @@ function gameLoop() {
     let x = lx;
     for (let y = PLAYFIELD_TOP; y < config.screenHeight; y += 3) {
       x += Math.floor(Math.random() * 5) - 2;
-      vline(x, y, Math.min(y + 3, config.screenHeight - 1), 199);
-      if (x - 1 >= 0) setPixel(x - 1, y + 1, 150);
-      if (x + 1 < config.screenWidth) setPixel(x + 1, y + 1, 150);
+      vline(x, y, Math.min(y + 3, config.screenHeight - 1), COLOR_HUD_HIGHLIGHT);
+      if (x - 1 >= 0) setPixel(x - 1, y + 1, COLOR_HUD_TEXT);
+      if (x + 1 < config.screenWidth) setPixel(x + 1, y + 1, COLOR_HUD_TEXT);
     }
     game.hostileLightningFrames--;
   }
@@ -406,7 +409,7 @@ function gameLoop() {
 
   // EXE: screen flash on large explosions (nukes) — fill with white
   if (screenFlash.active) {
-    fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, 199);
+    fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, COLOR_HUD_HIGHLIGHT);
     screenFlash.frames--;
     if (screenFlash.frames <= 0) screenFlash.active = false;
   }

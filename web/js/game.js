@@ -7,6 +7,7 @@
 
 import { config } from './config.js';
 import { random, clamp } from './utils.js';
+import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
 import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
@@ -380,8 +381,8 @@ function findHitPlayer(proj) {
   const px = Math.round(proj.x);
   const py = Math.round(proj.y);
   const pixel = getPixel(px, py);
-  if (pixel > 0 && pixel < 80) {
-    const playerIdx = Math.floor(pixel / 8);
+  if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
+    const playerIdx = Math.floor(pixel / PLAYER_PALETTE_STRIDE);
     return players[playerIdx] || null;
   }
   return null;

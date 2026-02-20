@@ -5,6 +5,7 @@
 // Renders directly into the indexed framebuffer
 
 import { setPixel } from './framebuffer.js';
+import { CHAR_W, CHAR_H } from './constants.js';
 
 // CP437 8x8 font data for printable ASCII 32-127
 // Standard IBM VGA BIOS font
@@ -206,18 +207,18 @@ const GLYPHS = new Uint8Array([
 // Draw a single character at (x, y) using palette colorIndex
 function drawChar(ch, x, y, colorIndex) {
   const code = ch.charCodeAt(0);
-  if (code < 32 || code > 127) return 8; // skip unprintable, still advance
-  const offset = (code - 32) * 8;
+  if (code < 32 || code > 127) return CHAR_W; // skip unprintable, still advance
+  const offset = (code - 32) * CHAR_H;
 
-  for (let row = 0; row < 8; row++) {
+  for (let row = 0; row < CHAR_H; row++) {
     const bits = GLYPHS[offset + row];
-    for (let col = 0; col < 8; col++) {
+    for (let col = 0; col < CHAR_W; col++) {
       if (bits & (0x80 >> col)) {
         setPixel(x + col, y + row, colorIndex);
       }
     }
   }
-  return 8; // character width (fixed 8px)
+  return CHAR_W; // character width (fixed 8px)
 }
 
 // Draw a string at (x, y) with given palette color index

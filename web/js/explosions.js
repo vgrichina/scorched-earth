@@ -15,6 +15,8 @@ import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
 import { playExplosionSound } from './sound.js';
 import { random } from './utils.js';
+import { TERRAIN_PAL_START, TERRAIN_PAL_COUNT, FIRE_PAL_BASE, FIRE_PAL_COUNT,
+         PLAYER_PALETTE_STRIDE } from './constants.js';
 
 // Create a circular crater at (cx, cy) with given radius
 // Removes terrain from the per-pixel bitmap and framebuffer, updates terrain[] height map
@@ -71,7 +73,7 @@ export function addDirt(cx, cy, radius) {
       if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
 
       if (!terrainBitmap[y * W + x]) {
-        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - PLAYFIELD_TOP))));
+        const palIdx = TERRAIN_PAL_START + Math.floor(Math.max(0, Math.min(TERRAIN_PAL_COUNT - 1, (config.screenHeight - 1 - y) * (TERRAIN_PAL_COUNT - 1) / (config.screenHeight - PLAYFIELD_TOP))));
         terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
@@ -92,7 +94,7 @@ export function addDirtTower(cx, cy, height) {
       const y = cy - dy;
       if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
       if (!terrainBitmap[y * W + x]) {
-        const palIdx = 120 + Math.floor(Math.max(0, Math.min(29, (config.screenHeight - 1 - y) * 29 / (config.screenHeight - PLAYFIELD_TOP))));
+        const palIdx = TERRAIN_PAL_START + Math.floor(Math.max(0, Math.min(TERRAIN_PAL_COUNT - 1, (config.screenHeight - 1 - y) * (TERRAIN_PAL_COUNT - 1) / (config.screenHeight - PLAYFIELD_TOP))));
         terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
       }
@@ -220,7 +222,7 @@ export function stepExplosion() {
   const ringWidth = Math.max(2, Math.floor(radius * 0.3));
 
   // Draw explosion ring — outer ring uses fire palette, inner ring uses attacker's color
-  const attackerBase = (currentExplosion.attackerIndex || 0) * 8;
+  const attackerBase = (currentExplosion.attackerIndex || 0) * PLAYER_PALETTE_STRIDE;
   for (let angle = 0; angle < 360; angle += 3) {
     const rad = angle * Math.PI / 180;
     for (let r = Math.max(0, ringRadius - ringWidth); r <= ringRadius; r++) {
@@ -231,7 +233,7 @@ export function stepExplosion() {
         // Inner portion: attacker color gradient, outer: fire palette
         const palIdx = colorT < 0.4
           ? attackerBase + Math.floor(colorT * 12.5)  // player color slots 0-4
-          : 170 + Math.floor(colorT * 29);
+          : FIRE_PAL_BASE + Math.floor(colorT * (FIRE_PAL_COUNT - 1));
         setPixel(px, py, palIdx);
       }
     }

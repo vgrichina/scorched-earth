@@ -9,6 +9,7 @@
 import { random, clamp } from './utils.js';
 import { config } from './config.js';
 import { setPixel, setBackground, clearToBackground } from './framebuffer.js';
+import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT } from './constants.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
 // NOTE: This is a DERIVED index for collision lookups only. The authoritative
@@ -264,7 +265,7 @@ function generateRolling(width, yStart, yEnd) {
 export function initSkyBackground() {
   const rowColors = new Uint8Array(config.screenHeight);
   for (let y = 0; y < config.screenHeight; y++) {
-    rowColors[y] = 80 + Math.floor(y * 23 / (config.screenHeight - 1));
+    rowColors[y] = SKY_PAL_START + Math.floor(y * (SKY_PAL_COUNT - 1) / (config.screenHeight - 1));
   }
   setBackground(rowColors);
 }
@@ -310,12 +311,12 @@ function buildTerrainBitmap() {
   for (let x = 0; x < WIDTH; x++) {
     // Floor terrain
     for (let y = terrain[x]; y <= bottom; y++) {
-      terrainBitmap[y * WIDTH + x] = 120 + Math.floor((bottom - y) * 29 / globalRange);
+      terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((bottom - y) * (TERRAIN_PAL_COUNT - 1) / globalRange);
     }
     // Ceiling terrain (cavern mode)
     if (config.landType === 6 && ceilingTerrain[x] > 0) {
       for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
-        terrainBitmap[y * WIDTH + x] = 120 + Math.floor((y - PLAYFIELD_TOP) * 29 / globalRange);
+        terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((y - PLAYFIELD_TOP) * (TERRAIN_PAL_COUNT - 1) / globalRange);
       }
     }
   }

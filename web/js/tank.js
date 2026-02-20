@@ -12,6 +12,7 @@ import { getTerrainY, terrain } from './terrain.js';
 import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
+import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE } from './constants.js';
 
 // Tank dimensions — EXE: verified from icons.cpp disassembly (file 0x263F0+)
 const TANK_WIDTH = 7;       // EXE: 7px wide dome and body
@@ -188,7 +189,7 @@ export function drawTank(player) {
 
   const cx = player.x;            // center X
   const groundY = player.y;       // ground line Y (terrain surface)
-  const baseColor = player.index * 8;  // VGA palette base for this player
+  const baseColor = player.index * PLAYER_PALETTE_STRIDE;  // VGA palette base for this player
 
   // --- Body: filled rectangle ---
   const bodyTop = groundY - BODY_HEIGHT;
@@ -263,7 +264,7 @@ export function startDeathAnimation(player) {
   deathAnimations.push({
     x: player.x,
     y: player.y - 4,  // center of tank body
-    baseColor: player.index * 8,
+    baseColor: player.index * PLAYER_PALETTE_STRIDE,
     frame: 0,
     maxFrames: 20,
   });
@@ -289,7 +290,7 @@ export function drawDeathAnimations() {
       const px = Math.round(anim.x + Math.cos(rad) * radius);
       const py = Math.round(anim.y + Math.sin(rad) * radius);
       if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-        const palIdx = 170 + Math.floor(t * 29);
+        const palIdx = FIRE_PAL_BASE + Math.floor(t * 29);
         setPixel(px, py, palIdx);
       }
     }

@@ -12,6 +12,7 @@ import { random, clamp } from './utils.js';
 import { setPixel, getPixel } from './framebuffer.js';
 import { players } from './tank.js';
 import { WALL, resolvedWallType } from './physics.js';
+import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
 
 // Guidance weapon indices
 // EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
@@ -176,7 +177,7 @@ function rollerFlightStep(proj, weapon) {
   const py = Math.round(proj.y);
   if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
     const pixel = getPixel(px, py);
-    if (pixel > 0 && pixel < 80) {
+    if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
       return { split: true, spawn: [], remove: true, explodeHere: true, radius: weapon.param };
     }
   }
@@ -535,7 +536,7 @@ export function napalmParticleStep(proj) {
   const sy = Math.round(proj.y);
   if (sx >= 0 && sx < config.screenWidth && sy >= 0 && sy < config.screenHeight) {
     const pixel = getPixel(sx, sy);
-    if (pixel >= 105) {
+    if (pixel >= TERRAIN_THRESHOLD) {
       if (proj.isDirtParticle) {
         // Dirt particle: add terrain at this position
         return { remove: true, addDirt: true };

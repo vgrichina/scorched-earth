@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { clamp } from './utils.js';
 import { players } from './tank.js';
 import { PLAYFIELD_TOP } from './terrain.js';
+import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -306,13 +307,13 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
     const pixel = getPixelFn(sx, sy);
 
-    // Tank hit: pixel < 80 and pixel > 0 (player colors are 0-79)
-    if (pixel > 0 && pixel < 80) {
+    // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
+    if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
       return 'hit_tank';
     }
 
-    // Terrain hit: pixel >= 105
-    if (pixel >= 105) {
+    // Terrain hit: pixel >= TERRAIN_THRESHOLD
+    if (pixel >= TERRAIN_THRESHOLD) {
       return 'hit_terrain';
     }
   }
