@@ -54,6 +54,7 @@ Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py ins
 | player.cpp | 0x2B3B+ | 0x31FB0 | Player/tank management |
 | play.cpp | 0x28B9 | 0x2F830 | Main game loop |
 | ranges.cpp | 0x2CBF | 0x33690 | Terrain generation |
+| *(menu module)* | 0x34ED | 0x3B8D0 | Main menu/config UI, sub-dialogs |
 
 ## v86 DOS Emulator (browser-based EXE comparison)
 

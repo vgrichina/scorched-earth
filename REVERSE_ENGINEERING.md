@@ -47,6 +47,7 @@ Each .cpp file has its own code segment (Borland large memory model). Code segme
 | `shark.cpp` | 0x05BEDA | 0x3167 | ~0x38070 | AI trajectory solver |
 | `shields.cpp` | 0x05BF66 | 0x31D8 | ~0x38780 | Shield system |
 | `team.cpp` | 0x05C55D | 0x3A56+ | ~0x40F60 | Team management |
+| *(menu module)* | *(no debug string)* | 0x34ED | ~0x3B8D0 | Main menu/config UI, sub-dialogs |
 
 ### Key Data Regions
 
@@ -390,9 +391,9 @@ Code segment 0x2F76 is shared between laser sight display and Plasma Blast/Riot 
 
 ## UI System (from binary strings)
 
-### Main Menu / Configuration Screen
+### Main Menu / Configuration Screen (VERIFIED from disassembly)
 
-The main menu is the first screen shown after startup. Left panel has buttons/spinners, right panel shows title + terrain preview. Menu labels at file offset 0x0585A7-0x058830. The `~` character marks the keyboard accelerator (hotkey letter) for each item.
+The main menu is the first screen shown after startup. Left panel has buttons/spinners, right panel shows title + terrain preview. Menu labels at file offset 0x0585A7-0x058830. The `~` character marks the keyboard accelerator (hotkey letter) for each item. Main menu rendering function at file 0x3D140 (far address 0x34ED:0x1870), called from game loop at file 0x2A850. Uses a dialog system library at segment 0x3F19 and text rendering at segment 0x4589.
 
 **Top-Level Main Menu**:
 
@@ -505,6 +506,159 @@ The main menu is the first screen shown after startup. Left panel has buttons/sp
 | Trace ~Paths | `TRACE=%s` | Show projectile trajectory |
 | ~Extra Dirt | `EXTRA_DIRT=%s` | Explosions generate loose dirt |
 | ~Useless Items | `USELESS_ITEMS=%s` | Include joke/novelty items |
+
+
+#### Main Menu Rendering Code (VERIFIED from disassembly)
+
+**Source Module**: No `.cpp` debug string found; likely `menu.cpp` or `config.cpp`. Code spans file 0x3B8D0–0x3D927 (segments 0x34ED–0x366D). Called from the game loop at file 0x2A850 in segment 0x23E0.
+
+**Function**: `main_menu()` at file 0x3D140 (far address 0x34ED:0x1870)
+
+**String Pointer Table** at DS:0x20C8: Master far-pointer array (4 bytes per entry, seg=0x4F38=DS) indexing all menu/UI strings. Entries [0]–[21] are option value strings ("Off", "On", "Basic", "Greedy", etc.), entries [22]–[24] are play mode strings ("Sequential", "Simultaneous", "Synchronous"), entries [25]–[51+] are menu labels ("~Start", "~Players:", "~Rounds:", sub-dialog labels, etc.).
+
+**Menu button string table** specifically at DS:0x212C–0x2154 (entries [25]–[39] in the master table), with far pointers to:
+
+| Table Index | DS Offset | String |
+|:-----------:|:---------:|--------|
+| 25 (0x212C) | DS:0x2827 | "~Start" |
+| 26 (0x2130) | DS:0x282E | "~Players:" |
+| 27 (0x2134) | DS:0x2838 | "~Rounds:" |
+| 28 (0x2138) | DS:0x2841 | "S~ound..." |
+| 29 (0x213C) | DS:0x284B | "~Hardware..." |
+| 30 (0x2140) | DS:0x2858 | "~Economics..." |
+| 31 (0x2144) | DS:0x2866 | "~Landscape..." |
+| 32 (0x2148) | DS:0x2874 | "Ph~ysics..." |
+| 33 (0x214C) | DS:0x2880 | "Play Op~tions..." |
+| 34 (0x2150) | DS:0x2891 | "~Weapons..." |
+| 35 (0x2154) | DS:0x289D | "Save ~Changes" |
+
+**Resolution-Adaptive Layout** (from 0x3D161):
+
+| Setting | Small Mode (width ≤ 200) | Normal Mode (width > 200) |
+|---------|:------------------------:|:-------------------------:|
+| Font selector (DS:0xED58) | 1 (small) | 0 (large) |
+| Row height (DS:0x6316[n]) | 17 px | 25 px |
+| First item index (DS:0xECD4) | 4 | 5 |
+| Start Y position | 5 | 15 |
+| Item spacing | 5 px | 12 px |
+
+**Row Height Table** at DS:0x6316: `[0]=25` (large font), `[1]=17` (small font). Indexed by DS:0xED58.
+
+**Menu Item Y Positioning**: Each button is placed at `y = row_height * item_number + start_y`. The dialog system function at 0x3F19:0x2A9B (`add_button`) receives 13 parameters (0x1A bytes): dialog ptr, x, y, width, height, string far ptr, callback far ptr, flags, extra params.
+
+**Item Callbacks** (in segment 0x34ED):
+- ~Start → 0x34ED:0x014C (file 0x3BA1C): returns 1 to start the game
+- Sub-dialog buttons → 0x34ED:0x01AF (file 0x3BA7F): opens sub-dialogs (Sound, Hardware, etc.)
+- Save Changes → 0x34ED:0x0161 (file 0x3BA31): calls save function, refreshes dialog
+- Save Changes alt → 0x34ED:0x16EC (file 0x3CFBC): alternate save path
+
+**Dialog System Library** at segment 0x3F19 (file base 0x45B90):
+
+| Function | Far Address | File Offset | Purpose |
+|----------|:-----------:|:-----------:|---------|
+| dialog_create | 0x3F19:0x00E2 | 0x45C72 | Create dialog with dimensions |
+| dialog_draw | 0x3F19:0x024C | 0x45DDC | Render dialog to screen |
+| dialog_run | 0x3F19:0x045D | 0x45FED | Run event loop |
+| add_button | 0x3F19:0x2A9B | 0x4862B | Add button/label item |
+| add_spinner | 0x3F19:0x2CD1 | 0x48861 | Add numeric spinner |
+
+#### Title Area Rendering (right panel)
+
+After menu buttons are created, the right side is rendered (starting at file 0x3D59B):
+
+1. **Background fill**: `draw_3d_box(0, 0, screen_width, screen_height, bg_color)` fills entire screen with the 3D raised box effect.
+
+2. **Terrain preview frame**: `draw_flat_box(menu_right+1, 6, screen_height-37, screen_width-6)` draws a sunken 3D frame for the terrain preview area. Height adjusts to `screen_height-51` if the copyright text is too wide.
+
+3. **Terrain generation**: Called via 0x223A:0x083F, renders a live terrain preview inside the frame using current landscape settings.
+
+4. **Title text rendering** (centered in space right of menu panel):
+
+| Row | Y Position (large/small) | Content | Rendering Function |
+|:---:|:------------------------:|---------|:------------------:|
+| 1 | 11 / 2 | "Scorched Earth" | `title_3d_text` (5-layer emboss) |
+| 2 | 41 / 27 | "The Mother of All Games" | `text_display` (normal) |
+| 3 | 71 / 52 | "Registered Version" | `text_display` (normal) |
+| 4 | varies | Copyright + "1.50" | `text_display` (normal) |
+
+**Horizontal centering formula**: `x = (screen_max_x - menu_right - text_width) / 2 + menu_right`
+
+**Copyright layout adapts to screen width**: If the full "Copyright (c) 1991-1995 Wendell Hicken" string is too wide (checked via `text_measure`), it splits across two lines:
+- Line 1: "Copyright (c) 1991-1995" (at `screen_height - 33`)
+- Line 2: "Wendell Hicken" (at `screen_height - 20`)
+
+Otherwise, rendered as single line. Version string built via `sprintf(buf, "%s %s", "1.50", ...)`.
+
+#### 3D Embossed Title Text (file 0x4CEFD)
+
+The "Scorched Earth" title uses function `title_3d_text` at 0x4589:0x0C6D which renders 5 overlapping layers of the same text at pixel offsets (0,0) through (4,4), each in a different color from the palette system:
+
+| Layer | Offset | Color Source | Visual Role |
+|:-----:|:------:|:------------:|-------------|
+| 1 | (x+0, y+0) | DS:0xEF2C | Deepest shadow |
+| 2 | (x+1, y+1) | DS:0xEF32 | Shadow highlight |
+| 3 | (x+2, y+2) | DS:0xEF24 | Mid-tone |
+| 4 | (x+3, y+3) | DS:0xEF2A | Light |
+| 5 | (x+4, y+4) | DS:0xEF26 | Top surface |
+
+This creates the characteristic beveled/embossed look of the title. The inner text rendering function handles the `~` hotkey marker (character 0x7E) by skipping it in both measurement and display.
+
+#### 3D Box Drawing Functions (file 0x444BB)
+
+**draw_3d_box** (0x3DAB:0x000B at file 0x444BB): Raised box with Windows 3.1-style beveled edges.
+- Parameters: `(x1, y1, width, height, fill_color)`
+- Left/Top edges: 2-pixel border using colors DS:0xEF26 (dark) and DS:0xEF2E (light)
+- Right/Bottom edges: 2-pixel border using colors DS:0xEF30 and DS:0xEF32 (bright)
+- Interior: filled with `fill_color` via `fg_fillregion` ([DS:0xEF14])
+- In hi-res VGA mode (`[DS:0x6E28]==3`): 3-pixel borders instead of 2
+
+**draw_flat_box** (0x3DAB:0x0180 at file 0x44630): Sunken/inset frame (reversed highlight/shadow).
+- Top: DS:0xEF30, Left: DS:0xEF32, Bottom: DS:0xEF26, Right: DS:0xEF2E
+- Used for the terrain preview frame
+
+#### Text Rendering System (segment 0x4589)
+
+| Function | Far Address | File | Purpose |
+|----------|:-----------:|:----:|---------|
+| fg_setcolor | 0x3EA1:0x028F | 0x4569F | Set current draw color (stores to DS:0x6E2A) |
+| text_display | 0x4589:0x0684 | 0x4C914 | Render formatted text at (x, y); handles `~` hotkey markers |
+| text_measure | 0x4589:0x0B87 | 0x4CE17 | Measure pixel width of string; skips `~` chars |
+| title_3d_text | 0x4589:0x0C6D | 0x4CEFD | 5-layer beveled text for title |
+
+**text_measure** iterates over each character, looks up glyph width from a bitmap font table (each glyph entry is a far pointer at `DS:[char*4 - 0xCA6]`), reads the first byte (width), adds 1 for spacing, and sums the total. Skips `~` (0x7E).
+
+**text_display** uses `sprintf` (via 0x0:0x577A) to format the string into a buffer at DS:0xF2DA (max 128 chars), then renders character by character using the same font table. If the formatted string exceeds 128 chars, an error handler is invoked.
+
+#### Fastgraph Function Pointer Table
+
+Drawing primitives are called through indirect far pointers in the data segment, allowing the same code to work across different video modes:
+
+| DS Offset | Function | Parameters |
+|:---------:|----------|------------|
+| DS:0xEEF4 | fg_getpixel (variant) | (x, y, color) |
+| DS:0xEEF8 | fg_getpixel | (x, y) → color |
+| DS:0xEF0C | fg_rect (horiz line) | (x1, x2, y, color) |
+| DS:0xEF10 | fg_drect (vert line) | (x, y1, y2, color) |
+| DS:0xEF14 | fg_fillregion | (x1, x2, y1, y2, color) |
+
+These pointers are initialized at runtime based on the selected graphics mode.
+
+#### UI Color Variables
+
+All colors are stored as palette indices and set at runtime:
+
+| DS Offset | Role in 3D UI | Used In |
+|:---------:|---------------|---------|
+| DS:0xEF22 | Bright highlight (selected items) | Menu selection, weapon names |
+| DS:0xEF24 | Dark text / mid shadow | 3D title layer 3, unselected text |
+| DS:0xEF26 | Dark border (top-left shadow) | Box shadows, title layer 5 |
+| DS:0xEF28 | Background fill color | Screen clear, box interiors |
+| DS:0xEF2A | Light accent | 3D title layer 4 |
+| DS:0xEF2C | Deep shadow | 3D title layer 1, item shadow |
+| DS:0xEF2E | Light border (top-left highlight) | Box top/left edges |
+| DS:0xEF30 | Medium border (bottom-right) | Box bottom/right edges |
+| DS:0xEF32 | Bright border (bottom-right highlight) | Box bright edges, title layer 2 |
+
 
 ### Status Bar / HUD
 
@@ -2054,9 +2208,9 @@ All located in `disasm/` directory:
 
 23. **Sound system** — How sound effects are triggered, what format they use, Fastgraph sound integration.
 
-25. **Main menu rendering** — How the config screen buttons/spinners are drawn, terrain preview rendering, title text layout, left/right panel split. Which source file handles this (likely separate from play.cpp).
+25. ~~**Main menu rendering**~~ — **RESOLVED**. Menu module at segment 0x34ED (file 0x3B8D0), no .cpp debug string. Main function at 0x3D140. Dialog system library at 0x3F19. Resolution-adaptive layout: row height 25/17px, font 0/1. Title uses 5-layer 3D emboss. 3D box drawing at 0x444BB (Windows 3.1-style bevels). String pointer table at DS:0x20C8. See "Main Menu Rendering Code" section.
 
-26. **Graphics mode initialization** — Fastgraph V4.02 mode setup code: how Mode-X vs VESA paths are selected, the mode detection/fallback logic, VESA mode enumeration (4 `AX=4F01h` calls at 0x51555/0x51794/0x517B1/0x52263). Binary offsets for VGA mode set at 0x440EE (Mode 12h) and 0x440F3 (Mode 13h), VESA mode set at 0x5081B.
+26. ~~**Graphics mode initialization**~~ — **RESOLVED**. Mode table at DS:0x6B66, 9 entries of 68 bytes with FG mode number, aspect ratio, and 11-slot function dispatch table. Config parsing at 0x195F6, mode detection at 0x451E1, init at 0x45413. 360x480 custom Mode X: dual mode set (12h→13h) + 17 CRTC register pairs from DS:0x6840. SVGA uses fg_testmode + VESA VBE. See "Graphics/Video Mode System" section.
 
 27. **Mouse/joystick wrapper functions** — Full trace of the 3 INT 33h wrapper functions (at 0x9D18, 0x130B2, 0x1C1C2). How mouse coordinates map to click regions. Joystick calibration routine.
 
@@ -2967,6 +3121,95 @@ Palette buffer at DS:0x6862 (256×3 = 768 bytes): `buffer[index*3] = R, [+1] = G
 | `1024x768` | 1024×768×256 | SVGA/VESA | VESA mode set |
 
 Default: `GRAPHICS_MODE=360x480` (in SCORCH.CFG).
+
+### Mode Table Structure (DS:0x6B66)
+
+9 entries of 68 bytes (stride 0x44) each, containing per-mode configuration:
+
+```c
+struct GraphicsMode {       // 68 bytes (0x44)
+    far char*  name;        // +0x00: far ptr to mode name string
+    uint16     width;       // +0x04: pixel width (0 = query FG at runtime)
+    uint16     height;      // +0x06: pixel height (0 = query FG at runtime)
+    uint16     num_colors;  // +0x08: always 256
+    double     aspect_ratio;// +0x0A: pixel aspect ratio (IEEE 754)
+    far void*  init_func;   // +0x12: per-mode init function pointer
+    far void*  fptr[11];    // +0x16: Fastgraph function dispatch table
+    uint16     fg_mode;     // +0x42: Fastgraph mode number
+};
+```
+
+| Index | Name | FG Mode | Aspect | VGA Type |
+|:-----:|------|:-------:|:------:|----------|
+| 0 | 320x200 | 19 | 1.00 | Mode X chain-4 |
+| 1 | 320x240 | 22 | 1.00 | Mode X |
+| 2 | 320x400 | 21 | 0.50 | Mode X doubled |
+| 3 | 320x480 | 23 | 0.50 | Mode X doubled |
+| **4** | **360x480** | **0** | **0.55** | **Custom Mode X (default)** |
+| 5 | 640x400 | 24 | 1.00 | SVGA/VESA 0x100 |
+| 6 | 640x480 | 25 | 1.00 | SVGA/VESA 0x101 |
+| 7 | 800x600 | 26 | 1.00 | SVGA/VESA 0x103 |
+| 8 | 1024x768 | 27 | 1.00 | SVGA/VESA 0x105 |
+
+Note: Mode 4 (360x480) has FG mode 0 (text mode in Fastgraph) because it bypasses Fastgraph's built-in mode handling and uses a custom CRTC programming path.
+
+### Initialization Sequence
+
+1. **Config parsing** (file 0x195F6): Reads `GRAPHICS_MODE` from `SCORCH.CFG`, loops through mode table comparing names, sets `selected_mode` index (DS:0x6E26).
+
+2. **Mode detection** (file 0x451E1): For SVGA modes (FG >= 24), calls `fg_testmode` to check VESA availability. Probes video pages 1-15. Shows error on failure.
+
+3. **Graphics init** (file 0x45413): Bounds-checks mode index, copies 11 function pointers from mode entry into dispatch table (DS:0xEEF4-0xEF1F), calls the per-mode `init_func`, reads resolution via `fg_getmaxx`/`fg_getmaxy`, computes scale factors from aspect ratio, sets clipping rectangle.
+
+4. **Mode-specific init**: Standard modes call `fg_setmode(fg_mode)`. The custom 360x480 mode (file 0x440EC) uses a two-step approach: sets VGA mode 0x12 (640x480x16) then 0x13 (320x200x256), disables chain-4, reprograms CRTC via 17 register pairs from table at DS:0x6840.
+
+### Function Dispatch Table (DS:0xEEF4-0xEF1F)
+
+Populated from mode entry at init time; 11 far pointers for mode-specific drawing:
+
+| Slot | DS Offset | Call Count | Function | Purpose |
+|:----:|:---------:|:----------:|----------|---------|
+| 0 | DS:0xEEF4 | 294 | fg_point(color, y, x) | Put pixel |
+| 1 | DS:0xEEF8 | 142 | fg_getpixel(x, y) | Read pixel |
+| 2 | DS:0xEEFC | 34 | fg_getimage(buf, w, h) | Grab screen region |
+| 3 | DS:0xEF00 | 2 | fg_waitfor(count) | VSync wait |
+| 4 | DS:0xEF04 | 21 | fg_restore(buf, w, h) | Blit to screen |
+| 5 | DS:0xEF08 | 93 | fg_rect(x1, y1, x2, y2) | Filled rectangle |
+| 6 | DS:0xEF0C | 85 | fg_line(x1, y1, x2, y2) | Line/outline |
+| 7 | DS:0xEF10 | 50 | fg_box(x1, y1, x2, y2) | Box/region |
+| 8 | DS:0xEF14 | 65 | fg_move(x, y) | Set cursor position |
+| 9 | DS:0xEF18 | 2 | fg_copypage(src, dst) | Page copy |
+| 10 | DS:0xEF1C | 2 | fg_setpage(page) | Select page |
+
+Standard modes (0-3, 5-8) share dispatch pointers (seg 0x3E7E/0x3D9B/0x4815). Mode 4 (360x480) uses different set (seg 0x3D6E) since it bypasses Fastgraph.
+
+### Key Global Variables
+
+| DS Offset | Name | Default | Purpose |
+|-----------|------|:-------:|---------|
+| DS:0x6DCA | mode_count | 9 | Number of available modes |
+| DS:0x6E26 | selected_mode | 4 | Index into mode table |
+| DS:0x6E28 | num_pages | 3 | Video pages (2 or 3) |
+| DS:0x6E2A | draw_color | 1 | Current drawing color |
+| DS:0x6E2C | num_colors | 256 | Palette size |
+| DS:0x6ED6 | gfx_initialized | 0 | Set to 1 after init |
+| DS:0xEF3E | screen_max_x | runtime | fg_getmaxx() result |
+| DS:0xEF3A | screen_max_y | runtime | fg_getmaxy() result |
+
+### 360x480 Custom Mode X (CRTC Table at DS:0x6840)
+
+The 360x480 default mode bypasses Fastgraph entirely. Initialization at file 0x440EC:
+1. Set VGA Mode 12h (640x480x16) via `AX=0012h, INT 10h`
+2. Set VGA Mode 13h (320x200x256) via `AX=0013h, INT 10h`
+3. Disable chain-4 (unchained planar mode)
+4. Program 17 CRTC register pairs from table at DS:0x6840
+
+CRTC configuration:
+- **28.322 MHz dot clock** (Misc Output register = 0xE7)
+- **H display: 90 chars = 360 pixels** (4 pixels per character clock in Mode X)
+- **V display: 480 lines** (VDE = 0x1DF from Overflow bits)
+- **Stride: 45 words = 90 bytes/plane/row** (360 pixels across 4 planes)
+- **Memory: 172,800 bytes** (fits in 256KB VGA RAM, ~1.5 video pages)
 
 ### VESA/SVGA Driver
 
