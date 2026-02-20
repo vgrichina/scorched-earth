@@ -25,11 +25,13 @@ def read_file(path):
 def build_files():
     files = []
 
-    # index.html
-    files.append({
-        "name": "index.html",
-        "content": read_file(os.path.join(WEB_DIR, "index.html"))
-    })
+    # HTML files
+    for fname in sorted(os.listdir(WEB_DIR)):
+        if fname.endswith('.html'):
+            files.append({
+                "name": fname,
+                "content": read_file(os.path.join(WEB_DIR, fname))
+            })
 
     # CSS
     css_dir = os.path.join(WEB_DIR, "css")

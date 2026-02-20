@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture — Scorched Earth Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#ccc;font-family:'Courier New',monospace;font-size:0.9rem;line-height:1.7;position:relative}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px);pointer-events:none;z-index:100}
+.container{max-width:860px;margin:0 auto;padding:2rem 1.5rem}
+nav{background:linear-gradient(180deg,#111 0%,#0a0a0a 100%);border-bottom:2px solid #ff6600;padding:0.75rem 1.5rem;text-align:center;position:sticky;top:0;z-index:50}
+nav a{font-family:'Press Start 2P',monospace;color:#ff6600;text-decoration:none;margin:0 0.8rem;font-size:0.55rem;letter-spacing:0.05em;padding:0.3rem 0;transition:color 0.15s}
+nav a:hover{color:#ff9944}
+nav a.active{color:#fff;border-bottom:2px solid #fff}
+h1{font-family:'Press Start 2P',monospace;color:#ff6600;font-size:1.1rem;margin:2rem 0 0.5rem;border-bottom:2px solid #333;padding-bottom:0.5rem;text-shadow:0 0 8px rgba(255,68,0,0.3);line-height:1.5}
+h2{font-family:'Press Start 2P',monospace;color:#ff6600;font-size:0.75rem;margin:2rem 0 0.5rem;border-bottom:1px solid #222;padding-bottom:0.3rem;line-height:1.5}
+h3{color:#ff9944;font-size:1rem;margin:1.2rem 0 0.4rem;font-weight:bold}
+p{margin:0.6rem 0}
+a{color:#ff6600;transition:color 0.15s}
+a:hover{color:#ff9944}
+code{background:#111;border:1px solid #1a1a1a;padding:0.15rem 0.4rem;font-size:0.8rem;border-radius:3px;color:#ff9944}
+pre{background:#0a0a0a;border:1px solid #1a1a1a;padding:1rem;overflow-x:auto;font-size:0.75rem;line-height:1.6;margin:0.75rem 0;border-radius:4px}
+table{width:100%;border-collapse:collapse;margin:0.75rem 0;font-size:0.8rem}
+th{background:#1a0a00;color:#ff6600;text-align:left;padding:0.5rem 0.6rem;border:1px solid #222}
+td{padding:0.4rem 0.6rem;border:1px solid #1a1a1a}
+tr:hover{background:rgba(255,102,0,0.04)}
+.stat{color:#ff6600;font-weight:bold}
+.subtitle{color:#888;font-size:0.85rem;margin-bottom:1.2rem}
+footer{text-align:center;padding:2.5rem 0 1.5rem;color:#555;font-size:0.75rem;border-top:1px solid #222;margin-top:3rem}
+footer a{color:#ff6600}
+ul,ol{margin:0.6rem 0 0.6rem 1.5rem}
+li{margin:0.3rem 0}
+.highlight{color:#ff6600}
+@media(max-width:600px){
+  .container{padding:1.5rem 1rem}
+  nav a{font-size:0.45rem;margin:0 0.4rem}
+  h1{font-size:0.85rem}
+  h2{font-size:0.65rem}
+  pre{font-size:0.65rem;padding:0.6rem}
+  table{font-size:0.7rem}
+}
+</style>
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://scorched-earth.berrry.app/architecture.html">
+<meta property="og:title" content="Architecture — Scorched Earth Web">
+<meta property="og:description" content="22 modules, 5,925 lines of JS, zero dependencies. Every mechanic extracted from the original DOS binary.">
+<meta property="og:image" content="https://berrry.app/apps/scorched-earth/screenshot?version=6">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<nav>
+<a href="./">PLAY</a>
+<a href="architecture.html" class="active">ARCHITECTURE</a>
+<a href="reverse-engineering.html">REVERSE ENGINEERING</a>
+</nav>
+<div class="container">
+
+<h1>Web Implementation Architecture</h1>
+<p class="subtitle">Scorched Earth v1.50 &mdash; faithfully reverse-engineered from the 415KB DOS binary and rebuilt for the web.</p>
+
+<h2>1. Overview</h2>
+<p><span class="stat">22 modules</span>, <span class="stat">5,925 lines</span> of JavaScript, <span class="stat">zero dependencies</span>. Every game mechanic &mdash; physics constants, weapon behaviors, AI solver, palette layout, damage formulas &mdash; was extracted from the original <code>SCORCH.EXE</code> binary via disassembly and reimplemented in vanilla JS with ES modules.</p>
+
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>JS modules</td><td>22 files</td></tr>
+<tr><td>Total lines</td><td>5,925</td></tr>
+<tr><td>External dependencies</td><td>0</td></tr>
+<tr><td>Build step</td><td>None &mdash; raw ES modules</td></tr>
+<tr><td>Resolution</td><td>320&times;200 (VGA Mode 13h)</td></tr>
+<tr><td>Rendering</td><td>WebGL (GPU) or Canvas2D (CPU fallback)</td></tr>
+<tr><td>Weapons implemented</td><td>57 (all from EXE weapon table)</td></tr>
+<tr><td>AI types</td><td>7 (Moron through Spoiler)</td></tr>
+</table>
+
+<h2>2. Module Dependency Graph</h2>
+<pre>
+main.js ─────────────────────────────────────────── 457 lines
+  ├── game.js (state machine, turn logic) ──────── 922 lines
+  │   ├── physics.js (projectile simulation) ───── 358 lines
+  │   ├── behaviors.js (weapon dispatch) ────────── 550 lines
+  │   ├── ai.js (trajectory solver) ─────────────── 331 lines
+  │   ├── explosions.js (craters, damage) ───────── 326 lines
+  │   ├── shields.js (deflection, absorption) ──── 225 lines
+  │   ├── score.js (scoring modes) ──────────────── 75 lines
+  │   ├── shop.js (buy/sell UI) ─────────────────── 219 lines
+  │   ├── talk.js (speech bubbles) ──────────────── 196 lines
+  │   └── sound.js (PC speaker emulation) ───────── 84 lines
+  ├── framebuffer.js (VGA VRAM emulation) ───────── 212 lines
+  ├── palette.js (256-color VGA DAC) ────────────── 300 lines
+  ├── terrain.js (landscape generation) ─────────── 342 lines
+  ├── tank.js (player/tank management) ──────────── 309 lines
+  ├── hud.js (status bar) ───────────────────────── 126 lines
+  ├── menu.js (config screens) ──────────────────── 271 lines
+  ├── font.js (pixel font renderer) ─────────────── 237 lines
+  └── input.js (keyboard handler) ───────────────── 31 lines
+
+Shared utilities:
+  config.js ─── game settings (57 lines)
+  utils.js ──── math helpers (49 lines)
+  weapons.js ── weapon data table (248 lines)
+</pre>
+
+<h2>3. VGA Framebuffer Emulation</h2>
+
+<h3>The Core Idea</h3>
+<p>The original game renders to VGA Mode 13h: a linear 320&times;200 framebuffer at segment <code>A000h</code>, where each byte is a palette index (0&ndash;255) that maps through the VGA DAC to an RGB color. The web version faithfully replicates this architecture:</p>
+
+<pre>
+// The indexed pixel buffer (VGA VRAM equivalent)
+const pixels = new Uint8Array(320 * 200);  // 64,000 bytes
+
+// Set a pixel: just store a palette index
+pixels[y * 320 + x] = colorIndex;
+</pre>
+
+<h3>Why This Matters</h3>
+<p>In the original game, <strong>VRAM <em>is</em> the world model</strong>. There is no collision mesh, no spatial hash, no physics geometry. Collision detection reads pixel colors directly from the framebuffer:</p>
+
+<table>
+<tr><th>Pixel Value</th><th>Meaning</th><th>Action</th></tr>
+<tr><td>0</td><td>Black/background</td><td>Pass through</td></tr>
+<tr><td>1&ndash;79</td><td>Tank body (<code>floor(pixel/8)</code> = player index)</td><td>Hit tank</td></tr>
+<tr><td>80&ndash;103</td><td>Sky gradient</td><td>Pass through</td></tr>
+<tr><td>104</td><td>System black (HUD)</td><td>Pass through</td></tr>
+<tr><td>105&ndash;149</td><td>Terrain</td><td>Hit terrain</td></tr>
+<tr><td>170&ndash;199</td><td>Explosion fire</td><td>Pass through</td></tr>
+</table>
+
+<h3>Dual Renderer</h3>
+<p>The <code>blit()</code> function converts palette indices to RGB for display, with two backends:</p>
+
+<p><strong>WebGL (primary)</strong> &mdash; uploads the 320&times;200 index buffer as a <code>LUMINANCE</code> texture. A 256&times;1 RGBA palette texture acts as the VGA DAC. The fragment shader performs the lookup on the GPU:</p>
+<pre>
+// Fragment shader: VGA DAC lookup
+float i = texture2D(u_idx, v_uv).r;
+gl_FragColor = texture2D(u_pal, vec2((i*255.0+0.5)/256.0, 0.5));
+</pre>
+
+<p><strong>Canvas2D (fallback)</strong> &mdash; CPU loop maps each palette index through a <code>Uint32Array</code> lookup table to an <code>ImageData</code> buffer:</p>
+<pre>
+for (let i = 0; i &lt; 64000; i++) {
+    buf32[i] = palette32[pixels[i]];
+}
+ctx.putImageData(imageData, 0, 0);
+</pre>
+
+<h2>4. State Machine</h2>
+
+<p>The game loop runs via <code>requestAnimationFrame</code>, dispatching to the current state each frame. The state machine mirrors the original EXE's <code>play.cpp</code> dispatch at file offset <code>0x2F78A</code>:</p>
+
+<table>
+<tr><th>State</th><th>Purpose</th><th>Transitions to</th></tr>
+<tr><td>TITLE</td><td>Title screen</td><td>CONFIG</td></tr>
+<tr><td>CONFIG</td><td>Game settings</td><td>PLAYER_SETUP</td></tr>
+<tr><td>PLAYER_SETUP</td><td>Player names &amp; AI types</td><td>ROUND_SETUP</td></tr>
+<tr><td>AIM</td><td>Human/AI aim adjustment</td><td>FLIGHT</td></tr>
+<tr><td>FLIGHT</td><td>Projectile physics simulation</td><td>EXPLOSION</td></tr>
+<tr><td>EXPLOSION</td><td>Crater animation + damage</td><td>FALLING / NEXT_TURN / ROUND_OVER</td></tr>
+<tr><td>FALLING</td><td>Unsupported tanks drop</td><td>NEXT_TURN / ROUND_OVER</td></tr>
+<tr><td>NEXT_TURN</td><td>Wind update, advance player</td><td>AIM / SCREEN_HIDE / SYNC_AIM</td></tr>
+<tr><td>ROUND_OVER</td><td>War quote + scoring</td><td>SHOP / GAME_OVER</td></tr>
+<tr><td>SHOP</td><td>Buy/sell equipment</td><td>ROUND_SETUP</td></tr>
+<tr><td>ROUND_SETUP</td><td>New terrain + place tanks</td><td>AIM / SYNC_AIM</td></tr>
+<tr><td>SYNC_AIM</td><td>All players aim (sync/simultaneous)</td><td>SYNC_FIRE</td></tr>
+<tr><td>SYNC_FIRE</td><td>Batch launch all shots</td><td>FLIGHT</td></tr>
+<tr><td>SCREEN_HIDE</td><td>"NO KIBITZING" interstitial</td><td>AIM</td></tr>
+</table>
+
+<p>The core gameplay cycle: <code>AIM &rarr; FLIGHT &rarr; EXPLOSION &rarr; FALLING &rarr; NEXT_TURN</code>, repeating until one player survives.</p>
+
+<h2>5. Physics Engine</h2>
+
+<h3>EXE-Calibrated Constants</h3>
+<pre>
+DT       = 0.02      // timestep (EXE default, calibrated via CPU MIPS benchmark)
+GRAVITY  = 4.9       // px/sec&sup2; downward
+WIND_SCALE = 0.15    // wind config &rarr; horizontal accel
+MAX_SPEED  = 400     // px/sec at power=1000
+</pre>
+
+<h3>Per-Step Integration Order</h3>
+<p>Matches EXE simulation loop at file <code>0x21A80&ndash;0x21D09</code>:</p>
+<ol>
+<li><strong>Mag Deflector</strong> &mdash; deflect velocity based on nearby players with Mag items</li>
+<li><strong>Speed limit</strong> &mdash; cap velocity magnitude to MAX_SPEED</li>
+<li><strong>Position</strong> &mdash; <code>x += vx*dt</code>, <code>y -= vy*dt</code> (screen Y inverted)</li>
+<li><strong>Viscosity</strong> &mdash; multiplicative damping: <code>v *= (1.0 - viscosity/10000)</code></li>
+<li><strong>Gravity</strong> &mdash; <code>vy -= GRAVITY * dt</code></li>
+<li><strong>Wind</strong> &mdash; <code>vx += wind * WIND_SCALE * dt</code> (horizontal only)</li>
+</ol>
+
+<h3>Wall Types (8 modes)</h3>
+<table>
+<tr><th>Type</th><th>Behavior</th></tr>
+<tr><td>None</td><td>Projectiles fly offscreen</td></tr>
+<tr><td>Wrap</td><td>Left edge wraps to right</td></tr>
+<tr><td>Padded</td><td>Reflect with 0.5&times; velocity</td></tr>
+<tr><td>Rubber</td><td>Reflect with 0.8&times; velocity</td></tr>
+<tr><td>Spring</td><td>Reflect with 1.2&times; velocity</td></tr>
+<tr><td>Concrete</td><td>Detonate on wall impact</td></tr>
+<tr><td>Random</td><td>Resolved once per round</td></tr>
+<tr><td>Erratic</td><td>Resolved each turn</td></tr>
+</table>
+
+<h3>Collision Detection</h3>
+<p>Pure pixel-color sampling from the framebuffer &mdash; no geometry calculations. Each physics step calls <code>getPixel(x, y)</code> and checks: <code>&gt;0 &amp;&amp; &lt;80</code> = tank hit, <code>&ge;105</code> = terrain hit, anything else = sky (pass through).</p>
+
+<h2>6. Weapon System</h2>
+
+<p><span class="stat">57 weapons</span> extracted from the EXE's struct array at file offset <code>0x056F76</code>. Each weapon has a 52-byte struct with price, bundle quantity, arms level, behavior type code, and blast radius.</p>
+
+<h3>Behavior Dispatch</h3>
+<p>13 behavior handlers, dispatched by <code>BHV</code> type code (matching the EXE's far call through weapon struct pointers):</p>
+
+<table>
+<tr><th>BHV</th><th>Handler</th><th>Weapons</th></tr>
+<tr><td>0x0021</td><td>Standard &mdash; simple radius blast</td><td>Baby Missile, Missile, Baby Nuke, Nuke</td></tr>
+<tr><td>0x0002</td><td>Tracer &mdash; no damage, shows path</td><td>Tracer, Smoke Tracer</td></tr>
+<tr><td>0x0003</td><td>Roller &mdash; flight then terrain-follow</td><td>Baby Roller, Roller, Heavy Roller</td></tr>
+<tr><td>0x0006</td><td>Bounce &mdash; LeapFrog reflections</td><td>LeapFrog</td></tr>
+<tr><td>0x0239</td><td>MIRV &mdash; split at apogee (vy sign flip)</td><td>MIRV, Death's Head</td></tr>
+<tr><td>0x01A0</td><td>Napalm &mdash; fire particle spread</td><td>Napalm, Hot Napalm, Ton of Dirt</td></tr>
+<tr><td>0x0009</td><td>Dirt &mdash; add terrain (inverse crater)</td><td>Heavy Sandhog, Dirt Clod, Dirt Ball, Dirt Tower</td></tr>
+<tr><td>0x000A</td><td>Tunnel &mdash; dig through terrain</td><td>Diggers, Sandhogs, Heavy Riot Bomb</td></tr>
+<tr><td>0x000D</td><td>Plasma &mdash; speed-based variable radius</td><td>Plasma Blast, Riot Charge</td></tr>
+<tr><td>0x03BD</td><td>Riot &mdash; earth-moving explosion</td><td>Riot Blast, Riot Bomb</td></tr>
+<tr><td>0x0004</td><td>Disrupter &mdash; force suspended dirt to fall</td><td>Earth Disrupter</td></tr>
+<tr><td>0x0081</td><td>Liquid &mdash; napalm-style dirt spread</td><td>Liquid Dirt</td></tr>
+<tr><td>0x013E</td><td>Dirt Charge &mdash; explosion + dirt fill</td><td>Dirt Charge</td></tr>
+</table>
+
+<p>Special cases: Funky Bomb (BHV=0x0000 but handler segment 0x1DCE) scatters 5&ndash;10 sub-bombs from screen top. Popcorn Bomb has no struct data at all.</p>
+
+<h2>7. AI System</h2>
+
+<p>7 AI types from Moron (wildly inaccurate) to Spoiler (strategically chaotic). Cyborg and Unknown randomize to types 1&ndash;6 each turn.</p>
+
+<h3>Analytic Ballistic Solver</h3>
+<p>The web AI uses iterative trajectory simulation: for each candidate angle (coarse sweep, then fine-tune), simulate the trajectory accounting for gravity and wind, and pick the angle/power combo that lands closest to the target.</p>
+
+<h3>Sinusoidal Noise Model</h3>
+<p>Instead of uniform random noise, the AI uses multi-harmonic sine waves to produce smooth, repeatable aim wobble. The original EXE generates 2&ndash;5 harmonics with rejection-sampled frequencies:</p>
+<pre>
+noise = amplitude * (sin(t*3.7)*0.5 + sin(t*7.3)*0.3 + sin(t*13.1)*0.2) * 0.15
+</pre>
+
+<h3>Noise Parameters per AI Type</h3>
+<table>
+<tr><th>AI Type</th><th>Angle Noise</th><th>Power Noise</th><th>Weapon Noise</th><th>Character</th></tr>
+<tr><td>Moron</td><td>50</td><td>50</td><td>50</td><td>Wildly inaccurate</td></tr>
+<tr><td>Shooter</td><td>23</td><td>23</td><td>23</td><td>Accurate marksman</td></tr>
+<tr><td>Poolshark</td><td>23</td><td>23</td><td>23</td><td>Accurate (same as Shooter)</td></tr>
+<tr><td>Tosser</td><td>63</td><td>23</td><td>23</td><td>Wild angle, good power</td></tr>
+<tr><td>Chooser</td><td>63</td><td>63</td><td>23</td><td>Wild aim, smart weapons</td></tr>
+<tr><td>Spoiler</td><td>63</td><td>63</td><td>63</td><td>Maximum chaos</td></tr>
+</table>
+
+<h2>8. VGA Palette System</h2>
+
+<p>256-color palette matching the original VGA DAC layout. Each entry is 6-bit RGB (0&ndash;63), upscaled to 8-bit for display.</p>
+
+<table>
+<tr><th>Range</th><th>Entries</th><th>Purpose</th></tr>
+<tr><td>0&ndash;79</td><td>80</td><td>Player colors (10 players &times; 8 gradient slots: dark&rarr;light body, full color, white flash, smoke)</td></tr>
+<tr><td>80&ndash;103</td><td>24</td><td>Sky gradient (7 types: Plain, Shaded, Stars, Storm, Sunset, Cavern, Black)</td></tr>
+<tr><td>104</td><td>1</td><td>System black (HUD background)</td></tr>
+<tr><td>105&ndash;119</td><td>15</td><td>Unused</td></tr>
+<tr><td>120&ndash;149</td><td>30</td><td>Terrain gradient (6 types: Blue Ice, Snow, Rock, Night, Desert, Varied)</td></tr>
+<tr><td>150</td><td>1</td><td>Wall color (gray)</td></tr>
+<tr><td>170&ndash;179</td><td>10</td><td>Explosion: Dark Red fire</td></tr>
+<tr><td>180&ndash;189</td><td>10</td><td>Explosion: Orange fire</td></tr>
+<tr><td>190&ndash;199</td><td>10</td><td>Explosion: Yellow fire</td></tr>
+<tr><td>253</td><td>1</td><td>Laser sight green</td></tr>
+<tr><td>254</td><td>1</td><td>Laser sight white (Plasma)</td></tr>
+</table>
+
+<p>The 10 player base colors (VGA 6-bit, from DS:0x57E2): Red, Lime Green, Purple, Yellow, Cyan, Magenta, White, Orange, Sea Green, Blue.</p>
+
+<h2>9. Sound System</h2>
+
+<p>PC speaker emulation via Web Audio API. The original game programs the PC speaker timer (port 42h) for square wave tones. The web version uses <code>OscillatorNode</code> with frequency sweeps:</p>
+
+<table>
+<tr><th>Sound</th><th>Start Hz</th><th>End Hz</th><th>Duration</th><th>EXE Source</th></tr>
+<tr><td>Fire</td><td>400</td><td>800</td><td>0.15s</td><td>INT 61h timer programming</td></tr>
+<tr><td>Explosion</td><td>200</td><td>40</td><td>0.1&ndash;0.8s (scales with radius)</td><td>Port 42h sweep</td></tr>
+<tr><td>Flight proximity</td><td>1000+</td><td>varies</td><td>0.03s per frame</td><td>Distance-based pitch</td></tr>
+<tr><td>Lightning</td><td>2000</td><td>200</td><td>0.1s</td><td>Hostile environment</td></tr>
+<tr><td>Tank death</td><td>80</td><td>20</td><td>0.3s</td><td>Low frequency thud</td></tr>
+</table>
+
+<p>All sounds use square wave oscillators (<code>type: 'square'</code>) to match the harsh timbre of the original PC speaker. Audio context is lazy-initialized on first user gesture to comply with browser autoplay policies.</p>
+
+<footer>
+<p>Scorched Earth v1.50 (1995) by Wendell Hicken. Web reimplementation via binary reverse engineering.</p>
+<p><a href="https://berrry.app/app/scorched-earth">Remix on Berrry</a></p>
+</footer>
+
+</div>
+</body>
+</html>

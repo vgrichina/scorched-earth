@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverse Engineering — Scorched Earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#ccc;font-family:'Courier New',monospace;font-size:0.9rem;line-height:1.7;position:relative}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px);pointer-events:none;z-index:100}
+.container{max-width:860px;margin:0 auto;padding:2rem 1.5rem}
+nav{background:linear-gradient(180deg,#111 0%,#0a0a0a 100%);border-bottom:2px solid #ff6600;padding:0.75rem 1.5rem;text-align:center;position:sticky;top:0;z-index:50}
+nav a{font-family:'Press Start 2P',monospace;color:#ff6600;text-decoration:none;margin:0 0.8rem;font-size:0.55rem;letter-spacing:0.05em;padding:0.3rem 0;transition:color 0.15s}
+nav a:hover{color:#ff9944}
+nav a.active{color:#fff;border-bottom:2px solid #fff}
+h1{font-family:'Press Start 2P',monospace;color:#ff6600;font-size:1.1rem;margin:2rem 0 0.5rem;border-bottom:2px solid #333;padding-bottom:0.5rem;text-shadow:0 0 8px rgba(255,68,0,0.3);line-height:1.5}
+h2{font-family:'Press Start 2P',monospace;color:#ff6600;font-size:0.75rem;margin:2rem 0 0.5rem;border-bottom:1px solid #222;padding-bottom:0.3rem;line-height:1.5}
+h3{color:#ff9944;font-size:1rem;margin:1.2rem 0 0.4rem;font-weight:bold}
+p{margin:0.6rem 0}
+a{color:#ff6600;transition:color 0.15s}
+a:hover{color:#ff9944}
+code{background:#111;border:1px solid #1a1a1a;padding:0.15rem 0.4rem;font-size:0.8rem;border-radius:3px;color:#ff9944}
+pre{background:#0a0a0a;border:1px solid #1a1a1a;padding:1rem;overflow-x:auto;font-size:0.75rem;line-height:1.6;margin:0.75rem 0;border-radius:4px}
+table{width:100%;border-collapse:collapse;margin:0.75rem 0;font-size:0.8rem}
+th{background:#1a0a00;color:#ff6600;text-align:left;padding:0.5rem 0.6rem;border:1px solid #222}
+td{padding:0.4rem 0.6rem;border:1px solid #1a1a1a}
+tr:hover{background:rgba(255,102,0,0.04)}
+.stat{color:#ff6600;font-weight:bold}
+.subtitle{color:#888;font-size:0.85rem;margin-bottom:1.2rem}
+footer{text-align:center;padding:2.5rem 0 1.5rem;color:#555;font-size:0.75rem;border-top:1px solid #222;margin-top:3rem}
+footer a{color:#ff6600}
+ul,ol{margin:0.6rem 0 0.6rem 1.5rem}
+li{margin:0.3rem 0}
+.highlight{color:#ff6600}
+.bug{color:#ff4444}
+.discovery{border-left:3px solid #ff6600;padding-left:0.75rem;margin:0.75rem 0;background:rgba(255,102,0,0.02);padding:0.5rem 0.75rem;border-radius:0 4px 4px 0}
+@media(max-width:600px){
+  .container{padding:1.5rem 1rem}
+  nav a{font-size:0.45rem;margin:0 0.4rem}
+  h1{font-size:0.85rem}
+  h2{font-size:0.65rem}
+  pre{font-size:0.65rem;padding:0.6rem}
+  table{font-size:0.7rem}
+}
+</style>
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://scorched-earth.berrry.app/reverse-engineering.html">
+<meta property="og:title" content="Reverse Engineering — Scorched Earth">
+<meta property="og:description" content="How we extracted game mechanics, data structures, and algorithms from a 1995 DOS binary.">
+<meta property="og:image" content="https://berrry.app/apps/scorched-earth/screenshot?version=6">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<nav>
+<a href="./">PLAY</a>
+<a href="architecture.html">ARCHITECTURE</a>
+<a href="reverse-engineering.html" class="active">REVERSE ENGINEERING</a>
+</nav>
+<div class="container">
+
+<h1>Reverse Engineering Process &amp; Findings</h1>
+<p class="subtitle">How we extracted game mechanics, data structures, and algorithms from a 1995 DOS binary.</p>
+
+<h2>1. The Target</h2>
+
+<table>
+<tr><th>Property</th><th>Value</th></tr>
+<tr><td>Game</td><td>Scorched Earth &mdash; "The Mother of All Games"</td></tr>
+<tr><td>Version</td><td>1.50 (June 4, 1995)</td></tr>
+<tr><td>Author</td><td>Wendell Hicken, Copyright 1991&ndash;1995</td></tr>
+<tr><td>Compiler</td><td>Borland C++ 1993 (Large memory model)</td></tr>
+<tr><td>Graphics Library</td><td>Fastgraph V4.02</td></tr>
+<tr><td>Platform</td><td>MS-DOS, 16-bit real mode</td></tr>
+<tr><td>EXE Size</td><td>415,456 bytes (MZ format)</td></tr>
+<tr><td>Header</td><td>27,136 bytes (6,136 relocations)</td></tr>
+<tr><td>Code+Data</td><td>388,320 bytes</td></tr>
+<tr><td>Data Segment</td><td>0x4F38 (file base 0x055D80)</td></tr>
+</table>
+
+<p>Borland's Large memory model means each <code>.cpp</code> file gets its own code segment. This turned out to be a blessing &mdash; we could identify source files and map the binary structure by finding debug assertion strings.</p>
+
+<h2>2. The Toolchain</h2>
+
+<h3>radare2 (r2)</h3>
+<p>Primary disassembler. Loaded with <code>r2 -a x86 -b 16 -s 0x6a00 earth/SCORCH.EXE</code> to skip the MZ header. Good for string cross-references and data exploration, but had a critical limitation with FPU instructions.</p>
+
+<h3>The FPU Problem</h3>
+<p class="discovery">Borland C++ 1993 does not emit native x87 FPU opcodes. Instead, <strong>every single floating-point operation</strong> is encoded as an <code>INT 34h&ndash;3Dh</code> software interrupt. Radare2 (and IDA, Ghidra, etc.) see these as interrupt calls, not math operations. Any region with physics or trigonometry is completely unreadable.</p>
+
+<p>The encoding scheme:</p>
+<table>
+<tr><th>Interrupt</th><th>Decodes To</th><th>Purpose</th></tr>
+<tr><td>INT 34h</td><td>DC xx</td><td><code>fsub</code>/<code>fcomp</code> qword</td></tr>
+<tr><td>INT 35h</td><td>D8 xx</td><td><code>fadd</code>/<code>fmul</code> dword</td></tr>
+<tr><td>INT 36h</td><td>DA xx</td><td><code>fiadd</code>/<code>fimul</code> dword int</td></tr>
+<tr><td>INT 37h</td><td>DE xx</td><td><code>fiadd</code>/<code>fimul</code> word int</td></tr>
+<tr><td>INT 38h</td><td>DD xx</td><td><code>fld</code>/<code>fst</code> qword</td></tr>
+<tr><td>INT 39h</td><td>D9 xx</td><td><code>fld</code>/<code>fst</code> dword</td></tr>
+<tr><td>INT 3Ah</td><td>DB xx</td><td><code>fild</code> dword</td></tr>
+<tr><td>INT 3Bh</td><td>DF xx</td><td><code>fild</code>/<code>fistp</code> word</td></tr>
+<tr><td>INT 3Ch</td><td>ES: + DD/DC</td><td>Player sub-struct FPU ops</td></tr>
+<tr><td>INT 3Dh</td><td>9B</td><td><code>fwait</code></td></tr>
+</table>
+
+<h3>Custom FPU Decoder</h3>
+<p>We wrote <code>fpu_decode.py</code> to transform the raw binary into readable FPU mnemonics with constant annotations. This was the key breakthrough that unlocked the physics, damage, and AI systems:</p>
+<pre>
+python3 disasm/fpu_decode.py earth/SCORCH.EXE 0x24F01 0x2610F -c -f
+
+# Output (example from AI solver):
+# 0x24FCF: fld   qword [DS:0x31F4]    ; scaled_gravity
+# 0x24FD5: fmul  qword [DS:0x31FC]    ; gravity * multiplier
+# 0x24FDB: fstp  qword [DS:0x31F4]    ; store result
+</pre>
+
+<h3>The INT 3Ch Bug</h3>
+<p class="discovery"><code>INT 3Ch</code> encodes an <code>ES:</code> segment override prefix followed by a DD or DC opcode. Our decoder initially mapped it to D8, producing wrong mnemonics for any FPU operations on the player sub-struct (accessed via <code>ES:BX</code>). This made the Mag Deflector deflection code at <code>0x21A80</code> particularly difficult to trace &mdash; the exact field accesses on the 202-byte tank struct remained ambiguous until we cross-referenced with runtime behavior.</p>
+
+<h2>3. Finding Source Files</h2>
+
+<p>Borland C++ embeds assertion strings containing the source filename. By searching for <code>.cpp</code> in the binary data segment, we mapped 11 source files to their code segments:</p>
+
+<table>
+<tr><th>Source File</th><th>Code Segment</th><th>File Base</th><th>Purpose</th></tr>
+<tr><td>comments.cpp</td><td>0x117B</td><td>0x17F50</td><td>Tank talking / speech bubbles</td></tr>
+<tr><td>equip.cpp</td><td>0x16BC</td><td>0x1D560</td><td>Equipment / weapon shop</td></tr>
+<tr><td>extras.cpp</td><td>0x1895</td><td>0x20EA0</td><td>Explosions / damage / projectiles</td></tr>
+<tr><td>icons.cpp</td><td>0x1F7F+</td><td>0x263F0</td><td>Tank and icon rendering</td></tr>
+<tr><td>play.cpp</td><td>0x28B9</td><td>0x2F830</td><td>Main game loop / state machine</td></tr>
+<tr><td>player.cpp</td><td>0x2B3B+</td><td>0x31FB0</td><td>Player / tank management</td></tr>
+<tr><td>ranges.cpp</td><td>0x2CBF</td><td>0x33690</td><td>Terrain / mountain generation</td></tr>
+<tr><td>score.cpp</td><td>0x30B2</td><td>0x37520</td><td>Scoring system</td></tr>
+<tr><td>shark.cpp</td><td>0x3167</td><td>0x38070</td><td>AI trajectory solver</td></tr>
+<tr><td>shields.cpp</td><td>0x31D8</td><td>0x38780</td><td>Shield system</td></tr>
+<tr><td>team.cpp</td><td>0x3A56+</td><td>0x40F60</td><td>Team management</td></tr>
+</table>
+
+<p>This gave us a roadmap of the entire binary. Instead of navigating 388KB of raw assembly, we could target specific files for specific mechanics.</p>
+
+<h2>4. The Weapon Table</h2>
+
+<h3>Structure</h3>
+<p>57 weapons stored as a struct array at file offset <code>0x056F76</code>, each <span class="stat">52 bytes</span>:</p>
+<pre>
+Offset  Size  Field
++00     4     Name pointer (far ptr to name string)
++04     2     Price (uint16)
++06     2     Bundle quantity (uint16)
++08     2     Arms level required (uint16, 0-4)
++0A     2     Behavior type code (uint16)
++0C     2     Behavior handler segment (uint16)
++0E     2     Blast radius / param (int16, signed)
++10-33  36    Runtime fields (zeroed)
+Total:  52 bytes
+</pre>
+
+<h3>The Linker Bug</h3>
+<p class="discovery">Items 50&ndash;56 (Force Shield, Heavy Shield, Super Mag, Patriot Missiles, Auto Defense, Fuel Tank, Contact Trigger) have <span class="bug">corrupted data</span>. The Borland linker placed the <code>equip.cpp</code> debug assertion string at file offset <code>0x05793A</code> &mdash; exactly where item 50's struct begins (<code>0x056F76 + 48&times;52 = 0x05793A</code>). The game reads prices from struct fields with no fallback, so these items have garbage prices at runtime. This is a confirmed linker-era bug in v1.50. We recovered intended prices from the official printed manual.</p>
+
+<h3>Weapon Dispatch</h3>
+<p>Weapons fire through an indirect far call: <code>lcall [weapon_idx * 52 + DS:0x1200]</code>. The struct's <code>+0A</code> field is the code offset within the handler segment, and <code>+0C</code> is the segment paragraph. Together they form a far function pointer dispatched at file <code>0x1C6C8</code>.</p>
+
+<p>Funky Bomb has BhvType=0x0000 (same as accessories) but a non-zero handler segment 0x1DCE &mdash; the entry point IS offset 0, the beginning of the segment. This caused initial confusion since NULL usually means "no handler."</p>
+
+<h2>5. The AI Solver (shark.cpp)</h2>
+
+<p class="discovery">The AI does NOT use a closed-form ballistic equation. It uses <strong>pixel-level ray marching</strong> &mdash; stepping one pixel at a time along a normalized direction vector, reading screen pixels via <code>fg_getpixel</code> to detect terrain and players. This is why the AI is called "shark" &mdash; it swims through the screen pixel by pixel.</p>
+
+<h3>Algorithm</h3>
+<ol>
+<li><strong>Target selection</strong> &mdash; Find closest alive enemy (stride 0xCA struct iteration)</li>
+<li><strong>Direction</strong> &mdash; Chebyshev-normalize vector from self to target</li>
+<li><strong>Ray march</strong> &mdash; Step one pixel at a time, reading <code>fg_getpixel</code> at each position:
+  <ul>
+    <li>Pixel &ge; 105 &rarr; terrain (try to navigate around)</li>
+    <li>Pixel 1&ndash;79 &rarr; player hit (<code>floor(pixel/8)</code> = player index). If it's the target, success!</li>
+    <li>Otherwise &rarr; sky, keep stepping</li>
+  </ul>
+</li>
+<li><strong>Gravity sweep</strong> &mdash; Decrement scaled gravity by 1.0 each outer pass, scanning progressively flatter arcs until one reaches the target</li>
+<li><strong>Power calculation</strong> &mdash; Standard ballistic formula: <code>power&sup2; = ref_dist &times; dx&sup2; / (cos&sup2; &times; sin_component)</code></li>
+<li><strong>Wind correction</strong> &mdash; Proportional to <code>gravity / dist^(1/4)</code></li>
+<li><strong>Noise injection</strong> &mdash; 2&ndash;5 sinusoidal harmonics with rejection-sampled frequencies, summed per-column for smooth aim wobble</li>
+</ol>
+
+<h3>The Corrupted Sentient</h3>
+<p class="discovery">The AI type table at <code>DS:0x02E2</code> has 10 entries. Types 7 (Cyborg) and 8 (Unknown) are randomized to types 0&ndash;5 at runtime. But type 9 ("Sentient") &mdash; which appears in the name string table at <code>0x058480</code> &mdash; is <strong>never randomized</strong>. Its vtable pointer reads from the ASCII string <code>"Some dumb tank: %s\n"</code> at DS:0x0300, interpreting characters as far pointers. Selecting Sentient AI in the original game would crash DOS with a wild jump to address <code>0x2062:0x6D75</code>.</p>
+
+<h2>6. Physics Discoveries</h2>
+
+<h3>Multiplicative Viscosity</h3>
+<p>Air viscosity is NOT a drag force subtracted from velocity. It's a <strong>multiplicative damping factor</strong> applied every step: <code>velocity *= (1.0 - config/10000)</code>. At max setting (20), each step retains 99.8% of velocity.</p>
+
+<h3>2D Velocity Rotation Damage</h3>
+<p class="discovery">The damage system does not use simple distance falloff. It performs a <strong>2D rotation of the projectile velocity vector</strong>. The angle between projectile direction and explosion-to-player direction is doubled, and the velocity is rotated by this amount. Damage = rotated speed magnitude / 100. This creates directional damage weighting &mdash; a shot that passes close to a tank deals more damage than one stopped dead next to it.</p>
+
+<h3>Adaptive Timestep</h3>
+<p>The physics <code>dt</code> is NOT a fixed constant. At startup, a MIPS benchmark (<code>get_mips_count()</code> at file <code>0x20F63</code>) calibrates the timestep to the CPU speed: <code>dt = 1 / (50 &times; FIRE_DELAY &times; mips / (projectiles &times; 100))</code>. The fallback value of 0.02 was used in our reimplementation.</p>
+
+<h3>PI/180 Constant</h3>
+<p>A <code>0.0174532930</code> value at DS:0x1D08 confirmed degree-to-radian conversion for trigonometry &mdash; hidden behind the INT 34h&ndash;3Dh emulation layer. This was found by scanning the data segment for known float patterns.</p>
+
+<h3>Wind Generation</h3>
+<p>Wind uses a center-biased distribution with cascading random doublings:</p>
+<pre>
+wind = random(max/2) - max/4     // centered
+if (random(100) &lt; 20) wind *= 2  // 20% chance double
+if (random(100) &lt; 40) wind *= 2  // 40% chance double (independent)
+// Distribution: 48% small, 12% moderate, 32% strong, 8% extreme
+</pre>
+
+<h2>7. Data Extraction Highlights</h2>
+
+<h3>War Quotes (with preserved typos)</h3>
+<p>15 war quotes displayed between rounds, extracted from <code>0x05B580&ndash;0x05BC5E</code>. Notable preservation of original typos:</p>
+<ul>
+<li>"<em>throughly</em> studied" &mdash; Sun Tzu quote (should be "thoroughly")</li>
+<li>"<em>Macchiavelli</em>" &mdash; double-c misspelling (should be Machiavelli)</li>
+<li>"<em>Jonathon</em> Swift" &mdash; (should be Jonathan)</li>
+</ul>
+
+<h3>Cheat Codes</h3>
+<table>
+<tr><th>Activation</th><th>Code</th><th>Effect</th></tr>
+<tr><td><code>SET ASGARD=frondheim</code></td><td>frondheim</td><td>Monochrome debug overlay &mdash; renders to MDA/Hercules VRAM at B000:0000. Wendell Hicken's second-monitor debug console.</td></tr>
+<tr><td><code>SET ASGARD=ragnarok</code></td><td>ragnarok</td><td>Debug log to file &mdash; opens <code>scorch.dbg</code> for text output</td></tr>
+<tr><td><code>SCORCH.EXE mayhem</code></td><td>mayhem</td><td>All weapons, 99 of each</td></tr>
+<tr><td><code>SCORCH.EXE nofloat</code></td><td>nofloat</td><td>Disable FPU physics &mdash; for machines without 8087 coprocessor</td></tr>
+</table>
+<p>ASGARD/frondheim/ragnarok are <strong>debug modes</strong>, not gameplay cheats. Only <code>mayhem</code> affects gameplay. The handler at file <code>0x02A42D</code> uses <code>getenv()</code> and <code>stricmp()</code> for matching.</p>
+
+<h3>Talk Files</h3>
+<p>54 attack phrases (TALK1.CFG) and 61 death phrases (TALK2.CFG), loaded from paths in <code>ATTACK_COMMENTS</code> and <code>DIE_COMMENTS</code> config variables. Displayed as speech bubbles above tanks via the <code>comments.cpp</code> module.</p>
+
+<h3>Shield Configuration Table</h3>
+<table>
+<tr><th>Type</th><th>Energy</th><th>Radius</th><th>Color</th><th>Behavior</th></tr>
+<tr><td>Shield</td><td>55 HP</td><td>16 px</td><td>Yellow</td><td>Basic absorption</td></tr>
+<tr><td>Warp Shield</td><td>100 HP</td><td>15 px</td><td>White</td><td>Random teleport on hit</td></tr>
+<tr><td>Teleport Shield</td><td>100 HP</td><td>15 px</td><td>Purple</td><td>Teleport when triggered</td></tr>
+<tr><td>Force Shield</td><td>150 HP</td><td>16 px</td><td>White</td><td>Absorption + deflection</td></tr>
+<tr><td>Heavy Shield</td><td>200 HP</td><td>16 px</td><td>Orange</td><td>Max absorption + deflection</td></tr>
+</table>
+<p>Flicker Shield has no config table entry &mdash; uses probabilistic on/off cycling. Damage absorption is flat 1:1 HP. Shield color fades proportionally: <code>color = energy &times; configColor / maxEnergy</code>.</p>
+
+<h2>8. Challenges &amp; Lessons</h2>
+
+<h3>The FPU Encoding Problem</h3>
+<p>Every standard disassembler fails on this binary. Without the custom FPU decoder, the physics engine, damage system, AI solver, and terrain generator are walls of <code>INT 34h</code> / <code>INT 38h</code> calls. The decoder transformed ~2,000 encoded instructions across the analysis.</p>
+
+<h3>Pixel Collision = No Collision Mesh</h3>
+<p>The game has no abstract collision geometry. A crater is just erased pixels. A tank is just colored pixels. Collision detection reads <code>getpixel()</code> and checks color ranges. This means the framebuffer <em>is</em> the physics world &mdash; a design that's elegant for a 320&times;200 game but extremely unusual by modern standards.</p>
+
+<h3>Two-Level Player Records</h3>
+<p>Players use a two-struct architecture: a compact 108-byte record (stride 0x6C) for hot-loop iteration, and a full 202-byte sub-struct (stride 0xCA) for complete tank state. The sub-struct contains turret angle, shield energy, AI targeting data, and linked-list nodes. Cross-referencing between these two levels through far pointer indirection was a persistent challenge.</p>
+
+<h3>The Mag Deflector Erroneous &times;30</h3>
+<p class="discovery">The in-flight Mag Deflector deflection scales as <code>(direction / normDist) &times; dt</code> with <strong>no additional multiplier</strong>. Our initial web implementation had an erroneous &times;30 factor that caused projectiles to reverse direction when multiple players had Mag Deflectors (e.g., after the MAYHEM cheat). This was only discovered through playtesting and traced back to a misread of the normalized distance calculation at file <code>0x21B68</code>.</p>
+
+<footer>
+<p>Scorched Earth v1.50 (1995) by Wendell Hicken. Reverse engineered with radare2 + custom FPU decoder.</p>
+<p><a href="https://berrry.app/app/scorched-earth">Remix on Berrry</a></p>
+</footer>
+
+</div>
+</body>
+</html>

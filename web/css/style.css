@@ -21,16 +21,10 @@ body {
 
 @keyframes fireGlow {
   0%, 100% {
-    text-shadow:
-      0 0 10px #ff4400,
-      0 0 30px #cc3300,
-      0 0 60px rgba(170, 34, 0, 0.4);
+    text-shadow: 0 0 8px rgba(255, 68, 0, 0.3);
   }
   50% {
-    text-shadow:
-      0 0 15px #ff6600,
-      0 0 40px #ff4400,
-      0 0 80px rgba(204, 51, 0, 0.6);
+    text-shadow: 0 0 14px rgba(255, 68, 0, 0.45);
   }
 }
 
@@ -141,10 +135,10 @@ body {
 }
 
 .controls-info {
-  margin-top: 2.2rem;
+  margin-top: 0.8rem;
   font-size: 0.55rem;
   color: #555;
-  animation: fadeInUp 0.6s ease-out 0.5s both;
+  animation: fadeInUp 0.6s ease-out 0.55s both;
 }
 
 .controls-info kbd {
@@ -160,6 +154,46 @@ body {
 
 .controls-hint-touch {
   display: none;
+}
+
+/* Doc links */
+.doc-links {
+  margin-top: 1.8rem;
+  margin-bottom: 0;
+  font-size: 0.55rem;
+  animation: fadeInUp 0.6s ease-out 0.5s both;
+}
+
+.doc-links a {
+  color: #ff6600;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.doc-links a:hover {
+  color: #ff8833;
+}
+
+.doc-sep {
+  color: #444;
+  margin: 0 0.5rem;
+}
+
+/* Remix footer */
+.remix-link {
+  margin-top: 1rem;
+  font-size: 0.45rem;
+  animation: fadeInUp 0.6s ease-out 0.65s both;
+}
+
+.remix-link a {
+  color: #555;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.remix-link a:hover {
+  color: #888;
 }
 
 /* ===== Game Container ===== */
