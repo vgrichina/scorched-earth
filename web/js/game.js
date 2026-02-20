@@ -7,9 +7,11 @@
 
 import { config } from './config.js';
 import { random, clamp } from './utils.js';
-import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks } from './tank.js';
+import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations } from './tank.js';
+import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
-         clearProjectiles, hasActiveProjectiles, applyMagDamping } from './physics.js';
+         clearProjectiles, hasActiveProjectiles, applyMagDamping,
+         WALL, setResolvedWallType } from './physics.js';
 import { getPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
@@ -19,26 +21,31 @@ import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
+import { checkShieldDeflection } from './shields.js';
+import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, initSound, toggleSound } from './sound.js';
+import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
 import { generateTerrain } from './terrain.js';
 
-// War quotes — EXE: 15 strings extracted from binary (see disasm/war_quotes.txt)
+// War quotes — EXE: 15 strings extracted from binary at 0x05B580-0x05BC5E
+// See disasm/war_quotes.txt for full extraction with offsets
+// Note: preserves original typos ("throughly", "Macchiavelli", "Jonathon")
 const WAR_QUOTES = [
-  '"War is hell." - W.T. Sherman',
-  '"The quickest way to end a war is to lose it." - George Orwell',
-  '"In war there is no substitute for victory." - MacArthur',
-  '"Only the dead have seen the end of war." - Plato',
-  '"War does not determine who is right, only who is left."',
-  '"The art of war is of vital importance to the state." - Sun Tzu',
-  '"Know thy enemy." - Sun Tzu',
-  '"War is a continuation of politics." - Clausewitz',
-  '"All warfare is based on deception." - Sun Tzu',
-  '"To secure peace is to prepare for war." - Carl von Clausewitz',
-  '"War is the unfolding of miscalculations." - Barbara Tuchman',
-  '"Fortune favors the bold." - Virgil',
-  '"A good plan executed now beats a perfect plan next week."',
-  '"Victorious warriors win first and then go to war." - Sun Tzu',
-  '"The supreme art of war is to subdue without fighting." - Sun Tzu',
+  '"There\'s many a boy here today who looks on war as all glory, but, boys, it is all hell." - Gen. William T. Sherman',
+  '"The essence of war is violence. Moderation in war is imbecility." - Fisher',
+  '"War is the science of destruction." - John Abbott',
+  '"Providence is always on the side of the big battalions." - Sevigne',
+  '"War is a matter of vital importance to the State; the province of life or death; the road to survival or ruin. It is mandatory that it be throughly studied." - Sun Tzu',
+  '"War should be the only study of a prince. He should consider peace only as a breathing-time, which gives him leisure to contrive, and furnishes as ability to execute, military plans." - Macchiavelli',
+  '"Not with dreams but with blood and iron, Shall a nation be moulded at last." - Swinburne',
+  '"No one can guarantee success in war, but only deserve it." - Winston Churchill',
+  '"The grim fact is that we prepare for war like precocious giants and for peace like retarded pygmies." - Lester Pearson',
+  '"We cannot live by power, and a culture that seeks to live by it becomes brutal and sterile. But we can die without it." - Max Lerner',
+  '"No man is wise enough, nor good enough to be trusted with unlimited power." - Charles Colton',
+  '"Nothing good ever comes of violence." - Martin Luther',
+  '"Give me the money that has been spent in war, and ... I will clothe every man, woman and child in attire of which kings and queens would be proud." - Henry Richard',
+  '"That mad game the world so loves to play." - Jonathon Swift',
+  '"Nearly all men can stand adversity, but if you want to test a man\'s character, give him power." - Abraham Lincoln',
 ];
 
 // Game states
@@ -55,6 +62,10 @@ export const STATE = {
   SHOP: 'shop',
   ROUND_SETUP: 'round_setup',
   GAME_OVER: 'game_over',
+  SYNC_AIM: 'sync_aim',       // EXE: synchronous mode — sequential aim collection
+  SYNC_FIRE: 'sync_fire',     // EXE: synchronous mode — batch launch
+  SCREEN_HIDE: 'screen_hide', // EXE: "No Kibitzing" screen between human turns
+  SYSTEM_MENU: 'system_menu', // EXE: F9 system menu
 };
 
 export const game = {
@@ -68,6 +79,23 @@ export const game = {
   shopPlayerIdx: 0,
   warQuote: '',
   roundOverTimer: 0,
+  // Play order system
+  turnOrder: [],
+  turnOrderIdx: 0,
+  // Sync play mode
+  aimQueue: [],        // stored aims for sync mode
+  syncPlayerIdx: 0,    // which player is aiming in sync mode
+  // Hostile environment
+  hostileLightningX: 0,
+  hostileLightningFrames: 0,
+  // No Kibitzing
+  screenHideTarget: -1,
+  // System menu
+  systemMenuOption: 0,
+  // Guided missile steering
+  guidedActive: false,
+  // Simultaneous mode timer
+  aimTimer: 0,
 };
 
 // EXE: wind generation — center-biased with random doubling
@@ -79,6 +107,14 @@ export function generateWind() {
   if (random(100) < 20) wind *= 2;
   if (random(100) < 40) wind *= 2;
   game.wind = clamp(wind, -maxWind * 4, maxWind * 4);
+}
+
+// Resolve Erratic/Random wall types to a concrete wall type
+// EXE: Erratic changes each turn, Random changes each round
+function resolveRandomWallType() {
+  // Pick from the non-meta types: NONE(0), WRAP(3), PADDED(4), RUBBER(5), SPRING(6), CONCRETE(7)
+  const concreteTypes = [WALL.NONE, WALL.WRAP, WALL.PADDED, WALL.RUBBER, WALL.SPRING, WALL.CONCRETE];
+  setResolvedWallType(concreteTypes[random(concreteTypes.length)]);
 }
 
 // EXE: wind random walk per turn — delta in [-5, +5], clamped to ±wind*4
@@ -93,8 +129,62 @@ export function getCurrentPlayer() {
   return players[game.currentPlayer];
 }
 
-// Advance to next living player
+// EXE: compute turn order based on playOrder config
+// 0=Sequential (round-robin), 1=Random (Fisher-Yates), 2=Losers-First, 3=Winners-First
+function computeTurnOrder() {
+  const alive = players.filter(p => p.alive).map(p => p.index);
+  switch (config.playOrder) {
+    case 1: {
+      // Fisher-Yates shuffle
+      for (let i = alive.length - 1; i > 0; i--) {
+        const j = random(i + 1);
+        [alive[i], alive[j]] = [alive[j], alive[i]];
+      }
+      break;
+    }
+    case 2:
+      // Losers first: sort by score ascending
+      alive.sort((a, b) => players[a].score - players[b].score);
+      break;
+    case 3:
+      // Winners first: sort by score descending
+      alive.sort((a, b) => players[b].score - players[a].score);
+      break;
+    default:
+      // Sequential: already in index order
+      break;
+  }
+  game.turnOrder = alive;
+  game.turnOrderIdx = 0;
+}
+
+// Advance to next living player using turn order
 function advancePlayer() {
+  // If using turn order system
+  if (game.turnOrder.length > 0) {
+    game.turnOrderIdx++;
+    while (game.turnOrderIdx < game.turnOrder.length) {
+      const idx = game.turnOrder[game.turnOrderIdx];
+      if (players[idx].alive) {
+        game.currentPlayer = idx;
+        return true;
+      }
+      game.turnOrderIdx++;
+    }
+    // Wrapped around — recompute order for next cycle
+    computeTurnOrder();
+    while (game.turnOrderIdx < game.turnOrder.length) {
+      const idx = game.turnOrder[game.turnOrderIdx];
+      if (players[idx].alive) {
+        game.currentPlayer = idx;
+        return true;
+      }
+      game.turnOrderIdx++;
+    }
+    return false;
+  }
+
+  // Fallback: sequential round-robin
   const numPlayers = players.length;
   let next = (game.currentPlayer + 1) % numPlayers;
   let checked = 0;
@@ -109,6 +199,29 @@ function advancePlayer() {
   return false;  // no living players
 }
 
+// Called by main.js startGame to set up first round state (turn order, sync mode, wall type)
+export function initGameRound() {
+  computeTurnOrder();
+  if (game.turnOrder.length > 0) {
+    game.currentPlayer = game.turnOrder[0];
+  }
+
+  // Resolve wall types for first round
+  if (config.wallType === WALL.RANDOM || config.wallType === WALL.ERRATIC) {
+    resolveRandomWallType();
+  }
+
+  if (config.playMode >= 1) {
+    // Both Simultaneous (1) and Synchronous (2) use SYNC_AIM/SYNC_FIRE
+    game.aimQueue = [];
+    game.syncPlayerIdx = 0;
+    game.aimTimer = config.playMode === 1 ? 600 : 0;  // 10s timer for simultaneous
+    game.state = STATE.SYNC_AIM;
+  } else {
+    game.state = STATE.AIM;
+  }
+}
+
 // Check if the round is over (1 or 0 players alive)
 function checkRoundOver() {
   const alive = players.filter(p => p.alive);
@@ -121,13 +234,29 @@ function startNewRound() {
   game.turnCount = 0;
   game.currentPlayer = 0;
 
+  // EXE: Random wall type resolves once per round
+  if (config.wallType === WALL.RANDOM) resolveRandomWallType();
+
   // Regenerate terrain and place tanks
   generateTerrain();
   generateWind();
 
   // Reuse existing players (preserves score/cash/wins/inventory/aiType/name)
   resetAndPlaceTanks();
-  game.state = STATE.AIM;
+  computeTurnOrder();
+  if (game.turnOrder.length > 0) {
+    game.currentPlayer = game.turnOrder[0];
+  }
+
+  // EXE: synchronous/simultaneous play mode — all players aim then all fire at once
+  if (config.playMode >= 1) {
+    game.aimQueue = [];
+    game.syncPlayerIdx = 0;
+    game.aimTimer = config.playMode === 1 ? 600 : 0;
+    game.state = STATE.SYNC_AIM;
+  } else {
+    game.state = STATE.AIM;
+  }
 }
 
 // Input handling during AIM state
@@ -151,6 +280,27 @@ function handleAimInput(player) {
   if (consumeKey('Tab')) {
     const dir = isKeyDown('ShiftLeft') || isKeyDown('ShiftRight') ? -1 : 1;
     player.selectedWeapon = cycleWeapon(player.inventory, player.selectedWeapon, dir);
+  }
+
+  // EXE: Tank movement with Fuel Tank (idx 55) — A/D keys move tank along terrain
+  const FUEL_TANK_IDX = 55;
+  if (player.inventory[FUEL_TANK_IDX] > 0) {
+    if (isKeyDown('KeyA')) {
+      const newX = clamp(player.x - 1, 5, config.screenWidth - 5);
+      if (newX !== player.x) {
+        player.x = newX;
+        player.y = getTerrainY(player.x);
+        player.inventory[FUEL_TANK_IDX]--;
+      }
+    }
+    if (isKeyDown('KeyD')) {
+      const newX = clamp(player.x + 1, 5, config.screenWidth - 5);
+      if (newX !== player.x) {
+        player.x = newX;
+        player.y = getTerrainY(player.x);
+        player.inventory[FUEL_TANK_IDX]--;
+      }
+    }
   }
 
   // Fire: space bar
@@ -208,6 +358,8 @@ function fireWeapon(player) {
   const guidanceType = selectGuidanceType(player);
 
   clearProjectiles();
+  playFireSound();
+  triggerAttackSpeech(player);
   launchProjectile(startX, startY, player.angle, player.power, weaponIdx, player.index);
 
   // Set guidance type on the newly launched projectile
@@ -250,7 +402,22 @@ function processHit(proj, hitResult) {
     }
   }
 
+  // EXE: Force/Heavy shield deflection — reverse and scatter projectile
+  if (hitResult === 'hit_tank') {
+    const targetPlayer = findHitPlayer(proj);
+    if (targetPlayer && checkShieldDeflection(targetPlayer, proj)) {
+      return;  // projectile deflected, no explosion
+    }
+  }
+
   const result = handleBehavior(proj, hitResult);
+
+  // EXE: explosion scale config — 0=Small(0.5x), 1=Medium(1x), 2=Large(1.5x)
+  if (result.radius > 0) {
+    const scale = [0.5, 1.0, 1.5][config.explosionScale] || 1.0;
+    result.radius = Math.floor(result.radius * scale);
+  }
+
   const cx = Math.round(proj.x);
   const cy = Math.round(proj.y);
 
@@ -277,11 +444,14 @@ function processHit(proj, hitResult) {
       applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.vx, proj.vy);
       const afterAlive = players.filter(p => p.alive).map(p => p.index);
 
-      // Score deaths
+      // Score deaths and trigger death speech + death animation
       const attacker = players[proj.attackerIdx];
       for (const idx of beforeAlive) {
         if (!afterAlive.includes(idx)) {
           scoreOnDeath(attacker, players[idx]);
+          triggerDeathSpeech(players[idx]);
+          startDeathAnimation(players[idx]);
+          playDeathSound();
         }
       }
     }
@@ -297,8 +467,10 @@ function processHit(proj, hitResult) {
 
 // Main game tick (called every frame)
 export function gameTick() {
+  stepDeathAnimations();
   switch (game.state) {
     case STATE.AIM: {
+      stepSpeechBubble();
       const player = getCurrentPlayer();
       if (!player.alive) {
         game.state = STATE.NEXT_TURN;
@@ -318,6 +490,23 @@ export function gameTick() {
           fireWeapon(player);
         }
       } else {
+        // EXE: F9 opens system menu during aim phase
+        if (consumeKey('F9')) {
+          game.systemMenuOption = 0;
+          game.state = STATE.SYSTEM_MENU;
+          break;
+        }
+        // EXE: Enter = SURRENDER — player forfeits, treated as self-kill
+        if (consumeKey('Enter')) {
+          player.alive = false;
+          player.energy = 0;
+          scoreOnDeath(player, player);
+          triggerDeathSpeech(player);
+          startDeathAnimation(player);
+          playDeathSound();
+          game.state = STATE.NEXT_TURN;
+          break;
+        }
         // Human player
         if (handleAimInput(player)) {
           fireWeapon(player);
@@ -327,6 +516,25 @@ export function gameTick() {
     }
 
     case STATE.FLIGHT: {
+      stepSpeechBubble();
+
+      // Guided missile keyboard steering — human players only
+      game.guidedActive = false;
+      const firingPlayer = players[game.currentPlayer];
+      if (firingPlayer && !isAI(firingPlayer)) {
+        for (const proj of projectiles) {
+          if (proj.active && proj.attackerIdx === game.currentPlayer && proj.guidanceCorrX !== undefined) {
+            game.guidedActive = true;
+            // Arrow keys adjust correction direction
+            if (isKeyDown('ArrowLeft'))  proj.guidanceCorrX -= 0.3;
+            if (isKeyDown('ArrowRight')) proj.guidanceCorrX += 0.3;
+            if (isKeyDown('ArrowUp'))    proj.guidanceCorrY += 0.3;
+            if (isKeyDown('ArrowDown'))  proj.guidanceCorrY -= 0.3;
+            break;
+          }
+        }
+      }
+
       // Run multiple physics steps per frame for speed
       const stepsPerFrame = 3;
 
@@ -404,6 +612,24 @@ export function gameTick() {
         }
       }
 
+      // Flight sound: play pitch based on distance to nearest enemy
+      if (hasActiveProjectiles() && config.flySoundEnabled) {
+        for (const proj of projectiles) {
+          if (proj.active && !proj.isNapalmParticle) {
+            // Find distance to nearest enemy for pitch calculation
+            let minDistSq = 100000;
+            for (const p of players) {
+              if (!p.alive || p.index === proj.attackerIdx) continue;
+              const dx = p.x - proj.x;
+              const dy = (p.y - 4) - proj.y;
+              minDistSq = Math.min(minDistSq, dx * dx + dy * dy);
+            }
+            playFlightSound(minDistSq);
+            break;  // only one flight sound per frame
+          }
+        }
+      }
+
       // If we still have active projectiles but finished steps, stay in FLIGHT
       if (hasActiveProjectiles()) {
         game.state = STATE.FLIGHT;
@@ -416,8 +642,8 @@ export function gameTick() {
         // Explosion still animating
         break;
       }
-      // All explosions done — check for falling tanks
-      if (checkTanksFalling()) {
+      // All explosions done — check for falling tanks (if enabled)
+      if (config.fallingTanks && checkTanksFalling()) {
         game.state = STATE.FALLING;
       } else if (checkRoundOver()) {
         endOfRoundScoring(game.round);
@@ -450,9 +676,57 @@ export function gameTick() {
       if (game.nextTurnTimer > 15) {  // brief pause between turns
         game.nextTurnTimer = 0;
         updateWind();
+        // EXE: Erratic wall type resolves each turn
+        if (config.wallType === WALL.ERRATIC) resolveRandomWallType();
+
+        // EXE: hostile environment — ~10% chance per turn of lightning or meteor
+        if (config.hostileEnvironment && random(100) < 10) {
+          if (random(2) === 0) {
+            // Lightning: random X column, damage tanks in range
+            const lx = random(config.screenWidth);
+            for (const p of players) {
+              if (p.alive && Math.abs(p.x - lx) <= 5) {
+                p.energy -= 20;
+                if (p.energy <= 0) {
+                  p.energy = 0;
+                  p.alive = false;
+                  startDeathAnimation(p);
+                  playDeathSound();
+                }
+              }
+            }
+            game.hostileLightningX = lx;
+            game.hostileLightningFrames = 8;
+            playLightningSound();
+          } else {
+            // Meteor: spawn projectile from top, Baby Missile, no attacker
+            clearProjectiles();
+            const mx = random(config.screenWidth);
+            launchProjectile(mx, 16, 270, 200, 2, -1);
+            game.state = STATE.FLIGHT;
+            break;
+          }
+        }
+
         game.turnCount++;
         if (advancePlayer()) {
-          game.state = STATE.AIM;
+          // Sync mode: go back to SYNC_AIM for next round of aims
+          if (config.playMode >= 1) {
+            game.aimQueue = [];
+            game.syncPlayerIdx = 0;
+            game.aimTimer = config.playMode === 1 ? 600 : 0;
+            game.state = STATE.SYNC_AIM;
+          } else {
+            // EXE: No Kibitzing — show interstitial between human turns in hotseat
+            const nextPlayer = getCurrentPlayer();
+            const humanCount = players.filter(p => p.alive && !isAI(p)).length;
+            if (humanCount > 1 && !isAI(nextPlayer)) {
+              game.screenHideTarget = nextPlayer.index;
+              game.state = STATE.SCREEN_HIDE;
+            } else {
+              game.state = STATE.AIM;
+            }
+          }
         } else {
           endOfRoundScoring(game.round);
           game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
@@ -497,6 +771,17 @@ export function gameTick() {
     }
 
     case STATE.ROUND_SETUP: {
+      // EXE: battery system — shields persist between rounds only if player has batteries
+      for (const p of players) {
+        if (p.activeShield !== 0) {
+          if (p.inventory[43] > 0) {
+            p.inventory[43]--;  // consume Battery (idx 43)
+          } else {
+            p.activeShield = 0;
+            p.shieldEnergy = 0;
+          }
+        }
+      }
       startNewRound();
       break;
     }
@@ -505,6 +790,131 @@ export function gameTick() {
       // Press space to go back to title screen
       if (consumeKey('Space')) {
         game.state = STATE.TITLE;
+      }
+      break;
+    }
+
+    // --- Synchronous play mode states ---
+
+    case STATE.SYNC_AIM: {
+      // Each player aims sequentially, aims stored in queue
+      const syncPlayer = players[game.syncPlayerIdx];
+      if (!syncPlayer || !syncPlayer.alive) {
+        // Skip dead players
+        game.syncPlayerIdx++;
+        if (game.syncPlayerIdx >= players.length) {
+          // All players have aimed — fire all
+          game.state = STATE.SYNC_FIRE;
+        } else if (config.playMode === 1) {
+          game.aimTimer = 600;  // reset timer for next player
+        }
+        break;
+      }
+
+      game.currentPlayer = game.syncPlayerIdx;
+
+      // Helper: advance to next player or fire all
+      const syncAdvance = () => {
+        game.syncPlayerIdx++;
+        if (game.syncPlayerIdx >= players.length) {
+          game.state = STATE.SYNC_FIRE;
+        } else if (config.playMode === 1) {
+          game.aimTimer = 600;  // reset timer for next player
+        }
+      };
+
+      if (isAI(syncPlayer)) {
+        if (!game.aiActive) {
+          setAIWind(game.wind);
+          startAITurn(syncPlayer);
+          game.aiActive = true;
+        }
+        const aiResult = stepAITurn(syncPlayer);
+        if (aiResult === 'fire') {
+          game.aiActive = false;
+          game.aimQueue.push({
+            playerIdx: game.syncPlayerIdx,
+            angle: syncPlayer.angle,
+            power: syncPlayer.power,
+            weaponIdx: syncPlayer.selectedWeapon,
+          });
+          syncAdvance();
+        }
+      } else {
+        // Simultaneous mode: countdown timer for human players
+        let timerExpired = false;
+        if (config.playMode === 1 && game.aimTimer > 0) {
+          game.aimTimer--;
+          if (game.aimTimer <= 0) timerExpired = true;
+        }
+
+        if (handleAimInput(syncPlayer) || timerExpired) {
+          game.aimQueue.push({
+            playerIdx: game.syncPlayerIdx,
+            angle: syncPlayer.angle,
+            power: syncPlayer.power,
+            weaponIdx: syncPlayer.selectedWeapon,
+          });
+          syncAdvance();
+        }
+      }
+      break;
+    }
+
+    case STATE.SYNC_FIRE: {
+      // Fire all queued aims at once
+      clearProjectiles();
+      for (const aim of game.aimQueue) {
+        const p = players[aim.playerIdx];
+        if (!p.alive) continue;
+
+        const barrelLength = 12;
+        const domeTopY = p.y - 4 - 4;
+        const angleRad = aim.angle * Math.PI / 180;
+        const startX = p.x + Math.cos(angleRad) * barrelLength;
+        const startY = domeTopY - Math.sin(angleRad) * barrelLength;
+
+        launchProjectile(startX, startY, aim.angle, aim.power, aim.weaponIdx, aim.playerIdx);
+      }
+      game.aimQueue = [];
+      playFireSound();
+      game.state = STATE.FLIGHT;
+      break;
+    }
+
+    // --- No Kibitzing / System Menu states ---
+
+    case STATE.SCREEN_HIDE: {
+      // Black screen between human turns — press space to continue
+      if (consumeKey('Space')) {
+        game.state = STATE.AIM;
+      }
+      break;
+    }
+
+    case STATE.SYSTEM_MENU: {
+      // F9 system menu
+      if (consumeKey('ArrowUp')) {
+        game.systemMenuOption = Math.max(0, game.systemMenuOption - 1);
+      }
+      if (consumeKey('ArrowDown')) {
+        game.systemMenuOption = Math.min(1, game.systemMenuOption + 1);
+      }
+      if (consumeKey('Enter') || consumeKey('Space')) {
+        if (game.systemMenuOption === 0) {
+          // Mass Kill — end round immediately
+          for (const p of players) p.alive = false;
+          endOfRoundScoring(game.round);
+          game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+          game.roundOverTimer = 0;
+          game.state = STATE.ROUND_OVER;
+        } else {
+          // New Game — back to title
+          game.state = STATE.TITLE;
+        }
+      }
+      if (consumeKey('Escape')) {
+        game.state = STATE.AIM;
       }
       break;
     }

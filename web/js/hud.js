@@ -9,6 +9,7 @@ import { hline, fillRect } from './framebuffer.js';
 import { drawText } from './font.js';
 import { BLACK } from './palette.js';
 import { WEAPONS } from './weapons.js';
+import { isSoundEnabled } from './sound.js';
 
 // HUD layout constants (from RE: 2 rows at top of screen)
 const HUD_Y = 1;
@@ -17,7 +18,7 @@ const BAR_WIDTH = 62;
 const ROW2_Y = HUD_Y + 7;
 
 // Draw the full HUD into the framebuffer
-export function drawHud(player, wind, round) {
+export function drawHud(player, wind, round, opts) {
   // Background strip (true black)
   fillRect(0, 0, config.screenWidth - 1, 14, BLACK);
 
@@ -99,8 +100,27 @@ export function drawHud(player, wind, round) {
     drawText(240, ROW2_Y, sign + Math.abs(wind), 150);
   }
 
+  // Fuel tank indicator
+  const fuelCount = player.inventory ? player.inventory[55] : 0;
+  if (fuelCount > 0) {
+    drawText(260, ROW2_Y, 'F' + fuelCount, 150);
+  }
+
   // Round number (if provided)
   if (round) {
     drawText(296, ROW2_Y, 'R' + round, 150);
+  }
+
+  // Sound indicator (top-right)
+  drawText(296, HUD_Y, isSoundEnabled() ? 'S' : 'x', isSoundEnabled() ? 150 : 179);
+
+  // Guided missile indicator
+  if (opts && opts.guided) {
+    drawText(240, ROW2_Y, 'GUIDED', 199);
+  }
+
+  // Simultaneous mode aim timer
+  if (opts && opts.aimTimer > 0) {
+    drawText(240, ROW2_Y, 'T:' + opts.aimTimer, 199);
   }
 }

@@ -27,20 +27,39 @@ const CONFIG_OPTIONS = [
     names: ['Flat', 'Slope', 'Rolling', 'Mountain', 'V-Shaped', 'Castle', 'Cavern'] },
   { key: 'skyType',    label: 'Sky',       min: 0, max: 6, step: 1,
     names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black'] },
-  { key: 'wallType',   label: 'Walls',     min: 0, max: 4, step: 1,
-    names: ['Concrete', 'Rubber', 'Spring', 'Wrap', 'None'] },
+  { key: 'wallType',   label: 'Walls',     min: 0, max: 7, step: 1,
+    names: ['None', 'Erratic', 'Random', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete'] },
   { key: 'armsLevel',  label: 'Arms Level', min: 0, max: 4, step: 1 },
   { key: 'wind',       label: 'Wind',      min: 0, max: 20, step: 1 },
   { key: 'scoringMode', label: 'Scoring',  min: 0, max: 2, step: 1,
     names: ['Standard', 'Corporate', 'Vicious'] },
   { key: 'startCash',  label: 'Start Cash', min: 0, max: 100000, step: 5000 },
   { key: 'interest',   label: 'Interest %', min: 0, max: 50, step: 5 },
+  { key: 'soundEnabled', label: 'Sound', min: 0, max: 1, step: 1,
+    names: ['Off', 'On'] },
+  { key: 'talkingTanks', label: 'Talking', min: 0, max: 1, step: 1,
+    names: ['Off', 'On'] },
+  { key: 'playOrder', label: 'Play Order', min: 0, max: 3, step: 1,
+    names: ['Sequential', 'Random', 'Losers First', 'Winners First'] },
+  { key: 'fallingTanks', label: 'Fall Damage', min: 0, max: 1, step: 1,
+    names: ['Off', 'On'] },
+  { key: 'explosionScale', label: 'Explosions', min: 0, max: 2, step: 1,
+    names: ['Small', 'Medium', 'Large'] },
+  { key: 'tracePaths', label: 'Trace Paths', min: 0, max: 1, step: 1,
+    names: ['Off', 'On'] },
+  { key: 'extraDirt', label: 'Extra Dirt', min: 0, max: 1, step: 1,
+    names: ['Off', 'On'] },
+  { key: 'hostileEnvironment', label: 'Environment', min: 0, max: 1, step: 1,
+    names: ['Calm', 'Hostile'] },
+  { key: 'playMode', label: 'Play Mode', min: 0, max: 2, step: 1,
+    names: ['Sequential', 'Simultaneous', 'Synchronous'] },
 ];
 
-// Player names to cycle through for setup
+// Player names — EXE: default names extracted from binary (DS player name table)
+// Note: "Napolean" preserves original EXE misspelling
 const DEFAULT_NAMES = [
-  'Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5',
-  'Player 6', 'Player 7', 'Player 8', 'Player 9', 'Player 10',
+  'Wolfgang', 'Gilligan', 'Cleopatra', 'Mussolini', 'Napolean',
+  'Barbarella', 'Antoinette', 'Elizabeth', 'Persephone', 'Mata Hari',
 ];
 
 // Player setup storage (before game starts)

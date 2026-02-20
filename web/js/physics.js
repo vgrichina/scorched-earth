@@ -18,12 +18,16 @@ const GRAVITY = 4.9;               // EXE: pixels/sec² downward (SCORCH.CFG GRA
 const WIND_SCALE = 0.15;           // EXE: wind config → pixels/sec² horizontal accel
 
 // Wall types — EXE: ELASTIC config variable, wall collision in physics loop
+// Reordered to match EXE enum ordering
 export const WALL = {
-  CONCRETE: 0,  // EXE: detonate on wall impact
-  RUBBER:   1,  // EXE: reflect with 0.8x velocity loss
-  SPRING:   2,  // EXE: reflect with 1.2x velocity increase
+  NONE:     0,  // EXE: fly off screen
+  ERRATIC:  1,  // EXE: random wall type each turn
+  RANDOM:   2,  // EXE: random wall type each round
   WRAP:     3,  // EXE: wrap-around screen edges
-  NONE:     4,  // EXE: fly off screen
+  PADDED:   4,  // EXE: reflect with 0.5x velocity loss
+  RUBBER:   5,  // EXE: reflect with 0.8x velocity loss
+  SPRING:   6,  // EXE: reflect with 1.2x velocity increase
+  CONCRETE: 7,  // EXE: detonate on wall impact
 };
 
 // Active projectiles array (replaces single projectile)
@@ -159,9 +163,23 @@ export function clearProjectiles() {
   projectile.active = false;
 }
 
+// Resolved wall type for Erratic/Random modes (set by game.js)
+export let resolvedWallType = 7;  // default Concrete
+
+export function setResolvedWallType(type) {
+  resolvedWallType = type;
+}
+
+// Get effective wall type (resolves Erratic/Random to their resolved value)
+function getEffectiveWallType() {
+  const wt = config.wallType;
+  if (wt === WALL.ERRATIC || wt === WALL.RANDOM) return resolvedWallType;
+  return wt;
+}
+
 // Wall collision handling
 function handleWallCollision(proj) {
-  const wallType = config.wallType;
+  const wallType = getEffectiveWallType();
   const w = config.screenWidth;
 
   // Wrap-around (type 3)
@@ -184,8 +202,14 @@ function handleWallCollision(proj) {
       return 'hit_wall';
 
     case WALL.RUBBER:
-      // Reflect with slight velocity loss
+      // Reflect with 0.8x velocity loss
       proj.vx = -proj.vx * 0.8;
+      proj.x = hitLeft ? 1 : w - 2;
+      return 'flying';
+
+    case WALL.PADDED:
+      // Reflect with 0.5x velocity loss
+      proj.vx = -proj.vx * 0.5;
       proj.x = hitLeft ? 1 : w - 2;
       return 'flying';
 
@@ -218,29 +242,41 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   proj.trail.push({ x: Math.round(proj.x), y: Math.round(proj.y) });
   if (proj.trail.length > 200) proj.trail.shift();
 
-  // 1. Viscosity (air resistance) — skip for napalm particles (they have own damping)
+  // EXE physics order: Mag → Speed limit → Position → Viscosity → Gravity → Wind
+
+  // 1. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
+  if (!proj.isNapalmParticle) {
+    applyMagDeflection(proj);
+  }
+
+  // 2. Speed limit (EXE: speed² threshold = 1.5, normalize to unit vector)
+  if (!proj.isNapalmParticle) {
+    const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
+    if (speedSq > 160000) {  // ~400 px/sec max (MAX_SPEED²)
+      const scale = 400 / Math.sqrt(speedSq);
+      proj.vx *= scale;
+      proj.vy *= scale;
+    }
+  }
+
+  // 3. Integrate position (screen coords: y increases downward)
+  proj.x += proj.vx * DT;
+  proj.y -= proj.vy * DT;  // subtract because screen y is inverted
+
+  // 4. Viscosity (air resistance) — skip for napalm particles (they have own damping)
   if (!proj.isNapalmParticle) {
     const visc = getViscosityFactor();
     proj.vx *= visc;
     proj.vy *= visc;
   }
 
-  // 2. Gravity (reduce upward velocity)
+  // 5. Gravity (reduce upward velocity)
   proj.vy -= GRAVITY * DT;
 
-  // 3. Wind (horizontal only, from RE) — skip for napalm particles
+  // 6. Wind (horizontal only, from RE) — skip for napalm particles
   if (!proj.isNapalmParticle) {
     proj.vx += wind * WIND_SCALE * DT;
   }
-
-  // 3b. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
-  if (!proj.isNapalmParticle) {
-    applyMagDeflection(proj);
-  }
-
-  // 4. Integrate position (screen coords: y increases downward)
-  proj.x += proj.vx * DT;
-  proj.y -= proj.vy * DT;  // subtract because screen y is inverted
 
   // 5. Wall collision
   const wallResult = handleWallCollision(proj);

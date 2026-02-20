@@ -4,21 +4,24 @@
 // Phase 6: Title screen, config menu, full game flow
 
 import { config } from './config.js';
-import { initFramebuffer, blit, setPixel, getPixel, fillRect } from './framebuffer.js';
+import { initFramebuffer, blit, setPixel, getPixel, fillRect, vline } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
 import { generateTerrain, drawSky, drawTerrain, initSkyBackground } from './terrain.js';
-import { placeTanks, drawAllTanks, players } from './tank.js';
+import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud } from './hud.js';
 import { drawText, drawTextShadow } from './font.js';
 import { projectiles } from './physics.js';
-import { gameTick, game, STATE, generateWind, getCurrentPlayer } from './game.js';
-import { drawShield } from './shields.js';
+import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound } from './game.js';
+import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
 import { getLeaderboard } from './score.js';
 import { menuTick, drawTitleScreen, drawConfigScreen, drawPlayerSetupScreen, playerSetup } from './menu.js';
 import { WPN } from './weapons.js';
+import { screenFlash } from './explosions.js';
+import { initSound, toggleSound } from './sound.js';
+import { drawSpeechBubble } from './talk.js';
 
 function init() {
   const canvas = document.getElementById('screen');
@@ -55,7 +58,7 @@ function startGame() {
   game.round = 1;
   game.turnCount = 0;
   game.currentPlayer = 0;
-  game.state = STATE.AIM;
+  initGameRound();
 }
 
 // EXE VERIFIED: full world repaint before gameTick ensures clean framebuffer
@@ -75,9 +78,9 @@ function drawAllProjectiles() {
   for (const proj of projectiles) {
     if (!proj.active) continue;
 
-    // Draw trail
+    // Draw trail — config.tracePaths shows full permanent trail
     const trail = proj.trail;
-    const trailLen = proj.isNapalmParticle ? 5 : 20;
+    const trailLen = config.tracePaths ? trail.length : (proj.isNapalmParticle ? 5 : 20);
     for (let i = Math.max(0, trail.length - trailLen); i < trail.length; i++) {
       const p = trail[i];
       const age = trail.length - i;
@@ -232,11 +235,14 @@ function drawRoundOver() {
     drawText(16, 92 + i * 10, `${p.name}: ${p.score}`, color);
   }
 
-  // War quote
+  // War quote — wrap to up to 5 lines (EXE quotes can be 190+ chars)
   if (game.warQuote) {
-    drawTextShadow(8, 140, game.warQuote.substring(0, 38), 150, 0);
-    if (game.warQuote.length > 38) {
-      drawTextShadow(8, 150, game.warQuote.substring(38), 150, 0);
+    const lineLen = 38;
+    const maxLines = 5;
+    for (let i = 0; i < maxLines; i++) {
+      const chunk = game.warQuote.substring(i * lineLen, (i + 1) * lineLen);
+      if (!chunk) break;
+      drawTextShadow(8, 130 + i * 10, chunk, 150, 0);
     }
   }
 
@@ -318,6 +324,39 @@ function gameLoop() {
     return;
   }
 
+  // EXE: No Kibitzing — black screen between human turns
+  if (game.state === STATE.SCREEN_HIDE) {
+    gameTick();
+    fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+    const targetPlayer = players[game.screenHideTarget] || getCurrentPlayer();
+    drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * 8 + 4, 0);
+    drawTextShadow(72, 100, 'Press SPACE', 150, 0);
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // EXE: System menu (F9)
+  if (game.state === STATE.SYSTEM_MENU) {
+    gameTick();
+    // Draw overlay on top of current world
+    redrawWorld();
+    fillRect(80, 60, 240, 130, 0);
+    fillRect(82, 62, 238, 128, 1);
+    drawTextShadow(100, 68, 'SYSTEM MENU', 199, 0);
+    const options = ['Mass Kill', 'New Game'];
+    for (let i = 0; i < options.length; i++) {
+      const y = 88 + i * 14;
+      const color = i === game.systemMenuOption ? 199 : 150;
+      if (i === game.systemMenuOption) fillRect(84, y - 1, 236, y + 9, 0);
+      drawText(100, y, options[i], color);
+    }
+    drawText(88, 116, 'ESC: Cancel', 150);
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
   // 1. Redraw clean world FIRST (no HUD) so gameTick reads clean pixels
   redrawWorld();
 
@@ -326,16 +365,50 @@ function gameLoop() {
 
   // 3. Overlays on top of game world
   const player = getCurrentPlayer();
-  drawHud(player, game.wind, game.round);
+  const hudOpts = {
+    guided: game.guidedActive,
+    aimTimer: game.aimTimer > 0 ? Math.ceil(game.aimTimer / 60) : 0,
+  };
+  drawHud(player, game.wind, game.round, hudOpts);
   drawAllProjectiles();
 
   // EXE VERIFIED: laser drawn during AIM phase only (draw_laser_sight at 0x36321)
-  if (game.state === STATE.AIM && player.alive) {
+  if ((game.state === STATE.AIM || game.state === STATE.SYNC_AIM) && player.alive) {
     drawLaserSight(player);
+  }
+
+  // Tank death animations
+  drawDeathAnimations();
+
+  // Shield break animation overlay
+  drawShieldBreak();
+
+  // Talking tanks speech bubble overlay
+  drawSpeechBubble();
+
+  // Hostile environment: lightning bolt
+  if (game.hostileLightningFrames > 0) {
+    const lx = game.hostileLightningX || 0;
+    // Draw zigzag lightning bolt
+    let x = lx;
+    for (let y = 15; y < config.screenHeight; y += 3) {
+      x += Math.floor(Math.random() * 5) - 2;
+      vline(x, y, Math.min(y + 3, config.screenHeight - 1), 199);
+      if (x - 1 >= 0) setPixel(x - 1, y + 1, 150);
+      if (x + 1 < config.screenWidth) setPixel(x + 1, y + 1, 150);
+    }
+    game.hostileLightningFrames--;
   }
 
   if (game.state === STATE.ROUND_OVER) {
     drawRoundOver();
+  }
+
+  // EXE: screen flash on large explosions (nukes) — fill with white
+  if (screenFlash.active) {
+    fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, 199);
+    screenFlash.frames--;
+    if (screenFlash.frames <= 0) screenFlash.active = false;
   }
 
   blit();
@@ -343,9 +416,28 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// MAYHEM cheat: global key listener for the sequence
+// Init sound on first user gesture (browser autoplay policy)
+window.addEventListener('keydown', () => initSound(), { once: true });
+window.addEventListener('click', () => initSound(), { once: true });
+
+// Game states where H-key toggle and cheat codes should work
+// (not during TITLE, CONFIG, PLAYER_SETUP where keys are used for menus/name entry)
+const GAMEPLAY_STATES = new Set([
+  STATE.AIM, STATE.FLIGHT, STATE.EXPLOSION, STATE.FALLING,
+  STATE.NEXT_TURN, STATE.ROUND_OVER, STATE.SHOP, STATE.ROUND_SETUP,
+  STATE.GAME_OVER, STATE.SYNC_AIM, STATE.SYNC_FIRE,
+  STATE.SCREEN_HIDE, STATE.SYSTEM_MENU,
+]);
+
+// H key: toggle sound (gameplay only — not during menu/name entry)
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyH' && GAMEPLAY_STATES.has(game.state)) toggleSound();
+});
+
+// MAYHEM cheat: global key listener for the sequence (gameplay only)
 // EXE VERIFIED: sets ALL weapon types to 99 unconditionally (RE doc line 516)
 window.addEventListener('keydown', (e) => {
+  if (!GAMEPLAY_STATES.has(game.state)) { mayhemIdx = 0; return; }
   if (e.code === MAYHEM_SEQ[mayhemIdx]) {
     mayhemIdx++;
     if (mayhemIdx >= MAYHEM_SEQ.length) {

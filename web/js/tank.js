@@ -157,14 +157,19 @@ export function stepFallingTanks() {
       player.y = terrainY;
       player.falling = false;
 
-      // Fall damage: 1 point per 5 pixels fallen
+      // EXE: Parachute (idx 42) prevents fall damage, consumed on use
       const fallDist = terrainY - player.fallTargetY;
       if (fallDist > 10) {
-        const damage = Math.floor(fallDist / 5);
-        player.energy -= damage;
-        if (player.energy <= 0) {
-          player.energy = 0;
-          player.alive = false;
+        if (player.inventory[42] > 0) {
+          player.inventory[42]--;  // consume parachute
+        } else {
+          // Fall damage: 1 point per 5 pixels fallen
+          const damage = Math.floor(fallDist / 5);
+          player.energy -= damage;
+          if (player.energy <= 0) {
+            player.energy = 0;
+            player.alive = false;
+          }
         }
       }
 
@@ -247,5 +252,58 @@ function drawBarrel(player, cx, domeTopY, color) {
 export function drawAllTanks() {
   for (const player of players) {
     drawTank(player);
+  }
+}
+
+// --- Tank death animation system ---
+// Visual overlay only — does not affect alive/dead game logic
+export const deathAnimations = [];
+
+export function startDeathAnimation(player) {
+  deathAnimations.push({
+    x: player.x,
+    y: player.y - 4,  // center of tank body
+    baseColor: player.index * 8,
+    frame: 0,
+    maxFrames: 20,
+  });
+}
+
+export function stepDeathAnimations() {
+  for (let i = deathAnimations.length - 1; i >= 0; i--) {
+    deathAnimations[i].frame++;
+    if (deathAnimations[i].frame >= deathAnimations[i].maxFrames) {
+      deathAnimations.splice(i, 1);
+    }
+  }
+}
+
+export function drawDeathAnimations() {
+  for (const anim of deathAnimations) {
+    const t = anim.frame / anim.maxFrames;
+    const radius = Math.floor(12 * t);
+
+    // Expanding ring of fire-palette particles
+    for (let angle = 0; angle < 360; angle += 15) {
+      const rad = angle * Math.PI / 180;
+      const px = Math.round(anim.x + Math.cos(rad) * radius);
+      const py = Math.round(anim.y + Math.sin(rad) * radius);
+      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
+        const palIdx = 170 + Math.floor(t * 29);
+        setPixel(px, py, palIdx);
+      }
+    }
+
+    // Disintegrating pixels in player's color scattering outward
+    const scatterCount = Math.floor(8 * (1 - t));
+    for (let i = 0; i < scatterCount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = radius * 0.5 + Math.random() * radius * 0.5;
+      const px = Math.round(anim.x + Math.cos(ang) * dist);
+      const py = Math.round(anim.y + Math.sin(ang) * dist);
+      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
+        setPixel(px, py, anim.baseColor + 2 + Math.floor(Math.random() * 3));
+      }
+    }
   }
 }

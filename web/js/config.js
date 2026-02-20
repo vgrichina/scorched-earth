@@ -30,8 +30,8 @@ export const config = {
   // Scoring — EXE: score.cpp modes
   scoringMode: 0,      // EXE: SCORING=Standard (0=Standard, 1=Corporate, 2=Vicious)
 
-  // Walls — EXE: physics wall collision types
-  wallType: 0,         // EXE: WALLS=Concrete (0=Concrete,1=Rubber,2=Spring,3=Wrap,4=None)
+  // Walls — EXE: physics wall collision types (reordered to match EXE enum)
+  wallType: 7,         // EXE: WALLS=Concrete (0=None,1=Erratic,2=Random,3=Wrap,4=Padded,5=Rubber,6=Spring,7=Concrete)
 
   // Economy — EXE: equip.cpp shop system
   startCash: 25000,    // EXE: START_CASH=25000
@@ -41,4 +41,17 @@ export const config = {
   // Misc
   talkingTanks: 1,     // EXE: TALKING=On (comments.cpp speech bubbles)
   playOrder: 0,        // EXE: PLAY_ORDER=Sequential (0=Sequential,1=Simultaneous,2=Synchronous)
+
+  // Sound
+  soundEnabled: 1,     // EXE: SOUND=On
+  flySoundEnabled: 0,  // EXE: FLY_SOUND=Off (in-flight projectile tone, can be annoying)
+
+  // Additional gameplay options
+  fallingTanks: 1,       // EXE: toggle fall damage
+  explosionScale: 1,     // 0=Small(0.5x), 1=Medium(1x), 2=Large(1.5x)
+  tracePaths: 0,         // EXE: permanent projectile trails
+  extraDirt: 0,          // EXE: debris scatter from explosions
+  playMode: 0,           // EXE: 0=Sequential, 1=Simultaneous, 2=Synchronous
+  hostileEnvironment: 0, // EXE: random lightning/meteor events
+  talkProbability: 100,  // EXE: % chance of speech on fire/death
 };

@@ -12,6 +12,9 @@ import { config } from './config.js';
 import { setPixel, getBackgroundColor } from './framebuffer.js';
 import { terrain, terrainBitmap } from './terrain.js';
 import { players } from './tank.js';
+import { scoreOnDamage } from './score.js';
+import { playExplosionSound } from './sound.js';
+import { random } from './utils.js';
 
 // Create a circular crater at (cx, cy) with given radius
 // Removes terrain from the per-pixel bitmap and framebuffer, updates terrain[] height map
@@ -37,6 +40,18 @@ export function createCrater(cx, cy, radius) {
 
     // Update terrain height map for this column
     updateTerrainColumn(x);
+  }
+
+  // EXE: extra dirt — scatter 3-5 small dirt clumps around crater rim
+  if (config.extraDirt && radius > 5) {
+    const count = 3 + random(3);
+    for (let i = 0; i < count; i++) {
+      const angle = random(360) * Math.PI / 180;
+      const dist = radius + random(radius);
+      const dx = Math.round(cx + Math.cos(angle) * dist);
+      const dy = Math.round(cy + Math.sin(angle) * dist);
+      addDirt(dx, dy, 3 + random(3));
+    }
   }
 }
 
@@ -160,11 +175,20 @@ function updateTerrainColumn(x) {
   terrain[x] = config.screenHeight;
 }
 
+// Screen flash state — triggered by large explosions (nukes)
+export const screenFlash = { active: false, frames: 0 };
+
 // Explosion animation state — supports queue of multiple explosions
 const explosionQueue = [];
 let currentExplosion = null;
 
 export function startExplosion(cx, cy, radius, attackerIndex) {
+  // EXE: large explosions (radius > 30) trigger screen flash
+  if (radius > 30) {
+    screenFlash.active = true;
+    screenFlash.frames = 3;
+  }
+  playExplosionSound(radius);
   const anim = {
     cx, cy, radius, attackerIndex,
     frame: 0,
@@ -272,15 +296,20 @@ export function applyExplosionDamage(cx, cy, radius, attackerIndex, projVx, proj
     }
 
     if (damage > 0) {
+      const attacker = players[attackerIndex];
+
       // Check shield first (Phase 4)
       if (player.shieldEnergy > 0) {
-        if (player.shieldEnergy >= damage) {
-          player.shieldEnergy -= damage;
-          damage = 0;
-        } else {
-          damage -= player.shieldEnergy;
-          player.shieldEnergy = 0;
-        }
+        const shieldDmg = Math.min(damage, player.shieldEnergy);
+        player.shieldEnergy -= shieldDmg;
+        damage -= shieldDmg;
+        // EXE: score_on_damage for shield absorption (+2x enemy, -1x friendly)
+        if (attacker) scoreOnDamage(attacker, player, shieldDmg, true);
+      }
+
+      // EXE: score_on_damage for HP damage (+30x enemy, -15x friendly)
+      if (damage > 0 && attacker) {
+        scoreOnDamage(attacker, player, damage, false);
       }
 
       player.energy -= damage;

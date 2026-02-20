@@ -11,6 +11,7 @@ import { terrain } from './terrain.js';
 import { random, clamp } from './utils.js';
 import { setPixel, getPixel } from './framebuffer.js';
 import { players } from './tank.js';
+import { WALL, resolvedWallType } from './physics.js';
 
 // Guidance weapon indices
 // EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
@@ -41,6 +42,8 @@ export function handleBehavior(proj, hitResult) {
     case BHV.NONE:
       // Funky Bomb special case (idx 7)
       if (proj.weaponIdx === 7) return bhvFunky(proj, weapon, hitResult);
+      // Popcorn Bomb special case (idx 1)
+      if (proj.weaponIdx === 1) return bhvPopcorn(proj, weapon, hitResult);
       return defaultResult(proj);
     default:
       return defaultResult(proj);
@@ -90,9 +93,17 @@ function bhvRoller(proj, weapon, hitResult) {
     proj.rollFrames = 0;
     proj.maxRollFrames = 120;  // max frames of rolling
 
-    // Determine roll direction from horizontal velocity
-    proj.rollDir = proj.vx >= 0 ? 1 : -1;
-    proj.rollSpeed = Math.max(1, Math.abs(proj.vx) * 0.01);  // per-sec → per-step (0.5 * dt)
+    // EXE: valley scanning — look 40px left and right, roll toward deeper valley
+    const sx = Math.round(proj.x);
+    let leftDepth = 0, rightDepth = 0;
+    for (let d = 1; d <= 40; d++) {
+      const lx = sx - d, rx = sx + d;
+      if (lx >= 0 && lx < config.screenWidth) leftDepth += terrain[lx];
+      if (rx >= 0 && rx < config.screenWidth) rightDepth += terrain[rx];
+    }
+    // Higher terrain[] Y = deeper valley (screen coords)
+    proj.rollDir = rightDepth >= leftDepth ? 1 : -1;
+    proj.rollSpeed = Math.max(1, Math.abs(proj.vx) * 0.01);
 
     return { explode: false, radius: 0, spawn: [], dirtAdd: false, skipDamage: true, keepAlive: true };
   }
@@ -105,27 +116,59 @@ function rollerFlightStep(proj, weapon) {
 
   proj.rollFrames++;
   if (proj.rollFrames > proj.maxRollFrames) {
-    // Explode at current position
     return { split: true, spawn: [], remove: true, explodeHere: true, radius: weapon.param };
   }
 
   const sx = Math.round(proj.x);
-  // Find terrain surface at this x
   const terrY = (sx >= 0 && sx < config.screenWidth) ? terrain[sx] : config.screenHeight;
 
   // Move along terrain surface
   proj.x += proj.rollDir * Math.min(proj.rollSpeed, 2);
   proj.y = terrY - 1;
 
-  // Slow down
+  // EXE: downhill acceleration — when rolling into deeper terrain, speed up
+  const nextX = Math.round(proj.x);
+  if (nextX >= 0 && nextX < config.screenWidth) {
+    const nextTerrY = terrain[nextX];
+    if (nextTerrY > terrY) {
+      // Going downhill (screen Y increases = deeper)
+      proj.rollSpeed += 0.3;
+    }
+  }
+
+  // Friction deceleration
   proj.rollSpeed *= 0.98;
   if (proj.rollSpeed < 0.3) {
     return { split: true, spawn: [], remove: true, explodeHere: true, radius: weapon.param };
   }
 
-  // Check if we've rolled off the edge
+  // EXE: wall interaction for rollers
   if (proj.x < 0 || proj.x >= config.screenWidth) {
-    return { split: false, spawn: [], remove: true };
+    const wt = (config.wallType === WALL.ERRATIC || config.wallType === WALL.RANDOM) ? resolvedWallType : config.wallType;
+    switch (wt) {
+      case WALL.WRAP:
+        proj.x = proj.x < 0 ? config.screenWidth - 1 : 0;
+        break;
+      case WALL.RUBBER:
+        proj.rollDir = -proj.rollDir;
+        proj.rollSpeed *= 0.8;
+        proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
+        break;
+      case WALL.PADDED:
+        proj.rollDir = -proj.rollDir;
+        proj.rollSpeed *= 0.5;
+        proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
+        break;
+      case WALL.SPRING:
+        proj.rollDir = -proj.rollDir;
+        proj.rollSpeed *= 1.2;
+        proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
+        break;
+      case WALL.CONCRETE:
+        return { split: true, spawn: [], remove: true, explodeHere: true, radius: weapon.param };
+      default:  // NONE
+        return { split: false, spawn: [], remove: true };
+    }
   }
 
   // Check if we hit a tank at current position
@@ -334,6 +377,32 @@ function bhvFunky(proj, weapon) {
   return { explode: true, radius: 15, spawn, dirtAdd: false, skipDamage: false };
 }
 
+// --- Popcorn Bomb (idx 1): scatter 5-10 sub-bombs from screen top ---
+// EXE: similar to Funky Bomb but rains from above impact point
+function bhvPopcorn(proj, weapon, hitResult) {
+  const count = random(6) + 5;  // 5-10 sub-bombs
+  const spawn = [];
+  const cx = Math.round(proj.x);
+
+  for (let i = 0; i < count; i++) {
+    const spreadX = cx + random(160) - 80;  // +-80px scatter
+    spawn.push({
+      x: clamp(spreadX, 10, config.screenWidth - 10),
+      y: 16,  // just below HUD
+      vx: (Math.random() - 0.5) * 80,
+      vy: -(Math.random() * 80 + 40),  // downward
+      weaponIdx: 2,  // sub-bombs act as Baby Missiles (radius 10)
+      attackerIdx: proj.attackerIdx,
+      isSubWarhead: true,
+      subRadius: 10,
+      trail: [],
+      active: true,
+    });
+  }
+
+  return { explode: true, radius: 10, spawn, dirtAdd: false, skipDamage: false };
+}
+
 // --- Guidance system: one-shot course correction during flight ---
 // EXE VERIFIED: extras.cpp 0x2263D — single-type, one-shot, consumed model.
 // See REVERSE_ENGINEERING.md "Guidance System" section for full EXE pseudocode.
@@ -454,8 +523,8 @@ export function napalmParticleStep(proj) {
   if (proj.napalmLife <= 0) return { remove: true };
 
   // Dampen velocity 0.7x per frame (from RE: DS:1D60)
-  proj.vx *= 0.93;
-  proj.vy *= 0.93;
+  proj.vx *= 0.7;
+  proj.vy *= 0.7;
 
   // Check if speed is below threshold
   const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;

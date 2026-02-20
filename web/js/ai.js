@@ -41,6 +41,17 @@ const AI_NOISE = {
   [AI_TYPE.SPOILER]:   [63, 63, 63],
 };
 
+// EXE: sinusoidal noise — smoother variance than uniform random
+// Multi-harmonic sine wave produces repeatable, smooth noise
+function sinusoidalNoise(amplitude) {
+  const t = performance.now() * 0.001;
+  return amplitude * (
+    Math.sin(t * 3.7) * 0.5 +
+    Math.sin(t * 7.3) * 0.3 +
+    Math.sin(t * 13.1) * 0.2
+  ) * 0.15;
+}
+
 // AI state for current computation
 const aiState = {
   thinking: false,
@@ -85,9 +96,9 @@ export function aiComputeShot(player) {
   // Compute ideal angle and power using analytic ballistics
   const solution = solveBallistic(player, target);
 
-  // Apply noise based on difficulty
-  const angleNoise = (random(noise[0] * 2 + 1) - noise[0]) * 0.15;
-  const powerNoise = (random(noise[1] * 2 + 1) - noise[1]) * 3;
+  // EXE: sinusoidal noise model — multi-harmonic instead of uniform random
+  const angleNoise = sinusoidalNoise(noise[0]) * 0.15;
+  const powerNoise = sinusoidalNoise(noise[1]) * 3;
 
   aiState.targetAngle = clamp(Math.round(solution.angle + angleNoise), 0, 180);
   aiState.targetPower = clamp(Math.round(solution.power + powerNoise), 50, 1000);
