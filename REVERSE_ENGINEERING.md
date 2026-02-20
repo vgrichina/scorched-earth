@@ -5,8 +5,11 @@
 - **Game**: Scorched Earth - "The Mother of All Games"
 - **Version**: 1.50 (June 4, 1995)
 - **Author**: Wendell Hicken, Copyright (c) 1991-1995
-- **Compiler**: Borland C++ 1993
-- **Graphics Library**: Fastgraph V4.02
+- **Compiler**: Borland C++ 1993 (`"Borland C++ - Copyright 1993 Borland Intl."` — c0*.obj startup ID)
+- **Graphics Library**: Fastgraph V4.02 (Ted Gruber Software) — **NOT Borland BGI** (no .BGI drivers, no .CHR fonts)
+- **Borland Runtime**: C++ runtime with xalloc exceptions, "Pure virtual function called" (×2, confirms virtual dispatch), FPU error handlers
+- **Borland FPU Emulation**: 3,327 INT 34h-3Dh calls (INT 39h=1130, INT 3Dh=584, INT 3Bh=331 most frequent)
+- **No other Borland libs**: No BGI, no Turbo Vision, no OWL, no BIDS, no VROOMM overlay manager
 - **Platform**: MS-DOS (16-bit real mode)
 - **EXE size**: 415,456 bytes (MZ DOS executable)
 - **Entry point**: CS:IP = 0000:0000 (file offset 0x6A00, after 27,136-byte header)
@@ -387,24 +390,121 @@ Code segment 0x2F76 is shared between laser sight display and Plasma Blast/Riot 
 
 ## UI System (from binary strings)
 
-### Config Menu Structure
+### Main Menu / Configuration Screen
 
-Extracted from `disasm/ui_complete.txt` (offset 0x0585A7+):
+The main menu is the first screen shown after startup. Left panel has buttons/spinners, right panel shows title + terrain preview. Menu labels at file offset 0x0585A7-0x058830. The `~` character marks the keyboard accelerator (hotkey letter) for each item.
 
-**Main Config Screen**:
-- ~Start, ~Players:, ~Rounds:, S~ound..., ~Hardware..., ~Economics..., ~Landscape..., Ph~ysics..., Play Op~tions..., ~Weapons..., Save ~Changes
+**Top-Level Main Menu**:
 
-**Sound/Hardware**: ~Sound:, ~Flight Sounds:, ~Graphics Mode:, ~Bios Keyboard, ~Small Memory, ~Mouse Enabled, ~Firing Delay:, ~Hardware Delay:
+| Menu Item | Config Key | Type | Notes |
+|-----------|-----------|------|-------|
+| ~Start | — | Button | Start game |
+| ~Players: | `MAXPLAYERS=%d` | Spinner (2-10) | Mouse arrows visible in UI |
+| ~Rounds: | `MAXROUNDS=%d` | Spinner | |
+| S~ound... | — | Submenu | → Sound submenu |
+| ~Hardware... | — | Submenu | → Hardware submenu |
+| ~Economics... | — | Submenu | → Economics submenu |
+| Ph~ysics... | — | Submenu | → Physics submenu |
+| ~Landscape... | — | Submenu | → Landscape submenu |
+| Play Op~tions... | — | Submenu | → Play Options submenu |
+| ~Weapons... | — | Submenu | → Weapons submenu |
+| Save ~Changes | — | Button | Write SCORCH.CFG |
 
-**Economics**: ~Interest Rate:, ~Cash at Start:, Computers ~Buy, ~Free Market, ~Scoring Mode:
+**Sound Submenu**:
 
-**Landscape**: ~Bumpiness: (=LAND1), S~lope: (=LAND2), ~Flatten Peaks, ~Random Land, ~Percent Scanned Mountains: (at 0x05C103)
+| Menu Item | Config Key | Values |
+|-----------|-----------|--------|
+| ~Sound: | `SOUND=%s` | Off / On |
+| ~Flight Sounds: | `FLY_SOUND=%s` | Off / On |
 
-**Physics**: ~Air Viscosity:, ~Gravity:, ~Borders Extend:, ~Effect of Walls:, ~Suspend Dirt:, ~Sky:, ~Max. Wind:, ~Changing Wind, Tanks ~Fall, ~Impact Damage
+**Hardware Submenu** (0x0585A7+ and extended at 0x058ABE):
 
-**Play Options**: ~Mode: (Sequential/Simultaneous/Synchronous), Play ~Order: (Random/Losers-First/Winners-First/Round-Robin), ~Teams:, Ta~lking Tanks:, ~Attack File:, ~Die File:, ~Fast Computers, Talk ~Probability:
+| Menu Item | Config Key | Values / Default |
+|-----------|-----------|-----------------|
+| ~Graphics Mode: | `GRAPHICS_MODE=%s` | 320x200 / 320x240 / 320x400 / 320x480 / **360x480** / 640x400 / 640x480 / 800x600 / 1024x768 |
+| ~Bios Keyboard | `BIOS_KEYBOARD=%s` | Off / On |
+| ~Small Memory | `LOWMEM=%s` | Off / On |
+| ~Mouse Enabled | `POINTER=%s` | Mouse / Joystick (disabled = no pointer) |
+| ~Pointer: | `POINTER=%s` | Mouse / Joystick (enum at 0x058AAF) |
+| ~Mouse Rate: | `MOUSE_RATE=%.2lf` | 0.50 |
+| ~Joystick Rate: | — | Joystick sensitivity |
+| Joystick ~Threshold: | — | Joystick dead zone |
+| ~Firing Delay: | `FIRE_DELAY=%d` | 100 |
+| ~Hardware Delay: | — | Frame timing |
+| Falling ~Delay: | `FALLING_DELAY=%d` | 10 |
+| ~Calibrate Joystick | — | Runtime calibration |
+| ~Fast Computers | `FAST_COMPUTERS=%s` | Off / On |
 
-**Weapons**: ~Arms Level:, ~Bomb Icon: (Small/Big/Invisible), ~Tunneling, ~Scale: (Small/Medium/Large), Trace ~Paths, ~Extra Dirt, ~Useless Items
+**Economics Submenu**:
+
+| Menu Item | Config Key | Values / Default |
+|-----------|-----------|-----------------|
+| ~Interest Rate: | `INTEREST_RATE=%lf` | 0.30 (30%) |
+| ~Cash at Start: | `INITIAL_CASH=%ld` | 1000000 |
+| Computers ~Buy | `COMPUTERS_BUY=%s` | Basic / Greedy / Erratic / Random |
+| ~Free Market | `FREE_MARKET=%s` | Off / On |
+| ~Scoring Mode: | `SCORING=%s` | Standard / Corporate / Vicious |
+
+**Physics Submenu**:
+
+| Menu Item | Config Key | Values / Default |
+|-----------|-----------|-----------------|
+| ~Air Viscosity: | `AIR_VISCOSITY=%d` | 0 (0-20) |
+| ~Gravity: | `GRAVITY=%lf` | 0.20 (0.05-10.0) |
+| ~Borders Extend: | `EDGES_EXTEND=%d` | 75 pixels |
+| ~Effect of Walls: | `ELASTIC=%s` | None / Wrap-around / Padded / Rubber / Spring / Concrete |
+| ~Suspend Dirt: | `SUSPEND_DIRT=%d` | 0 (0-100%) |
+| ~Sky: | `SKY=%s` | Plain / Shaded / Stars / Storm / Sunset / Black / Random |
+| ~Max. Wind: | `MAX_WIND=%d` | 0 |
+| ~Changing Wind | `CHANGING_WIND=%s` | Off / On |
+
+**Landscape Submenu**:
+
+| Menu Item | Config Key | Values / Default |
+|-----------|-----------|-----------------|
+| ~Bumpiness: | `LAND1=%d` | 20 (terrain amplitude) |
+| S~lope: | `LAND2=%d` | 20 (terrain frequency) |
+| ~Flatten Peaks | `FLATLAND=%s` | Off / On |
+| ~Random Land | `RANDOM_LAND=%s` | Off / On |
+| ~Percent Scanned Mountains: | `MTN_PERCENT=%f` | 20.0 (at 0x05C103) |
+
+**Play Options Submenu** (0x0585A7+ and extended at 0x058B2E):
+
+| Menu Item | Config Key | Values / Default |
+|-----------|-----------|-----------------|
+| Ta~lking Tanks: | `TALKING_TANKS=%s` | Off / Computers / All |
+| ~Attack File: | `ATTACK_COMMENTS=%s` | talk1.cfg |
+| ~Die File: | `DIE_COMMENTS=%s` | talk2.cfg |
+| Talk ~Probability: | `TALK_PROBABILITY=%d` | 100 (%) |
+| Tanks ~Fall | `FALLING_TANKS=%s` | Off / On |
+| ~Impact Damage | `DAMAGE_TANKS_ON_IMPACT=%s` | Off / On |
+| ~Arms Level: | `ARMS=%d` | 4 (0-4 weapon tiers) |
+| ~Bomb Icon: | `BOMB_ICON=%s` | Small / Big / Invisible |
+| ~Tunneling | `TUNNELLING=%s` | Off / On |
+| ~Scale: | `EXPLOSION_SCALE=%s` | Small / Medium / Large |
+| Trace ~Paths | `TRACE=%s` | Off / On |
+| ~Extra Dirt | `EXTRA_DIRT=%s` | Off / On |
+| ~Useless Items | `USELESS_ITEMS=%s` | Off / On |
+| ~Mode: | `PLAY_MODE=%s` | Sequential / Simultaneous / Synchronous |
+| Play ~Order: | `PLAY_ORDER=%s` | Random / Losers-First / Winners-First / Round-Robin |
+| ~Teams: | `TEAM_MODE=%s` | None / On |
+| ~Hostile Environment | `HOSTILE_ENVIRONMENT=%s` | Off / On |
+| ~Language | — | UI language (?) |
+| Status ~Bar | `STATUS_BAR=%s` | Off / On |
+| ~Icon Bar | — | Icon bar toggle |
+| Final Scoring | — | End-game score display |
+
+**Weapons Submenu** (subset of Play Options):
+
+| Menu Item | Config Key | Notes |
+|-----------|-----------|-------|
+| ~Arms Level: | `ARMS=%d` | Weapon tier gate (0-4) |
+| ~Bomb Icon: | `BOMB_ICON=%s` | Projectile display size |
+| ~Tunneling | `TUNNELLING=%s` | Weapons dig through terrain |
+| ~Scale: | `EXPLOSION_SCALE=%s` | Explosion radius multiplier |
+| Trace ~Paths | `TRACE=%s` | Show projectile trajectory |
+| ~Extra Dirt | `EXTRA_DIRT=%s` | Explosions generate loose dirt |
+| ~Useless Items | `USELESS_ITEMS=%s` | Include joke/novelty items |
 
 ### Status Bar / HUD
 
@@ -1954,6 +2054,12 @@ All located in `disasm/` directory:
 
 23. **Sound system** — How sound effects are triggered, what format they use, Fastgraph sound integration.
 
+25. **Main menu rendering** — How the config screen buttons/spinners are drawn, terrain preview rendering, title text layout, left/right panel split. Which source file handles this (likely separate from play.cpp).
+
+26. **Graphics mode initialization** — Fastgraph V4.02 mode setup code: how Mode-X vs VESA paths are selected, the mode detection/fallback logic, VESA mode enumeration (4 `AX=4F01h` calls at 0x51555/0x51794/0x517B1/0x52263). Binary offsets for VGA mode set at 0x440EE (Mode 12h) and 0x440F3 (Mode 13h), VESA mode set at 0x5081B.
+
+27. **Mouse/joystick wrapper functions** — Full trace of the 3 INT 33h wrapper functions (at 0x9D18, 0x130B2, 0x1C1C2). How mouse coordinates map to click regions. Joystick calibration routine.
+
 24. ~~**Simultaneous/Synchronous play modes**~~ — **RESOLVED**. Play mode variable at DS:0x5188 (0=Sequential, 1=Simultaneous, 2=Synchronous). 36 code references across binary. Sequential: one-at-a-time turns with full display updates. Simultaneous: all aim at once, fire callbacks cleared (player +0xAE/+0xB0 = NULL), timer-controlled, projectile screen-wrapping enabled. Synchronous: sequential aiming + simultaneous firing. See "Play Modes" section below.
 
 ---
@@ -2842,6 +2948,66 @@ Palette buffer at DS:0x6862 (256×3 = 768 bytes): `buffer[index*3] = R, [+1] = G
 
 ---
 
+## Graphics/Video Mode System (VERIFIED from binary analysis)
+
+### Supported Resolutions
+
+9 graphics modes, configurable via `GRAPHICS_MODE` config key. Mode strings at file offset 0x05CB4C.
+
+| Mode | Resolution | Type | INT 10h / VESA |
+|------|-----------|------|----------------|
+| `320x200` | 320×200×256 | Standard VGA Mode 13h | `AX=0013h, INT 10h` (at 0x440F3) |
+| `320x240` | 320×240×256 | Mode-X VGA | Tweaked Mode 13h (unchained) |
+| `320x400` | 320×400×256 | Mode-X VGA | Tweaked Mode 13h (unchained) |
+| `320x480` | 320×480×256 | Mode-X VGA | Tweaked Mode 13h (unchained) |
+| `360x480` | 360×480×256 | Mode-X VGA | Tweaked Mode 13h (unchained) |
+| `640x400` | 640×400×256 | SVGA/VESA | `AX=4F02h, INT 10h` (at 0x5081B) |
+| `640x480` | 640×480 | VGA Mode 12h / VESA | `AX=0012h, INT 10h` (at 0x440EE) |
+| `800x600` | 800×600×256 | SVGA/VESA | VESA mode set |
+| `1024x768` | 1024×768×256 | SVGA/VESA | VESA mode set |
+
+Default: `GRAPHICS_MODE=360x480` (in SCORCH.CFG).
+
+### VESA/SVGA Driver
+
+Full VESA VBE support via Fastgraph V4.02:
+
+| VESA Call | AX Value | Count | Offsets | Purpose |
+|-----------|----------|-------|---------|---------|
+| Get SVGA Info | 0x4F00 | — | — | Enumerate VESA capabilities |
+| Get Mode Info | 0x4F01 | 4 | 0x51555, 0x51794, 0x517B1, 0x52263 | Query mode capabilities |
+| Set Mode | 0x4F02 | 1 | 0x5081B | Set SVGA video mode (with success check: `CMP AX, 004Fh`) |
+
+Error messages: `"Unable to initialize svga graphics mode: %s."` and `"Unable to initialize graphics mode: %s."` — separate code paths for standard VGA and SVGA initialization.
+
+### VGA Detection & Hardware Queries
+
+53 total INT 10h calls in the binary. Key categories:
+
+| Function | AH Value | Purpose |
+|----------|----------|---------|
+| 0x00 | Set video mode | Modes 12h (640×480×16) and 13h (320×200×256) |
+| 0x03 | Get cursor position | Text mode cursor state |
+| 0x0F | Get current video mode | Detect active mode |
+| 0x10 | Palette/DAC | VGA DAC register manipulation |
+| 0x11 | Font info | `AL=30h` — get font pointer (for text rendering) |
+| 0x12 | Alternate select | VGA feature detection |
+| 0x1A | Display combination | VGA adapter identification |
+| 0xF1 | Custom/vendor | 8 calls — Fastgraph-specific VGA register access |
+
+### Mode-X VGA
+
+Modes 320x240 through 360x480 use VGA "Mode X" — unchained 256-color planar mode achieved by reprogramming VGA CRTC/Sequencer registers after setting Mode 13h. This gives higher resolutions than standard 320×200 while staying within 256KB VGA RAM. Fastgraph V4.02 handles Mode-X setup transparently.
+
+### Screen Dimension Variables
+
+| DS Offset | Purpose | Notes |
+|-----------|---------|-------|
+| DS:0xEF3E | Screen width (pixels) | Checked against 0x140 (320) for HUD layout |
+| DS:0xEF40 | Screen height (pixels) | Used for HUD bottom margin |
+
+---
+
 ## Keyboard & Input System (VERIFIED from disassembly)
 
 ### Input Architecture
@@ -2893,15 +3059,38 @@ Arrow keys go to default handler — angle/power via continuous key-state pollin
 
 Angle adjustment: ±1° (fine), ±15° (coarse).
 
+### Mouse System (INT 33h)
+
+3 INT 33h calls in the binary — a thin wrapper layer. The rest of the code calls these wrappers indirectly.
+
+| File Offset | Context | Likely Function |
+|-------------|---------|-----------------|
+| 0x9D18 | `cd 33` + `c3` (RET) | Mouse reset / detect (`AX=0000h`) |
+| 0x130B2 | Far return context | Mouse status query |
+| 0x1C1C2 | Store to DS:ECxx then INT 33h | Read mouse position/button state |
+
+Config keys:
+- `POINTER=%s` — `Mouse`, `Joystick`, or disabled (enum at 0x058AAF)
+- `MOUSE_RATE=%.2lf` — Sensitivity (default 0.50)
+- `MOUSE_ENABLED` — Toggle (in Hardware submenu)
+
 ### Mouse Click Regions (DS:0x56AE)
 
 12-byte entries: `{x1, y1, x2, y2, left_action, right_action}`.
 Count at DS:0xEA10. Populated at runtime based on HUD positions.
 
+### Joystick Support
+
+Config keys in Hardware submenu:
+- `~Joystick Rate:` — Joystick sensitivity
+- `Joystick ~Threshold:` — Dead zone
+- `~Calibrate Joystick` — Runtime calibration routine
+
 ### Key Config Values
 
 | Variable | DS Offset | Default | Purpose |
 |----------|-----------|---------|---------|
+| POINTER | DS:0x5030 | mouse | Input device: 0/2=keyboard, 1=mouse |
 | MOUSE_RATE | DS:0x6BF8 | 0.50 | Mouse sensitivity (pixels → angle/power) |
 | FIRE_DELAY | DS:0x515C | 200 | Delay before projectile launch |
 | BIOS_KEYBOARD | DS:0x502E | 0 | Use BIOS INT 16h instead of custom handler |
