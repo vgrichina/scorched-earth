@@ -1,2 +1,7 @@
 # Original Scorched Earth game files
 earth/
+
+# v86 emulator binaries (large, from copy-v86 repo)
+v86/
+build_v86/
+build/

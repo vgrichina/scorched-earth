@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Scorched Earth DOS – v86</title>
+<style>
+body { background: #111; color: #ccc; font-family: monospace; margin: 0; padding: 10px; }
+#screen_container canvas { display: block; border: 2px solid #555; image-rendering: pixelated; }
+#controls { margin: 8px 0; }
+button { margin-right: 6px; padding: 4px 10px; cursor: pointer; }
+#log { font-size: 11px; color: #888; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button onclick="sendCmd('C:')">C:</button>
+  <button onclick="sendCmd('SCORCH')">SCORCH</button>
+  <button onclick="sendCmd('DIR')">DIR</button>
+</div>
+<div id="screen_container">
+  <canvas></canvas>
+</div>
+<div id="log">Loading…</div>
+
+<script src="build_v86/libv86.js"></script>
+<script>
+const log = s => document.getElementById('log').textContent = s;
+
+const emulator = new V86({
+    screen_container: document.getElementById('screen_container'),
+    bios:          { url: 'v86/bios/seabios.bin' },
+    vga_bios:      { url: 'v86/bios/vgabios.bin' },
+    fda:           { url: 'v86/images/freedos722.img' },
+    hda:           { url: 'v86/images/game.img' },
+    memory_size:   32 * 1024 * 1024,
+    autostart:     true,
+});
+
+emulator.add_listener('emulator-loaded', () => log('Booting FreeDOS (~25s)…'));
+emulator.add_listener('emulator-stopped', () => log('stopped'));
+
+function sendCmd(text) {
+    emulator.keyboard_send_text(text + '\n');
+}
+</script>
+</body>
+</html>

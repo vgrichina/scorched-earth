@@ -55,6 +55,26 @@ Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py ins
 | play.cpp | 0x28B9 | 0x2F830 | Main game loop |
 | ranges.cpp | 0x2CBF | 0x33690 | Terrain generation |
 
+## v86 DOS Emulator (browser-based EXE comparison)
+
+Run the original SCORCH.EXE in-browser via v86 (x86 emulator in JS/WASM):
+- `v86.html` — Launcher page (boot FreeDOS, then click SCORCH)
+- `v86/bios/` — SeaBIOS + VGA BIOS ROMs
+- `v86/images/freedos722.img` — FreeDOS boot floppy
+- `v86/images/game.img` — FAT disk image with SCORCH.EXE + data files
+- `build_v86/` — libv86.js + v86.wasm (copied from ../supaplex/build_v86/)
+- `build/` — v86.wasm + v86-fallback.wasm (libv86.js resolves wasm relative to page root)
+
+To rebuild game.img after changing earth/ files:
+```bash
+dd if=/dev/zero of=v86/images/game.img bs=512 count=10240
+mformat -i v86/images/game.img -F -h 16 -s 63 -T 10240 ::
+mcopy -i v86/images/game.img earth/*.EXE earth/*.CFG earth/*.MTN ::
+```
+Image must be FAT32 with HD geometry (16 heads, 63 sectors/track) — FAT12 causes read errors.
+
+Serve from project root: `python3 -m http.server 8090` → http://localhost:8090/v86.html
+
 ## Conventions
 
 - File offsets are always hex with 0x prefix (e.g., 0x263F0)
