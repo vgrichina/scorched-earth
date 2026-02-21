@@ -1,0 +1,54 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 49
+Total: 49
+0x39482  32A8:0002  push bp                                ; x86
+0x39483  32A8:0003  mov bp,sp                              ; x86
+0x39485  32A8:0005  push si                                ; x86
+0x39486  32A8:0006  push di                                ; x86
+0x39487  32A8:0007  mov di,[bp+0x6]                        ; x86
+0x3948A  32A8:000A  mov si,[bp+0xa]                        ; x86
+0x3948D  32A8:000D  cmp [0x519a],sp                        ; x86
+0x39491  32A8:0011  ja 0x18                                ; x86
+0x39493  32A8:0013  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x39498  32A8:0018  cmp si,0xa                             ; x86
+0x3949B  32A8:001B  jng 0x22                               ; x86
+0x3949D  32A8:001D  mov si,0xa                             ; x86
+0x394A0  32A8:0020  jmp 0x28                               ; x86
+0x394A2  32A8:0022  or si,si                               ; x86
+0x394A4  32A8:0024  jnl 0x28                               ; x86
+0x394A6  32A8:0026  xor si,si                              ; x86
+0x394A8  32A8:0028  cmp si,0xa                             ; x86
+0x394AB  32A8:002B  jz 0x49                                ; x86
+0x394AD  32A8:002D  push word [0xef2c]                     ; x86
+0x394B1  32A8:0031  mov ax,[bp+0x8]                        ; x86
+0x394B4  32A8:0034  add ax,0x9                             ; x86
+0x394B7  32A8:0037  sub ax,si                              ; x86
+0x394B9  32A8:0039  push ax                                ; x86
+0x394BA  32A8:003A  lea ax,[di+0x5]                        ; x86
+0x394BD  32A8:003D  push ax                                ; x86
+0x394BE  32A8:003E  push word [bp+0x8]                     ; x86
+0x394C1  32A8:0041  push di                                ; x86
+0x394C2  32A8:0042  call word far [0xef14]                 ; x86
+0x394C6  32A8:0046  add sp,0xa                             ; x86
+0x394C9  32A8:0049  or si,si                               ; x86
+0x394CB  32A8:004B  jng 0x6c                               ; x86
+0x394CD  32A8:004D  push word [bp+0xc]                     ; x86
+0x394D0  32A8:0050  mov ax,[bp+0x8]                        ; x86
+0x394D3  32A8:0053  add ax,0x9                             ; x86
+0x394D6  32A8:0056  push ax                                ; x86
+0x394D7  32A8:0057  lea ax,[di+0x5]                        ; x86
+0x394DA  32A8:005A  push ax                                ; x86
+0x394DB  32A8:005B  mov ax,[bp+0x8]                        ; x86
+0x394DE  32A8:005E  add ax,0xa                             ; x86
+0x394E1  32A8:0061  sub ax,si                              ; x86
+0x394E3  32A8:0063  push ax                                ; x86
+0x394E4  32A8:0064  push di                                ; x86
+0x394E5  32A8:0065  call word far [0xef14]                 ; x86
+0x394E9  32A8:0069  add sp,0xa                             ; x86
+0x394EC  32A8:006C  jmp 0x6e                               ; x86
+0x394EE  32A8:006E  pop di                                 ; x86
+0x394EF  32A8:006F  pop si                                 ; x86
+0x394F0  32A8:0070  pop bp                                 ; x86
+0x394F1  32A8:0071  retf                                   ; x86  ; --- end ---

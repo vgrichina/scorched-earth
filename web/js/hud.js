@@ -23,7 +23,7 @@
 //
 // EXE Row 1 layout:
 //   Basic mode: Name + multi-player power bar (6px columns) + player icons
-//   Full mode:  Name + Power + Angle + Wind (Fastgraph packet) + Weapon
+//   Full mode:  Name + Power + Angle + Wind (struct+0xB6 text) + Weapon
 //
 // EXE Row 2 layout (if [0x5142] != 0):
 //   Basic mode: Name + multi-player energy bar + Angle + multi-player angle bar
@@ -85,7 +85,7 @@ function drawBarFill(x, y, fill, color) {
 function drawBarColumn(barX, barY, idx, fillH, color) {
   const colX = barX + idx * 6;
   if (fillH <= 0) return;
-  const h = Math.min(fillH, BAR_H - 2); // max 10px (bar interior: y+1 to y+10)
+  const h = Math.min(fillH, BAR_H - 1); // EXE: clamped to 0..10 at 0x39498 (10px bar interior)
   const bottom = barY + BAR_H - 1;       // bottom of fill area (y + 10)
   for (let row = 0; row < h; row++) {
     hline(colX, colX + 5, bottom - row, color);
@@ -107,9 +107,9 @@ export function drawHud(player, wind, round, opts) {
   const ammo = player.inventory[player.selectedWeapon];
 
   // EXE: compute_hud_layout — barX aligned for both rows
-  // EXE: si = max(name_width, row2_label_width) — both rows use player name
-  const nameColonW = measureText(player.name + ':');
-  const barX = LEFT + nameColonW;
+  // EXE: si = measureText(name) + 8 (0x2FBF1: add ax,0x8), NOT measureText(name+':')
+  // The +8 provides padding between name colon and bar start (~4px more than colon width)
+  const barX = LEFT + measureText(player.name) + 8;
   const barWidth = measureText('8888 '); // EXE: DS:0x5778 measurement string
   const afterBarX = barX + barWidth;
 
@@ -159,12 +159,12 @@ export function drawHud(player, wind, round, opts) {
     x += barWidth;
     // EXE: sprintf(buf, "%s:", "Angle") at [E9D8]
     drawText(x, HUD_Y, 'Angle:', baseColor);
-    x += measureText('Angle:');
-    // EXE: sprintf(buf, "%2d", player.angle) at [E9DA]
-    drawText(x, HUD_Y, String(player.angle).padStart(3), baseColor);
-    x += measureText('999 ');
+    x += measureText('Angle') + 8; // EXE: E9DA = E9D8 + measureText("Angle") + 8
+    // EXE: sprintf(buf, "%2d", player.angle) at [E9DA] — DS:0x57BE = "%2d"
+    drawText(x, HUD_Y, String(player.angle).padStart(2), baseColor);
+    x += measureText('99  '); // EXE: DS:0x577E = "99  " (2 digits + 2 spaces)
     // EXE: fg_setrgb(0xA3, R, G, B) sets palette 163 = player color
-    // EXE: wind indicator via Fastgraph control packet in player's color
+    // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws wind string in palette 163
     // Web port approximates with text (same color = baseColor)
     if (wind === 0) {
       drawText(x, HUD_Y, 'No Wind', baseColor);

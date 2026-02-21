@@ -3652,23 +3652,42 @@ Internal renderer at ~0x26120 (near call from all three): 9 args:
 
 #### Wind Indicator (draw_hud_full Row 1)
 
-Wind is NOT rendered as plain text in the EXE — it uses a custom Fastgraph control packet.
+The wind display sequence in draw_hud_full (0x302ED-0x30330):
+1. `fg_setcolor(0xA3)` — set drawing color to palette 163
+2. `fg_setrgb(0xA3, struct+0x1C, struct+0x1E, struct+0x20)` — set palette 163 = player's RGB
+3. `text_display(E9DC, HUD_Y, struct+0xB6)` — draw wind string at E9DC in palette 163
 
-Function at 0x456B:0x5 (file 0x4C0B5):
+Function at 0x456B:0x5 (file 0x4C0B5) is **fg_setrgb** (NOT a wind renderer):
 ```
-; Build 16-byte Fastgraph display control packet on stack:
-[bp-0x10] = 0x10             ; packet type (16)
-[bp-0x0F] = 0x10             ; packet length (16)
-[bp-0x0E] = color (word)     ; 0xA3 = palette 163
-[bp-0x0C] = struct[0x20]     ; wind display byte 3
-[bp-0x0B] = struct[0x1E]     ; wind display byte 2
-[bp-0x09] = struct[0x1C]     ; wind display byte 1
-call fg_dispctl(packet_ptr, packet_ptr, 16)
+; Build 16-byte Fastgraph DAC control packet on stack:
+[bp-0x10] = 0x10             ; packet type 16 (set DAC registers)
+[bp-0x0F] = 0x10             ; packet length (16 bytes)
+[bp-0x0E] = palette (word)   ; 0xA3 = palette entry 163
+[bp-0x0C] = B color (byte)   ; struct+0x20 = player blue
+[bp-0x0B] = G color (byte)   ; struct+0x1E = player green
+[bp-0x09] = R color (byte)   ; struct+0x1C = player red
+call fg_dispctl(packet_ptr, packet_ptr, 16)  ; Fastgraph palette setter
 ```
 
-Tank struct offsets 0x1C, 0x1E, 0x20 encode the wind direction/magnitude for rendering.
-Web port approximates with text "Wind: N" / "No Wind" since Fastgraph packets
-cannot be replicated outside the hardware VGA context.
+**Correction**: struct+0x1C/0x1E/0x20 are the player's RGB color values (same as
+DS:0x57E2 player color table), NOT wind direction/magnitude bytes.
+The wind display string comes from tank sub-struct far pointer at +0xB6/+0xB8.
+This is a pre-formatted string set elsewhere before the HUD draw call.
+Web port approximates with text "Wind: N" / "No Wind" in baseColor (same color).
+
+#### Column Fill Helper (file 0x39482)
+
+Internal function that draws a per-player 6px column inside a multi-player bar:
+```
+; Args: (colX, y, fillH, color)
+; Clamp fillH to 0..10 (cmp si,0xA; mov si,0xA / xor si,si)
+if fillH < 10:
+    fg_rect(colX, y, colX+5, y+9-fillH, [EF2C])     ; shadow (top portion)
+if fillH > 0:
+    fg_rect(colX, y+10-fillH, colX+5, y+9, color)    ; fill (bottom portion)
+```
+Column is 6px wide (colX to colX+5), fill area 10px tall (y to y+9).
+Power column caller at 0x394F2: fillH = power / 100 (max 10), y = HUD_Y + 1.
 
 #### Layout Computation: `compute_hud_layout` (file 0x2FBCA)
 
@@ -3790,20 +3809,25 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 | Bar outline color | Player color ([EF22]) | Player color (baseColor) | **Correct** |
 | Bar fill color | Shadow ([EF2C]) | Shadow (UI_DEEP_SHADOW) | **Correct** |
 | Bar width | numPlayers × 6 (variable) | numPlayers × 6 | **Correct** |
-| Per-player columns | power/100 per column | power/100 per column | **Correct** |
+| Per-player columns | power/100, clamped 0-10 | power/100, clamped 0-10 | **Fixed** (was 0-9) |
+| barX padding | measureText(name) + 8 (0x2FBF1) | measureText(name) + 8 | **Fixed** (was name+':') |
 | Background | UI_BACKGROUND ([EF28], gray) | UI_BACKGROUND (palette 203) | **Correct** |
 | All text color | Player color ([EF22], palette 163) | baseColor (player slot 4) | **Fixed** |
-| Wind rendering | Custom Fastgraph control packet | Text "Wind: N" / "No Wind" | Simplified |
+| Angle format (full) | "%2d" (DS:0x57BE) | padStart(2) | **Fixed** (was padStart(3)) |
+| Wind rendering | text_display(E9DC, struct+0xB6) in pal 163 | Text "Wind: N" / "No Wind" | Simplified |
 | Player icons | Bitmap from icon table (48 icons) | Simple 5×5 squares/outlines | Simplified |
+| Weapon position (full) | Left-aligned at E9E0 (after icon at E9DE) | Right-aligned to screen edge | Divergent |
 | **Basic Row 2** | Name + energy bars + Angle + angle bars | Name + energy bars + Angle + angle bars + W:N | **Fixed** (+wind text) |
 | **Full Row 2** | Name + 7 inventory widgets (icon+bar) | Name + energy bar + shield + items + weapon | **Approx** (text, no icons) |
 | Full Row 2 widgets | draw_icon + ammo bars per item | Text counts (B:n, P:n, L:n) | Simplified |
 | Weapon icon (full) | draw_icon for selected weapon | Text only | Simplified |
+| Background clear | fg_rect(5, HUD_Y, screenW-5, screenH-7) | fillRect(5, HUD_Y, ..., ROW2_Y+12) | Intentional (web redraws terrain separately) |
 
 **Remaining gaps** (require additional systems to implement):
 - Player icon bitmaps: need icon data extraction from DS:0x3826 (48 × 125 bytes)
 - Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
-- Wind indicator: Fastgraph control packets cannot be replicated; text approximation is sufficient
+- Wind display string: struct+0xB6 format unknown (pre-formatted before HUD call); text approximation is sufficient
+- Full-mode weapon: EXE left-aligns at computed E9E0; web port right-aligns for better use of space
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 
