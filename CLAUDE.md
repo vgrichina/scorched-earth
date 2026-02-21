@@ -43,6 +43,9 @@ Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py ins
 - Player struct: stride 0x6C (108 bytes), far ptr base at DS:CEB8
 - Tank/sub struct: stride 0xCA (202 bytes), base at DS:D568
 - Weapon struct: stride 0x34 (52 bytes), base at DS:11F6 (file 0x056F76)
+- Font glyph data: DS:0x70E4–0x94EA (file 0x05CE64–0x05F26A), 161 chars, proportional width, 12px tall
+- Font pointer table: DS:[(char*4) - 0xCA6], 256 far pointers to glyph data
+- Layout selector: DS:0xED58 (0=spacious/25px rows, 1=compact/17px rows) — same font both modes
 
 ### Source File Segments (from debug strings)
 | File | Code Segment | File Base | Purpose |
@@ -55,6 +58,7 @@ Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py ins
 | play.cpp | 0x28B9 | 0x2F830 | Main game loop |
 | ranges.cpp | 0x2CBF | 0x33690 | Terrain generation |
 | *(menu module)* | 0x34ED | 0x3B8D0 | Main menu/config UI, sub-dialogs |
+| *(font module)* | 0x4589 | 0x4C290 | Fastgraph text rendering (font_init, text_display, text_measure) |
 
 ## v86 DOS Emulator (browser-based EXE comparison)
 

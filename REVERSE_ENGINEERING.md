@@ -534,15 +534,17 @@ The main menu is the first screen shown after startup. Left panel has buttons/sp
 
 **Resolution-Adaptive Layout** (from 0x3D161):
 
-| Setting | Small Mode (width ≤ 200) | Normal Mode (width > 200) |
+| Setting | Small Mode (height ≤ 200) | Normal Mode (height > 200) |
 |---------|:------------------------:|:-------------------------:|
-| Font selector (DS:0xED58) | 1 (small) | 0 (large) |
+| Layout selector (DS:0xED58) | 1 (compact) | 0 (spacious) |
 | Row height (DS:0x6316[n]) | 17 px | 25 px |
 | First item index (DS:0xECD4) | 4 | 5 |
 | Start Y position | 5 | 15 |
 | Item spacing | 5 px | 12 px |
 
-**Row Height Table** at DS:0x6316: `[0]=25` (large font), `[1]=17` (small font). Indexed by DS:0xED58.
+**Note**: DS:0xED58 is a **layout mode selector**, not a font selector. Both modes render the same proportional bitmap glyphs from Fastgraph — the selector is never referenced in text_display or text_measure. Only menu row height and positioning change between modes.
+
+**Row Height Table** at DS:0x6316: `[0]=25` (spacious layout), `[1]=17` (compact layout). Indexed by DS:0xED58.
 
 **Menu Item Y Positioning**: Each button is placed at `y = row_height * item_number + start_y`. The dialog system function at 0x3F19:0x2A9B (`add_button`) receives 13 parameters (0x1A bytes): dialog ptr, x, y, width, height, string far ptr, callback far ptr, flags, extra params.
 
@@ -621,11 +623,22 @@ This creates the characteristic beveled/embossed look of the title. The inner te
 | Function | Far Address | File | Purpose |
 |----------|:-----------:|:----:|---------|
 | fg_setcolor | 0x3EA1:0x028F | 0x4569F | Set current draw color (stores to DS:0x6E2A) |
+| font_init | 0x4589:0x0000 | 0x4C290 | Initialize glyph pointer table (once, guarded by DS:0x94EA) |
 | text_display | 0x4589:0x0684 | 0x4C914 | Render formatted text at (x, y); handles `~` hotkey markers |
 | text_measure | 0x4589:0x0B87 | 0x4CE17 | Measure pixel width of string; skips `~` chars |
 | title_3d_text | 0x4589:0x0C6D | 0x4CEFD | 5-layer beveled text for title |
 
-**text_measure** iterates over each character, looks up glyph width from a bitmap font table (each glyph entry is a far pointer at `DS:[char*4 - 0xCA6]`), reads the first byte (width), adds 1 for spacing, and sums the total. Skips `~` (0x7E).
+**Font System**: Single proportional bitmap font from Fastgraph V4.02 (NOT the VGA BIOS 8x8 font). The same glyphs are used at all resolutions — DS:0xED58 only controls menu layout spacing, never text rendering.
+
+**font_init** (file 0x4C290): Called once on first text_display invocation (guard flag DS:0x94EA). Initializes a 256-entry far pointer table at `DS:[(char*4) - 0xCA6]`. All slots default to DS:0x70E4 (width=0 null glyph), then 161 specific characters are overridden with pointers to actual glyph data.
+
+**Glyph Data** at DS:0x70E4–0x94EA (file 0x05CE64–0x05F26A, 9,222 bytes):
+- Format: byte 0 = width (pixels), then width×12 bytes of 1-byte-per-pixel bitmap data (0x00=transparent, 0x01=set)
+- Height: always 12 rows (hardcoded `cmp si, 0xC` in renderer)
+- Coverage: 161 characters — ASCII 0x20–0x7E (95 printable) + 66 CP437 extended (accented Latin, Greek, math symbols)
+- Characters without glyphs render as invisible (width=0)
+
+**text_measure** iterates over each character, looks up glyph width from the font table (far pointer at `DS:[char*4 - 0xCA6]`), reads the first byte (width), adds 1 for spacing, and sums the total. Skips `~` (0x7E).
 
 **text_display** uses `sprintf` (via 0x0:0x577A) to format the string into a buffer at DS:0xF2DA (max 128 chars), then renders character by character using the same font table. If the formatted string exceeds 128 chars, an error handler is invoked.
 
