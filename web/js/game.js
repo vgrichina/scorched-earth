@@ -27,6 +27,7 @@ import { playFireSound, playExplosionSound, playFlightSound, playLightningSound,
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
 import { generateTerrain } from './terrain.js';
+import { resetMenuState } from './menu.js';
 
 // War quotes — EXE: 15 strings extracted from binary at 0x05B580-0x05BC5E
 // See disasm/war_quotes.txt for full extraction with offsets
@@ -70,7 +71,7 @@ export const STATE = {
 };
 
 export const game = {
-  state: STATE.TITLE,
+  state: STATE.CONFIG,
   currentPlayer: 0,
   wind: 0,
   round: 1,
@@ -788,9 +789,10 @@ export function gameTick() {
     }
 
     case STATE.GAME_OVER: {
-      // Press space to go back to title screen
+      // Press space to go back to main menu
       if (consumeKey('Space')) {
-        game.state = STATE.TITLE;
+        resetMenuState();
+        game.state = STATE.CONFIG;
       }
       break;
     }
@@ -910,8 +912,9 @@ export function gameTick() {
           game.roundOverTimer = 0;
           game.state = STATE.ROUND_OVER;
         } else {
-          // New Game — back to title
-          game.state = STATE.TITLE;
+          // New Game — back to main menu
+          resetMenuState();
+          game.state = STATE.CONFIG;
         }
       }
       if (consumeKey('Escape')) {

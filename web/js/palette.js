@@ -260,6 +260,21 @@ function setupSystemColors() {
   setEntry(BLACK, 0, 0, 0);
 }
 
+// --- 3D UI palette (VGA 200-208) ---
+// EXE: UI color variables at DS:0xEF22-0xEF32
+// Gray-scheme colors for Windows 3.1-style 3D menu UI
+function setupUIPalette() {
+  setEntry(200, 63, 63, 63);  // UI_HIGHLIGHT — bright white
+  setEntry(201, 20, 20, 20);  // UI_DARK_TEXT — dark gray text
+  setEntry(202, 32, 32, 32);  // UI_DARK_BORDER — dark border edge
+  setEntry(203, 48, 48, 48);  // UI_BACKGROUND — panel fill gray
+  setEntry(204, 52, 52, 52);  // UI_LIGHT_ACCENT — light accent
+  setEntry(205,  8,  8,  8);  // UI_DEEP_SHADOW — deepest shadow
+  setEntry(206, 63, 63, 63);  // UI_LIGHT_BORDER — top-left highlight
+  setEntry(207, 24, 24, 24);  // UI_MED_BORDER — bottom-right inner
+  setEntry(208, 40, 40, 40);  // UI_BRIGHT_BORDER — bottom-right outer
+}
+
 // --- Laser sight palette (VGA 253-254) ---
 // EXE: draw_laser_sight at file 0x36321 (seg 0x2F76:0x01C1)
 // EXE: DS:EC4E holds the draw color for the laser sight line
@@ -289,6 +304,7 @@ export function initPalette(terrainType, skyType) {
   setupExplosionPalette();
   setupWallPalette();
   setupSystemColors();
+  setupUIPalette();
   setupLaserPalette();
 
   updatePalette32();

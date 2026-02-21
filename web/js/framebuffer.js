@@ -187,6 +187,45 @@ export function clear(colorIndex) {
   pixels.fill(colorIndex);
 }
 
+// EXE: draw_3d_box at file 0x444BB (0x3DAB:0x000B) — raised box, Windows 3.1-style
+// EXE: 2px beveled border. Left/Top = DS:0xEF26(dark) + DS:0xEF2E(light),
+//      Right/Bottom = DS:0xEF30(med) + DS:0xEF32(bright). Interior = fill_color.
+export function drawBox3DRaised(x, y, w, h, fill, lightBorder, darkBorder, medBorder, brightBorder) {
+  // Fill interior
+  fillRect(x + 2, y + 2, x + w - 3, y + h - 3, fill);
+  // Top edge: 2px — outer=light, inner=dark (matches EXE DS:0xEF2E then DS:0xEF26)
+  hline(x, x + w - 1, y, lightBorder);
+  hline(x + 1, x + w - 2, y + 1, darkBorder);
+  // Left edge: 2px
+  vline(x, y, y + h - 1, lightBorder);
+  vline(x + 1, y + 1, y + h - 2, darkBorder);
+  // Bottom edge: 2px — outer=bright, inner=med (matches EXE DS:0xEF32 then DS:0xEF30)
+  hline(x, x + w - 1, y + h - 1, brightBorder);
+  hline(x + 1, x + w - 2, y + h - 2, medBorder);
+  // Right edge: 2px
+  vline(x + w - 1, y, y + h - 1, brightBorder);
+  vline(x + w - 2, y + 1, y + h - 2, medBorder);
+}
+
+// EXE: draw_flat_box at file 0x44630 (0x3DAB:0x0180) — sunken/inset frame
+// EXE: reversed bevel. Top=DS:0xEF30, Left=DS:0xEF32, Bottom=DS:0xEF26, Right=DS:0xEF2E
+export function drawBox3DSunken(x, y, w, h, fill, medBorder, brightBorder, darkBorder, lightBorder) {
+  // Fill interior
+  fillRect(x + 2, y + 2, x + w - 3, y + h - 3, fill);
+  // Top edge: sunken = med then bright
+  hline(x, x + w - 1, y, medBorder);
+  hline(x + 1, x + w - 2, y + 1, brightBorder);
+  // Left edge: sunken = bright then med
+  vline(x, y, y + h - 1, brightBorder);
+  vline(x + 1, y + 1, y + h - 2, medBorder);
+  // Bottom edge: sunken = dark then light
+  hline(x, x + w - 1, y + h - 1, darkBorder);
+  hline(x + 1, x + w - 2, y + h - 2, lightBorder);
+  // Right edge: sunken = light then dark
+  vline(x + w - 1, y, y + h - 1, lightBorder);
+  vline(x + w - 2, y + 1, y + h - 2, darkBorder);
+}
+
 // Blit indexed framebuffer to canvas
 // WebGL: upload index+palette textures, GPU does palette lookup in fragment shader
 // Canvas2D: CPU loop maps palette indices to RGBA via palette32 LUT

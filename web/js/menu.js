@@ -1,70 +1,157 @@
-// Scorched Earth - Title Screen & Configuration Menu
-// EXE: config menu structure found in binary UI strings (disasm/ui_complete.txt)
-// EXE: sub-menus for terrain, sky, walls, scoring, player setup
-// States: TITLE → CONFIG → PLAYER_SETUP → game starts
+// Scorched Earth - Main Menu (EXE-faithful split-panel layout)
+// EXE: main_menu() at file 0x3D140 (far address 0x34ED:0x1870)
+// EXE: dialog system at segment 0x3F19, 3D box at 0x444BB, embossed title at 0x4CEFD
+// EXE: small mode (320x200): row_height=17, start_y=5, font=1
 
 import { config, saveConfig } from './config.js';
-import { fillRect, hline } from './framebuffer.js';
-import { drawText, drawTextShadow } from './font.js';
-import { BLACK } from './palette.js';
+import { fillRect, hline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
+import { drawText, drawTextEmbossed, measureText } from './font.js';
+import { BLACK, initPalette } from './palette.js';
 import { consumeKey } from './input.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
-import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
-         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
+import { generateTerrain, terrain, initSkyBackground, PLAYFIELD_TOP } from './terrain.js';
+import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
+         UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
+         UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
+         SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT,
+         CHAR_W, CHAR_H } from './constants.js';
 
-// Menu state
-export const menu = {
-  screen: 'title',       // 'title' | 'config' | 'player_setup'
-  selectedOption: 0,
-  playerSetupIdx: 0,     // which player we're configuring
-  playerSetupField: 0,   // 0=name, 1=AI type
-  blinkTimer: 0,
-};
+// --- Layout constants (320x200 small mode, EXE verified) ---
+const ROW_H = 17;       // EXE: DS:0x6316[1] = 17
+const START_Y = 5;      // EXE: small mode start Y
+const LEFT_W = 128;     // left panel width (fits "Play Options..." + padding)
+const RIGHT_X = LEFT_W + 1;  // right panel start
+const BTN_H = 15;       // button height (ROW_H - 2 gap)
+const BTN_X = 4;        // button left margin
+const BTN_W = LEFT_W - 8;  // button width
+const SCREEN_W = 320;
+const SCREEN_H = 200;
 
-// Config options displayed in the menu
-const CONFIG_OPTIONS = [
-  { key: 'numPlayers', label: 'Players',   min: 2, max: 10, step: 1 },
-  { key: 'rounds',     label: 'Rounds',    min: 1, max: 100, step: 1 },
-  { key: 'landType',   label: 'Land Type', min: 0, max: 6, step: 1,
-    names: ['Flat', 'Slope', 'Rolling', 'Mountain', 'V-Shaped', 'Castle', 'Cavern'] },
-  { key: 'skyType',    label: 'Sky',       min: 0, max: 6, step: 1,
-    names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black'] },
-  { key: 'wallType',   label: 'Walls',     min: 0, max: 7, step: 1,
-    names: ['None', 'Erratic', 'Random', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete'] },
-  { key: 'armsLevel',  label: 'Arms Level', min: 0, max: 4, step: 1 },
-  { key: 'wind',       label: 'Wind',      min: 0, max: 20, step: 1 },
-  { key: 'scoringMode', label: 'Scoring',  min: 0, max: 2, step: 1,
-    names: ['Standard', 'Corporate', 'Vicious'] },
-  { key: 'startCash',  label: 'Start Cash', min: 0, max: 100000, step: 5000 },
-  { key: 'interest',   label: 'Interest %', min: 0, max: 50, step: 5 },
-  { key: 'soundEnabled', label: 'Sound', min: 0, max: 1, step: 1,
-    names: ['Off', 'On'] },
-  { key: 'talkingTanks', label: 'Talking', min: 0, max: 1, step: 1,
-    names: ['Off', 'On'] },
-  { key: 'playOrder', label: 'Play Order', min: 0, max: 3, step: 1,
-    names: ['Sequential', 'Random', 'Losers First', 'Winners First'] },
-  { key: 'fallingTanks', label: 'Fall Damage', min: 0, max: 1, step: 1,
-    names: ['Off', 'On'] },
-  { key: 'explosionScale', label: 'Explosions', min: 0, max: 2, step: 1,
-    names: ['Small', 'Medium', 'Large'] },
-  { key: 'tracePaths', label: 'Trace Paths', min: 0, max: 1, step: 1,
-    names: ['Off', 'On'] },
-  { key: 'extraDirt', label: 'Extra Dirt', min: 0, max: 1, step: 1,
-    names: ['Off', 'On'] },
-  { key: 'hostileEnvironment', label: 'Environment', min: 0, max: 1, step: 1,
-    names: ['Calm', 'Hostile'] },
-  { key: 'playMode', label: 'Play Mode', min: 0, max: 2, step: 1,
-    names: ['Sequential', 'Simultaneous', 'Synchronous'] },
+// Terrain preview frame (EXE: draw_flat_box at file 0x3D59B)
+const FRAME_X = RIGHT_X;
+const FRAME_Y = 6;
+const FRAME_W = SCREEN_W - 6 - FRAME_X;
+const FRAME_H = SCREEN_H - 37 - FRAME_Y;
+// Interior (2px inset)
+const PREV_X = FRAME_X + 2;
+const PREV_Y = FRAME_Y + 2;
+const PREV_W = FRAME_W - 4;
+const PREV_H = FRAME_H - 4;
+
+// --- Main menu items (EXE string table at DS:0x212C-0x2154) ---
+const MENU_ITEMS = [
+  { label: 'Start',           type: 'button',  action: 'start' },
+  { label: 'Players:',        type: 'spinner', key: 'numPlayers', min: 2, max: 10, step: 1 },
+  { label: 'Rounds:',         type: 'spinner', key: 'rounds', min: 1, max: 100, step: 1 },
+  { label: 'Sound...',        type: 'submenu', submenu: 'sound' },
+  { label: 'Hardware...',     type: 'submenu', submenu: 'hardware' },
+  { label: 'Economics...',    type: 'submenu', submenu: 'economics' },
+  { label: 'Physics...',      type: 'submenu', submenu: 'physics' },
+  { label: 'Landscape...',    type: 'submenu', submenu: 'landscape' },
+  { label: 'Play Options...', type: 'submenu', submenu: 'playoptions' },
+  { label: 'Weapons...',      type: 'submenu', submenu: 'weapons' },
+  { label: 'Save Changes',    type: 'button',  action: 'save' },
 ];
 
-// Player names — EXE: default names extracted from binary (DS player name table)
-// Note: "Napolean" preserves original EXE misspelling
+// --- Submenu definitions (EXE verified from RE doc) ---
+const SUBMENUS = {
+  sound: {
+    title: 'Sound',
+    items: [
+      { label: 'Sound:', key: 'soundEnabled', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Flight Sounds:', key: 'flySoundEnabled', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+    ],
+  },
+  hardware: {
+    title: 'Hardware',
+    items: [
+      { label: 'Graphics Mode:', key: null, fixed: '320x200', disabled: true },
+      { label: 'BIOS Keyboard', key: null, fixed: 'N/A', disabled: true },
+      { label: 'Small Memory', key: null, fixed: 'N/A', disabled: true },
+      { label: 'Mouse Enabled', key: null, fixed: 'On', disabled: true },
+    ],
+  },
+  economics: {
+    title: 'Economics',
+    items: [
+      { label: 'Interest Rate:', key: 'interest', min: 0, max: 50, step: 5, suffix: '%' },
+      { label: 'Cash at Start:', key: 'startCash', min: 0, max: 100000, step: 5000 },
+      { label: 'Scoring Mode:', key: 'scoringMode', min: 0, max: 2, step: 1,
+        names: ['Standard', 'Corporate', 'Vicious'] },
+    ],
+  },
+  physics: {
+    title: 'Physics',
+    items: [
+      { label: 'Air Viscosity:', key: 'viscosity', min: 0, max: 20, step: 1 },
+      { label: 'Gravity:', key: 'gravity', min: 0.05, max: 10, step: 0.05, float: true },
+      { label: 'Effect of Walls:', key: 'wallType', min: 0, max: 7, step: 1,
+        names: ['None', 'Erratic', 'Random', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete'] },
+      { label: 'Sky:', key: 'skyType', min: 0, max: 6, step: 1,
+        names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black'] },
+      { label: 'Max. Wind:', key: 'wind', min: 0, max: 20, step: 1 },
+      { label: 'Changing Wind', key: 'changeWind', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+    ],
+  },
+  landscape: {
+    title: 'Landscape',
+    items: [
+      { label: 'Land Type:', key: 'landType', min: 0, max: 6, step: 1,
+        names: ['Flat', 'Slope', 'Rolling', 'Mountain', 'V-Shaped', 'Castle', 'Cavern'] },
+      { label: 'Bumpiness:', key: 'land1', min: 0, max: 100, step: 5 },
+      { label: 'Slope:', key: 'land2', min: 0, max: 100, step: 5 },
+      { label: 'Random Land', key: 'randomLand', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+    ],
+  },
+  playoptions: {
+    title: 'Play Options',
+    items: [
+      { label: 'Talking Tanks:', key: 'talkingTanks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Talk Prob.:', key: 'talkProbability', min: 0, max: 100, step: 10, suffix: '%' },
+      { label: 'Tanks Fall', key: 'fallingTanks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Arms Level:', key: 'armsLevel', min: 0, max: 4, step: 1 },
+      { label: 'Scale:', key: 'explosionScale', min: 0, max: 2, step: 1,
+        names: ['Small', 'Medium', 'Large'] },
+      { label: 'Trace Paths', key: 'tracePaths', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Extra Dirt', key: 'extraDirt', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Mode:', key: 'playMode', min: 0, max: 2, step: 1,
+        names: ['Sequential', 'Simultaneous', 'Synchronous'] },
+      { label: 'Play Order:', key: 'playOrder', min: 0, max: 3, step: 1,
+        names: ['Sequential', 'Random', 'Losers First', 'Winners First'] },
+      { label: 'Hostile Env.', key: 'hostileEnvironment', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+    ],
+  },
+  weapons: {
+    title: 'Weapons',
+    items: [
+      { label: 'Arms Level:', key: 'armsLevel', min: 0, max: 4, step: 1 },
+      { label: 'Scale:', key: 'explosionScale', min: 0, max: 2, step: 1,
+        names: ['Small', 'Medium', 'Large'] },
+      { label: 'Trace Paths', key: 'tracePaths', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Extra Dirt', key: 'extraDirt', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+    ],
+  },
+};
+
+// --- Menu state ---
+export const menu = {
+  screen: 'config',        // 'config' | 'player_setup' (no 'title' — EXE goes straight to menu)
+  selectedOption: 0,       // main menu selected index
+  activeSubmenu: null,     // null or submenu key string
+  submenuSelected: 0,      // selected item within submenu
+  terrainDirty: true,      // regenerate terrain preview
+  playerSetupIdx: 0,
+  playerSetupField: 0,
+  blinkTimer: 0,
+  saveFlash: 0,            // frames to show "Saved!" feedback
+};
+
+// --- Player setup ---
 const DEFAULT_NAMES = [
   'Wolfgang', 'Gilligan', 'Cleopatra', 'Mussolini', 'Napolean',
   'Barbarella', 'Antoinette', 'Elizabeth', 'Persephone', 'Mata Hari',
 ];
 
-// Player setup storage (before game starts)
 export const playerSetup = [];
 
 export function initPlayerSetup() {
@@ -77,59 +164,126 @@ export function initPlayerSetup() {
   }
 }
 
-// Handle menu input, returns 'title' | 'config' | 'player_setup' | 'start_game'
+// --- Helper: format a config value for display ---
+function formatValue(item) {
+  if (item.disabled) return item.fixed;
+  const val = config[item.key];
+  if (item.names) return item.names[val] || String(val);
+  if (item.float) return val.toFixed(2);
+  return String(val) + (item.suffix || '');
+}
+
+// --- Helper: adjust a config value ---
+function adjustValue(item, dir) {
+  if (item.disabled || !item.key) return;
+  const step = item.step * dir;
+  if (item.float) {
+    config[item.key] = Math.round(Math.max(item.min, Math.min(item.max, config[item.key] + step)) * 100) / 100;
+  } else {
+    config[item.key] = Math.max(item.min, Math.min(item.max, config[item.key] + step));
+  }
+}
+
+// --- Helper: center text X in right panel ---
+function centerXRight(str) {
+  const tw = measureText(str);
+  return Math.floor((SCREEN_W - 6 - RIGHT_X - tw) / 2) + RIGHT_X;
+}
+
+// --- 3D box helpers with standard UI colors ---
+function boxRaised(x, y, w, h) {
+  drawBox3DRaised(x, y, w, h, UI_BACKGROUND, UI_LIGHT_BORDER, UI_BRIGHT_BORDER, UI_MED_BORDER, UI_DARK_BORDER);
+}
+function boxSunken(x, y, w, h, fill) {
+  drawBox3DSunken(x, y, w, h, fill !== undefined ? fill : BLACK, UI_DARK_BORDER, UI_MED_BORDER, UI_LIGHT_BORDER, UI_BRIGHT_BORDER);
+}
+
+// ======================================================================
+// INPUT HANDLING
+// ======================================================================
+
 export function menuTick() {
   menu.blinkTimer++;
+  if (menu.saveFlash > 0) menu.saveFlash--;
 
   switch (menu.screen) {
-    case 'title':
-      if (consumeKey('Space') || consumeKey('Enter')) {
-        menu.screen = 'config';
-        menu.selectedOption = 0;
-      }
-      return 'title';
-
     case 'config':
-      return handleConfigInput();
-
+      if (menu.activeSubmenu) return handleSubmenuInput();
+      return handleMainMenuInput();
     case 'player_setup':
       return handlePlayerSetupInput();
   }
   return menu.screen;
 }
 
-function handleConfigInput() {
-  // Navigate options
+function handleMainMenuInput() {
   if (consumeKey('ArrowUp')) {
-    menu.selectedOption = Math.max(0, menu.selectedOption - 1);
+    menu.selectedOption = (menu.selectedOption - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
   }
   if (consumeKey('ArrowDown')) {
-    menu.selectedOption = Math.min(CONFIG_OPTIONS.length - 1, menu.selectedOption + 1);
+    menu.selectedOption = (menu.selectedOption + 1) % MENU_ITEMS.length;
   }
 
-  // Adjust value
-  const opt = CONFIG_OPTIONS[menu.selectedOption];
-  if (consumeKey('ArrowLeft')) {
-    config[opt.key] = Math.max(opt.min, config[opt.key] - opt.step);
-  }
-  if (consumeKey('ArrowRight')) {
-    config[opt.key] = Math.min(opt.max, config[opt.key] + opt.step);
+  const item = MENU_ITEMS[menu.selectedOption];
+
+  // Spinner adjustment
+  if (item.type === 'spinner') {
+    if (consumeKey('ArrowLeft')) {
+      config[item.key] = Math.max(item.min, config[item.key] - item.step);
+    }
+    if (consumeKey('ArrowRight')) {
+      config[item.key] = Math.min(item.max, config[item.key] + item.step);
+    }
   }
 
-  // Proceed to player setup
+  // Activate button/submenu
   if (consumeKey('Enter') || consumeKey('Space')) {
-    saveConfig();
-    initPlayerSetup();
-    menu.screen = 'player_setup';
-    menu.playerSetupIdx = 0;
-    menu.playerSetupField = 0;
-    return 'player_setup';
+    if (item.type === 'button' && item.action === 'start') {
+      saveConfig();
+      initPlayerSetup();
+      menu.screen = 'player_setup';
+      menu.playerSetupIdx = 0;
+      menu.playerSetupField = 0;
+      return 'player_setup';
+    }
+    if (item.type === 'button' && item.action === 'save') {
+      saveConfig();
+      menu.saveFlash = 60;
+    }
+    if (item.type === 'submenu') {
+      menu.activeSubmenu = item.submenu;
+      menu.submenuSelected = 0;
+    }
   }
 
-  // Back to title
-  if (consumeKey('Escape')) {
-    menu.screen = 'title';
-    return 'title';
+  return 'config';
+}
+
+function handleSubmenuInput() {
+  const sub = SUBMENUS[menu.activeSubmenu];
+  if (!sub) { menu.activeSubmenu = null; return 'config'; }
+
+  if (consumeKey('ArrowUp')) {
+    menu.submenuSelected = (menu.submenuSelected - 1 + sub.items.length) % sub.items.length;
+  }
+  if (consumeKey('ArrowDown')) {
+    menu.submenuSelected = (menu.submenuSelected + 1) % sub.items.length;
+  }
+
+  const item = sub.items[menu.submenuSelected];
+  const prevSky = config.skyType;
+  const prevLand = config.landType;
+
+  if (consumeKey('ArrowLeft')) adjustValue(item, -1);
+  if (consumeKey('ArrowRight')) adjustValue(item, 1);
+
+  // Mark terrain dirty if landscape/sky changed
+  if (config.skyType !== prevSky || config.landType !== prevLand) {
+    menu.terrainDirty = true;
+  }
+
+  if (consumeKey('Escape') || consumeKey('Enter') || consumeKey('Space')) {
+    menu.activeSubmenu = null;
   }
 
   return 'config';
@@ -139,34 +293,19 @@ function handlePlayerSetupInput() {
   const setup = playerSetup[menu.playerSetupIdx];
 
   if (menu.playerSetupField === 1) {
-    // AI type selection
-    if (consumeKey('ArrowLeft')) {
-      setup.aiType = Math.max(0, setup.aiType - 1);
-    }
-    if (consumeKey('ArrowRight')) {
-      setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
-    }
+    if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
+    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
   }
 
-  // Toggle field
-  if (consumeKey('ArrowUp')) {
-    menu.playerSetupField = Math.max(0, menu.playerSetupField - 1);
-  }
-  if (consumeKey('ArrowDown')) {
-    menu.playerSetupField = Math.min(1, menu.playerSetupField + 1);
-  }
+  if (consumeKey('ArrowUp')) menu.playerSetupField = Math.max(0, menu.playerSetupField - 1);
+  if (consumeKey('ArrowDown')) menu.playerSetupField = Math.min(1, menu.playerSetupField + 1);
 
-  // Confirm this player and move to next
   if (consumeKey('Enter') || consumeKey('Space')) {
     menu.playerSetupIdx++;
     menu.playerSetupField = 0;
-    if (menu.playerSetupIdx >= config.numPlayers) {
-      // All players configured — start game
-      return 'start_game';
-    }
+    if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
   }
 
-  // Back to config
   if (consumeKey('Escape')) {
     menu.screen = 'config';
     return 'config';
@@ -175,68 +314,172 @@ function handlePlayerSetupInput() {
   return 'player_setup';
 }
 
-// Draw the title screen
-export function drawTitleScreen() {
-  fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+// ======================================================================
+// RENDERING
+// ======================================================================
 
-  drawTextShadow(48, 30, 'SCORCHED  EARTH', COLOR_HUD_HIGHLIGHT, 0);
-  drawTextShadow(112, 44, 'v1.50', COLOR_HUD_TEXT, 0);
-
-  drawText(56, 70, 'A Wendell Hicken game', COLOR_HUD_TEXT);
-  drawText(72, 82, '(1995, Borland C++)', COLOR_HUD_TEXT);
-
-  drawText(32, 110, 'Web port - faithful RE', COLOR_HUD_TEXT);
-
-  if (Math.floor(menu.blinkTimer / 30) % 2 === 0) {
-    drawTextShadow(56, 150, 'Press SPACE to start', COLOR_HUD_HIGHLIGHT, 0);
-  }
-
-  drawText(40, 180, 'Arrow keys, Tab, Space', COLOR_HUD_TEXT);
+// Generate terrain preview if needed
+function ensureTerrainPreview() {
+  if (!menu.terrainDirty) return;
+  menu.terrainDirty = false;
+  initPalette(config.landType, config.skyType);
+  initSkyBackground();
+  generateTerrain();
 }
 
-// Draw the config menu
-export function drawConfigScreen() {
-  fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+export function drawMainMenu() {
+  ensureTerrainPreview();
 
-  drawTextShadow(72, 4, 'GAME  SETTINGS', COLOR_HUD_HIGHLIGHT, 0);
-  hline(8, 310, 14, COLOR_HUD_TEXT);
+  // 1. Full-screen raised 3D box background (EXE: file 0x3D59B step 1)
+  boxRaised(0, 0, SCREEN_W, SCREEN_H);
 
-  for (let i = 0; i < CONFIG_OPTIONS.length; i++) {
-    const opt = CONFIG_OPTIONS[i];
-    const y = 20 + i * 14;
-    const selected = i === menu.selectedOption;
-    const textColor = selected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
-
-    if (selected) {
-      fillRect(6, y - 1, 312, y + 9, 1);
-    }
-
-    drawText(8, y, opt.label, textColor);
-
-    // Value display
-    let valueStr;
-    if (opt.names) {
-      valueStr = opt.names[config[opt.key]] || String(config[opt.key]);
-    } else {
-      valueStr = String(config[opt.key]);
-    }
+  // 2. Left panel: 11 buttons
+  for (let i = 0; i < MENU_ITEMS.length; i++) {
+    const item = MENU_ITEMS[i];
+    const bx = BTN_X;
+    const by = START_Y + i * ROW_H;
+    const selected = i === menu.selectedOption && !menu.activeSubmenu;
 
     if (selected) {
-      drawText(170, y, '< ' + valueStr + ' >', textColor);
+      boxSunken(bx, by, BTN_W, BTN_H, UI_BACKGROUND);
     } else {
-      drawText(178, y, valueStr, textColor);
+      boxRaised(bx, by, BTN_W, BTN_H);
+    }
+
+    const textColor = selected ? UI_HIGHLIGHT : UI_DARK_TEXT;
+    const textY = by + Math.floor((BTN_H - CHAR_H) / 2);
+
+    if (item.type === 'spinner') {
+      // Label on left, value on right with arrows when selected
+      drawText(bx + 4, textY, item.label, textColor);
+      const valStr = String(config[item.key]);
+      if (selected) {
+        const arrowStr = '< ' + valStr + ' >';
+        drawText(BTN_W - measureText(arrowStr), textY, arrowStr, textColor);
+      } else {
+        drawText(BTN_W - measureText(valStr), textY, valStr, textColor);
+      }
+    } else {
+      // Center text in button
+      const tx = bx + Math.floor((BTN_W - measureText(item.label)) / 2);
+      drawText(tx, textY, item.label, textColor);
     }
   }
 
-  const footerY = config.screenHeight - 18;
-  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
-  drawText(8, footerY, 'UP/DOWN:Select  L/R:Adjust', COLOR_HUD_TEXT);
-  drawText(8, footerY + 10, 'ENTER:Players  ESC:Back', COLOR_HUD_TEXT);
+  // 3. Right panel: sunken terrain preview frame (EXE: draw_flat_box)
+  boxSunken(FRAME_X, FRAME_Y, FRAME_W, FRAME_H, BLACK);
+
+  // 4. Render terrain preview inside frame
+  drawTerrainPreview();
+
+  // 5. Embossed title "Scorched Earth" (EXE: title_3d_text at 0x4CEFD)
+  // EXE layers: deep_shadow(0,0), bright(1,1), dark(2,2), light(3,3), dark_border(4,4)
+  const titleStr = 'Scorched Earth';
+  const titleX = centerXRight(titleStr) - 2; // offset for emboss width
+  const titleY = 2;
+  drawTextEmbossed(titleX, titleY, titleStr, [
+    UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
+  ]);
+
+  // 6. Subtitle "The Mother of All Games" (EXE: plain text, Y=27 small mode)
+  const subStr = 'The Mother of All Games';
+  drawText(centerXRight(subStr), 27, subStr, UI_DARK_TEXT);
+
+  // 7. Copyright at bottom of right panel (EXE: split across 2 lines in small mode)
+  const copy1 = 'Copyright (c) 1991-1995';
+  const copy2 = 'Wendell Hicken';
+  drawText(centerXRight(copy1), SCREEN_H - 33, copy1, UI_DARK_TEXT);
+  drawText(centerXRight(copy2), SCREEN_H - 20, copy2, UI_DARK_TEXT);
+
+  // 8. Save feedback
+  if (menu.saveFlash > 0) {
+    drawText(centerXRight('Saved!'), SCREEN_H - 46, 'Saved!', UI_HIGHLIGHT);
+  }
+
+  // 9. Submenu overlay (if active)
+  if (menu.activeSubmenu) {
+    drawSubmenu();
+  }
 }
 
-// Draw the player setup screen
+function drawTerrainPreview() {
+  // Map terrain[] (320 wide, heights in screen coords) into the preview area
+  const playH = SCREEN_H - PLAYFIELD_TOP;
+  for (let cx = 0; cx < PREV_W; cx++) {
+    const tx = Math.floor(cx * SCREEN_W / PREV_W);
+    const terrainY = terrain[tx];
+    // Scale terrain height into preview coordinates
+    const scaledTerrainRow = Math.floor((terrainY - PLAYFIELD_TOP) * PREV_H / playH);
+
+    for (let cy = 0; cy < PREV_H; cy++) {
+      const px = PREV_X + cx;
+      const py = PREV_Y + cy;
+      if (cy < scaledTerrainRow) {
+        // Sky — map row to sky palette
+        const screenRow = PLAYFIELD_TOP + Math.floor(cy * playH / PREV_H);
+        const skyIdx = SKY_PAL_START + Math.floor(screenRow * (SKY_PAL_COUNT - 1) / (SCREEN_H - 1));
+        setPixel(px, py, skyIdx);
+      } else {
+        // Terrain — depth-based coloring
+        const depth = PREV_H - 1 - cy;
+        const palIdx = TERRAIN_PAL_START + Math.floor(depth * (TERRAIN_PAL_COUNT - 1) / Math.max(PREV_H - scaledTerrainRow, 1));
+        setPixel(px, py, palIdx);
+      }
+    }
+  }
+}
+
+function drawSubmenu() {
+  const sub = SUBMENUS[menu.activeSubmenu];
+  if (!sub) return;
+
+  const itemCount = sub.items.length;
+  // Size the dialog to fit contents
+  const dlgW = 220;
+  const dlgH = 30 + itemCount * 14;
+  const dlgX = Math.floor((SCREEN_W - dlgW) / 2);
+  const dlgY = Math.floor((SCREEN_H - dlgH) / 2);
+
+  // Raised dialog box
+  boxRaised(dlgX, dlgY, dlgW, dlgH);
+
+  // Title bar
+  const titleX = dlgX + Math.floor((dlgW - measureText(sub.title)) / 2);
+  drawText(titleX, dlgY + 4, sub.title, UI_HIGHLIGHT);
+  hline(dlgX + 4, dlgX + dlgW - 5, dlgY + 14, UI_MED_BORDER);
+
+  // Items
+  for (let i = 0; i < itemCount; i++) {
+    const item = sub.items[i];
+    const iy = dlgY + 18 + i * 14;
+    const selected = i === menu.submenuSelected;
+    const color = item.disabled ? UI_MED_BORDER : (selected ? UI_HIGHLIGHT : UI_DARK_TEXT);
+
+    // Highlight bar
+    if (selected && !item.disabled) {
+      fillRect(dlgX + 3, iy - 1, dlgX + dlgW - 4, iy + 9, UI_DEEP_SHADOW);
+    }
+
+    drawText(dlgX + 8, iy, item.label, color);
+
+    // Value on right side
+    const valStr = formatValue(item);
+    if (selected && !item.disabled) {
+      const arrowStr = '< ' + valStr + ' >';
+      drawText(dlgX + dlgW - 8 - measureText(arrowStr), iy, arrowStr, color);
+    } else {
+      drawText(dlgX + dlgW - 8 - measureText(valStr), iy, valStr, color);
+    }
+  }
+
+  // Footer
+  drawText(dlgX + 8, dlgY + dlgH - 12, 'ESC/Enter: Back', UI_MED_BORDER);
+}
+
+// --- Player setup screen (kept similar to original) ---
 export function drawPlayerSetupScreen() {
-  fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+  // Use 3D background
+  boxRaised(0, 0, SCREEN_W, SCREEN_H);
 
   const idx = menu.playerSetupIdx;
   if (idx >= config.numPlayers) return;
@@ -244,31 +487,51 @@ export function drawPlayerSetupScreen() {
   const setup = playerSetup[idx];
   const baseColor = idx * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
 
-  drawTextShadow(56, 10, 'PLAYER  SETUP', COLOR_HUD_HIGHLIGHT, 0);
-  hline(8, 310, 20, COLOR_HUD_TEXT);
+  // Title area
+  const titleStr = 'PLAYER SETUP';
+  drawText(Math.floor((SCREEN_W - measureText(titleStr)) / 2), 8, titleStr, UI_HIGHLIGHT);
+  hline(8, SCREEN_W - 9, 18, UI_MED_BORDER);
 
-  drawText(8, 30, `Player ${idx + 1} of ${config.numPlayers}`, baseColor);
+  // Player indicator
+  drawText(8, 28, `Player ${idx + 1} of ${config.numPlayers}`, baseColor);
+
+  // Sunken fields area
+  boxSunken(20, 42, SCREEN_W - 40, 50, UI_BACKGROUND);
 
   // Name field
   const nameSelected = menu.playerSetupField === 0;
-  const nameColor = nameSelected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
-  drawText(8, 50, 'Name:', nameColor);
-  drawText(56, 50, setup.name, baseColor);
+  const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
+  drawText(28, 48, 'Name:', nameColor);
+  drawText(80, 48, setup.name, baseColor);
+  if (nameSelected) {
+    // Blinking cursor
+    if (Math.floor(menu.blinkTimer / 20) % 2 === 0) {
+      drawText(80 + measureText(setup.name), 48, '_', UI_HIGHLIGHT);
+    }
+  }
 
   // AI type field
   const aiSelected = menu.playerSetupField === 1;
-  const aiColor = aiSelected ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
-  drawText(8, 68, 'Type:', aiColor);
+  const aiColor = aiSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
+  drawText(28, 66, 'Type:', aiColor);
   const typeName = AI_NAMES[setup.aiType] || 'Human';
   if (aiSelected) {
-    drawText(56, 68, '< ' + typeName + ' >', aiColor);
+    drawText(80, 66, '< ' + typeName + ' >', aiColor);
   } else {
-    drawText(56, 68, typeName, aiColor);
+    drawText(80, 66, typeName, aiColor);
   }
 
   // Instructions
-  const footerY = config.screenHeight - 18;
-  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
-  drawText(8, footerY, 'UP/DOWN:Field  L/R:Adjust', COLOR_HUD_TEXT);
-  drawText(8, footerY + 10, 'ENTER:Next Player  ESC:Back', COLOR_HUD_TEXT);
+  const footerY = SCREEN_H - 24;
+  hline(8, SCREEN_W - 9, footerY - 4, UI_MED_BORDER);
+  drawText(8, footerY, 'UP/DOWN:Field  L/R:Type', UI_DARK_TEXT);
+  drawText(8, footerY + 10, 'ENTER:Next  ESC:Back', UI_DARK_TEXT);
+}
+
+// Reset menu state when re-entering from game over / system menu
+export function resetMenuState() {
+  menu.screen = 'config';
+  menu.activeSubmenu = null;
+  menu.terrainDirty = true;
+  menu.saveFlash = 0;
 }

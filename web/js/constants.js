@@ -33,6 +33,19 @@ export const FIRE_PAL_COUNT = 30;
 export const SKY_PAL_START = 80;
 export const SKY_PAL_COUNT = 24;
 
+// --- 3D UI palette (VGA indices 200-208) ---
+// EXE: UI color variables at DS:0xEF22-0xEF32, used by 3D box/title rendering
+// Mapped to unused palette range 200-208 for web implementation
+export const UI_HIGHLIGHT    = 200;  // DS:0xEF22 — selected item text (white)
+export const UI_DARK_TEXT    = 201;  // DS:0xEF24 — unselected text, title layer 3
+export const UI_DARK_BORDER  = 202;  // DS:0xEF26 — dark border edge, title layer 5
+export const UI_BACKGROUND   = 203;  // DS:0xEF28 — button/panel fill (gray)
+export const UI_LIGHT_ACCENT = 204;  // DS:0xEF2A — title layer 4
+export const UI_DEEP_SHADOW  = 205;  // DS:0xEF2C — deepest shadow, title layer 1
+export const UI_LIGHT_BORDER = 206;  // DS:0xEF2E — top-left highlight (raised box)
+export const UI_MED_BORDER   = 207;  // DS:0xEF30 — bottom-right inner (raised box)
+export const UI_BRIGHT_BORDER = 208; // DS:0xEF32 — bottom-right outer, title layer 2
+
 // --- Font dimensions ---
 // CP437 8x8 BIOS font (IBM VGA standard, Fastgraph V4.02)
 export const CHAR_W = 8;

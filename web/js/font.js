@@ -236,3 +236,18 @@ export function drawTextShadow(x, y, str, colorIndex, shadowIndex) {
   drawText(x + 1, y + 1, str, shadowIndex);
   drawText(x, y, str, colorIndex);
 }
+
+// EXE: title_3d_text at file 0x4CEFD (0x4589:0x0C6D) — 5-layer embossed title
+// Renders same string 5 times at pixel offsets (0,0)→(4,4), each in a different color.
+// EXE layer order: DS:0xEF2C(deep shadow), DS:0xEF32(bright), DS:0xEF24(dark),
+//   DS:0xEF2A(light), DS:0xEF26(dark border/top surface)
+export function drawTextEmbossed(x, y, str, colors) {
+  for (let i = 0; i < 5; i++) {
+    drawText(x + i, y + i, str, colors[i]);
+  }
+}
+
+// Measure text width in pixels (for centering calculations)
+export function measureText(str) {
+  return str.length * CHAR_W;
+}

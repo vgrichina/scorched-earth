@@ -17,7 +17,7 @@ import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound } 
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
 import { getLeaderboard } from './score.js';
-import { menuTick, drawTitleScreen, drawConfigScreen, drawPlayerSetupScreen, playerSetup } from './menu.js';
+import { menuTick, drawMainMenu, drawPlayerSetupScreen, playerSetup } from './menu.js';
 import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
 import { initSound, toggleSound } from './sound.js';
@@ -37,8 +37,8 @@ function init() {
   initPalette(config.landType, config.skyType);
   initSkyBackground();
 
-  // Start in title screen state
-  game.state = STATE.TITLE;
+  // EXE: main menu is the first screen (no separate title splash)
+  game.state = STATE.CONFIG;
 
   requestAnimationFrame(gameLoop);
 }
@@ -293,12 +293,9 @@ function gameLoop() {
 
     if (result === 'start_game') {
       startGame();
-    } else if (result === 'title') {
-      game.state = STATE.TITLE;
-      drawTitleScreen();
-    } else if (result === 'config') {
+    } else if (result === 'title' || result === 'config') {
       game.state = STATE.CONFIG;
-      drawConfigScreen();
+      drawMainMenu();
     } else if (result === 'player_setup') {
       game.state = STATE.PLAYER_SETUP;
       drawPlayerSetupScreen();

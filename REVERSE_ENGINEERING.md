@@ -2212,7 +2212,7 @@ All located in `disasm/` directory:
 
 26. ~~**Graphics mode initialization**~~ — **RESOLVED**. Mode table at DS:0x6B66, 9 entries of 68 bytes with FG mode number, aspect ratio, and 11-slot function dispatch table. Config parsing at 0x195F6, mode detection at 0x451E1, init at 0x45413. 360x480 custom Mode X: dual mode set (12h→13h) + 17 CRTC register pairs from DS:0x6840. SVGA uses fg_testmode + VESA VBE. See "Graphics/Video Mode System" section.
 
-27. **Mouse/joystick wrapper functions** — Full trace of the 3 INT 33h wrapper functions (at 0x9D18, 0x130B2, 0x1C1C2). How mouse coordinates map to click regions. Joystick calibration routine.
+27. ~~**Mouse/joystick wrapper functions**~~ — **RESOLVED**. No direct INT 33h calls in game code — all 3 `cd 33` byte matches (0x9D18, 0x130B2, 0x1C1C2) are false positives spanning instruction boundaries. Mouse is accessed entirely through Fastgraph V4.02's mouse API (fg_mouseini, fg_mousepos, etc.), which internally calls INT 33h. Input mode at DS:0x5030 (0=keyboard, 1=mouse/buffered, 2=joystick/direct). MOUSE_RATE (DS:0x6BF8) = 0.50 default (IEEE double), scales mouse delta to angle/power. Click regions: 12-byte structs at DS:0x56AE with dynamic count at DS:0xEA10 (4 or 11 entries). Menu dialog system at seg 0x3F19 handles pointer via DS:0x5148. See "Mouse/Pointer System" section below.
 
 24. ~~**Simultaneous/Synchronous play modes**~~ — **RESOLVED**. Play mode variable at DS:0x5188 (0=Sequential, 1=Simultaneous, 2=Synchronous). 36 code references across binary. Sequential: one-at-a-time turns with full display updates. Simultaneous: all aim at once, fire callbacks cleared (player +0xAE/+0xB0 = NULL), timer-controlled, projectile screen-wrapping enabled. Synchronous: sequential aiming + simultaneous firing. See "Play Modes" section below.
 
@@ -3253,13 +3253,14 @@ Modes 320x240 through 360x480 use VGA "Mode X" — unchained 256-color planar mo
 
 ## Keyboard & Input System (VERIFIED from disassembly)
 
-### Input Architecture
+### Input Architecture (VERIFIED)
 
-Three input modes controlled by DS:0x5030:
-- **0/2**: Direct keyboard polling (INT 9h handler, default)
-- **1**: Mouse mode (click regions + INT 9h callback)
+Three input modes controlled by DS:0x5030 (set by `set_input_mode()` at file 0x288A0):
+- **0**: Direct keyboard polling — scancodes in DS:0xD0B8, key states in DS:0xD1BE array (default)
+- **1**: Mouse mode — keyboard scancodes buffered in 128-entry circular queue; mouse position read separately via Fastgraph
+- **2**: Joystick/direct — same as mode 0 plus joystick callback init via DS:0xD1BE
 
-BIOS keyboard flag (DS:0x502E): 0=custom INT 9h (default), 1=BIOS INT 16h.
+BIOS keyboard flag (DS:0x502E): 0=custom INT 9h (default), 1=BIOS INT 16h polling.
 
 ### INT 9h Custom Handler (file 0x2898E)
 
@@ -3302,25 +3303,99 @@ Arrow keys go to default handler — angle/power via continuous key-state pollin
 
 Angle adjustment: ±1° (fine), ±15° (coarse).
 
-### Mouse System (INT 33h)
+### Mouse/Pointer System (VERIFIED)
 
-3 INT 33h calls in the binary — a thin wrapper layer. The rest of the code calls these wrappers indirectly.
+**No direct INT 33h calls in game code.** All 3 `cd 33` byte pattern matches are false positives:
+- 0x9D18: `eb cd` (jmp displacement) + `33 c0` (xor ax, ax) spanning instruction boundary
+- 0x130B2: `7d cd` (jge displacement) + `33 c0` (xor ax, ax) spanning instruction boundary
+- 0x1C1C2: `89 3E EC CD` (mov [0xCDEC], di — high byte of address) + `33 F6` (xor si, si)
 
-| File Offset | Context | Likely Function |
-|-------------|---------|-----------------|
-| 0x9D18 | `cd 33` + `c3` (RET) | Mouse reset / detect (`AX=0000h`) |
-| 0x130B2 | Far return context | Mouse status query |
-| 0x1C1C2 | Store to DS:ECxx then INT 33h | Read mouse position/button state |
+Mouse access is entirely through **Fastgraph V4.02 mouse API** (fg_mouseini, fg_mousepos, fg_mousebut, etc.), which internally calls INT 33h. The game never issues INT 33h directly.
 
-Config keys:
-- `POINTER=%s` — `Mouse`, `Joystick`, or disabled (enum at 0x058AAF)
-- `MOUSE_RATE=%.2lf` — Sensitivity (default 0.50)
-- `MOUSE_ENABLED` — Toggle (in Hardware submenu)
+#### Input Mode System (file 0x288A0)
 
-### Mouse Click Regions (DS:0x56AE)
+`set_input_mode(mode)` — sets DS:0x5030 and initializes the selected input device:
 
-12-byte entries: `{x1, y1, x2, y2, left_action, right_action}`.
-Count at DS:0xEA10. Populated at runtime based on HUD positions.
+```c
+void set_input_mode(int mode) {  // file 0x288A0
+    int old = DS:0x5030;
+    if (mode == old) return old;
+    DS:0x5030 = mode;
+    switch (mode) {
+        case 0: break;                          // Keyboard direct (default)
+        case 1: DS:0x5034 = DS:0x5032 = 0;      // Mouse: reset scancode buffer
+                break;
+        case 2: init_joystick(0x100, 0, DS:0xD1BE);  // Joystick: init callback
+                break;
+    }
+    return old;
+}
+```
+
+7 references to DS:0x5030 across the input system (file 0x288AC–0x28B8A).
+
+#### INT 9h Integration with Mouse Mode
+
+The custom INT 9h handler (file 0x2898E) dispatches differently per mode:
+- **Mode 0** (keyboard): Direct scancode in DS:0xD0B8, key state array at DS:0xD1BE
+- **Mode 1** (mouse): Scancodes are **enqueued** into a 128-entry circular buffer
+  - Write pointer: DS:0x5034, Read pointer: DS:0x5032
+  - Buffer arrays: DS:(-0x2D42) for scancodes, DS:(-0x2C42) for shift states
+  - `enqueue_key(scancode, shift)` at file 0x288F6
+  - `dequeue_key(&scan, &shift)` at file 0x2893A
+- **Mode 2** (joystick): Same as keyboard direct mode, plus callback dispatch
+
+#### Key Polling Functions
+
+| File Offset | Function | Description |
+|-------------|----------|-------------|
+| 0x28A80 | `get_key_noblock()` | Non-blocking poll: returns scancode or 0x80 if none |
+| 0x28B31 | `wait_for_key(&key, &shift)` | Blocking read: returns 0 if none, 1 if dequeued |
+| 0x28C0B | `get_key_blocking()` | Loops until key available, applies key mapping |
+| 0x28C53 | `init_keyboard()` | Installs custom INT 9h handler, saves old vector to DS:0xD0AE |
+
+All three polling functions dispatch via DS:0x5030: mode 0/2 read DS:0xD0B8 directly, mode 1 dequeues from buffer. Key mapping callback at DS:0xD0B4:0xD0B6 (far ptr, NULL if disabled).
+
+#### Mouse Position & Aiming
+
+Mouse position read through Fastgraph `fg_mousepos()` (indirect via function pointer table). During AIM phase, mouse delta (pixels moved since last frame) is scaled by MOUSE_RATE:
+- **Horizontal delta** → angle change (±degrees)
+- **Vertical delta** → power change (±units)
+- Scaling: `delta * MOUSE_RATE` where MOUSE_RATE default = 0.50
+
+#### Config Keys
+
+- `POINTER=%s` — `Mouse`, `Joystick`, or disabled (enum at 0x058AAF: "Mouse", "Joystick")
+- `MOUSE_RATE=%.2lf` — Sensitivity (default 0.50, stored as IEEE double at DS:0x6BF8)
+- Hardware submenu labels: `~Mouse Enabled`, `~Pointer:`, `~Mouse Rate:`
+
+#### Click Regions (DS:0x56AE)
+
+12-byte structs, dynamic count at DS:0xEA10:
+
+```
+Offset  Size  Field
++00     2     x1 (left boundary)
++02     2     y1 (top boundary)
++04     2     x2 (right boundary)
++06     2     y2 (bottom boundary)
++08     2     left_click_action
++0A     2     right_click_action
+```
+
+Region count depends on context:
+- **4 regions** when DS:0x5142 == 0 (basic HUD: power, angle, weapon, fire)
+- **11 regions** when DS:0x5142 != 0 (expanded: all HUD labels + weapon + controls)
+
+Regions computed dynamically at file 0x2FECC by measuring text widths of HUD labels ("Power:", "Angle:", "Wind:", etc.) via Fastgraph `fg_getwidth()` at 0x4589:0xB87. Click region dispatch loop at file 0x2F6D0: iterates regions, checks mouse position within bounds, returns action code. Special action 0x0F with left button sets shift state flag.
+
+#### Menu Pointer Integration
+
+Menu dialog system (seg 0x3F19) uses DS:0x5148 to track selected item:
+- Keyboard navigation updates DS:0x5148 via arrow keys
+- Mouse clicks update DS:0x5148 by hit-testing item rectangles
+- Menu rendering at seg 0x34ED (file 0x3BEC0) pushes DS:0x5148 as parameter to dialog functions
+- Dialog item struct accessed via ES:BX linked list: `[ES:BX+0x2C]` = prev item ptr, `[ES:BX+0x30]` = next item ptr, `[ES:BX+0x0E]` = item index
 
 ### Joystick Support
 
