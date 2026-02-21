@@ -71,13 +71,13 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 
 ## 4. Menu — Main Config Screen
 
-### 4a. Button X Margin (OFF BY 1-8px)
+### ~~4a. Button X Margin~~ — **FIXED**
 - **EXE** (from decoded menu init at 0x3D140):
   - Small mode (≤200px): start_x = 5, start_y = 5
   - Large mode (>200px): start_x = 12, start_y = 15
   - Also sets DS:0xECD4 = 4/5, DS:0xECD6 = 0/4 (button text padding)
-- **Web**: `BTN_X = 4` (fixed), `getStartY() = isSmallMode() ? 5 : 15`.
-- **Impact**: Buttons shifted 1px left in small mode, 8px left in large mode. Y is correct.
+- **Web**: ~~`BTN_X = 4` (fixed)~~ Now: `getBtnX() = isSmallMode() ? 5 : 12`. Y was already correct.
+- **Impact**: Resolved — buttons now at correct X margin per mode.
 
 ### 4b. Button Width (UNVERIFIED)
 - **EXE**: add_item_list parameter 0x50 = 80px button width. But this is the dialog widget item width, and actual rendered button width may include dialog padding.
@@ -138,30 +138,30 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 - **Web**: Flat black background. 4 text categories at top. 10 visible rows. No 3D elements. No scrollbar. No sell dialog. No animation.
 - **Impact**: Shop is the most visually divergent screen. Barely resembles the EXE.
 
-### 6b. Selection Highlight Color (WRONG SHADE)
-- **EXE**: Selection highlight = player_color + 4 (lighter shade, palette slot 4 relative to player base = slot 8 effectively? Or player_struct+0x1A + 4).
-- **Web**: `player.index * PLAYER_PALETTE_STRIDE + 1` (slot 1 = darkest gradient shade).
-- **Impact**: Selection bar is very dark instead of a bright player-colored highlight.
+### ~~6b. Selection Highlight Color~~ — **FIXED**
+- **EXE**: Selection highlight = player_color + 4 (lighter shade).
+- **Web**: ~~`PLAYER_PALETTE_STRIDE + 1` (slot 1 = darkest)~~ Now: slot 3 = 80% brightness (visible player-colored highlight).
+- **Impact**: Resolved — highlight bar now clearly shows player color.
 
 ### 6c. Tab Structure (DIFFERENT CATEGORIES)
 - **EXE**: 3 main tabs: "Score" (view scores), "Weapons" (buy projectiles), "Miscellaneous" (all non-weapon items grouped by sub-category), plus "~Done" button.
 - **Web**: 4 flat categories: "Weapons", "Guidance", "Defense", "Accessories".
 - **Impact**: Different navigation structure. "Score" tab missing entirely.
 
-### 6d. Cash Label
+### ~~6d. Cash Label~~ — **FIXED**
 - **EXE**: "Cash Left:" (DS:0x22F8 at file 0x58B5D), plus "Earned interest" (DS:0x235C) shown between rounds.
-- **Web**: "Cash: $N" with no interest display.
-- **Impact**: Different wording, missing interest feedback.
+- **Web**: ~~"Cash: $N"~~ Now: "Cash Left: $N". Interest display still missing.
+- **Impact**: Label now matches EXE wording.
 
-### 6e. Privacy Guard (MISSING)
+### ~~6e. Privacy Guard~~ — **FIXED**
 - **EXE**: "NO KIBITZING!!" screen (DS:0x231C) displayed between players in hotseat mode to prevent peeking at opponent's inventory.
-- **Web**: No privacy guard. Next player sees previous player's shop.
-- **Impact**: Hotseat fairness compromised.
+- **Web**: ~~Missing.~~ Now: full black screen showing "NO KIBITZING!!" + player name, waits for any key before opening shop. Triggered for all non-first human players.
+- **Impact**: Resolved — hotseat mode now hides previous player's shop between turns.
 
-### 6f. Item Count (HARDCODED)
-- **EXE**: 14-15 visible rows, increases with resolution.
-- **Web**: Fixed 10 rows (`ITEMS_PER_PAGE = 10`).
-- **Impact**: Shows fewer items on larger screens.
+### ~~6f. Item Count~~ — **FIXED**
+- **EXE**: 14-15 visible rows, +5px row height at screenH ≥ 400px.
+- **Web**: ~~Fixed 10 rows.~~ Now: `getItemsPerPage()` derives from panel height / rowH, capped at 15. `getRowH()` returns 18px at ≥400px height, 13px otherwise.
+- **Impact**: Resolved — item count and row spacing now scale with resolution.
 
 ---
 
@@ -208,19 +208,10 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 
 ## 9. 3D Box Drawing
 
-### 9a. Sunken Box Bevel Order (NEEDS VERIFICATION)
-- **EXE draw_flat_box** (0x44630): Top=DS:0xEF30, Left=DS:0xEF32, Bottom=DS:0xEF26, Right=DS:0xEF2E.
-- **Web drawBox3DSunken**: Takes `(medBorder, brightBorder, darkBorder, lightBorder)`. Called from `boxSunken()` with:
-  ```javascript
-  drawBox3DSunken(x, y, w, h, fill, UI_DARK_BORDER, UI_MED_BORDER, UI_LIGHT_BORDER, UI_BRIGHT_BORDER)
-  ```
-  Which maps to: Top=UI_DARK_BORDER(202), Left=UI_MED_BORDER(207), Bottom=UI_LIGHT_BORDER(206), Right=UI_BRIGHT_BORDER(208).
-
-  Compared to EXE: Top=EF30(MED), Left=EF32(BRIGHT), Bottom=EF26(DARK), Right=EF2E(LIGHT).
-
-  Web mapping: Top=DARK, Left=MED vs. EXE: Top=MED, Left=BRIGHT.
-
-- **Impact**: The sunken box border colors appear in the wrong positions. The dark/light bevels are swapped between top/left and bottom/right edges, making sunken boxes look raised and vice versa at the inner border level.
+### ~~9a. Sunken Box Bevel Order~~ — **FIXED**
+- **EXE draw_flat_box** (0x44630): Top=DS:0xEF30(MED), Left=DS:0xEF32(BRIGHT), Bottom=DS:0xEF26(DARK), Right=DS:0xEF2E(LIGHT).
+- **Web**: ~~`boxSunken()` passed `(UI_DARK_BORDER, UI_MED_BORDER, UI_LIGHT_BORDER, UI_BRIGHT_BORDER)` yielding Top=DARK, Left=MED — wrong.~~ Now passes `(UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER)` matching EXE edge assignment exactly.
+- **Impact**: Resolved — sunken box bevels now use correct color per edge.
 
 ---
 
@@ -229,18 +220,20 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 | Priority | Issue | Effort |
 |----------|-------|--------|
 | **HIGH** | Shop is fundamentally different (6a) | Large — needs dialog system |
-| **HIGH** | Sunken box bevel order may be wrong (9a) | Small — swap parameters |
+| ~~**HIGH**~~ | ~~Sunken box bevel order (9a)~~ | **FIXED** |
 | **HIGH** | Full Row 2 widgets missing (2a) | Large — needs icon extraction + 7 renderers |
 | **MEDIUM** | Weapon position in full Row 1 (1a) | Small — change to left-align |
-| **MEDIUM** | Menu button X margin off (4a) | Small — change BTN_X per mode |
+| ~~**MEDIUM**~~ | ~~Menu button X margin (4a)~~ | **FIXED** |
 | **MEDIUM** | 3px borders in hi-res (4d) | Medium — conditional in drawBox3D |
 | **MEDIUM** | Player icons simplified (3a) | Medium — needs icon data extraction |
-| **MEDIUM** | Shop highlight color wrong (6b) | Small — change slot 1 → slot 4+ |
+| ~~**MEDIUM**~~ | ~~Shop highlight color (6b)~~ | **FIXED** |
 | **MEDIUM** | Quote char zero-width (7b) | Small — fix WIDTHS[2] |
 | **LOW** | Wind string format unknown (1b) | Unknown — need struct+0xB6 analysis |
 | **LOW** | Energy bar 8px narrower (2b) | Trivial — change to 48 |
-| **LOW** | Privacy guard missing (6e) | Medium — add "NO KIBITZING" screen |
+| ~~**LOW**~~ | ~~Privacy guard (6e)~~ | **FIXED** |
 | **LOW** | Extended font chars (7a) | Medium — extract CP437 glyphs |
+| ~~n/a~~ | ~~Shop cash label (6d)~~ | **FIXED** ("Cash Left:") |
+| ~~n/a~~ | ~~Shop items per page (6f)~~ | **FIXED** (dynamic, up to 15) |
 | **LOW** | UI palette RGB unverified (8a) | Medium — need DAC dump from EXE |
 | **INFO** | Row 2 wind text added (3b) | Intentional divergence |
 | **INFO** | HUD clear area smaller (noted in code) | Intentional divergence |

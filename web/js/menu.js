@@ -21,10 +21,10 @@ import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
 // EXE: DS:0x6316 row height table: [0]=25 (large), [1]=17 (small)
 const LEFT_W = 128;     // left panel width (fits "Play Options..." + padding)
 const RIGHT_X = LEFT_W + 1;  // right panel start
-const BTN_X = 4;        // button left margin
 const BTN_W = LEFT_W - 8;  // button width
 
 function isSmallMode() { return config.screenHeight <= 200; }
+function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
 function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
 function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
 function getBtnH()   { return getRowH() - 2; }             // button height = row_h - 2 gap
@@ -201,7 +201,8 @@ function boxRaised(x, y, w, h) {
   drawBox3DRaised(x, y, w, h, UI_BACKGROUND, UI_LIGHT_BORDER, UI_BRIGHT_BORDER, UI_MED_BORDER, UI_DARK_BORDER);
 }
 function boxSunken(x, y, w, h, fill) {
-  drawBox3DSunken(x, y, w, h, fill !== undefined ? fill : BLACK, UI_DARK_BORDER, UI_MED_BORDER, UI_LIGHT_BORDER, UI_BRIGHT_BORDER);
+  // EXE draw_flat_box: Top=EF30(MED), Left=EF32(BRIGHT), Bottom=EF26(DARK), Right=EF2E(LIGHT)
+  drawBox3DSunken(x, y, w, h, fill !== undefined ? fill : BLACK, UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
 }
 
 // ======================================================================
@@ -225,7 +226,7 @@ export function menuTick() {
 // Hit-test: is mouse over a main menu button?
 function hitTestMenuButton(mx, my) {
   for (let i = 0; i < MENU_ITEMS.length; i++) {
-    const bx = BTN_X, by = getStartY() + i * getRowH();
+    const bx = getBtnX(), by = getStartY() + i * getRowH();
     if (mx >= bx && mx < bx + BTN_W && my >= by && my < by + getBtnH()) return i;
   }
   return -1;
@@ -287,7 +288,7 @@ function handleMainMenuInput() {
         const hitItem = MENU_ITEMS[hit];
         // For spinners, check left/right click region for value adjustment
         if (hitItem.type === 'spinner') {
-          const midX = BTN_X + BTN_W / 2;
+          const midX = getBtnX() + BTN_W / 2;
           if (mouse.x > midX) {
             config[hitItem.key] = Math.min(hitItem.max, config[hitItem.key] + hitItem.step);
           } else {
@@ -458,7 +459,7 @@ export function drawMainMenu() {
   // 2. Left panel: 11 buttons
   for (let i = 0; i < MENU_ITEMS.length; i++) {
     const item = MENU_ITEMS[i];
-    const bx = BTN_X;
+    const bx = getBtnX();
     const by = getStartY() + i * getRowH();
     const selected = i === menu.selectedOption && !menu.activeSubmenu;
 

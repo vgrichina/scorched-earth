@@ -63,16 +63,19 @@
 // palette animation, per-player name switching, "NO KIBITZING!!" privacy guard).
 
 import { config } from './config.js';
-import { fillRect, hline, vline } from './framebuffer.js';
+import { fillRect, hline, vline, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
 import { drawText, drawTextShadow, measureText } from './font.js';
 import { BLACK } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
-import { consumeKey, isKeyDown } from './input.js';
+import { consumeKey, consumeClick, isKeyDown } from './input.js';
 import { random } from './utils.js';
 import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
+import { players } from './tank.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
-         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
+         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
+         UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
+         UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 
 // Shop state
 const shop = {
@@ -82,12 +85,28 @@ const shop = {
   selectedItem: 0,
   scrollOffset: 0,
   items: [],
+  kibitz: false,      // EXE: "NO KIBITZING!!" anti-peek screen between hotseat players
 };
 
 // Web port uses 4 flat categories; EXE uses 3 tabs (Score/Weapons/Miscellaneous)
 // with sub-categories within Miscellaneous
 const CATEGORY_NAMES = ['Weapons', 'Guidance', 'Defense', 'Accessories'];
-const ITEMS_PER_PAGE = 10;
+
+// Layout constants (EXE: left panel = 200px / 0xC8)
+const PANEL_W_MAX = 200;
+const PANEL_X = 4;
+const PANEL_Y = 20;
+const TAB_H   = 18;   // bottom tab bar height
+
+// Resolution-dependent row height: EXE adds 5px at screenH >= 400 (0x190)
+function getRowH() { return config.screenHeight >= 400 ? 18 : 13; }
+
+// Items visible per page: EXE 14-15 rows; derive from available panel height
+function getItemsPerPage() {
+  const panelH = config.screenHeight - PANEL_Y - TAB_H - 2;
+  const listH  = panelH - 15;   // 15px for column headers
+  return Math.min(15, Math.max(5, Math.floor(listH / getRowH())));
+}
 
 // Open shop for a player
 // EXE: called from between-rounds loop at file 0x232E5 (play.cpp)
@@ -98,6 +117,8 @@ export function openShop(playerIdx) {
   shop.category = 0;
   shop.selectedItem = 0;
   shop.scrollOffset = 0;
+  // EXE: "NO KIBITZING!!" shown before each non-first human player's shop (DS:0x231C)
+  shop.kibitz = playerIdx > 0 && !isAI(players[playerIdx]);
   updateItemList();
 }
 
@@ -165,6 +186,18 @@ export function shopTick(player) {
     return true;
   }
 
+  // EXE: "NO KIBITZING!!" — wait for any key/click before showing shop
+  if (shop.kibitz) {
+    const anyKey = ['Enter','Space','Escape','ArrowDown','ArrowUp',
+                    'ArrowLeft','ArrowRight','Tab','Backspace'].some(k => consumeKey(k));
+    if (anyKey || consumeClick(0)) {
+      shop.kibitz = false;
+    }
+    return false;
+  }
+
+  const perPage = getItemsPerPage();
+
   // Category switching
   if (consumeKey('ArrowLeft')) {
     shop.category = (shop.category + CATEGORY_NAMES.length - 1) % CATEGORY_NAMES.length;
@@ -186,8 +219,8 @@ export function shopTick(player) {
   }
   if (consumeKey('ArrowDown')) {
     shop.selectedItem = Math.min(shop.items.length - 1, shop.selectedItem + 1);
-    if (shop.selectedItem >= shop.scrollOffset + ITEMS_PER_PAGE) {
-      shop.scrollOffset = shop.selectedItem - ITEMS_PER_PAGE + 1;
+    if (shop.selectedItem >= shop.scrollOffset + perPage) {
+      shop.scrollOffset = shop.selectedItem - perPage + 1;
     }
   }
 
@@ -229,67 +262,135 @@ export function shopTick(player) {
 // Draw shop UI into framebuffer
 // EXE: uses dialog system (seg 0x3F19) with 3D beveled boxes and scrollable list widgets
 // EXE: dialog_alloc(screenW, screenH, 0, 0) creates full-screen modal at file 0x15AF6
-// Web port: simplified flat rendering (no dialog system, no 3D boxes, no scroll widgets)
+// Web port: 3D raised outer frame, sunken left item panel, right info panel, bottom tabs
 export function drawShop(player) {
   if (!shop.active) return;
 
-  fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+  const SW = config.screenWidth;
+  const SH = config.screenHeight;
+
+  // EXE: "NO KIBITZING!!" — DS:0x231C — full-screen privacy guard between hotseat turns
+  if (shop.kibitz) {
+    fillRect(0, 0, SW - 1, SH - 1, BLACK);
+    const msg = 'NO KIBITZING!!';
+    const mw = measureText(msg);
+    drawText(Math.floor((SW - mw) / 2), Math.floor(SH / 2) - 6, msg, COLOR_HUD_HIGHLIGHT);
+    const sub = `${player.name}'s turn — press any key`;
+    const sw = measureText(sub);
+    drawText(Math.floor((SW - sw) / 2), Math.floor(SH / 2) + 10, sub, COLOR_HUD_TEXT);
+    return;
+  }
 
   const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  // EXE: paint callback (file 0x1580D) uses player_color+4 for selection fill (lighter shade)
+  // Web: slot 3 = 80% brightness — visible highlight without being blinding
+  const selFill = player.index * PLAYER_PALETTE_STRIDE + 3;
 
-  // Title — EXE: player name rendered with fg_setcolor(player+0x1A) at file 0x1580D
-  drawTextShadow(8, 2, `${player.name}'s Shop`, baseColor, 0);
-  // EXE: "Cash Left:" at DS:0x22F8 (file 0x58B5D), rendered by cash_display at file 0x16A7C
-  drawText(200, 2, `Cash: $${player.cash}`, COLOR_HUD_HIGHLIGHT);
+  // Full-screen 3D raised box (EXE: dialog_alloc creates full-screen modal)
+  drawBox3DRaised(0, 0, SW, SH, UI_BACKGROUND,
+    UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
 
-  // Category tabs
-  // EXE: 3 tabs at bottom — "Score" DS:0x2C3B, "Weapons" DS:0x2C41,
-  // "Miscellaneous" DS:0x2C49, "~Done" DS:0x2C57
-  // Web port: 4 categories at top as simple text labels
-  for (let i = 0; i < CATEGORY_NAMES.length; i++) {
-    const x = 8 + i * 78;
-    const color = i === shop.category ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
-    drawText(x, 14, CATEGORY_NAMES[i], color);
-    if (i === shop.category) {
-      hline(x, x + measureText(CATEGORY_NAMES[i]) - 1, 22, color);
-    }
-  }
+  // Title bar: player name (left), "Cash Left:" (right)
+  // EXE: player name via fg_setcolor(player+0x1A) at file 0x1580D
+  // EXE: "Cash Left:" at DS:0x22F8, rendered by cash_display at file 0x16A7C
+  drawTextShadow(6, 4, `${player.name}'s Shop`, baseColor, 0);
+  const cashStr = `Cash Left: $${player.cash}`;
+  drawText(SW - measureText(cashStr) - 6, 4, cashStr, COLOR_HUD_HIGHLIGHT);
+  hline(4, SW - 5, 16, UI_MED_BORDER);
 
-  // Column headers
-  drawText(8, 28, 'Item', COLOR_HUD_TEXT);
-  drawText(160, 28, 'Price', COLOR_HUD_TEXT);
-  drawText(210, 28, 'Own', COLOR_HUD_TEXT);
-  drawText(250, 28, 'Bndl', COLOR_HUD_TEXT);
-  hline(8, 310, 36, COLOR_HUD_TEXT);
+  // Layout: left item panel (200px) + right info panel + bottom tab bar
+  const panelW = Math.min(PANEL_W_MAX, SW - 8);
+  const panelH = SH - PANEL_Y - TAB_H - 2;
+  const rightX  = PANEL_X + panelW + 6;
 
-  // Item list
-  // EXE: scrollable list widget via add_item_list() at 0x3F19:0x2A9B, 14-15 visible rows
-  // EXE: selection highlight painted with player_color+4 (lighter shade) at file 0x1580D
-  // EXE: depleted items use DS:0xEF24 color (check at file 0x30452-0x30462)
-  const startY = 40;
-  const endIdx = Math.min(shop.items.length, shop.scrollOffset + ITEMS_PER_PAGE);
+  // Left item panel — sunken inset (EXE: left panel 0xC8=200px wide, scrollable list)
+  drawBox3DSunken(PANEL_X, PANEL_Y, panelW, panelH, BLACK,
+    UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
+
+  // Column headers inside panel (interior starts at x+2, y+2)
+  const hdrY   = PANEL_Y + 3;
+  const priceX = PANEL_X + panelW - 62;
+  const ownX   = PANEL_X + panelW - 18;
+  drawText(PANEL_X + 3, hdrY, 'Item',  UI_DARK_TEXT);
+  drawText(priceX,       hdrY, 'Price', UI_DARK_TEXT);
+  drawText(ownX,         hdrY, '#',     UI_DARK_TEXT);
+  hline(PANEL_X + 2, PANEL_X + panelW - 3, PANEL_Y + 13, UI_MED_BORDER);
+
+  // Item rows
+  const rowH   = getRowH();
+  const perPage = getItemsPerPage();
+  const listY  = PANEL_Y + 16;
+  const endIdx = Math.min(shop.items.length, shop.scrollOffset + perPage);
 
   for (let i = shop.scrollOffset; i < endIdx; i++) {
-    const item = shop.items[i];
-    const y = startY + (i - shop.scrollOffset) * 14;
+    const item     = shop.items[i];
+    const y        = listY + (i - shop.scrollOffset) * rowH;
     const selected = i === shop.selectedItem;
     const canAfford = player.cash >= item.weapon.price;
+    const owned    = player.inventory[item.idx];
 
     if (selected) {
-      fillRect(6, y - 1, 312, y + 9, player.index * PLAYER_PALETTE_STRIDE + 1);
+      // EXE paint callback: fillRect with player_color+4 (lighter shade of player color)
+      fillRect(PANEL_X + 2, y - 1, PANEL_X + panelW - 3, y + rowH - 2, selFill);
     }
 
-    const textColor = selected ? COLOR_HUD_HIGHLIGHT : (canAfford ? COLOR_HUD_TEXT : 104 + PLAYER_PALETTE_STRIDE);
-    drawText(8, y, item.weapon.name, textColor);
-    drawText(160, y, '$' + item.weapon.price, textColor);
-    const owned = player.inventory[item.idx];
-    drawText(210, y, owned > 0 ? String(owned) : '-', owned > 0 ? baseColor : COLOR_HUD_TEXT);
-    drawText(250, y, 'x' + item.weapon.bundle, COLOR_HUD_TEXT);
+    // EXE: DS:0xEF22=bright for selected, DS:0xEF24=dark for unselected, EF24 for depleted
+    const txtColor = selected    ? UI_HIGHLIGHT
+                   : canAfford  ? UI_DARK_TEXT
+                   :              UI_MED_BORDER;
+    drawText(PANEL_X + 3, y, item.weapon.name, txtColor);
+    drawText(priceX,       y, '$' + item.weapon.price, txtColor);
+    drawText(ownX,         y, owned > 0 ? String(owned) : '-',
+             owned > 0 ? baseColor : txtColor);
   }
 
-  // Footer
-  const footerY = config.screenHeight - 20;
-  hline(8, 310, footerY - 4, COLOR_HUD_TEXT);
-  drawText(8, footerY, 'ENTER:Buy  DEL:Sell  TAB:Done', COLOR_HUD_TEXT);
-  drawText(8, footerY + 10, 'LEFT/RIGHT:Category  UP/DOWN:Select', COLOR_HUD_TEXT);
+  // Simple scrollbar (right edge of panel)
+  if (shop.items.length > perPage) {
+    const sbX   = PANEL_X + panelW - 1;
+    const sbTop = listY;
+    const sbBot = PANEL_Y + panelH - 3;
+    const sbH   = sbBot - sbTop;
+    vline(sbX, sbTop, sbBot, UI_DARK_BORDER);
+    const thumbH = Math.max(3, Math.floor(sbH * perPage / shop.items.length));
+    const thumbY = sbTop + Math.floor(sbH * shop.scrollOffset / shop.items.length);
+    vline(sbX, thumbY, Math.min(thumbY + thumbH, sbBot), UI_BRIGHT_BORDER);
+  }
+
+  // Right info panel (item details + controls help) — only if screen wide enough
+  if (rightX < SW - 10) {
+    const sel = shop.items[shop.selectedItem];
+    if (sel) {
+      drawText(rightX, PANEL_Y + 2,  sel.weapon.name,                         baseColor);
+      drawText(rightX, PANEL_Y + 14, `Price:  $${sel.weapon.price}`,          UI_DARK_TEXT);
+      drawText(rightX, PANEL_Y + 25, `Bundle: x${sel.weapon.bundle}`,         UI_DARK_TEXT);
+      const owned = player.inventory[sel.idx];
+      drawText(rightX, PANEL_Y + 36, `Owned:  ${owned > 0 ? owned : '-'}`,
+               owned > 0 ? baseColor : UI_MED_BORDER);
+    }
+    const helpY = SH - TAB_H - 48;
+    drawText(rightX, helpY,      'ENTER: Buy',  UI_MED_BORDER);
+    drawText(rightX, helpY + 11, 'DEL:   Sell', UI_MED_BORDER);
+    drawText(rightX, helpY + 22, 'TAB:   Done', UI_MED_BORDER);
+    drawText(rightX, helpY + 33, 'LR: Category', UI_MED_BORDER);
+  } else {
+    // Narrow screen: controls in footer above tabs
+    drawText(4, SH - TAB_H - 12, 'ENTER:Buy  DEL:Sell  TAB:Done', UI_MED_BORDER);
+  }
+
+  // Bottom tab bar — EXE has tabs at bottom (Score/Weapons/Miscellaneous/Done)
+  // Web port: 4 flat categories + Done
+  hline(4, SW - 5, SH - TAB_H - 1, UI_MED_BORDER);
+  const tabY = SH - TAB_H + 4;
+  const tabW = Math.floor((SW - 50) / CATEGORY_NAMES.length);
+  for (let i = 0; i < CATEGORY_NAMES.length; i++) {
+    const tx      = PANEL_X + i * tabW;
+    const isActive = i === shop.category;
+    const color   = isActive ? UI_HIGHLIGHT : UI_DARK_TEXT;
+    drawText(tx, tabY, CATEGORY_NAMES[i], color);
+    if (isActive) {
+      hline(tx, tx + measureText(CATEGORY_NAMES[i]), SH - TAB_H, color);
+    }
+  }
+  // Done button (EXE: "~Done" DS:0x2C57, hotkey 'D')
+  drawText(SW - 42, tabY, '~Done', UI_MED_BORDER);
 }
