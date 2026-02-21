@@ -37,6 +37,30 @@ r2 -a x86 -b 16 -s 0x6a00 earth/SCORCH.EXE
 
 Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py instead for FPU-heavy regions.
 
+### Research Tools
+
+```bash
+# DS offset ↔ file offset converter + data viewer
+python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0x2B04 -s      # string at DS offset
+python3 disasm/ds_lookup.py earth/SCORCH.EXE 0x058884 -s        # string at file offset
+python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xEF22 -w -n 32 # dump as 16-bit words
+
+# String scanner with grep
+python3 disasm/strings_dump.py earth/SCORCH.EXE -g "wind"    # find wind-related strings
+python3 disasm/strings_dump.py earth/SCORCH.EXE -g "~" -m 2  # find hotkey markers
+python3 disasm/strings_dump.py earth/SCORCH.EXE -r 0x2000 0x3000  # scan DS range
+
+# Struct array dumper (weapon, glyph, mode tables)
+python3 disasm/struct_dump.py earth/SCORCH.EXE weapon -n 60   # all weapons
+python3 disasm/struct_dump.py earth/SCORCH.EXE glyph 65       # glyph for 'A'
+python3 disasm/struct_dump.py earth/SCORCH.EXE mode -n 9      # graphics modes
+
+# Cross-reference finder (who reads/writes a DS variable?)
+python3 disasm/xref.py earth/SCORCH.EXE DS:0xED58 --code      # font selector refs
+python3 disasm/xref.py earth/SCORCH.EXE DS:0xEF22 --code      # highlight color refs
+python3 disasm/xref.py earth/SCORCH.EXE DS:0x518E -c 8        # HUD Y with context
+```
+
 ### Key Binary Layout
 - Header: 0x6A00 bytes (MZ DOS header + relocations)
 - Data segment (DS): 0x4F38 (file base 0x055D80)
