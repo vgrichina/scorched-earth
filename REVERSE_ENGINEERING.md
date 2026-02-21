@@ -2220,7 +2220,7 @@ All located in `disasm/` directory:
 
 22. ~~**Equip.cpp shop system**~~ — **RESOLVED**. Equipment init at file 0x1D5D4 maps 16 category boundaries via `findWeaponByName()` to DS:0xD546-0xD566 (Smoke Tracer through Super Mag). Shop UI at file 0x1DBB5 dispatches through 12-case jump table (file 0x1DF4D) with random action selection for AI. Items enabled/disabled by 6 config flags: free market (DS:0x50FE), scoring mode (DS:0x5158), triggers (DS:0x513A), useless items (DS:0x5168), parachute (DS:0x5162), play mode (DS:0x5188). Arms level (DS:0x518A) gates item tiers 0-4. See `disasm/cavern_shop_analysis.txt`.
 
-23. **Sound system** — How sound effects are triggered, what format they use, Fastgraph sound integration.
+23. ~~**Sound system**~~ — **RESOLVED**. PC Speaker via Fastgraph 4.02. DS:0xEF46 = device type (0=off, 1=speaker). Hardware primitives at file 0x010C81 (fg_sound_on, PIT divisor = 1193277/freq_hz, ports 0x42/0x43/0x61) and 0x010CB1 (fg_sound_off). Game calls: explosion=rising 1000→10000 Hz sweep (extras.cpp 0x21267), impact=random freq per frame (0x247BA), terrain-hit=+200 Hz per pixel (0x24DCD), shield-hit=random freq (shields.cpp 0x3AF33), flight=velocity-based PIT divisor (play.cpp 0x31663), turn-change=100 clicks (0x30991), terrain-gen=click ping (ranges.cpp 0x35D41). See "PC Speaker Sound System" section.
 
 25. ~~**Main menu rendering**~~ — **RESOLVED**. Menu module at segment 0x34ED (file 0x3B8D0), no .cpp debug string. Main function at 0x3D140. Dialog system library at 0x3F19. Resolution-adaptive layout: row height 25/17px, font 0/1. Title uses 5-layer 3D emboss. 3D box drawing at 0x444BB (Windows 3.1-style bevels). String pointer table at DS:0x20C8. See "Main Menu Rendering Code" section.
 
@@ -3426,6 +3426,213 @@ Config keys in Hardware submenu:
 | MOUSE_RATE | DS:0x6BF8 | 0.50 | Mouse sensitivity (pixels → angle/power) |
 | FIRE_DELAY | DS:0x515C | 200 | Delay before projectile launch |
 | BIOS_KEYBOARD | DS:0x502E | 0 | Use BIOS INT 16h instead of custom handler |
+
+## PC Speaker Sound System (VERIFIED from disassembly)
+
+### Architecture Overview
+
+SCORCH.EXE uses the **Fastgraph 4.02** library for all PC speaker sound. The system has three layers:
+
+1. **Hardware primitives** (file 0x010C81-0x010CBC): directly program 8253 PIT chip and port 0x61
+2. **Fastgraph mid-layer** (file 0x4C117-0x4C290): wrap primitives, add device dispatch logic
+3. **Game call sites** (extras.cpp, play.cpp, shields.cpp, ranges.cpp): call primitives directly
+
+Sound is **off by default** (DS:0xEF46 = 0). User must enable PC Speaker in the Sound submenu.
+
+**Address mapping** (image_base = 0): `file_offset = runtime_addr + 0x6A00`.  
+So `call 0x0:0xA281` (runtime) targets file 0x010C81, and `call 0x4571:0x0007` targets file 0x4C117.
+
+### Hardware Layer — PC Speaker Primitives
+
+**fg_sound_on** (file 0x010C81, runtime 0x0:0xA281):
+```asm
+; Parameters: [bp+6] = freq_hz
+mov bx, [bp+6]       ; freq_hz argument
+mov ax, 0x34DD       ; 0x1234DD = 1,193,277 (PIT base clock)
+mov dx, 0x12
+div bx               ; ax = PIT divisor = 1,193,277 / freq_hz
+in al, 0x61          ; read speaker gate byte
+or al, 0x3           ; set bit0 (timer2 gate) + bit1 (speaker enable)
+out 0x61, al
+mov al, 0xB6         ; PIT mode: channel 2, square wave, lo+hi byte load
+out 0x43, al
+mov al, bl           ; divisor low byte  -> PIT channel 2
+out 0x42, al
+mov al, bh           ; divisor high byte -> PIT channel 2
+out 0x42, al
+retf
+```
+
+**fg_sound_off** (file 0x010CB1, runtime 0x0:0xA2B1):
+```asm
+in al, 0x61          ; read speaker gate
+and al, 0xFC         ; clear bits 0+1 (disable speaker)
+out 0x61, al
+retf
+```
+
+- **PIT base clock**: 1,193,277 Hz (0x1234DD)
+- **Frequency formula**: `pit_divisor = 1193277 / freq_hz`
+- **Minimum freq**: 19 Hz (0x13) — clamped in fg_sound()
+- **PIT mode 0xB6**: channel 2, square wave, 16-bit divisor load
+
+### Fastgraph Sound Library Functions (file 0x4C117-0x4C290)
+
+All in virtual display segment 0x4570 / runtime segment 0x4571:
+
+| Function | File | Runtime Call | Signature | Notes |
+|----------|------|--------------|-----------|-------|
+| fg_sound_dispatch | 0x4C117 | 0x4571:0x0007 | (freq, dur) | Checks DS:0xEF46, routes to primitives |
+| fg_click | 0x4C143 | 0x4570:0x0043 | (delay, count) | Toggle speaker bit 1 N times |
+| fg_beep | 0x4C177 | 0x4570:0x0077 | (dur_lo, dur_hi) | Click-based tone for duration |
+| fg_tone | 0x4C1D8 | 0x4570:0x00D8 | (start, end, step) | Frequency sweep |
+| fg_sound | 0x4C221 | 0x4570:0x0121 | (freq_hz) | Continuous PIT tone |
+| fg_nosound | 0x4C278 | 0x4571:0x0168 | () | Stop speaker (AND port 0x61 with 0xFC) |
+
+The **fg_sound_dispatch** at file 0x4C117:
+- `if DS:0xEF46 == 0`: return immediately (no sound device configured)
+- `if DS:0xEF46 == 1`: call fg_sound_on (0x0:0xA281), delay (0x0:0x9AF6), fg_nosound
+
+### DS Variables — Sound Configuration
+
+| DS Offset | File | Name | Default | Description |
+|-----------|------|------|---------|-------------|
+| DS:0xEF46 | 0x64CC6 | sound_device | 0 | 0=off, 1=PC speaker (set in Sound menu) |
+| DS:0x519E | — | sound_enabled | 0 | Game-level sound on/off flag |
+| DS:0x50EE | — | flight_sounds | 0 | Flight sounds enabled flag |
+| DS:0x50F0 | — | flight_sound_state | 0 | Current flight sound playback state |
+
+Config keys in SCORCH.CFG: `SOUND` (DS:0x0335), `FLY_SOUND` (DS:0x033B)
+
+### Sound Call Sites — All Game Files
+
+#### 1. Explosion Rising Tone (extras.cpp, file 0x21267)
+```c
+if (sound_device == 1) {  // DS:0xEF46
+    for (si = 0; si < 100; si += 15) {
+        freq = si * 100 + 1000;       // 1000 Hz rising to ~10000 Hz
+        fg_sound_on(freq);             // CALL 0x0:0xA281
+        delay(5);                      // CALL 0x0:0x9AF6
+    }
+    fg_nosound();                      // CALL 0x4571:0x0168
+}
+```
+**Effect**: Rising sweep 1000→10000 Hz in 7 steps of 100 Hz, 5-tick delay each.
+
+#### 2. Impact Random Tone (extras.cpp, file 0x247BA)
+```c
+if (sound_device != 0) {
+    // Inside impact animation loop (si = frame index, count = num_frames):
+    freq = random(0xBB8) + computed_base;   // random up to 3000 Hz
+    fg_sound_on(freq);  // CALL 0x0:0xA281 — updated each frame
+}
+// After loop:
+fg_nosound();           // CALL 0x4571:0x0168
+```
+**Effect**: Rapidly varying random-frequency tone during impact animation frames.
+
+#### 3. Terrain Hit Rising Sound (extras.cpp, file 0x24DCD)
+```c
+if (DS[0xCF8E] == 0 && sound_device != 0) {
+    fg_sound_on([bp-0x2A]);    // CALL 0x0:0xA281 at current freq
+    [bp-0x2A] += 200;          // +200 Hz each step
+}
+```
+**Effect**: Rising pitch stepping +200 Hz per terrain pixel traversed by projectile.
+
+#### 4. Shield Hit Random Tone (shields.cpp, file 0x3AF33)
+```c
+if (sound_device != 0) {
+    freq = random(50) + base;  // random(0x32), CALL 0x2BF9:0x048B
+    fg_sound_on(freq);         // CALL 0x0:0xA281
+}
+```
+**Effect**: Random-frequency noise updated each shield-hit animation frame.
+
+#### 5. Shield Hit End — Stop Sound (shields.cpp, file 0x3B1F9 and 0x3B4AE)
+```c
+if (sound_device != 0) {
+    fg_sound_off();   // CALL 0x0:0xA2B1 (hardware primitive directly)
+}
+```
+Two separate call sites at end of different shield animation loops.
+
+#### 6. Flight Sound Start (play.cpp, file 0x3162C)
+```c
+if (sound_device == 1) {
+    fg_sound_on(0x14);   // CALL 0x0:0xA281 — 20 Hz start (minimum pitch)
+}
+// ... compute velocity-based frequency (see #7) ...
+if (sound_device == 1) {
+    fg_nosound();         // CALL 0x4571:0x0168
+}
+```
+
+#### 7. Flight Sound Frequency Computation (play.cpp, file 0x31663)
+```c
+// proj = far pointer to projectile struct
+vx = proj[+0xA2 : +0xA4];   // X velocity components (32-bit)
+vy = proj[+0xA6 : +0xA8];   // Y velocity components (32-bit)
+speed = magnitude(vx, vy) * 1000;   // CALL 0x0:0x17A6
+pit_div = 1193277 / speed;           // CALL 0x0:0x1816
+proj[+0x9C] = pit_div;              // store PIT divisor
+// If proj[+0x9E] != proj[+0x9C]: update sound output
+```
+**Effect**: Velocity-to-pitch mapping — faster projectiles make higher-pitched sounds.
+
+#### 8. Another Flight Sound Update (play.cpp, file 0x31F59 and 0x32038)
+```c
+if (DS[0x50E2] != 0 && sound_device == 1) {
+    fg_sound_on(0x14);    // CALL 0x0:0xA281 — 20 Hz
+}
+// ... HUD/display update ...
+if (DS[0x50E2] != 0 && sound_device == 1) {
+    fg_nosound();          // CALL 0x4571:0x0168
+}
+```
+
+#### 9. Player/Turn Change Click (play.cpp, file 0x30991 and 0x30A39)
+```c
+if (sound_device == 1) {
+    fg_click(20, 100);    // CALL 0x4571:0x0007 — push 0x14, 0x64
+}
+```
+**Effect**: 100 rapid speaker toggle clicks — a menu "tick" or player-change pop sound.
+
+#### 10. Terrain Generation Ping (ranges.cpp, file 0x35D41)
+```c
+if (sound_device != 0) {
+    for (si = 10; si < 20; si++) {
+        fg_click(0, 20);   // CALL 0x4571:0x0007 — push 0, 0x14
+        delay(25 - (si-10)*2);  // CALL 0x0:0x9AF6 — decreasing delay
+    }
+}
+```
+**Effect**: Rising-speed click train during terrain generation (map building).
+
+### Sound Design Summary
+
+| Event | Source | Mechanism | Frequency Range |
+|-------|--------|-----------|-----------------|
+| Explosion | extras.cpp | Rising PIT sweep | 1000 → ~10000 Hz in 7 steps |
+| Terrain hit | extras.cpp | Rising PIT steps | base + N*200 Hz per pixel |
+| Impact animation | extras.cpp | Random PIT tone | random(3000) + base |
+| Shield hit | shields.cpp | Random PIT tone | random(50) + base per frame |
+| Projectile flight | play.cpp | Velocity-based PIT | speed * 1000 → divisor |
+| Player change | play.cpp | Click train | N/A (digital toggle) |
+| Terrain generation | ranges.cpp | Click ping | N/A (click sequence) |
+
+### Sound Function Runtime Address Table
+
+| CALL Bytes | Runtime | File Offset | Identified As |
+|------------|---------|-------------|---------------|
+| `call 0x0:0xA281` | 0x0000:0xA281 | 0x010C81 | fg_sound_on(freq_hz) — PIT + port 0x61 enable |
+| `call 0x0:0xA2B1` | 0x0000:0xA2B1 | 0x010CB1 | fg_sound_off() — port 0x61 disable |
+| `call 0x0:0x9AF6` | 0x0000:0x9AF6 | 0x010AF6 | delay(n) — busy-wait loop |
+| `call 0x0:0x17A6` | 0x0000:0x17A6 | 0x081A6 | magnitude(vx,vy) — flight speed |
+| `call 0x0:0x1816` | 0x0000:0x1816 | 0x08216 | 1193277_div(n) — compute PIT divisor |
+| `call 0x4571:0x0007` | 0x4571:0x0007 | 0x4C117 | fg_sound_dispatch(freq, dur) |
+| `call 0x4571:0x0168` | 0x4571:0x0168 | 0x4C278 | fg_nosound() — stop speaker |
 
 ### HUD System — Two Renderers
 

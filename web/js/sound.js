@@ -49,26 +49,30 @@ function playTone(startFreq, endFreq, duration, type = 'square', volume = 0.15) 
   osc.stop(audioCtx.currentTime + duration);
 }
 
-// EXE: fire sound — ascending tone 400→800Hz, 0.15s
+// EXE: fire sound — not a distinct event; approximated as short rising blip
 export function playFireSound() {
   playTone(400, 800, 0.15, 'square', 0.12);
 }
 
-// EXE: explosion sound — low freq sweep, duration scales with radius
+// EXE: explosion — rising sweep 1000→10000 Hz in steps of 100 Hz (extras.cpp 0x21267)
+// Duration scales with blast radius
 export function playExplosionSound(radius) {
   const duration = Math.min(0.8, 0.1 + radius * 0.01);
-  playTone(200, 40, duration, 'square', 0.15);
+  playTone(1000, 10000, duration, 'square', 0.15);
 }
 
-// EXE: flight sound — pitch = sqrt(distSq) * 1.5 + 1000
-// Called per frame during flight — we just play a short blip
+// EXE: flight sound — velocity-based PIT divisor: speed*1000 → divisor (play.cpp 0x31663)
+// freq = 1,193,277 / (speed * 1000); starts at 20 Hz (0x3162C), updates per frame
+// Web: speed ≈ sqrt(distSq) pixel/frame; approximates EXE formula
 export function playFlightSound(distSq) {
   if (!audioCtx || !soundEnabled) return;
-  const freq = Math.sqrt(distSq) * 1.5 + 1000;
-  playTone(freq, freq * 0.9, 0.03, 'square', 0.04);
+  const speed = Math.sqrt(distSq);
+  const freq = speed > 0 ? Math.min(4000, 1193.277 / speed) : 20;
+  playTone(freq, freq, 0.03, 'square', 0.04);
 }
 
-// EXE: beep — 40Hz, 200ms — failed action / error
+// EXE: beep — turn-change uses 100 fg_click toggles (play.cpp 0x30991)
+// Approximated as short low-frequency burst
 export function playBeep() {
   playTone(40, 40, 0.2, 'square', 0.1);
 }

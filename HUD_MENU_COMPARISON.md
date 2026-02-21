@@ -7,10 +7,10 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 
 ## 1. HUD — Full Mode Row 1
 
-### 1a. Weapon Position (DIVERGENT)
+### ~~1a. Weapon Position~~ — **FIXED**
 - **EXE**: Weapon text **left-aligned** at computed position `E9E0 = E9DE + 15`, where E9DE = wind_x + measureText("MMMMMMMMMMMMMMM") + 2. The weapon sits at a fixed column after the wind area.
-- **Web**: Weapon text **right-aligned** to `screenWidth - LEFT` (flush right edge).
-- **Impact**: Weapon name jumps to a completely different location. On a 640px screen the difference is ~200px.
+- **Web**: ~~Weapon text **right-aligned** to `screenWidth - LEFT` (flush right edge).~~ Now: `wpnX = windX + measureText("MMMMMMMMMMMMMMM") + 2 + 15` matching EXE formula exactly.
+- **Impact**: ~~Weapon name jumps to a completely different location. On a 640px screen the difference is ~200px.~~ Resolved.
 
 ### 1b. Wind Display String (APPROXIMATED)
 - **EXE**: Renders pre-formatted string from player struct+0xB6 via `text_display(E9DC, HUD_Y, struct+0xB6)`. The format of this string is unknown (could include directional arrows, ">>>"/"<<<" style, or magnitude text).
@@ -172,10 +172,10 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 - **Web**: 95 glyphs — ASCII 32-126 only.
 - **Impact**: Extended characters render as empty. Not critical for English, but affects display if config/player names use CP437 chars.
 
-### 7b. Quote Character (ZERO WIDTH)
-- **EXE**: `"` (0x22) has a real glyph with width.
-- **Web**: WIDTHS array has `0` for index 2 (char 34 = `"`), making it invisible.
-- **Impact**: Double quotes don't render. Affects any text containing `"`.
+### ~~7b. Quote Character (ZERO WIDTH)~~ — **FIXED**
+- **EXE**: `"` (0x22) has a real glyph: font_init at 0x4C290 maps it to DS:0x7116 (width_byte=1, vertical-bar pattern). Exact visual unverified without execution.
+- **Web**: ~~WIDTHS array has `0` for index 2 (char 34 = `"`), making it invisible.~~ Now: WIDTHS[2]=3, glyph = two-tick design (rows 2-4: 0xA0=X.X). Close approximation since EXE glyph may actually be width=1.
+- **Impact**: Resolved — double quotes now render.
 
 ---
 

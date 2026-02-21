@@ -166,18 +166,17 @@ export function drawHud(player, wind, round, opts) {
     // EXE: fg_setrgb(0xA3, R, G, B) sets palette 163 = player color
     // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws wind string in palette 163
     // Web port approximates with text (same color = baseColor)
+    const windX = x;  // E9DC — wind display x position
     if (wind === 0) {
-      drawText(x, HUD_Y, 'No Wind', baseColor);
+      drawText(windX, HUD_Y, 'No Wind', baseColor);
     } else {
-      drawText(x, HUD_Y, 'Wind: ' + wind, baseColor);
+      drawText(windX, HUD_Y, 'Wind: ' + wind, baseColor);
     }
-    x += measureText('No Wind  ');
-    // EXE: weapon — format "%d: %s" or "%s", drawn in [EF22]
+    // EXE: weapon at E9E0 = (E9DC + measureText("MMMMMMMMMMMMMMM") + 2) + 15
+    // Left-aligned at a fixed column after the wind area (not right-aligned to screen edge)
     const wpnFull = ammo === -1 ? weaponName : ammo + ': ' + weaponName;
-    const wpnX = config.screenWidth - LEFT - measureText(wpnFull);
-    if (wpnX > x) {
-      drawText(wpnX, HUD_Y, wpnFull, baseColor);
-    }
+    const wpnX = windX + measureText('MMMMMMMMMMMMMMM') + 2 + 15;
+    drawText(wpnX, HUD_Y, wpnFull, baseColor);
   }
 
   // === Row 2 ===
