@@ -3823,11 +3823,28 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 | Weapon icon (full) | draw_icon for selected weapon | Text only | Simplified |
 | Background clear | fg_rect(5, HUD_Y, screenW-5, screenH-7) | fillRect(5, HUD_Y, ..., ROW2_Y+12) | Intentional (web redraws terrain separately) |
 
-**Remaining gaps** (require additional systems to implement):
+**Remaining gaps** — full audit in `HUD_MENU_COMPARISON.md`. Summary:
+
+HIGH:
+- Shop is fundamentally different — EXE uses dialog system with 3D boxes, scrollbar, tabs (Score/Weapons/Miscellaneous/Done), sell sub-dialog, palette animation, privacy guard ("NO KIBITZING!!"); web uses flat black background
+- Sunken box bevel order (`boxSunken` params) may swap dark/light edges vs EXE `draw_flat_box` (Top=EF30, Left=EF32, Bottom=EF26, Right=EF2E)
+- Full Row 2: 7 inventory widgets (icon + fill bar each, widths 48/25/25/31/18/34/33px) replaced by text-only "B:n P:n L:n"
+
+MEDIUM:
+- Full Row 1 weapon position: EXE left-aligns at computed E9E0; web right-aligns to screen edge
+- Menu button X margin: EXE uses 5 (small) / 12 (large); web uses BTN_X=4 fixed
+- 3D boxes should use 3px borders in hi-res (`[DS:0x6E28]==3`); web always uses 2px
 - Player icon bitmaps: need icon data extraction from DS:0x3826 (48 × 125 bytes)
+- Shop selection highlight: EXE uses player_color+4 (bright); web uses slot 1 (darkest)
+- Font: double-quote char `"` (0x22) has zero width in WIDTHS array
+
+LOW:
 - Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
-- Wind display string: struct+0xB6 format unknown (pre-formatted before HUD call); text approximation is sufficient
-- Full-mode weapon: EXE left-aligns at computed E9E0; web port right-aligns for better use of space
+- Wind display string: struct+0xB6 format unknown; text approximation is sufficient
+- Energy bar 40px vs EXE 48px
+- Shop: 10 visible rows vs EXE 14-15; missing "Cash Left:" label, interest display, Score tab
+- Extended font: 95 chars vs EXE 161 (missing CP437 0x80-0xFF)
+- UI palette RGB values (200-208) unverified against actual EXE DAC state
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 
