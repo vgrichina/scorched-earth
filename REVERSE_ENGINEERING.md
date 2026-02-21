@@ -46,6 +46,7 @@ Each .cpp file has its own code segment (Borland large memory model). Code segme
 | `score.cpp` | 0x05BEB2 | 0x30B2 | ~0x37520 | Scoring system |
 | `shark.cpp` | 0x05BEDA | 0x3167 | ~0x38070 | AI trajectory solver |
 | `shields.cpp` | 0x05BF66 | 0x31D8 | ~0x38780 | Shield system |
+| *(hud bars)* | *(no debug string)* | 0x3249 | ~0x38E90 | HUD bar column fill helpers (power/angle per-player) |
 | `team.cpp` | 0x05C55D | 0x3A56+ | ~0x40F60 | Team management |
 | *(menu module)* | *(no debug string)* | 0x34ED | ~0x3B8D0 | Main menu/config UI, sub-dialogs |
 
@@ -3426,44 +3427,163 @@ Config keys in Hardware submenu:
 | FIRE_DELAY | DS:0x515C | 200 | Delay before projectile launch |
 | BIOS_KEYBOARD | DS:0x502E | 0 | Use BIOS INT 16h instead of custom handler |
 
-### HUD Layout (file 0x2FBCA)
+### HUD System — Two Renderers
 
-Two rows of status information, each 12px tall:
-- **Row 1** (y = DS:0x518E, default 5): Player name, Power bar (62px wide), Power value, Angle
-- **Row 2** (y + 0x0C = y + 12px): Weapon/label, Weapon/Wind bar, Wind display
-- Width check: extra elements shown when screen_width > 320 (DS:0xEF3E > 0x140)
+The EXE has **two completely different HUD renderers** selected based on resolution/mode.
+Key variable: DS:0x5142 (0 = basic/Row 1 only, nonzero = expanded/both rows).
+DS:0x50D4 = **numPlayers** (confirmed by `cmp si,[0x50D4]; jl` loop patterns).
 
-#### Detailed Disassembly (file 0x2FBCA-0x2FDF0+)
+#### HUD Function Index
 
-**X-position computation** (dynamic, like original Fastgraph layout):
+| Function | Seg:Off | File Offset | Source | Purpose |
+|----------|---------|-------------|--------|---------|
+| `compute_hud_layout` | 2910:00CA | 0x2FBCA | play.cpp | Basic mode X-position calc |
+| `draw_hud` | 2910:0184 | 0x2FC84 | play.cpp | Main HUD draw (bar mode) |
+| `compute_hud_layout_full` | 294B:000E | 0x2FEBE | play.cpp | Expanded mode full layout |
+| `draw_hud_full` | 2950:02B2 | 0x301B2 | play.cpp | Expanded mode draw (text mode) |
+| `update_hud_row1` | 29C0:01E8 | 0x307E8 | play.cpp | Partial Row 1 redraw |
+| `draw_player_icon` | 1F7D:0007 | 0x261D7 | icons.cpp | Per-player alive/dead icon |
+| bar column helper 1 | 3249:0662 | 0x394F2 | *(hud bars)* | Fill power columns per player |
+| bar column helper 2 | 3249:06B4 | 0x39544 | *(hud bars)* | Fill angle columns per player |
+| bar column helper 3 | 3249:070F | 0x3959F | *(hud bars)* | Fill Row 2 bar columns |
+
+#### HUD Colors (DS variables)
+
+| DS Offset | Palette | Purpose | Usage |
+|-----------|---------|---------|-------|
+| DS:0xEF22 | Player color | Bright highlight | Bar outlines (draw_hud), text (draw_hud_full) |
+| DS:0xEF24 | Dim text | Dark/depleted | Depleted weapon ammo color |
+| DS:0xEF28 | Background | HUD clear fill | fg_fillregion background at 0x2FCB0 |
+| DS:0xEF2C | Deep shadow | Bar interior | Bar fill color in draw_hud |
+| *(literal)* | 0xA3 (163) | Fixed wind color | `push word 0xA3` at 0x3030B (draw_hud_full) |
+
+#### Renderer 1: `draw_hud` — Multi-Player Bar Mode (file 0x2FC84)
+
+Used at lower resolutions (320×200). Bars are **per-player comparison columns**,
+NOT single-player level indicators. Each player gets a **6px-wide column** inside
+a shared bar container. Bar width = `numPlayers * 6` pixels.
+
+Layout reserved width = 62px (0x3E) to fit max 10 players × 6px + 2px margin.
+
+**Row 1** (y = DS:0x518E, default 5):
+```
+fg_setcolor([0xef22])                       ; PLAYER COLOR for outline
+sprintf(buf, "%s:", [0x220C] name_ptr)      ; "Wolfgang:"
+fg_text(buf, 5, HUD_Y)                     ; label at (LEFT, HUD_Y)
+fg_drect(bar_x-1, HUD_Y, bar_x+numPlayers*6, HUD_Y+11)  ; outline in PLAYER color
+fg_rect(bar_x, HUD_Y+1, bar_x+numPlayers*6-1, HUD_Y+10, [0xef2c])  ; fill in SHADOW color
+```
+
+**Per-player column fill** (helper at file 0x394F2):
+```
+For each player i:
+  fill_height = player[i].power / 100       ; 0-10 pixels (max 1000 → 10px)
+  x = bar_x + player[i].field_0xA0 * 6      ; 6px column position
+  draw_column(x, HUD_Y+1, fill_height, player[i].color)
+  draw_player_icon(icon_base + player[i].field_0xA0 * 11, HUD_Y, ...)
+```
+
+**Row 2** (if [0x5142] != 0, y = HUD_Y + 12):
+```
+sprintf(buf, "%s:", [0x2364] label_ptr)     ; runtime label (set before call)
+fg_text(buf, 5, HUD_Y+12)                  ; label at (LEFT, Row2_Y)
+fg_drect(bar_x-1, row2_y, ...)             ; bar container (same width)
+fg_rect(bar_x, row2_y+1, ...)              ; shadow fill
+sprintf(buf, "%s:", "Angle")                ; DS:0x2AFE
+fg_text(buf, [0xe9ec], row2_y)             ; "Angle:" after first bar
+fg_drect/fg_rect for angle bar...           ; second bar container
+```
+
+Per-player Row 2 helpers fill columns inside each bar:
+- Helper at 0x39544 (0x3249:0x6b4): fills angle bar columns, value / 10
+- Helper at 0x3959F (0x3249:0x70f): fills Row 2 bar columns, reads player+0xA2/0xA4/0xA6/0xA8
+
+**KEY**: Bar outline = PLAYER COLOR (via fg_drect using current fg_setcolor).
+Bar interior = SHADOW COLOR ([0xEF2C]). This is the **opposite** of the web port.
+
+#### Renderer 2: `draw_hud_full` — Text Mode (file 0x301B2)
+
+Used at higher resolutions. Row 1 has **NO bars** — all text values.
+Uses `compute_hud_layout_full` (file 0x2FEBE) with many more DS variables.
+
+**Row 1** (ALL text, single line):
+```
+fg_setcolor([0xef22])                       ; player color
+sprintf(buf, "%s:", name)                   ; "Wolfgang:" at (5, HUD_Y)
+sprintf(buf, "%4d", player.power)           ; "1000" at (bar_x, HUD_Y)   [0xe9d6]
+sprintf(buf, "%s:", "Angle")                ; "Angle:" at [0xe9d8]
+sprintf(buf, "%2d", player.angle)           ; "90" at [0xe9da]
+fg_setcolor(0xA3)                           ; wind color (163, fixed)
+draw_wind_indicator(player+0x1C..0x20, 0xA3) ; custom wind display
+fg_text(weapon_name, [0xe9dc], HUD_Y)       ; weapon name
+draw_player_icon([0xe9de], HUD_Y, wpn_idx)  ; weapon selector icon
+if wpn_idx == 0: sprintf("%s", name)         ; "Baby Missile"
+else:            sprintf("%d: %s", ammo, name) ; "3: Nuke"
+fg_text(buf, [0xe9e0], HUD_Y)               ; weapon+ammo text
+```
+
+**Row 2** (if [0x5142] != 0, much more complex):
+```
+sprintf(buf, "%s:", [0x2364] label_ptr)     ; runtime label at (5, Row2_Y)
+call helper_0x2a16:0xd78(player)            ; bar widget 1
+call helper_0x3713:0x36b(player)            ; bar widget 2
+sprintf(buf, "%2d", ammo_for_weapon_1)      ; ammo count at [0xe9f0]
+  color = ammo > 0 ? [0xef22] : [0xef24]   ; highlight or dim
+call helper_0x3713:0x32e(player)            ; bar widget 3
+call helper_0x3713:0x000(player)            ; bar widget 4
+call helper_0x3713:0x164(player)            ; bar widget 5
+sprintf(buf, "%2d", ammo_for_weapon_2)      ; second ammo at [0xe9fe]
+call helper_0x3713:0x229(player)            ; bar widget 6
+call helper_0x3713:0x265(player, 0)         ; bar widget 7
+```
+
+Row 2 bar widths in full mode: 0x30 (48px), 0x19 (25px), 0x1F (31px), 0x12 (18px),
+0x22 (34px), 0x21 (33px), 0x0C (12px). Each drawn by separate helper functions.
+
+#### Layout Computation: `compute_hud_layout` (file 0x2FBCA)
+
+Basic mode X-position computation:
 ```
 [0xe9d4] = 5                              ; left margin
-si = max(fg_getwidth(name)+8, fg_getwidth(label1)+fg_getwidth(":"))
-si = max(si, fg_getwidth(label2)+fg_getwidth(": "))
+si = max(fg_getwidth(name)+8, fg_getwidth([0x2364])+fg_getwidth(":"))
+si = max(si, fg_getwidth([0x2368])+fg_getwidth(": "))
 [0xe9d6] = 5 + si                         ; bar_x (row 1 AND row 2 share same bar X)
 [0xe9d8] = [0xe9d6] + 0x3E + 0x0A        ; after_bar_x = bar_x + 62 + 10
+[0xe9da] = [0xe9d8]                        ; icon_base_x = after_bar_x
 [0xe9e8] = 5                              ; row2 left margin (same as row1)
 [0xe9ea] = [0xe9d6]                       ; row2 bar_x = row1 bar_x
 [0xe9ec] = [0xe9ea] + 0x3E + 0x0A        ; row2 after_bar_x
+[0xe9ee] = [0xe9ec] + fg_getwidth([0x2368]) + fg_getwidth(": ")  ; angle bar X
 ```
 
-**Row 1 rendering**:
-```
-fg_setcolor([0xef22])                      ; player color
-sprintf(buf, "%s:", player_name)           ; format "Wolfgang:"
-fg_text(buf, [0xe9d4]=5, [0x518e])         ; draw at (5, row1_y)
-fg_drect(bar_x-1, row1_y, bar_x+n*6, row1_y+0x0B)  ; bar outline (12px tall)
-fg_rect(bar_x, row1_y+1, bar_x+fill, row1_y+0x0A)   ; bar fill (10px tall)
-```
+#### Layout Computation: `compute_hud_layout_full` (file 0x2FEBE)
 
-**Row 2 rendering** (after checking flag [0x5142] != 0):
+Expanded mode with many more variables:
 ```
-sprintf(buf, "%s:", label_at_[0x2364])     ; format "Power:" or weapon name
-fg_text(buf, [0xe9e8]=5, row1_y+0x0C)     ; draw at (5, row2_y)
-fg_drect(bar_x-1, row2_y, bar_x+n*6, row2_y+0x0B)  ; bar outline (12px tall)
-fg_rect(bar_x, row2_y+1, bar_x+fill, row2_y+0x0A)   ; bar fill (10px tall)
-sprintf(buf, "%s:", "Angle")               ; DS:0x2AFE
-fg_text(buf, [0xe9ec], row2_y)             ; draw after bar
+[0xea10] = [0x5142]==0 ? 4 : 11           ; row height factor
+[0xe9d4] = 5                              ; left margin
+[0xe9d6] = 5 + fg_getwidth(name) + 8      ; bar_x (name + ":" width)
+[0xe9d8] = [0xe9d6] + fg_getwidth("8888 ")  ; after power column
+[0xe9da] = [0xe9d8] + fg_getwidth(angle_label) + 8  ; after angle label
+[0xe9dc] = [0xe9da] + fg_getwidth("99 ")   ; after angle value
+[0xe9de] = [0xe9dc] + fg_getwidth("MMMMMMMMMMMMMMM") + 2  ; weapon area
+[0xe9e0] = [0xe9de] + 15                  ; weapon end area
+; Row 2:
+[0xe9e8] = 5                              ; row2 left margin
+[0xe9ea] = max([0xe9e8] + label_w, [0xe9d6])  ; row2 bar_x (aligned with row1)
+[0xe9ec] = [0xe9ea] + fg_getwidth("8888 ")
+[0xe9ee] = [0xe9ec] + fg_getwidth("99 ")
+[0xe9f0] = [0xe9ee] + 25                  ; bar widget (25px)
+[0xe9f2] = [0xe9f0] + fg_getwidth("99 ")
+[0xe9f4] = [0xe9f2] + 25                  ; another bar (25px)
+[0xe9f6] = [0xe9f4] + fg_getwidth("99 ")
+[0xe9f8] = [0xe9f6] + 20                  ; gap
+[0xe9fa] = [0xe9f8] + fg_getwidth("100% ")
+[0xe9fc] = [0xe9fa] + fg_getwidth("99 ")
+[0xe9fe] = [0xe9fc] + 20
+[0xea00] = [0xe9fe] + fg_getwidth("99 ")
+if screenW > 320: [0xea02] = [0xea00] + 20; [0xea04] = [0xea02] + 20
+else: [0xea02] = 0
 ```
 
 #### Key Dimensions
@@ -3472,14 +3592,17 @@ fg_text(buf, [0xe9ec], row2_y)             ; draw after bar
 |-----------|-------|--------|
 | Row 1 Y | DS:0x518E (default **5**) | Binary data segment |
 | Row 2 Y | Row1_Y + **12** (0x0C) | `add ax, 0xC` at 0x2FD6A |
-| Bar width | **62px** (0x3E) | `mov si, 0x3E` at 0x2FC26 |
+| Bar reserved width | **62px** (0x3E) | `mov si, 0x3E` at 0x2FC26 |
+| Actual bar width | **numPlayers × 6** | `imul ax,ax,0x6` at 0x2FCF7 |
+| numPlayers | DS:0x50D4 | Loop bound variable |
 | Bar outline height | **12px** (y to y+11) | `add ax, 0xB` at 0x2FCF0 |
 | Bar fill height | **10px** (y+1 to y+10) | `inc ax`/`add ax,0xA` at 0x2FD2A/0x2FD17 |
 | Left margin | **5px** | `mov word [0xe9d4], 0x5` at 0x2FBDB |
 | After-bar gap | **10px** | `add ax, 0xA` at 0x2FC2E |
-| Bar outline | 4-sided rect (fg_drect) | Call at 0x2FD08 |
-| Background | fg_rect from (5, row1_y) to (screenW-5, [0xef40]-7) | Call at 0x2FCB0 |
-| Total HUD height | ~**26px** (2 rows × 12px + margins) | Computed from above |
+| Per-player column | **6px** wide | `imul ax,ax,0x6` at 0x39530 |
+| Player icon spacing | **11px** | `imul ax,ax,0xB` at 0x2FE71 |
+| Per-player fill | power/100 (0–10px) | `idiv bx` (bx=0x64) at 0x39517 |
+| Background | fg_rect(5, HUD_Y, screenW-5, screenH-7) | Call at 0x2FCB0 |
 
 #### Label Strings (all use `"%s:"` format)
 
@@ -3491,6 +3614,54 @@ fg_text(buf, [0xe9ec], row2_y)             ; draw after bar
 | "No Wind" | DS:0x2B09 | 0x058889 | "No Wind:" |
 | Format | DS:0x576C | 0x05B4EC | "%s:" |
 | Format2 | DS:0x5769 | 0x05B4E9 | ": " |
+
+#### Format Strings (draw_hud_full)
+
+| String | DS Offset | File Offset | Purpose |
+|--------|-----------|-------------|---------|
+| "%s:" | DS:0x57B2 | 0x5B532 | Name label (Row 1) |
+| "%4d" | DS:0x57B6 | 0x5B536 | Power value (Row 1) |
+| "%s:" | DS:0x57BA | 0x5B53A | Angle label (Row 1) |
+| "%2d" | DS:0x57BE | 0x5B53E | Angle value (Row 1) |
+| "%s" | DS:0x57C2 | 0x5B542 | Weapon name (no ammo) |
+| "%d: %s" | DS:0x57C5 | 0x5B545 | Weapon with ammo |
+| "%s:" | DS:0x57CC | 0x5B54C | Row 2 label |
+| "%2d" | DS:0x57D0 | 0x5B550 | Row 2 ammo count 1 |
+| "%2d" | DS:0x57D4 | 0x5B554 | Row 2 ammo count 2 |
+
+#### Measurement Strings (compute_hud_layout_full)
+
+| String | DS Offset | Purpose |
+|--------|-----------|---------|
+| "8888 " | DS:0x5778 | Power column width |
+| "99 " | DS:0x579B | Angle/value column width |
+| "MMMMMMMMMMMMMMM" | DS:0x5783 | Weapon name column (15 M's) |
+| "100% " | DS:0x57A3 | Percentage column width |
+| "999 " | DS:0x57AD | Wide-screen extra column |
+
+#### Runtime Pointer Variables (set before HUD calls)
+
+| DS Offset | Default Value | Purpose |
+|-----------|--------------|---------|
+| DS:0x220C:0x220E | → DS:0x2AF8 "Power" | Row 1 name label ptr (set to player name) |
+| DS:0x2210:0x2212 | → DS:0x2AFE "Angle" | Angle label ptr |
+| DS:0x2364:0x2366 | (runtime) | Row 2 label ptr |
+| DS:0x2368:0x236A | (runtime) | Angle label ptr (basic mode) |
+
+#### Web Port vs EXE Discrepancies
+
+The web port (hud.js) implements a hybrid that matches **neither** EXE renderer:
+
+| Aspect | EXE draw_hud | EXE draw_hud_full | Web Port (WRONG) |
+|--------|-------------|-------------------|-------------------|
+| Row 1 bars | Multi-player columns (6px/player) | NO bars (text only) | Single-player bar |
+| Bar outline color | Player color ([0xEF22]) | N/A | Gold (palette 150) |
+| Bar fill color | Shadow ([0xEF2C]) | N/A | Player color |
+| Bar width | numPlayers × 6 (variable) | N/A | measureText("8888 ") |
+| Row 1 content | Name + bar + icons | Name + Power + Angle + Wind + Weapon + Ammo | Name + bar + power + icons |
+| Row 2 content | Label + bar + Angle + bar | Label + 7 bar widgets + ammo counts | Wind + Angle + weapon |
+| Row 2 bars | Multi-player columns | Multiple fixed-width widgets | Single wind/angle bars |
+| Per-player fill | power/100 per column | N/A | N/A (not implemented) |
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 

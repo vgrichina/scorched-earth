@@ -53,7 +53,8 @@ import { BLACK } from './palette.js';
 import { WEAPONS } from './weapons.js';
 import { players } from './tank.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
-         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
+         PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
+         UI_DEEP_SHADOW } from './constants.js';
 
 // HUD layout constants
 // EXE: compute_hud_layout at file 0x2FBCA computes all positions dynamically
@@ -62,6 +63,8 @@ const HUD_Y = 5;           // EXE: DS:0x518E default = 5
 const ROW2_Y = HUD_Y + 12; // EXE: add ax, 0xC at file 0x303F5 — row2 = row1 + 12
 const BAR_H = 11;          // EXE: add ax, 0xB at file 0x2FCF0 — bar outline 12px total
 const ICON_SPACING = 11;   // EXE: imul ax, ax, 0xB at file 0x2FE71
+const BAR_RESERVED = 62;   // EXE: mov si, 0x3E — reserved bar area width (max 10 players × 6 + 2)
+const AFTER_BAR_GAP = 10;  // EXE: add ax, 0xA at file 0x2FC2E — gap after bar area
 
 // Draw a bar outline
 // EXE: fg_drect(barX-1, y, barX+w, y+0xB) at file 0x2FD08 — 4-sided rectangle
@@ -81,88 +84,108 @@ function drawBarFill(x, y, fill, color) {
   }
 }
 
+// Draw a per-player column inside a multi-player bar
+// EXE: helper at file 0x394F2 — fills 6px-wide column from bottom up
+function drawBarColumn(barX, barY, idx, fillH, color) {
+  const colX = barX + idx * 6;
+  if (fillH <= 0) return;
+  const h = Math.min(fillH, BAR_H - 2); // max 10px (bar interior: y+1 to y+10)
+  const bottom = barY + BAR_H - 1;       // bottom of fill area (y + 10)
+  for (let row = 0; row < h; row++) {
+    hline(colX, colX + 5, bottom - row, color);
+  }
+}
+
 // Draw the full HUD into the framebuffer
 // EXE: draw_hud() at file 0x2FC84, draw_hud_full() at file 0x301B2
 export function drawHud(player, wind, round, opts) {
   const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const numP = Math.min(config.numPlayers, players.length);
 
   const weapon = WEAPONS[player.selectedWeapon];
   const weaponName = weapon ? weapon.name : 'Baby Missile';
   const ammo = player.inventory[player.selectedWeapon];
   const ammoStr = ammo === -1 ? '' : ` x${ammo}`;
 
-  // EXE: compute_hud_layout at file 0x2FEBE measures label strings with fg_getwidth()
-  // barX = LEFT + fg_getwidth(sprintf("%s:", name))
-  // Bars align Row 1 and Row 2 — barX = max(nameColonW, windLabelW)
+  // EXE: compute_hud_layout — barX aligned for both rows
   const nameColonW = measureText(player.name + ':');
-  const windLabelW = measureText('No Wind:'); // DS:0x2B09 — worst case for alignment
+  const windLabelW = measureText('No Wind:');
   const barX = LEFT + Math.max(nameColonW, windLabelW);
-
-  // EXE: bar width = fg_getwidth("8888 ") at DS:0x5778 (file 0x2FF07)
-  const barWidth = measureText('8888 ');
+  const barWidth = measureText('8888 '); // Row 2 bar width / text column width
   const afterBarX = barX + barWidth;
 
-  // EXE: Row 2 angle bar position = afterBarX + fg_getwidth("99  ") + fg_getwidth("Angle:")
-  // DS:0xE9EC = after wind bar value, DS:0xE9EE = angle bar X
-  const angleLabelW = measureText('Angle:');
-  const angleBarX = afterBarX + measureText('99  ') + angleLabelW;
-  const angleBarW = Math.min(barWidth, config.screenWidth - LEFT - angleBarX - 2);
-
-  // EXE: fg_fillregion(5, DS:0x518E, screenW-5, screenH-7, DS:0xEF28) at file 0x2FCB0
+  // EXE: fg_fillregion(5, DS:0x518E, screenW-5, screenH-7, DS:0xEF28)
   fillRect(LEFT, HUD_Y, config.screenWidth - LEFT - 1, ROW2_Y + BAR_H + 1, BLACK);
 
-  // === Row 1: "Name:" + [power bar] + per-player icons ===
-  // EXE: sprintf(buf, "%s:", player_name) at file 0x2FCC1 using DS:0x576C = "%s:"
-  // EXE: fg_setcolor(DS:0xEF22) then fg_text() at file 0x2FCDA
+  // === Row 1 ===
   drawText(LEFT, HUD_Y, player.name + ':', baseColor);
 
-  // Power bar — EXE: fg_drect outline at barX-1 (file 0x2FD08), fg_rect fill (file 0x2FD30)
-  // EXE: outline color = DS:0xEF2C (deep shadow)
-  drawBarOutline(barX, HUD_Y, barWidth, COLOR_HUD_TEXT);
-  const powerFill = Math.floor((player.power / 1000) * barWidth);
-  drawBarFill(barX, HUD_Y, powerFill, baseColor);
-
-  // EXE: power value at DS:0xE9D8 = barX + fg_getwidth("8888 "), format "%4d" (DS:0x57B6)
-  drawText(afterBarX, HUD_Y, String(player.power), COLOR_HUD_TEXT);
-
-  // Per-player alive/dead status icons
-  // EXE: draw_player_icon() at file 0x261D7 (icons.cpp, 1F7D:0007)
-  // EXE: x = DS:0xE9DA + player.field_0xA0 * 11, y = DS:0x518E (file 0x2FE5A-0x2FE7E)
-  // EXE: icon data from DS:0x3826 (stride 0x7D, 48 icons max)
-  const iconBaseX = afterBarX + measureText('0000');
-  for (let i = 0; i < config.numPlayers && i < players.length; i++) {
-    const p = players[i];
-    const ix = iconBaseX + i * ICON_SPACING;
-    if (ix + 6 > config.screenWidth - LEFT) break;
-    const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-    if (p.alive) {
-      fillRect(ix, HUD_Y + 3, ix + 4, HUD_Y + 7, pColor);
-    } else {
-      hline(ix, ix + 4, HUD_Y + 3, pColor);
-      hline(ix, ix + 4, HUD_Y + 7, pColor);
-      fillRect(ix, HUD_Y + 4, ix, HUD_Y + 6, pColor);
-      fillRect(ix + 4, HUD_Y + 4, ix + 4, HUD_Y + 6, pColor);
+  if (config.screenWidth <= 320) {
+    // --- Basic mode: multi-player power bar + icons (EXE: draw_hud 0x2FC84) ---
+    // EXE: bar width = numPlayers × 6, outline = player color, fill = shadow
+    const barW = numP * 6;
+    drawBarOutline(barX, HUD_Y, barW, baseColor);
+    drawBarFill(barX, HUD_Y, barW, UI_DEEP_SHADOW);
+    // EXE: per-player power columns (helper 0x394F2), height = power/100
+    for (let i = 0; i < numP && i < players.length; i++) {
+      const fillH = Math.floor(players[i].power / 100);
+      const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      drawBarColumn(barX, HUD_Y, i, fillH, pColor);
     }
-    if (i === player.index) {
-      setPixel(ix + 2, HUD_Y + 9, pColor);
+    // EXE: player icons at afterBarX = barX + 62 + 10
+    const iconBaseX = barX + BAR_RESERVED + AFTER_BAR_GAP;
+    for (let i = 0; i < numP && i < players.length; i++) {
+      const p = players[i];
+      const ix = iconBaseX + i * ICON_SPACING;
+      if (ix + 6 > config.screenWidth - LEFT) break;
+      const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      if (p.alive) {
+        fillRect(ix, HUD_Y + 3, ix + 4, HUD_Y + 7, pColor);
+      } else {
+        hline(ix, ix + 4, HUD_Y + 3, pColor);
+        hline(ix, ix + 4, HUD_Y + 7, pColor);
+        fillRect(ix, HUD_Y + 4, ix, HUD_Y + 6, pColor);
+        fillRect(ix + 4, HUD_Y + 4, ix + 4, HUD_Y + 6, pColor);
+      }
+      if (i === player.index) {
+        setPixel(ix + 2, HUD_Y + 9, pColor);
+      }
+    }
+  } else {
+    // --- Full mode: all text Row 1 (EXE: draw_hud_full 0x301B2) ---
+    let x = barX;
+    drawText(x, HUD_Y, String(player.power).padStart(4), baseColor);
+    x += barWidth;
+    drawText(x, HUD_Y, 'Angle:', baseColor);
+    x += measureText('Angle:');
+    drawText(x, HUD_Y, String(player.angle).padStart(3), baseColor);
+    x += measureText('999 ');
+    // EXE: wind at fixed color 0xA3 (163)
+    if (wind === 0) {
+      drawText(x, HUD_Y, 'No Wind', COLOR_HUD_TEXT);
+    } else {
+      drawText(x, HUD_Y, 'Wind: ' + wind, COLOR_HUD_TEXT);
+    }
+    x += measureText('No Wind  ');
+    // EXE: weapon — format "%d: %s" or "%s"
+    const wpnFull = ammo === -1 ? weaponName : ammo + ': ' + weaponName;
+    const wpnX = config.screenWidth - LEFT - measureText(wpnFull);
+    if (wpnX > x) {
+      drawText(wpnX, HUD_Y, wpnFull, COLOR_HUD_HIGHLIGHT);
     }
   }
 
-  // === Row 2: "Wind:" + [wind bar] + "Angle:" + [angle bar] ===
-  // EXE: Row 2 y = DS:0x518E + 0x0C (file 0x303F5)
+  // === Row 2: Wind + Angle + Weapon ===
 
   if (wind === 0) {
-    // EXE: "No Wind:" — DS:0x2B09 (file 0x058889), sprintf "%s:" (DS:0x576C)
     drawText(LEFT, ROW2_Y, 'No Wind:', COLOR_HUD_TEXT);
   } else {
-    // EXE: "Wind:" — DS:0x2B04 (file 0x058884), sprintf "%s:" (DS:0x576C)
     drawText(LEFT, ROW2_Y, 'Wind:', COLOR_HUD_TEXT);
-
-    // Wind bar — same dimensions as power bar, with center tick
-    drawBarOutline(barX, ROW2_Y, barWidth, COLOR_HUD_TEXT);
+    // Wind bar — EXE: outline = player color, fill = shadow
+    drawBarOutline(barX, ROW2_Y, barWidth, baseColor);
+    drawBarFill(barX, ROW2_Y, barWidth, UI_DEEP_SHADOW);
     const windCenter = barX + Math.floor(barWidth / 2);
     fillRect(windCenter, ROW2_Y + 1, windCenter, ROW2_Y + BAR_H - 1, COLOR_HUD_TEXT);
-
     const maxWindDisplay = config.wind * 4 || 20;
     const windFill = Math.round((wind / maxWindDisplay) * (barWidth / 2));
     if (windFill > 0) {
@@ -176,17 +199,18 @@ export function drawHud(player, wind, round, opts) {
     }
   }
 
-  // "Angle:" label + angle bar
-  // EXE: "Angle" at DS:0x2AFE (file 0x05887E), sprintf "%s:" (DS:0x5774)
-  // EXE: angle bar X at DS:0xE9EE, angle value format "%2d" (DS:0x57BE)
+  // "Angle:" + angle bar
+  const angleLabelW = measureText('Angle:');
   const angleLabelX = afterBarX + measureText('99  ');
+  const angleBarX = angleLabelX + angleLabelW;
+  const angleBarW = Math.min(barWidth, config.screenWidth - LEFT - angleBarX - 2);
   drawText(angleLabelX, ROW2_Y, 'Angle:', COLOR_HUD_TEXT);
 
   if (angleBarW > 10) {
-    drawBarOutline(angleBarX, ROW2_Y, angleBarW, COLOR_HUD_TEXT);
+    drawBarOutline(angleBarX, ROW2_Y, angleBarW, baseColor);
+    drawBarFill(angleBarX, ROW2_Y, angleBarW, UI_DEEP_SHADOW);
     const angleFill = Math.floor((player.angle / 180) * angleBarW);
     drawBarFill(angleBarX, ROW2_Y, angleFill, baseColor);
-
     const angleAfterX = angleBarX + angleBarW + 3;
     if (angleAfterX + measureText('180') < config.screenWidth - LEFT) {
       drawText(angleAfterX, ROW2_Y, String(player.angle), COLOR_HUD_TEXT);
@@ -196,8 +220,6 @@ export function drawHud(player, wind, round, opts) {
   }
 
   // Weapon name — right-aligned on Row 2
-  // EXE: weapon name at DS:0xE9DE area, format "%d: %s" (DS:0x57C5) or "%s" (DS:0x57C2)
-  // EXE: depleted weapons use DS:0xEF24 color (file 0x30452-0x30462)
   const wpnStr = weaponName + ammoStr;
   const wpnX = config.screenWidth - LEFT - measureText(wpnStr);
   if (wpnX > angleBarX + angleBarW + measureText('    ')) {
