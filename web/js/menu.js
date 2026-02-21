@@ -3,7 +3,7 @@
 // EXE: dialog system at segment 0x3F19, 3D box at 0x444BB, embossed title at 0x4CEFD
 // EXE: small mode (320x200): row_height=17, start_y=5, font=1
 
-import { config, saveConfig } from './config.js';
+import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
 import { fillRect, hline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
 import { drawText, drawTextEmbossed, measureText } from './font.js';
 import { BLACK, initPalette } from './palette.js';
@@ -65,7 +65,8 @@ const SUBMENUS = {
   hardware: {
     title: 'Hardware',
     items: [
-      { label: 'Graphics Mode:', key: null, fixed: '320x200', disabled: true },
+      { label: 'Graphics Mode:', key: 'graphicsMode', min: 0, max: GRAPHICS_MODES.length - 1, step: 1,
+        names: GRAPHICS_MODES.map(m => m.name) },
       { label: 'BIOS Keyboard', key: null, fixed: 'N/A', disabled: true },
       { label: 'Small Memory', key: null, fixed: 'N/A', disabled: true },
       { label: 'Mouse Enabled', key: null, fixed: 'On', disabled: true },
@@ -315,6 +316,7 @@ function handleSubmenuInput() {
   const item = sub.items[menu.submenuSelected];
   const prevSky = config.skyType;
   const prevLand = config.landType;
+  const prevGfxMode = config.graphicsMode;
 
   if (consumeKey('ArrowLeft')) adjustValue(item, -1);
   if (consumeKey('ArrowRight')) adjustValue(item, 1);
@@ -350,6 +352,11 @@ function handleSubmenuInput() {
   // Mark terrain dirty if landscape/sky changed
   if (config.skyType !== prevSky || config.landType !== prevLand) {
     menu.terrainDirty = true;
+  }
+
+  // Apply graphics mode change — updates screenWidth/screenHeight
+  if (config.graphicsMode !== prevGfxMode) {
+    applyGraphicsMode();
   }
 
   if (consumeKey('Escape') || consumeKey('Enter') || consumeKey('Space')) {

@@ -3,10 +3,10 @@
 // EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
 // Phase 6: Title screen, config menu, full game flow
 
-import { config } from './config.js';
-import { initFramebuffer, blit, setPixel, getPixel, fillRect, vline } from './framebuffer.js';
+import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
+import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, vline } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
-import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP } from './terrain.js';
+import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers } from './terrain.js';
 import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
@@ -26,9 +26,22 @@ import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, COLOR_HUD_WARNING,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          FIRE_PAL_BASE } from './constants.js';
 
+// Update CSS --game-aspect custom property for display scaling.
+// EXE: each mode has a displayAspect (pixel height/width ratio). For non-square
+// pixel modes (320×400 aspect=0.50, 360×480 aspect=0.55), the display should
+// show corrected proportions: displayWidth/displayHeight = w / (h * displayAspect)
+function updateCSSAspect() {
+  const mode = GRAPHICS_MODES[config.graphicsMode] || GRAPHICS_MODES[0];
+  // CSS aspect = display width / display height
+  // Display height = canvas height * displayAspect (tall pixels compress vertically)
+  const cssAspect = mode.w / (mode.h * mode.displayAspect);
+  document.documentElement.style.setProperty('--game-aspect', cssAspect.toFixed(4));
+}
+
 function init() {
   const canvas = document.getElementById('screen');
   initFramebuffer(canvas);
+  updateCSSAspect();
 
   initInput(canvas);
   seedRandom(Date.now());
@@ -45,6 +58,12 @@ function init() {
 
 // Called when transitioning from menu to game
 function startGame() {
+  // Apply selected graphics mode — reinit framebuffer + terrain at new resolution
+  applyGraphicsMode();
+  reinitFramebuffer();
+  reinitTerrainBuffers();
+  updateCSSAspect();
+
   // Re-init palette with configured types
   initPalette(config.landType, config.skyType);
   initSkyBackground();
@@ -289,6 +308,17 @@ function checkMayhemCheat() {
 function gameLoop() {
   // --- Menu screens ---
   if (game.state === STATE.TITLE || game.state === STATE.CONFIG || game.state === STATE.PLAYER_SETUP) {
+    // Menu always renders at 320×200 — reinit if returning from a higher-res game
+    if (config.screenWidth !== 320 || config.screenHeight !== 200) {
+      config.screenWidth = 320;
+      config.screenHeight = 200;
+      reinitFramebuffer();
+      reinitTerrainBuffers();
+      updateCSSAspect();
+      initPalette(config.landType, config.skyType);
+      initSkyBackground();
+    }
+
     const result = menuTick();
 
     if (result === 'start_game') {

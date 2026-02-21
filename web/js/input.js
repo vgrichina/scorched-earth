@@ -7,7 +7,9 @@
 
 const keys = {};
 
-// Mouse state — coordinates in game pixels (320x200), not CSS pixels
+import { config } from './config.js';
+
+// Mouse state — coordinates in game pixels (W×H), not CSS pixels
 export const mouse = {
   x: 0, y: 0,           // current position in game coords
   dx: 0, dy: 0,         // delta since last frame (consumed by getMouseDelta)
@@ -30,11 +32,11 @@ export function initInput(canvas) {
     e.preventDefault();
   });
 
-  // Mouse events on canvas — map CSS coords to 320x200 game coords
+  // Mouse events on canvas — map CSS coords to game coords (resolution-dependent)
   canvasEl.addEventListener('mousemove', (e) => {
     const rect = canvasEl.getBoundingClientRect();
-    const scaleX = 320 / rect.width;
-    const scaleY = 200 / rect.height;
+    const scaleX = config.screenWidth / rect.width;
+    const scaleY = config.screenHeight / rect.height;
     const nx = (e.clientX - rect.left) * scaleX;
     const ny = (e.clientY - rect.top) * scaleY;
     mouse.dx += nx - mouse.x;

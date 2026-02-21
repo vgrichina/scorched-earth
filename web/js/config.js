@@ -3,9 +3,26 @@
 // EXE: config strings at file region identified in disasm/config_strings_region.txt
 // EXE: values stored in DS data segment, referenced throughout gameplay code
 
+// EXE: 9 graphics modes in mode table at DS:0x6B66 (stride 0x44)
+// EXE: aspect ratio stored as IEEE 754 double per mode entry
+// EXE: default mode index 4 (360×480, custom Mode-X via CRTC table at DS:0x6840)
+// displayAspect = pixel aspect ratio — CSS display height = canvas height × displayAspect
+export const GRAPHICS_MODES = [
+  { name: '320x200',   w: 320,  h: 200,  displayAspect: 1.00 },  // 0: VGA Mode 13h (FG 19)
+  { name: '320x240',   w: 320,  h: 240,  displayAspect: 1.00 },  // 1: Mode-X (FG 22)
+  { name: '320x400',   w: 320,  h: 400,  displayAspect: 0.50 },  // 2: Mode-X doubled (FG 21)
+  { name: '320x480',   w: 320,  h: 480,  displayAspect: 0.50 },  // 3: Mode-X doubled (FG 23)
+  { name: '360x480',   w: 360,  h: 480,  displayAspect: 0.55 },  // 4: Custom Mode-X (FG 0) — EXE default
+  { name: '640x400',   w: 640,  h: 400,  displayAspect: 1.00 },  // 5: SVGA/VESA 0x100 (FG 24)
+  { name: '640x480',   w: 640,  h: 480,  displayAspect: 1.00 },  // 6: SVGA/VESA 0x101 (FG 25)
+  { name: '800x600',   w: 800,  h: 600,  displayAspect: 1.00 },  // 7: SVGA/VESA 0x103 (FG 26)
+  { name: '1024x768',  w: 1024, h: 768,  displayAspect: 1.00 },  // 8: SVGA/VESA 0x105 (FG 27)
+];
+
 export const config = {
-  // Screen — EXE: VGA Mode 13h = 320×200, 256 colors
-  screenWidth: 320,
+  // Screen — EXE: mode index into GRAPHICS_MODES table (default=4, 360×480)
+  graphicsMode: 0,     // start at 320×200 for backwards compat; menu can change
+  screenWidth: 320,    // derived from GRAPHICS_MODES[graphicsMode]
   screenHeight: 200,
 
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
@@ -58,6 +75,7 @@ export const config = {
 
 // Keys to persist in localStorage (exclude derived/constant values)
 const PERSIST_KEYS = [
+  'graphicsMode',
   'gravity', 'viscosity', 'wind', 'changeWind',
   'landType', 'skyType', 'wallType',
   'numPlayers', 'rounds', 'armsLevel',
@@ -97,4 +115,12 @@ function loadConfig() {
   }
 }
 
+// Apply graphics mode → update screenWidth/screenHeight from mode table
+export function applyGraphicsMode() {
+  const mode = GRAPHICS_MODES[config.graphicsMode] || GRAPHICS_MODES[0];
+  config.screenWidth = mode.w;
+  config.screenHeight = mode.h;
+}
+
 loadConfig();
+applyGraphicsMode();

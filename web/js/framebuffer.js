@@ -1,27 +1,32 @@
-// Scorched Earth - Indexed Framebuffer (VGA Mode 13h emulation)
-// EXE: VGA Mode 13h — linear 320×200 framebuffer at segment A000h
-// EXE: uses Fastgraph V4.02 library for VGA pixel operations
+// Scorched Earth - Indexed Framebuffer (VGA/SVGA mode emulation)
+// EXE: supports 9 graphics modes from 320×200 (Mode 13h) to 1024×768 (VESA)
+// EXE: uses Fastgraph V4.02 library for pixel operations across all modes
 // EXE: pixel values are palette indices (0-255) into the VGA DAC
-// Web: 320×200 Uint8Array of palette indices, blitted to canvas via:
+// Web: W×H Uint8Array of palette indices, blitted to canvas via:
 //   WebGL — index texture + palette texture, fragment shader does DAC lookup on GPU
 //   Canvas2D fallback — CPU loop maps indices through palette32 LUT to ImageData
 
 import { palette32 } from './palette.js';
 import { config } from './config.js';
 
-const WIDTH = config.screenWidth;   // 320
-const HEIGHT = config.screenHeight; // 200
+// Current dimensions — updated by initFramebuffer/reinitFramebuffer
+let WIDTH = config.screenWidth;
+let HEIGHT = config.screenHeight;
+
+// Export accessors for modules that need current dimensions
+export function getWidth() { return WIDTH; }
+export function getHeight() { return HEIGHT; }
 
 // The indexed pixel buffer (VGA VRAM equivalent)
-export const pixels = new Uint8Array(WIDTH * HEIGHT);
+export let pixels = new Uint8Array(WIDTH * HEIGHT);
 
 // VGA DAC background emulation — per-row default palette index
 // In VGA hardware, every VRAM byte always maps to a DAC color. There is no
 // "unfilled" pixel. This table stores the sky gradient palette index per
 // scanline, enabling clearToBackground() to reset the entire framebuffer
 // in a single memcpy — equivalent to every VGA pixel always having a color.
-const background = new Uint8Array(HEIGHT);
-const backgroundBuffer = new Uint8Array(WIDTH * HEIGHT);
+let background = new Uint8Array(HEIGHT);
+let backgroundBuffer = new Uint8Array(WIDTH * HEIGHT);
 
 // Uint8 view of palette32 for WebGL texture upload (ABGR Uint32 → RGBA bytes on LE)
 const paletteBytes = new Uint8Array(palette32.buffer);
@@ -33,10 +38,15 @@ let buf32 = null;
 
 // WebGL state
 let gl = null;
+let glProg = null;
 let indexTexture = null;
 let paletteTexture = null;
 
+// Canvas element reference
+let canvasEl = null;
+
 export function initFramebuffer(canvas) {
+  canvasEl = canvas;
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
 
@@ -47,6 +57,29 @@ export function initFramebuffer(canvas) {
   } else {
     // Fallback to Canvas2D palette lookup
     ctx = canvas.getContext('2d');
+    imageData = ctx.createImageData(WIDTH, HEIGHT);
+    buf32 = new Uint32Array(imageData.data.buffer);
+  }
+}
+
+// Reinitialize framebuffer for a new graphics mode (different resolution)
+// Called when user changes graphics mode in menu before starting game
+export function reinitFramebuffer() {
+  WIDTH = config.screenWidth;
+  HEIGHT = config.screenHeight;
+
+  pixels = new Uint8Array(WIDTH * HEIGHT);
+  background = new Uint8Array(HEIGHT);
+  backgroundBuffer = new Uint8Array(WIDTH * HEIGHT);
+
+  if (!canvasEl) return;
+  canvasEl.width = WIDTH;
+  canvasEl.height = HEIGHT;
+
+  if (gl) {
+    gl.viewport(0, 0, WIDTH, HEIGHT);
+    // Textures are recreated on next blit via texImage2D
+  } else if (ctx) {
     imageData = ctx.createImageData(WIDTH, HEIGHT);
     buf32 = new Uint32Array(imageData.data.buffer);
   }
@@ -87,6 +120,7 @@ function initWebGL() {
   gl.attachShader(prog, fs);
   gl.linkProgram(prog);
   gl.useProgram(prog);
+  glProg = prog;
 
   // Fullscreen quad (triangle strip: BL, BR, TL, TR)
   const buf = gl.createBuffer();
@@ -96,7 +130,7 @@ function initWebGL() {
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-  // Index texture: 320×200 LUMINANCE, updated every frame
+  // Index texture: W×H LUMINANCE, updated every frame
   indexTexture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, indexTexture);
@@ -243,7 +277,8 @@ export function blit() {
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   } else {
-    for (let i = 0; i < WIDTH * HEIGHT; i++) {
+    const totalPixels = WIDTH * HEIGHT;
+    for (let i = 0; i < totalPixels; i++) {
       buf32[i] = palette32[pixels[i]];
     }
     ctx.putImageData(imageData, 0, 0);

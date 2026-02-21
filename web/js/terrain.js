@@ -16,24 +16,34 @@ import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT } fr
 // terrain shape is stored in terrainBitmap[] — a per-pixel map that preserves
 // crater holes, tunnels, and other sub-column detail. In the original EXE,
 // VGA VRAM itself served this role; pixels persisted between frames.
-export const terrain = new Uint16Array(config.screenWidth);
+export let terrain = new Uint16Array(config.screenWidth);
 
 // Ceiling terrain for cavern mode: ceilingTerrain[x] = bottom Y of ceiling at column x
-export const ceilingTerrain = new Uint16Array(config.screenWidth);
+export let ceilingTerrain = new Uint16Array(config.screenWidth);
 
 // Per-pixel terrain bitmap: non-zero = terrain palette index, 0 = sky.
 // Equivalent to VGA VRAM in the original EXE — the source of truth for terrain
 // shape including crater holes and tunnels. drawTerrain() reads this instead of
 // filling solid columns from terrain[x], which would lose sub-column detail.
-const WIDTH = config.screenWidth;
-const HEIGHT = config.screenHeight;
-export const terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
+let WIDTH = config.screenWidth;
+let HEIGHT = config.screenHeight;
+export let terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
 
 // Sky region: HUD occupies top rows, rest is playfield
 // EXE: two 12px rows (bar outline y to y+11), total ~26px from top
 export const HUD_HEIGHT = 26;
 export const PLAYFIELD_TOP = HUD_HEIGHT;
-const PLAYFIELD_BOTTOM = config.screenHeight - 1;
+let PLAYFIELD_BOTTOM = config.screenHeight - 1;
+
+// Reinitialize terrain buffers for new graphics mode dimensions
+export function reinitTerrainBuffers() {
+  WIDTH = config.screenWidth;
+  HEIGHT = config.screenHeight;
+  PLAYFIELD_BOTTOM = config.screenHeight - 1;
+  terrain = new Uint16Array(WIDTH);
+  ceilingTerrain = new Uint16Array(WIDTH);
+  terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
+}
 
 // Generate terrain using random walk with momentum (from RE)
 export function generateTerrain() {
