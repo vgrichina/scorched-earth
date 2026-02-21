@@ -1,0 +1,37 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 32
+Total: 32
+0x3DD59  3735:0009  push bp                                ; x86
+0x3DD5A  3735:000A  mov bp,sp                              ; x86
+0x3DD5C  3735:000C  cmp [0x519a],sp                        ; x86
+0x3DD60  3735:0010  ja 0x17                                ; x86
+0x3DD62  3735:0012  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DD67  3735:0017  les bx,word [bp+0x6]                   ; x86
+0x3DD6A  3735:001A  cmp word [es:bx+0x2a],0x0              ; x86
+0x3DD6F  3735:001F  jnz 0x26                               ; x86
+0x3DD71  3735:0021  mov ax,[0xef24]                        ; x86
+0x3DD74  3735:0024  jmp 0x29                               ; x86
+0x3DD76  3735:0026  mov ax,[0xef22]                        ; x86
+0x3DD79  3735:0029  push ax                                ; x86
+0x3DD7A  3735:002A  push word [0xd566]                     ; x86
+0x3DD7E  3735:002E  mov ax,[0x518e]                        ; x86
+0x3DD81  3735:0031  add ax,0xc                             ; x86
+0x3DD84  3735:0034  push ax                                ; x86
+0x3DD85  3735:0035  push word [0xea00]                     ; x86
+0x3DD89  3735:0039  call word 0x1f71:word 0xc7             ; x86
+0x3DD8E  3735:003E  add sp,0x8                             ; x86
+0x3DD91  3735:0041  pop bp                                 ; x86
+0x3DD92  3735:0042  retf                                   ; x86  ; --- end ---
+0x3DD93  3735:0043  pop bp                                 ; x86
+0x3DD94  3735:0044  retf                                   ; x86  ; --- end ---
+0x3DD95  3735:0045  push bp                                ; x86
+0x3DD96  3735:0046  mov bp,sp                              ; x86
+0x3DD98  3735:0048  push si                                ; x86
+0x3DD99  3735:0049  cmp [0x519a],sp                        ; x86
+0x3DD9D  3735:004D  ja 0x54                                ; x86
+0x3DD9F  3735:004F  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DDA4  3735:0054  push word [bp+0x8]                     ; x86
+0x3DDA7  3735:0057  db 0xff                                ; x86
+0x3DDA8  3735:0058  db 0x76                                ; x86

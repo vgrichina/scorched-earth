@@ -1,0 +1,167 @@
+Searching for DS:0xEF28 in file 0x06A00..0x656E0
+Needle: 28 EF
+
+  file 0x2619F  [extras.cpp]
+    context: 26 80 3F 00 74 0D FF 36 28 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2764E  [icons.cpp+]
+    context: FE FF 26 89 47 0E FF 36 28 EF C4 5E 06 26 8B 47 02 03
+  file 0x290BB  [icons.cpp+]
+    context: 05 9A CE A2 00 00 FF 36 28 EF A1 40 EF 05 FC FF 50 FF
+  file 0x2A66A  [icons.cpp+]  (MOV ,AX)
+    context: EF A3 22 EF A1 2A EF A3 28 EF 6A 00 6A 00 6A 00 FF 36
+  file 0x2A890  [icons.cpp+]
+    context: 05 F1 FF 89 46 F6 FF 36 28 EF 6A 16 8B 46 F8 05 0A 00
+  file 0x2D0E7  [icons.cpp+]
+    context: 16 00 E7 A3 FE E6 FF 36 28 EF 6A 14 6A 12 FF 36 40 EF
+  file 0x2D0FF  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 28 EF 6A 14 6A 12 FF 36 40 EF
+  file 0x2D11A  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 28 EF 6A 14 6A 48 FF 36 40 EF
+  file 0x2D66E  [icons.cpp+]
+    context: 9A 81 A2 00 00 59 FF 36 28 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2D678  [icons.cpp+]
+    context: 9A 8F 02 A1 3E 59 FF 36 28 EF A1 40 EF 05 10 00 50 A1
+  file 0x2E15F  [icons.cpp+]
+    context: 89 56 FE 89 46 FC FF 36 28 EF 6A 41 68 8C 00 6A 64 6A
+  file 0x2E220  [icons.cpp+]
+    context: 46 3B 76 F4 7C 97 FF 36 28 EF 6A 14 6A 32 68 87 00 6A
+  file 0x2E394  [icons.cpp+]  (MOV AX,)
+    context: 7D 05 A1 24 EF EB 03 A1 28 EF 89 46 EC FF 76 EC 6A 7F
+  file 0x2FC9A  [icons.cpp+]
+    context: 00 C7 46 FA 00 00 FF 36 28 EF A1 40 EF 05 F9 FF 50 A1
+  file 0x30216  [icons.cpp+]
+    context: 8B 47 16 A3 44 E3 FF 36 28 EF A1 40 EF 05 F8 FF 50 A1
+  file 0x30802  [icons.cpp+]
+    context: 01 75 03 E9 AB 00 FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x308AD  [icons.cpp+]
+    context: FF 36 DE E9 EB 5B FF 36 28 EF A1 8E 51 05 0B 00 50 C4
+  file 0x31758  [icons.cpp+]
+    context: 57 00 00 83 C4 0A FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x31A5E  [icons.cpp+]
+    context: 57 00 00 83 C4 0C FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x31F8B  [icons.cpp+]
+    context: 57 00 00 83 C4 0A FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x2FC9A  [play.cpp]
+    context: 00 C7 46 FA 00 00 FF 36 28 EF A1 40 EF 05 F9 FF 50 A1
+  file 0x30216  [play.cpp]
+    context: 8B 47 16 A3 44 E3 FF 36 28 EF A1 40 EF 05 F8 FF 50 A1
+  file 0x30802  [play.cpp]
+    context: 01 75 03 E9 AB 00 FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x308AD  [play.cpp]
+    context: FF 36 DE E9 EB 5B FF 36 28 EF A1 8E 51 05 0B 00 50 C4
+  file 0x31758  [play.cpp]
+    context: 57 00 00 83 C4 0A FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x31A5E  [play.cpp]
+    context: 57 00 00 83 C4 0C FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x31F8B  [play.cpp]
+    context: 57 00 00 83 C4 0A FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x33FF8  [ranges.cpp]
+    context: 01 75 03 E9 1D 01 FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x34AC8  [ranges.cpp]
+    context: 89 56 FC 89 46 FA FF 36 28 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x3536F  [ranges.cpp]
+    context: 3B 06 82 51 75 4C FF 36 28 EF A1 8E 51 05 0B 00 50 A1
+  file 0x353D2  [ranges.cpp]
+    context: 45 83 C4 04 8B F8 FF 36 28 EF 9A 8F 02 A1 3E 59 16 8D
+  file 0x354D5  [ranges.cpp]
+    context: C0 75 03 E9 BB 00 FF 36 28 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x35F08  [ranges.cpp]
+    context: E8 8F 01 83 C4 0A FF 36 28 EF A1 8E 51 05 0B 00 50 8D
+  file 0x360AA  [ranges.cpp]
+    context: 05 9A CE A2 00 00 FF 36 28 EF 8D 45 01 50 FF 76 0A 8D
+  file 0x360DD  [ranges.cpp]
+    context: D8 83 3F 00 75 13 FF 36 28 EF 8D 45 01 50 8D 44 FF 50
+  file 0x3612C  [ranges.cpp]
+    context: BF 4A D6 00 75 1A FF 36 28 EF 8D 45 01 50 8D 44 FF 50
+  file 0x37BBE  [ranges.cpp]
+    context: 3B 06 6E EC 74 4A FF 36 28 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x39900  [shields.cpp+]
+    context: 89 56 F4 89 46 F2 FF 36 28 EF FF 76 EE FF 76 F0 FF 76
+  file 0x3D55C  [menu module]
+    context: 05 C7 46 C2 01 00 FF 36 28 EF FF 36 3A EF FF 36 3E EF
+  file 0x3DB41  [menu module]
+    context: 05 9A CE A2 00 00 FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x3DCA5  [menu module]
+    context: 05 9A CE A2 00 00 FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x3DDE4  [menu module]
+    context: 83 7E 0A 00 74 22 FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x3DEB4  [menu module]
+    context: 51 00 75 02 5D CB FF 36 28 EF A1 8E 51 05 17 00 50 A1
+  file 0x3E154  [menu module]
+    context: 83 7E 0E 00 74 6B FF 36 28 EF 9A 8F 02 A1 3E 59 8D 45
+  file 0x3E81B  [menu module]
+    context: 83 C2 19 89 56 FA FF 36 28 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x3E8A8  [menu module]
+    context: 84 06 89 45 EB 1B FF 36 28 EF 8B DF 03 DB FF B7 60 ED
+  file 0x3F0C4  [menu module]
+    context: C7 06 82 51 00 00 FF 36 28 EF A1 40 EF 05 F8 FF 50 A1
+  file 0x41341  [menu module]
+    context: 8C 5E FC 89 46 FA FF 36 28 EF 8B C6 F7 2E 6C EE 03 06
+  file 0x4144C  [menu module]
+    context: D4 50 7C 02 33 FF FF 36 28 EF 8B C6 F7 2E 6C EE 03 06
+  file 0x45F49  [dialog system]
+    context: 83 7F 0E 00 74 36 FF 36 28 EF C4 5E 06 26 8B 47 06 C4
+  file 0x46474  [dialog system]
+    context: 89 56 EC 89 46 EA FF 36 28 EF C4 5E 06 26 8B 47 02 8B
+  file 0x4691D  [dialog system]
+    context: 3C DD 5F 26 CD 3D FF 36 28 EF 8B C7 C1 E0 02 C4 5E 06
+  file 0x46D2D  [dialog system]
+    context: 5F 20 26 89 47 0E FF 36 28 EF 8B C7 C1 E0 02 C4 5E 06
+  file 0x46E8A  [dialog system]  (MOV AX,)
+    context: 74 05 A1 2C EF EB 03 A1 28 EF 50 C4 5E 06 26 8B 47 02
+  file 0x46EFD  [dialog system]
+    context: 03 9A C5 01 E7 44 FF 36 28 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x47065  [dialog system]
+    context: C5 01 E7 44 4F 47 FF 36 28 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x473C0  [dialog system]
+    context: 83 7F 0E 00 74 36 FF 36 28 EF C4 5E 06 26 8B 47 06 C4
+  file 0x47585  [dialog system]
+    context: 83 C4 08 E9 94 0A FF 36 28 EF 8B C7 C1 E0 02 C4 5E 06
+  file 0x49FF1  [dialog system]
+    context: 48 9A C5 01 E7 44 FF 36 28 EF 8D 45 0A 50 8D 45 01 50
+  file 0x4A00D  [dialog system]
+    context: F6 46 FE 02 74 1D FF 36 28 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x4A0B4  [dialog system]
+    context: FF 9A C5 01 E7 44 FF 36 28 EF 8D 45 0A 50 8D 45 01 50
+  file 0x4A154  [dialog system]
+    context: 75 5D 0B F6 7E 4D FF 36 28 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x4A1B3  [dialog system]
+    context: 83 7E FE 1B 75 2C FF 36 28 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x4AC3C  [dialog system]
+    context: 00 9A C5 01 E7 44 FF 36 28 EF C4 5E 06 26 8B 47 02 8B
+  file 0x4AD5B  [dialog system]
+    context: 7E 9A C5 01 E7 44 FF 36 28 EF C4 5E 06 26 8B 47 02 8B
+  file 0x4AE48  [dialog system]
+    context: 01 74 03 E9 CB 00 FF 36 28 EF 9A 8F 02 A1 3E 59 8B C6
+  file 0x4AF13  [dialog system]
+    context: 36 24 EF E9 C8 00 FF 36 28 EF 9A 8F 02 A1 3E 59 8B C6
+  file 0x4AF75  [dialog system]
+    context: 06 89 45 83 C4 08 FF 36 28 EF 9A 8F 02 A1 3E 59 8B C6
+  file 0x4B0C1  [dialog system]
+    context: 8B 76 06 8B 7E 08 FF 36 28 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x4B3C1  [dialog system]
+    context: 8B 76 06 8B 7E 08 FF 36 28 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x4B744  [dialog system]
+    context: 3C DD 5F 26 CD 3D FF 36 28 EF 8B C6 C1 E0 02 C4 5E 06
+  file 0x4C07E  [dialog system]  (MOV AX,)
+    context: 70 A1 32 EF A3 AA 70 A1 28 EF A3 B0 70 A1 28 EF A3 B6
+  file 0x4C084  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 B0 70 A1 28 EF A3 B6 70 A1 28 EF A3 BC
+  file 0x4C08A  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 B6 70 A1 28 EF A3 BC 70 A1 28 EF A3 C2
+  file 0x4C090  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 BC 70 A1 28 EF A3 C2 70 A1 28 EF A3 C8
+  file 0x4C096  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 C2 70 A1 28 EF A3 C8 70 A1 28 EF A3 CE
+  file 0x4C09C  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 C8 70 A1 28 EF A3 CE 70 A1 28 EF A3 D4
+  file 0x4C0A2  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 CE 70 A1 28 EF A3 D4 70 A1 28 EF A3 DA
+  file 0x4C0A8  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 D4 70 A1 28 EF A3 DA 70 A1 28 EF A3 E0
+  file 0x4C0AE  [dialog system]  (MOV AX,)
+    context: 70 A1 28 EF A3 DA 70 A1 28 EF A3 E0 70 5D CB C8 10 00
+  file 0x4C9C9  [font/text module]
+    context: 89 56 FA 89 46 F8 FF 36 28 EF 6A 0E 6A 0E 8B 46 08 05
+
+--- 81 references found ---

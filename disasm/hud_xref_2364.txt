@@ -1,0 +1,21 @@
+Searching for DS:0x2364 in file 0x06A00..0x656E0
+Needle: 64 23
+
+  file 0x2FBFC  [icons.cpp+]
+    context: 8B F0 FF 36 66 23 FF 36 64 23 9A 87 0B 89 45 83 C4 04
+  file 0x2FD51  [icons.cpp+]
+    context: 3E 59 FF 36 66 23 FF 36 64 23 1E 68 70 57 1E 68 5E E0
+  file 0x2FF7D  [icons.cpp+]
+    context: E8 E9 FF 36 66 23 FF 36 64 23 9A 87 0B 89 45 83 C4 04
+  file 0x303DC  [icons.cpp+]
+    context: 3E 59 FF 36 66 23 FF 36 64 23 1E 68 CC 57 1E 68 5E E0
+  file 0x2FBFC  [play.cpp]
+    context: 8B F0 FF 36 66 23 FF 36 64 23 9A 87 0B 89 45 83 C4 04
+  file 0x2FD51  [play.cpp]
+    context: 3E 59 FF 36 66 23 FF 36 64 23 1E 68 70 57 1E 68 5E E0
+  file 0x2FF7D  [play.cpp]
+    context: E8 E9 FF 36 66 23 FF 36 64 23 9A 87 0B 89 45 83 C4 04
+  file 0x303DC  [play.cpp]
+    context: 3E 59 FF 36 66 23 FF 36 64 23 1E 68 CC 57 1E 68 5E E0
+
+--- 8 references found ---

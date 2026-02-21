@@ -3451,11 +3451,18 @@ DS:0x50D4 = **numPlayers** (confirmed by `cmp si,[0x50D4]; jl` loop patterns).
 
 | DS Offset | Palette | Purpose | Usage |
 |-----------|---------|---------|-------|
-| DS:0xEF22 | Player color | Bright highlight | Bar outlines (draw_hud), text (draw_hud_full) |
+| DS:0xEF22 | Player color | Bright highlight | Bar outlines (draw_hud), ALL text (draw_hud_full) |
 | DS:0xEF24 | Dim text | Dark/depleted | Depleted weapon ammo color |
 | DS:0xEF28 | Background | HUD clear fill | fg_fillregion background at 0x2FCB0 |
 | DS:0xEF2C | Deep shadow | Bar interior | Bar fill color in draw_hud |
-| *(literal)* | 0xA3 (163) | Fixed wind color | `push word 0xA3` at 0x3030B (draw_hud_full) |
+| *(dynamic)* | 0xA3 (163) | **Player color** | `fg_setrgb(0xA3, R, G, B)` at file 0x3030E |
+
+**Palette 163 is NOT a fixed color** — it's dynamically set to the current player's base RGB
+via `fg_setrgb(0xA3, struct[0x1C], struct[0x1E], struct[0x20])` at file 0x3030E.
+Tank sub-struct offsets +0x1C, +0x1E, +0x20 hold the player's base R, G, B values
+(same values stored at DS:0x57E2 player color table). This means ALL HUD text
+(wind indicator, labels, weapon text, widget values) uses the player's color.
+The only color variation is [EF24] for depleted/zero-ammo items.
 
 #### Renderer 1: `draw_hud` — Multi-Player Bar Mode (file 0x2FC84)
 
@@ -3499,7 +3506,7 @@ Per-player Row 2 helpers fill columns inside each bar:
 - Helper at 0x3959F (0x3249:0x70f): fills Row 2 bar columns, reads player+0xA2/0xA4/0xA6/0xA8
 
 **KEY**: Bar outline = PLAYER COLOR (via fg_drect using current fg_setcolor).
-Bar interior = SHADOW COLOR ([0xEF2C]). This is the **opposite** of the web port.
+Bar interior = SHADOW COLOR ([0xEF2C]). Web port now matches: outline=baseColor, fill=UI_DEEP_SHADOW.
 
 #### Renderer 2: `draw_hud_full` — Text Mode (file 0x301B2)
 
@@ -3539,6 +3546,129 @@ call helper_0x3713:0x265(player, 0)         ; bar widget 7
 
 Row 2 bar widths in full mode: 0x30 (48px), 0x19 (25px), 0x1F (31px), 0x12 (18px),
 0x22 (34px), 0x21 (33px), 0x0C (12px). Each drawn by separate helper functions.
+
+**Row 2 label pointer** (DS:0x2364): Far pointer to player name string.
+Static initial value → DS:0x2EFA = "Max" (first default player name).
+Set indirectly at runtime to current player's name before draw_hud call.
+Format: `sprintf(buf, "%s:", player_name)` → "Wolfgang:" displayed at Row 2 left.
+
+#### Row 2 Widget Details (Decoded)
+
+Each widget follows the same pattern: (1) clear sub-area with `fg_fillregion(..., [EF28])`,
+(2) draw icon or text, (3) color conditionally: `ammo > 0 ? [EF22] : [EF24]`.
+
+| Widget | Seg:Off | File Offset | Source Module | What It Displays |
+|--------|---------|-------------|---------------|-----------------|
+| 1 | 2A16:0D78 | 0x318D8 | player.cpp | Tank icon + fuel %, FPU math for scale animation |
+| 2 | 3713:036B | 0x3DE9B | menu module | Angle bar, inventory[D556] count, bar at [E9EE] |
+| 3 | 3713:032E | 0x3DE5E | menu module | Defense bar, struct[0x28] check, draw_icon with [D554] |
+| 4 | 3713:0000 | 0x3DB30 | menu module | Item name + "%d%%" value, complex shield/fuel display |
+| 5 | 3713:0164 | 0x3DC94 | menu module | Shield selector, struct[0x9A] field, draw_icon + bar |
+| 6 | 3713:0229 | 0x3DD59 | menu module | Item bar, struct[0x2A] check, draw_icon with [D566] |
+| 7 | 3713:0265 | 0x3DD95 | menu module | Conditional display, 3 args (0, struct), checks 2 funcs |
+
+**Widget 1** (0x318D8, player.cpp) — Most complex:
+- Reads struct[0xA6:0xA8] (32-bit resource total) and struct[0xA2:0xA4] (resource spent)
+- Computes percentage: `(total - spent) * 100 / total`
+- Loops si=1..3: scales icon drawing coordinates by percentage factor (FPU math)
+- Calls icon renderer with scaled dimensions — creates shrinking tank animation as fuel depletes
+- If expanded mode: computes `(total - spent) * 1000 / total`, formats as `"%4ld"` (DS:0x5834)
+
+**Widget 3** (0x3DE5E) — Simplest widget:
+```
+color = struct[0x28] > 0 ? [EF22] : [EF24]
+draw_icon([E9F2], Row2_Y, [D554], color)         ; 4 args
+```
+
+**Widget 4** (0x3DB30) — Complex item display:
+- Clears area: `fg_fillregion([E9F4], Row2_Y, [E9FA]-1, Row2_Y+0xB, [EF28])`
+- Reads item index from far ptr [0xE1DE]+0x0E
+- If index < 0: draw filled bar icon with color [EF2C] (shadow) or [EF24] (dim)
+- If index ≥ 0: display inventory item name at [E9F4], draw bar at [E9F6]
+- Formats value as `"%d%%"` (percentage) via DS:0x6471
+- Color depends on struct[0x96] and ptr comparison with [E1DE]
+
+**Widget 5** (0x3DC94) — Shield selector:
+- Clears area: `fg_fillregion([E9FA], Row2_Y, [E9FE]-1, Row2_Y+0xB, [EF28])`
+- Reads struct[0x9A] (shield type), compares with DS:0xD548
+- If different: show item name (from inventory[struct[0x9A]]) + draw bar
+- If same: draw filled bar icon (10px fill)
+
+**Widget 6** (0x3DD59) — Simple item bar:
+```
+color = struct[0x2A] != 0 ? [EF22] : [EF24]
+draw_icon([EA00], Row2_Y, [D566], color)         ; 4 args
+```
+
+**Widget 7** (0x3DD95) — Conditional display:
+- Takes 3 args: (struct_far_ptr, extra_flag=0)
+- Calls 0x2A16:0x6E9 (check function 1) and 0x2A16:0x6BE (check function 2)
+- If both false: color = [EF24]; if check2 true: color = [EF22]
+- If [EA02] == 0: skip entirely (not enough screen width)
+- If extra_flag != 0: clear area [EA02] to [EA04]-1
+- Formats value via DS:0x6479, displays at [EA02]
+
+**Widget format strings:**
+
+| Format | DS Offset | File Offset | Used By |
+|--------|-----------|-------------|---------|
+| "%d" | DS:0x646E | 0x5C1EE | Widget 4 (item count) |
+| "%d%%" | DS:0x6471 | 0x5C1F1 | Widget 4 (percentage) |
+| "%d" | DS:0x6476 | 0x5C1F6 | Widget 5 (shield count) |
+| "%2d" | DS:0x647D | 0x5C1FD | Widget 2 (angle count) |
+| "%4ld" | DS:0x5834 | 0x5B5B4 | Widget 1 (fuel long) |
+
+**Inventory index variables** (set at runtime during game setup):
+
+| DS Offset | Initial | Used By | Purpose |
+|-----------|---------|---------|---------|
+| DS:0xD548 | 0x0000 | Widget 5 (compare) | "No shield" sentinel value |
+| DS:0xD554 | 0x0000 | Widget 3, Row 2 text | Defense item type index |
+| DS:0xD556 | 0x0000 | Widget 2 | Angle/weapon slot index |
+| DS:0xD566 | 0x0000 | Widget 6, Row 2 text | Second item type index |
+
+#### Icon Data Structure (DS:0x3826)
+
+`draw_player_icon` at 0x261D7 (icons.cpp) is actually a **generic icon renderer** used for
+tank icons, weapon icons, and item icons throughout the HUD.
+
+Icon table at DS:0x3826, stride **125 bytes** (0x7D), max **48 icons** (0x30):
+```
+struct icon_entry {           // 125 bytes per icon
+    uint8_t pattern_type;     // DS:0x3826 + idx*125 — rendering mode flag
+    uint8_t width;            // DS:0x3827 + idx*125 — pixel width
+    uint8_t height;           // DS:0x3828 + idx*125 — pixel height
+    uint8_t pixels[122];      // DS:0x3829 + idx*125 — bitmap data
+};
+```
+
+Three call variants (same internal renderer, different wrappers):
+- `draw_icon_alive` (0x261D7): flag=1, caller-supplied color → renders filled icon
+- `draw_icon_dead` (0x26245): flag=0, color=0xA9 (169) → renders outline/dead icon
+- `draw_icon_blank` (0x262B3): flag=0, color=-1 → erases icon area
+
+Internal renderer at ~0x26120 (near call from all three): 9 args:
+`renderer(x, y, pattern_type, width, height, data_far_ptr, color, flag)`
+
+#### Wind Indicator (draw_hud_full Row 1)
+
+Wind is NOT rendered as plain text in the EXE — it uses a custom Fastgraph control packet.
+
+Function at 0x456B:0x5 (file 0x4C0B5):
+```
+; Build 16-byte Fastgraph display control packet on stack:
+[bp-0x10] = 0x10             ; packet type (16)
+[bp-0x0F] = 0x10             ; packet length (16)
+[bp-0x0E] = color (word)     ; 0xA3 = palette 163
+[bp-0x0C] = struct[0x20]     ; wind display byte 3
+[bp-0x0B] = struct[0x1E]     ; wind display byte 2
+[bp-0x09] = struct[0x1C]     ; wind display byte 1
+call fg_dispctl(packet_ptr, packet_ptr, 16)
+```
+
+Tank struct offsets 0x1C, 0x1E, 0x20 encode the wind direction/magnitude for rendering.
+Web port approximates with text "Wind: N" / "No Wind" since Fastgraph packets
+cannot be replicated outside the hardware VGA context.
 
 #### Layout Computation: `compute_hud_layout` (file 0x2FBCA)
 
@@ -3650,18 +3780,30 @@ else: [0xea02] = 0
 
 #### Web Port vs EXE Discrepancies
 
-The web port (hud.js) implements a hybrid that matches **neither** EXE renderer:
+The web port (hud.js) implements a mode-split renderer matching the EXE's two modes.
+Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses text layout.
 
-| Aspect | EXE draw_hud | EXE draw_hud_full | Web Port (WRONG) |
-|--------|-------------|-------------------|-------------------|
-| Row 1 bars | Multi-player columns (6px/player) | NO bars (text only) | Single-player bar |
-| Bar outline color | Player color ([0xEF22]) | N/A | Gold (palette 150) |
-| Bar fill color | Shadow ([0xEF2C]) | N/A | Player color |
-| Bar width | numPlayers × 6 (variable) | N/A | measureText("8888 ") |
-| Row 1 content | Name + bar + icons | Name + Power + Angle + Wind + Weapon + Ammo | Name + bar + power + icons |
-| Row 2 content | Label + bar + Angle + bar | Label + 7 bar widgets + ammo counts | Wind + Angle + weapon |
-| Row 2 bars | Multi-player columns | Multiple fixed-width widgets | Single wind/angle bars |
-| Per-player fill | power/100 per column | N/A | N/A (not implemented) |
+| Aspect | EXE | Web Port | Status |
+|--------|-----|----------|--------|
+| **Basic mode Row 1** | Name + multi-player bar + icons | Name + multi-player bar + icons | **Correct** |
+| **Full mode Row 1** | Name + Power + Angle + Wind + Weapon | Name + Power + Angle + Wind + Weapon | **Correct** |
+| Bar outline color | Player color ([EF22]) | Player color (baseColor) | **Correct** |
+| Bar fill color | Shadow ([EF2C]) | Shadow (UI_DEEP_SHADOW) | **Correct** |
+| Bar width | numPlayers × 6 (variable) | numPlayers × 6 | **Correct** |
+| Per-player columns | power/100 per column | power/100 per column | **Correct** |
+| Background | UI_BACKGROUND ([EF28], gray) | UI_BACKGROUND (palette 203) | **Correct** |
+| All text color | Player color ([EF22], palette 163) | baseColor (player slot 4) | **Fixed** |
+| Wind rendering | Custom Fastgraph control packet | Text "Wind: N" / "No Wind" | Simplified |
+| Player icons | Bitmap from icon table (48 icons) | Simple 5×5 squares/outlines | Simplified |
+| **Basic Row 2** | Name + energy bars + Angle + angle bars | Name + energy bars + Angle + angle bars + W:N | **Fixed** (+wind text) |
+| **Full Row 2** | Name + 7 inventory widgets (icon+bar) | Name + energy bar + shield + items + weapon | **Approx** (text, no icons) |
+| Full Row 2 widgets | draw_icon + ammo bars per item | Text counts (B:n, P:n, L:n) | Simplified |
+| Weapon icon (full) | draw_icon for selected weapon | Text only | Simplified |
+
+**Remaining gaps** (require additional systems to implement):
+- Player icon bitmaps: need icon data extraction from DS:0x3826 (48 × 125 bytes)
+- Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
+- Wind indicator: Fastgraph control packets cannot be replicated; text approximation is sufficient
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 

@@ -1,0 +1,139 @@
+
+; ============================================================
+; === FUNCTION at file 0x318D8 ===
+; ============================================================
+0x318D8  2AED:0008  enter word 0x10,byte 0x0               ; x86
+0x318DC  2AED:000C  push si                                ; x86
+0x318DD  2AED:000D  cmp [0x519a],sp                        ; x86
+0x318E1  2AED:0011  ja 0x18                                ; x86
+0x318E3  2AED:0013  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x318E8  2AED:0018  les bx,word [bp+0x6]                   ; x86
+0x318EB  2AED:001B  push word [es:bx+0xa8]                 ; x86
+0x318F0  2AED:0020  push word [es:bx+0xa6]                 ; x86
+0x318F5  2AED:0025  les bx,word [bp+0x6]                   ; x86
+0x318F8  2AED:0028  mov cx,[es:bx+0xa8]                    ; x86
+0x318FD  2AED:002D  mov ax,[es:bx+0xa6]                    ; x86
+0x31902  2AED:0032  les bx,word [bp+0x6]                   ; x86
+0x31905  2AED:0035  sub ax,[es:bx+0xa2]                    ; x86
+0x3190A  2AED:003A  sbb cx,[es:bx+0xa4]                    ; x86
+0x3190F  2AED:003F  xor dx,dx                              ; x86
+0x31911  2AED:0041  push ax                                ; x86
+0x31912  2AED:0042  mov ax,0x64                            ; x86
+0x31915  2AED:0045  pop bx                                 ; x86
+0x31916  2AED:0046  call word 0x0:word 0x17a6              ; x86
+0x3191B  2AED:004B  push dx                                ; x86
+0x3191C  2AED:004C  push ax                                ; x86
+0x3191D  2AED:004D  call word 0x0:word 0x1816              ; x86
+0x31922  2AED:0052  mov [bp-0x2],ax                        ; x86
+0x31925  2AED:0055  cmp word [0x5110],0x6                  ; x86
+0x3192A  2AED:005A  jnz 0x5f                               ; x86
+0x3192C  2AED:005C  jmp 0xec                               ; x86
+0x3192F  2AED:005F  mov si,0x1                             ; x86
+0x31932  2AED:0062  jmp 0xe4                               ; x86
+0x31935  2AED:0065  mov ax,si                              ; x86
+0x31937  2AED:0067  imul word [bp-0x2]                     ; x86
+0x3193A  2AED:006A  mov bx,0x3                             ; x86
+0x3193D  2AED:006D  cwd                                    ; x86
+0x3193E  2AED:006E  idiv bx                                ; x86
+0x31940  2AED:0070  mov dx,0x64                            ; x86
+0x31943  2AED:0073  sub dx,ax                              ; x86
+0x31945  2AED:0075  mov [bp-0xc],dx                        ; x86
+0x31948  2AED:0078  fild word [bp-0xc]                     ; INT 3Bh
+0x3194C  2AED:007C  fdiv dword [0x5830]                    ; INT 34h  DS:5830
+0x31951  2AED:0081  fstp qword [bp-0xa]                    ; INT 39h
+0x31955  2AED:0085  push word 0x1                          ; x86
+0x31957  2AED:0087  wait                                   ; INT 3Dh
+0x31959  2AED:0089  les bx,word [bp+0x6]                   ; x86
+0x3195C  2AED:008C  mov ax,[es:bx+0x20]                    ; x86
+0x31960  2AED:0090  mov [bp-0xc],ax                        ; x86
+0x31963  2AED:0093  fild word [bp-0xc]                     ; INT 3Bh
+0x31967  2AED:0097  fmul qword [bp-0xa]                    ; INT 38h
+0x3196B  2AED:009B  call word 0x0:word 0x14df              ; x86  → _ftol
+0x31970  2AED:00A0  push ax                                ; x86
+0x31971  2AED:00A1  les bx,word [bp+0x6]                   ; x86
+0x31974  2AED:00A4  mov ax,[es:bx+0x1e]                    ; x86
+0x31978  2AED:00A8  mov [bp-0xc],ax                        ; x86
+0x3197B  2AED:00AB  fild word [bp-0xc]                     ; INT 3Bh
+0x3197F  2AED:00AF  fmul qword [bp-0xa]                    ; INT 38h
+0x31983  2AED:00B3  call word 0x0:word 0x14df              ; x86  → _ftol
+0x31988  2AED:00B8  push ax                                ; x86
+0x31989  2AED:00B9  les bx,word [bp+0x6]                   ; x86
+0x3198C  2AED:00BC  mov ax,[es:bx+0x1c]                    ; x86
+0x31990  2AED:00C0  mov [bp-0xc],ax                        ; x86
+0x31993  2AED:00C3  fild word [bp-0xc]                     ; INT 3Bh
+0x31997  2AED:00C7  fmul qword [bp-0xa]                    ; INT 38h
+0x3199B  2AED:00CB  call word 0x0:word 0x14df              ; x86  → _ftol
+0x319A0  2AED:00D0  push ax                                ; x86
+0x319A1  2AED:00D1  les bx,word [bp+0x6]                   ; x86
+0x319A4  2AED:00D4  mov ax,[es:bx+0x1a]                    ; x86
+0x319A8  2AED:00D8  add ax,si                              ; x86
+0x319AA  2AED:00DA  push ax                                ; x86
+0x319AB  2AED:00DB  call word 0x32c2:word 0xa26            ; x86
+0x319B0  2AED:00E0  add sp,0xa                             ; x86
+0x319B3  2AED:00E3  inc si                                 ; x86
+0x319B4  2AED:00E4  cmp si,0x4                             ; x86
+0x319B7  2AED:00E7  jnl 0xec                               ; x86
+0x319B9  2AED:00E9  jmp 0x65                               ; x86
+0x319BC  2AED:00EC  cmp word [0x5142],0x0                  ; x86
+0x319C1  2AED:00F1  jnz 0xf6                               ; x86
+0x319C3  2AED:00F3  jmp 0x1cf                              ; x86
+0x319C6  2AED:00F6  cmp word [0x5188],0x1                  ; x86
+0x319CB  2AED:00FB  jnz 0x10e                              ; x86
+0x319CD  2AED:00FD  push word [bp+0x8]                     ; x86
+0x319D0  2AED:0100  push word [bp+0x6]                     ; x86
+0x319D3  2AED:0103  call word 0x3249:word 0x70f            ; x86
+0x319D8  2AED:0108  add sp,0x4                             ; x86
+0x319DB  2AED:010B  jmp 0x1cf                              ; x86
+0x319DE  2AED:010E  cmp word [0x50d6],0x0                  ; x86
+0x319E3  2AED:0113  jnz 0x118                              ; x86
+0x319E5  2AED:0115  jmp 0x1cf                              ; x86
+0x319E8  2AED:0118  mov dx,[0x5184]                        ; x86
+0x319EC  2AED:011C  mov ax,[0x5182]                        ; x86
+0x319EF  2AED:011F  cmp dx,[bp+0x8]                        ; x86
+0x319F2  2AED:0122  jz 0x127                               ; x86
+0x319F4  2AED:0124  jmp 0x1cf                              ; x86
+0x319F7  2AED:0127  cmp ax,[bp+0x6]                        ; x86
+0x319FA  2AED:012A  jz 0x12f                               ; x86
+0x319FC  2AED:012C  jmp 0x1cf                              ; x86
+0x319FF  2AED:012F  les bx,word [bp+0x6]                   ; x86
+0x31A02  2AED:0132  push word [es:bx+0xa8]                 ; x86
+0x31A07  2AED:0137  push word [es:bx+0xa6]                 ; x86
+0x31A0C  2AED:013C  les bx,word [bp+0x6]                   ; x86
+0x31A0F  2AED:013F  mov cx,[es:bx+0xa4]                    ; x86
+0x31A14  2AED:0144  mov bx,[es:bx+0xa2]                    ; x86
+0x31A19  2AED:0149  xor dx,dx                              ; x86
+0x31A1B  2AED:014B  mov ax,0x3e8                           ; x86
+0x31A1E  2AED:014E  call word 0x0:word 0x17a6              ; x86
+0x31A23  2AED:0153  push dx                                ; x86
+0x31A24  2AED:0154  push ax                                ; x86
+0x31A25  2AED:0155  call word 0x0:word 0x1816              ; x86
+0x31A2A  2AED:015A  mov [bp-0xe],dx                        ; x86
+0x31A2D  2AED:015D  mov [bp-0x10],ax                       ; x86
+0x31A30  2AED:0160  cmp word [bp-0xe],0x0                  ; x86
+0x31A34  2AED:0164  jg 0x174                               ; x86
+0x31A36  2AED:0166  jl 0x16e                               ; x86
+0x31A38  2AED:0168  cmp word [bp-0x10],0x0                 ; x86
+0x31A3C  2AED:016C  jnc 0x174                              ; x86
+0x31A3E  2AED:016E  xor dx,dx                              ; x86
+0x31A40  2AED:0170  xor ax,ax                              ; x86
+0x31A42  2AED:0172  jmp 0x17a                              ; x86
+0x31A44  2AED:0174  mov dx,[bp-0xe]                        ; x86
+0x31A47  2AED:0177  mov ax,[bp-0x10]                       ; x86
+0x31A4A  2AED:017A  push dx                                ; x86
+0x31A4B  2AED:017B  push ax                                ; x86
+0x31A4C  2AED:017C  push ds                                ; x86
+0x31A4D  2AED:017D  push word 0x5834                       ; x86
+0x31A50  2AED:0180  push ds                                ; x86
+0x31A51  2AED:0181  push word 0xe05e                       ; x86
+0x31A54  2AED:0184  call word 0x0:word 0x5754              ; x86
+0x31A59  2AED:0189  add sp,0xc                             ; x86
+0x31A5C  2AED:018C  push word [0xef28]                     ; x86
+0x31A60  2AED:0190  mov ax,[0x518e]                        ; x86
+0x31A63  2AED:0193  add ax,0x17                            ; x86
+0x31A66  2AED:0196  push ax                                ; x86
+0x31A67  2AED:0197  db 0xa1                                ; x86
+--- Statistics ---
+FPU instructions: 10
+x86 instructions: 120
+Total: 130
+

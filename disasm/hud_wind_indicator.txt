@@ -1,0 +1,106 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 85
+Total: 85
+
+; ============================================================
+; === FUNCTION at file 0x4C0B5 ===
+; ============================================================
+0x4C0B5  456B:0005  enter word 0x10,byte 0x0               ; x86
+0x4C0B9  456B:0009  mov byte [bp-0xf],0x10                 ; x86
+0x4C0BD  456B:000D  mov byte [bp-0x10],0x10                ; x86
+0x4C0C1  456B:0011  mov ax,[bp+0x6]                        ; x86
+0x4C0C4  456B:0014  mov [bp-0xe],ax                        ; x86
+0x4C0C7  456B:0017  mov al,[bp+0x8]                        ; x86
+0x4C0CA  456B:001A  mov [bp-0x9],al                        ; x86
+0x4C0CD  456B:001D  mov al,[bp+0xa]                        ; x86
+0x4C0D0  456B:0020  mov [bp-0xb],al                        ; x86
+0x4C0D3  456B:0023  mov al,[bp+0xc]                        ; x86
+0x4C0D6  456B:0026  mov [bp-0xc],al                        ; x86
+0x4C0D9  456B:0029  push ss                                ; x86
+0x4C0DA  456B:002A  lea ax,[bp-0x10]                       ; x86
+0x4C0DD  456B:002D  push ax                                ; x86
+0x4C0DE  456B:002E  push ss                                ; x86
+0x4C0DF  456B:002F  lea ax,[bp-0x10]                       ; x86
+0x4C0E2  456B:0032  push ax                                ; x86
+0x4C0E3  456B:0033  push word 0x10                         ; x86
+0x4C0E5  456B:0035  call word 0x0:word 0x3688              ; x86
+0x4C0EA  456B:003A  add sp,0xa                             ; x86
+0x4C0ED  456B:003D  leave                                  ; x86
+0x4C0EE  456B:003E  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x4C0EF ===
+; ============================================================
+0x4C0EF  456B:003F  enter word 0x10,byte 0x0               ; x86
+0x4C0F3  456B:0043  mov byte [bp-0xf],0x10                 ; x86
+0x4C0F7  456B:0047  mov byte [bp-0x10],0x1                 ; x86
+0x4C0FB  456B:004B  mov al,[bp+0x6]                        ; x86
+0x4C0FE  456B:004E  mov [bp-0xd],al                        ; x86
+0x4C101  456B:0051  push ss                                ; x86
+0x4C102  456B:0052  lea ax,[bp-0x10]                       ; x86
+0x4C105  456B:0055  push ax                                ; x86
+0x4C106  456B:0056  push ss                                ; x86
+0x4C107  456B:0057  lea ax,[bp-0x10]                       ; x86
+0x4C10A  456B:005A  push ax                                ; x86
+0x4C10B  456B:005B  push word 0x10                         ; x86
+0x4C10D  456B:005D  call word 0x0:word 0x3688              ; x86
+0x4C112  456B:0062  add sp,0xa                             ; x86
+0x4C115  456B:0065  leave                                  ; x86
+0x4C116  456B:0066  retf                                   ; x86  ; --- end ---
+0x4C117  456B:0067  push bp                                ; x86
+0x4C118  456B:0068  mov bp,sp                              ; x86
+0x4C11A  456B:006A  cmp word [0xef46],0x0                  ; x86
+0x4C11F  456B:006F  jnz 0x73                               ; x86
+0x4C121  456B:0071  pop bp                                 ; x86
+0x4C122  456B:0072  retf                                   ; x86  ; --- end ---
+0x4C123  456B:0073  cmp word [0xef46],0x1                  ; x86
+0x4C128  456B:0078  jnz 0x91                               ; x86
+0x4C12A  456B:007A  push word [bp+0x6]                     ; x86
+0x4C12D  456B:007D  call word 0x0:word 0xa281              ; x86
+0x4C132  456B:0082  pop cx                                 ; x86
+0x4C133  456B:0083  push word [bp+0x8]                     ; x86
+0x4C136  456B:0086  call word 0x0:word 0x9af6              ; x86
+0x4C13B  456B:008B  pop cx                                 ; x86
+0x4C13C  456B:008C  nop                                    ; x86
+0x4C13D  456B:008D  push cs                                ; x86
+0x4C13E  456B:008E  call 0x1c8                             ; x86
+0x4C141  456B:0091  pop bp                                 ; x86
+0x4C142  456B:0092  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x4C143 ===
+; ============================================================
+0x4C143  456B:0093  enter word 0x2,byte 0x0                ; x86
+0x4C147  456B:0097  push si                                ; x86
+0x4C148  456B:0098  mov si,[bp+0x8]                        ; x86
+0x4C14B  456B:009B  add si,si                              ; x86
+0x4C14D  456B:009D  mov dx,0x61                            ; x86
+0x4C150  456B:00A0  in al,dx                               ; x86
+0x4C151  456B:00A1  mov ah,0x0                             ; x86
+0x4C153  456B:00A3  mov [bp-0x2],ax                        ; x86
+0x4C156  456B:00A6  xor bx,bx                              ; x86
+0x4C158  456B:00A8  jmp 0xc0                               ; x86
+0x4C15A  456B:00AA  xor word [bp-0x2],0x2                  ; x86
+0x4C15E  456B:00AE  mov dx,0x61                            ; x86
+0x4C161  456B:00B1  mov al,[bp-0x2]                        ; x86
+0x4C164  456B:00B4  out dx,al                              ; x86
+0x4C165  456B:00B5  xor cx,cx                              ; x86
+0x4C167  456B:00B7  jmp 0xba                               ; x86
+0x4C169  456B:00B9  inc cx                                 ; x86
+0x4C16A  456B:00BA  cmp cx,[bp+0x6]                        ; x86
+0x4C16D  456B:00BD  jl 0xb9                                ; x86
+0x4C16F  456B:00BF  inc bx                                 ; x86
+0x4C170  456B:00C0  cmp bx,si                              ; x86
+0x4C172  456B:00C2  jl 0xaa                                ; x86
+0x4C174  456B:00C4  pop si                                 ; x86
+0x4C175  456B:00C5  leave                                  ; x86
+0x4C176  456B:00C6  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x4C177 ===
+; ============================================================
+0x4C177  456B:00C7  enter word 0x6,byte 0x0                ; x86
+0x4C17B  456B:00CB  push si                                ; x86
+0x4C17C  456B:00CC  push di                                ; x86

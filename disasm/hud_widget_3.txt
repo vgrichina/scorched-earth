@@ -1,0 +1,33 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 28
+Total: 28
+0x3DE5E  3745:000E  push bp                                ; x86
+0x3DE5F  3745:000F  mov bp,sp                              ; x86
+0x3DE61  3745:0011  cmp [0x519a],sp                        ; x86
+0x3DE65  3745:0015  ja 0x1c                                ; x86
+0x3DE67  3745:0017  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DE6C  3745:001C  les bx,word [bp+0x6]                   ; x86
+0x3DE6F  3745:001F  cmp word [es:bx+0x28],0x0              ; x86
+0x3DE74  3745:0024  jng 0x2c                               ; x86
+0x3DE76  3745:0026  push word [0xef22]                     ; x86
+0x3DE7A  3745:002A  jmp 0x30                               ; x86
+0x3DE7C  3745:002C  push word [0xef24]                     ; x86
+0x3DE80  3745:0030  push word [0xd554]                     ; x86
+0x3DE84  3745:0034  mov ax,[0x518e]                        ; x86
+0x3DE87  3745:0037  add ax,0xc                             ; x86
+0x3DE8A  3745:003A  push ax                                ; x86
+0x3DE8B  3745:003B  push word [0xe9f2]                     ; x86
+0x3DE8F  3745:003F  call word 0x1f71:word 0xc7             ; x86
+0x3DE94  3745:0044  add sp,0x8                             ; x86
+0x3DE97  3745:0047  pop bp                                 ; x86
+0x3DE98  3745:0048  retf                                   ; x86  ; --- end ---
+0x3DE99  3745:0049  pop bp                                 ; x86
+0x3DE9A  3745:004A  retf                                   ; x86  ; --- end ---
+0x3DE9B  3745:004B  push bp                                ; x86
+0x3DE9C  3745:004C  mov bp,sp                              ; x86
+0x3DE9E  3745:004E  cmp [0x519a],sp                        ; x86
+0x3DEA2  3745:0052  ja 0x59                                ; x86
+0x3DEA4  3745:0054  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DEA9  3745:0059  cmp word [0x5142],0x0                  ; x86

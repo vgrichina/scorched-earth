@@ -1,0 +1,134 @@
+0x261D7  1F7D:0007  push bp                                ; x86
+0x261D8  1F7D:0008  mov bp,sp                              ; x86
+0x261DA  1F7D:000A  push si                                ; x86
+0x261DB  1F7D:000B  mov si,[bp+0xa]                        ; x86
+0x261DE  1F7D:000E  cmp [0x519a],sp                        ; x86
+0x261E2  1F7D:0012  ja 0x19                                ; x86
+0x261E4  1F7D:0014  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x261E9  1F7D:0019  or si,si                               ; x86
+0x261EB  1F7D:001B  jl 0x24                                ; x86
+0x261ED  1F7D:001D  cmp si,0x30                            ; x86
+0x261F0  1F7D:0020  jnl 0x24                               ; x86
+0x261F2  1F7D:0022  jmp 0x35                               ; x86
+0x261F4  1F7D:0024  push word 0x0                          ; x86
+0x261F6  1F7D:0026  push word 0x262                        ; x86
+0x261F9  1F7D:0029  push ds                                ; x86
+0x261FA  1F7D:002A  push word 0x4f96                       ; x86
+0x261FD  1F7D:002D  call word 0x1d0b:word 0xda             ; x86
+0x26202  1F7D:0032  add sp,0x8                             ; x86
+0x26205  1F7D:0035  push word 0x1                          ; x86
+0x26207  1F7D:0037  push word [bp+0xc]                     ; x86
+0x2620A  1F7D:003A  mov ax,si                              ; x86
+0x2620C  1F7D:003C  imul ax,ax,0x7d                        ; x86
+0x2620F  1F7D:003F  add ax,0x3829                          ; x86
+0x26212  1F7D:0042  push ds                                ; x86
+0x26213  1F7D:0043  push ax                                ; x86
+0x26214  1F7D:0044  mov bx,si                              ; x86
+0x26216  1F7D:0046  imul bx,bx,0x7d                        ; x86
+0x26219  1F7D:0049  mov al,[bx+0x3828]                     ; x86
+0x2621D  1F7D:004D  cbw                                    ; x86
+0x2621E  1F7D:004E  push ax                                ; x86
+0x2621F  1F7D:004F  mov bx,si                              ; x86
+0x26221  1F7D:0051  imul bx,bx,0x7d                        ; x86
+0x26224  1F7D:0054  mov al,[bx+0x3827]                     ; x86
+0x26228  1F7D:0058  cbw                                    ; x86
+0x26229  1F7D:0059  push ax                                ; x86
+0x2622A  1F7D:005A  mov bx,si                              ; x86
+0x2622C  1F7D:005C  imul bx,bx,0x7d                        ; x86
+0x2622F  1F7D:005F  mov al,[bx+0x3826]                     ; x86
+0x26233  1F7D:0063  cbw                                    ; x86
+0x26234  1F7D:0064  push ax                                ; x86
+0x26235  1F7D:0065  push word [bp+0x8]                     ; x86
+0x26238  1F7D:0068  push word [bp+0x6]                     ; x86
+0x2623B  1F7D:006B  push cs                                ; x86
+0x2623C  1F7D:006C  call 0xff40                            ; x86
+0x2623F  1F7D:006F  add sp,0x12                            ; x86
+0x26242  1F7D:0072  pop si                                 ; x86
+0x26243  1F7D:0073  pop bp                                 ; x86
+0x26244  1F7D:0074  retf                                   ; x86  ; --- end ---
+0x26245  1F7D:0075  push bp                                ; x86
+0x26246  1F7D:0076  mov bp,sp                              ; x86
+0x26248  1F7D:0078  push si                                ; x86
+0x26249  1F7D:0079  mov si,[bp+0xa]                        ; x86
+0x2624C  1F7D:007C  cmp [0x519a],sp                        ; x86
+0x26250  1F7D:0080  ja 0x87                                ; x86
+0x26252  1F7D:0082  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x26257  1F7D:0087  or si,si                               ; x86
+0x26259  1F7D:0089  jl 0x92                                ; x86
+0x2625B  1F7D:008B  cmp si,0x30                            ; x86
+0x2625E  1F7D:008E  jnl 0x92                               ; x86
+0x26260  1F7D:0090  jmp 0xa3                               ; x86
+0x26262  1F7D:0092  push word 0x0                          ; x86
+0x26264  1F7D:0094  push word 0x267                        ; x86
+0x26267  1F7D:0097  push ds                                ; x86
+0x26268  1F7D:0098  push word 0x4fa0                       ; x86
+0x2626B  1F7D:009B  call word 0x1d0b:word 0xda             ; x86
+0x26270  1F7D:00A0  add sp,0x8                             ; x86
+0x26273  1F7D:00A3  push word 0x0                          ; x86
+0x26275  1F7D:00A5  push word 0xa9                         ; x86
+0x26278  1F7D:00A8  mov ax,si                              ; x86
+0x2627A  1F7D:00AA  imul ax,ax,0x7d                        ; x86
+0x2627D  1F7D:00AD  add ax,0x3829                          ; x86
+0x26280  1F7D:00B0  push ds                                ; x86
+0x26281  1F7D:00B1  push ax                                ; x86
+0x26282  1F7D:00B2  mov bx,si                              ; x86
+0x26284  1F7D:00B4  imul bx,bx,0x7d                        ; x86
+0x26287  1F7D:00B7  mov al,[bx+0x3828]                     ; x86
+0x2628B  1F7D:00BB  cbw                                    ; x86
+0x2628C  1F7D:00BC  push ax                                ; x86
+0x2628D  1F7D:00BD  mov bx,si                              ; x86
+0x2628F  1F7D:00BF  imul bx,bx,0x7d                        ; x86
+0x26292  1F7D:00C2  mov al,[bx+0x3827]                     ; x86
+0x26296  1F7D:00C6  cbw                                    ; x86
+0x26297  1F7D:00C7  push ax                                ; x86
+0x26298  1F7D:00C8  mov bx,si                              ; x86
+0x2629A  1F7D:00CA  imul bx,bx,0x7d                        ; x86
+0x2629D  1F7D:00CD  mov al,[bx+0x3826]                     ; x86
+0x262A1  1F7D:00D1  cbw                                    ; x86
+0x262A2  1F7D:00D2  push ax                                ; x86
+0x262A3  1F7D:00D3  push word [bp+0x8]                     ; x86
+0x262A6  1F7D:00D6  push word [bp+0x6]                     ; x86
+0x262A9  1F7D:00D9  push cs                                ; x86
+0x262AA  1F7D:00DA  call 0xff40                            ; x86
+0x262AD  1F7D:00DD  add sp,0x12                            ; x86
+0x262B0  1F7D:00E0  pop si                                 ; x86
+0x262B1  1F7D:00E1  pop bp                                 ; x86
+0x262B2  1F7D:00E2  retf                                   ; x86  ; --- end ---
+0x262B3  1F7D:00E3  push bp                                ; x86
+0x262B4  1F7D:00E4  mov bp,sp                              ; x86
+0x262B6  1F7D:00E6  push si                                ; x86
+0x262B7  1F7D:00E7  mov si,[bp+0xa]                        ; x86
+0x262BA  1F7D:00EA  cmp [0x519a],sp                        ; x86
+0x262BE  1F7D:00EE  ja 0xf5                                ; x86
+0x262C0  1F7D:00F0  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x262C5  1F7D:00F5  or si,si                               ; x86
+0x262C7  1F7D:00F7  jl 0x100                               ; x86
+0x262C9  1F7D:00F9  cmp si,0x30                            ; x86
+0x262CC  1F7D:00FC  jnl 0x100                              ; x86
+0x262CE  1F7D:00FE  jmp 0x111                              ; x86
+0x262D0  1F7D:0100  push word 0x0                          ; x86
+0x262D2  1F7D:0102  push word 0x26c                        ; x86
+0x262D5  1F7D:0105  push ds                                ; x86
+0x262D6  1F7D:0106  push word 0x4faa                       ; x86
+0x262D9  1F7D:0109  call word 0x1d0b:word 0xda             ; x86
+0x262DE  1F7D:010E  add sp,0x8                             ; x86
+0x262E1  1F7D:0111  push word 0x0                          ; x86
+0x262E3  1F7D:0113  push word 0xffffffffffffffff           ; x86
+0x262E5  1F7D:0115  mov ax,si                              ; x86
+0x262E7  1F7D:0117  imul ax,ax,0x7d                        ; x86
+0x262EA  1F7D:011A  add ax,0x3829                          ; x86
+0x262ED  1F7D:011D  push ds                                ; x86
+0x262EE  1F7D:011E  push ax                                ; x86
+0x262EF  1F7D:011F  mov bx,si                              ; x86
+0x262F1  1F7D:0121  imul bx,bx,0x7d                        ; x86
+0x262F4  1F7D:0124  mov al,[bx+0x3828]                     ; x86
+0x262F8  1F7D:0128  cbw                                    ; x86
+0x262F9  1F7D:0129  push ax                                ; x86
+0x262FA  1F7D:012A  mov bx,si                              ; x86
+0x262FC  1F7D:012C  imul bx,bx,0x7d                        ; x86
+0x262FF  1F7D:012F  mov al,[bx+0x3827]                     ; x86
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 129
+Total: 129
+

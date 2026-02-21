@@ -1,0 +1,249 @@
+Searching for DS:0xEF22 in file 0x06A00..0x656E0
+Needle: 22 EF
+
+  file 0x266C0  [icons.cpp+]
+    context: 01 AB 3D 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 C4 5E
+  file 0x26EA2  [icons.cpp+]
+    context: 00 16 2A 83 C4 04 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2A664  [icons.cpp+]  (MOV ,AX)
+    context: 20 EF A2 00 A1 2C EF A3 22 EF A1 2A EF A3 28 EF 6A 00
+  file 0x2A8AA  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2D135  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2D364  [icons.cpp+]
+    context: 05 9A CE A2 00 00 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D374  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D384  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D391  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D3A4  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FE 50 56 FF 1E F4
+  file 0x2D3B4  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 02 50 56 FF 1E F4
+  file 0x2D3C4  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D3D4  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D3E1  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D3F4  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D404  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D411  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D424  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D434  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D441  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D454  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D464  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D471  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D484  [icons.cpp+]
+    context: 83 C4 06 2B 76 0A FF 36 22 EF 8D 45 FF 50 56 FF 1E F4
+  file 0x2D494  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 57 56 FF 1E F4 EE 83 C4
+  file 0x2D4A1  [icons.cpp+]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 01 50 56 FF 1E F4
+  file 0x2D69F  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2E174  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2E235  [icons.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2FCB9  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2FD43  [icons.cpp+]
+    context: 00 75 03 E9 06 01 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x30235  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x30335  [icons.cpp+]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x3033F  [icons.cpp+]
+    context: 9A 8F 02 A1 3E 59 FF 36 22 EF FF 36 44 E3 FF 36 8E 51
+  file 0x303CE  [icons.cpp+]
+    context: 00 75 03 E9 59 01 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x3045A  [icons.cpp+]
+    context: 26 83 3F 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x304C0  [icons.cpp+]
+    context: 26 83 3F 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x30823  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 83 3E
+  file 0x3089B  [icons.cpp+]
+    context: 06 89 45 83 C4 08 FF 36 22 EF FF 36 44 E3 FF 36 8E 51
+  file 0x31777  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x31A80  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x31FAA  [icons.cpp+]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 16 8D
+  file 0x2FCB9  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x2FD43  [play.cpp]
+    context: 00 75 03 E9 06 01 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x30235  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x30335  [play.cpp]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x3033F  [play.cpp]
+    context: 9A 8F 02 A1 3E 59 FF 36 22 EF FF 36 44 E3 FF 36 8E 51
+  file 0x303CE  [play.cpp]
+    context: 00 75 03 E9 59 01 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x3045A  [play.cpp]
+    context: 26 83 3F 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x304C0  [play.cpp]
+    context: 26 83 3F 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x30823  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 83 3E
+  file 0x3089B  [play.cpp]
+    context: 06 89 45 83 C4 08 FF 36 22 EF FF 36 44 E3 FF 36 8E 51
+  file 0x31777  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x31A80  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 1E 68
+  file 0x31FAA  [play.cpp]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 16 8D
+  file 0x3401E  [ranges.cpp]
+    context: 3E E2 E1 00 74 25 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x34074  [ranges.cpp]
+    context: E2 83 FF FF 75 14 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x34088  [ranges.cpp]
+    context: FF 36 A8 22 EB 17 FF 36 22 EF 9A 8F 02 A1 3E 59 8B DF
+  file 0x340D3  [ranges.cpp]
+    context: EA 83 FF FF 75 14 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x34B23  [ranges.cpp]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x3552A  [ranges.cpp]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 6A 00
+  file 0x35689  [ranges.cpp]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 6A 00
+  file 0x37B78  [ranges.cpp]
+    context: 01 71 1F 83 C4 06 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x37BF1  [ranges.cpp]
+    context: 14 00 00 A3 6E EC FF 36 22 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x39918  [shields.cpp+]
+    context: 00 AB 3D 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x3DB9D  [menu module]
+    context: 83 C4 08 E9 8A 00 FF 36 22 EF 9A 8F 02 A1 3E 59 C4 5E
+  file 0x3DC08  [menu module]
+    context: 05 05 00 50 EB 04 FF 36 22 EF C4 1E DE E1 26 FF 77 0E
+  file 0x3DC51  [menu module]
+    context: FF 36 24 EF EB 04 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 76
+  file 0x3DCD5  [menu module]
+    context: 3B 06 48 D5 74 68 FF 36 22 EF 9A 8F 02 A1 3E 59 C4 5E
+  file 0x3DD1F  [menu module]
+    context: 06 89 45 83 C4 08 FF 36 22 EF C4 5E 06 26 FF B7 9A 00
+  file 0x3DD3D  [menu module]
+    context: C7 00 71 1F EB 16 FF 36 22 EF 6A 0A A1 8E 51 05 0C 00
+  file 0x3DD77  [menu module]  (MOV AX,)
+    context: 75 05 A1 24 EF EB 03 A1 22 EF 50 FF 36 66 D5 A1 8E 51
+  file 0x3DDCE  [menu module]  (MOV AX,)
+    context: 75 05 A1 24 EF EB 03 A1 22 EF 8B F0 83 3E 02 EA 00 75
+  file 0x3DE78  [menu module]
+    context: 83 7F 28 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF FF 36
+  file 0x3DEEB  [menu module]
+    context: 26 83 3F 00 7E 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x3E058  [menu module]
+    context: 82 64 3B C7 7F BC FF 36 22 EF 9A 8F 02 A1 3E 59 33 FF
+  file 0x3E0D2  [menu module]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 8B DF 03 DB FF B7 60 ED
+  file 0x3E865  [menu module]
+    context: 26 83 3F 00 74 43 FF 36 22 EF 9A 8F 02 A1 3E 59 C4 1E
+  file 0x42DB5  [menu module]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 FF 36
+  file 0x4657B  [dialog system]
+    context: C7 06 E2 70 00 00 FF 36 22 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x46991  [dialog system]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 57 FF
+  file 0x46DA1  [dialog system]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x46FF8  [dialog system]
+    context: 4D 58 00 00 EB 5B FF 36 22 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x470EE  [dialog system]
+    context: 05 C7 46 E6 00 00 FF 36 22 EF 9A 8F 02 A1 3E 59 8B C7
+  file 0x47521  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x4763E  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 66 FF 36 2E EF 9A 8F
+  file 0x4775A  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x47820  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x47A8B  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x47BD4  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x47D2B  [dialog system]
+    context: 83 7F 02 00 74 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x47EC6  [dialog system]
+    context: 83 C4 04 E9 53 01 FF 36 22 EF 9A 8F 02 A1 3E 59 C7 46
+  file 0x49F88  [dialog system]
+    context: 8B 46 0A 89 46 FA FF 36 22 EF 9A 8F 02 A1 3E 59 6A 0A
+  file 0x4A16E  [dialog system]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 4E C6
+  file 0x4A936  [dialog system]
+    context: FF 67 0E E9 07 02 FF 36 22 EF 8D 45 05 50 8D 44 05 50
+  file 0x4A94A  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 06 50 8D 44 01 50
+  file 0x4A95D  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 04 50 8B C6 40 E9
+  file 0x4A96B  [dialog system]
+    context: 8B C6 40 E9 4F 01 FF 36 22 EF 8D 45 05 50 8D 44 05 50
+  file 0x4A97F  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 06 50 8D 44 04 50
+  file 0x4A992  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 04 50 8B C6 05 04
+  file 0x4A9A2  [dialog system]
+    context: 05 04 00 E9 18 01 FF 36 22 EF 8D 45 05 50 8D 44 05 50
+  file 0x4A9B6  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 06 50 8D 44 04 50
+  file 0x4A9C9  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 04 50 8D 44 04 50
+  file 0x4A9DC  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 06 50 56 FF 1E F4
+  file 0x4A9EC  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 04 50 56 FF 1E F4
+  file 0x4A9FF  [dialog system]
+    context: 83 C4 06 E9 3E 01 FF 36 22 EF 8D 45 07 50 8D 45 02 50
+  file 0x4AA16  [dialog system]
+    context: 1E 10 EF 83 C4 08 FF 36 22 EF 8D 45 03 50 8D 44 01 50
+  file 0x4AA29  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8B C7 05 03 00 EB 33 FF
+  file 0x4AA34  [dialog system]
+    context: C7 05 03 00 EB 33 FF 36 22 EF 8D 45 07 50 8D 45 02 50
+  file 0x4AA4B  [dialog system]
+    context: 1E 10 EF 83 C4 08 FF 36 22 EF 8D 45 06 50 8D 44 01 50
+  file 0x4AA5E  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8B C7 05 06 00 50 8B C6
+  file 0x4AA6F  [dialog system]
+    context: C6 05 03 00 EB 4B FF 36 22 EF 8D 45 05 50 8D 44 04 50
+  file 0x4AA83  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 08 50 8D 45 05 50
+  file 0x4AA9A  [dialog system]
+    context: 1E 10 EF 83 C4 08 FF 36 22 EF 8D 45 07 50 8D 44 03 50
+  file 0x4AAAD  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 07 50 8B C6 05 05
+  file 0x4AAD4  [dialog system]
+    context: 83 7E FE 00 75 56 FF 36 22 EF 8D 45 04 50 8D 44 03 50
+  file 0x4AAEB  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 06 50 8D 44 03 50
+  file 0x4AB02  [dialog system]
+    context: 1E 0C EF 83 C4 08 FF 36 22 EF 8D 45 05 50 8D 44 01 50
+  file 0x4AB15  [dialog system]
+    context: 1E F4 EE 83 C4 06 FF 36 22 EF 8D 45 05 50 8D 44 03 50
+  file 0x4AFD7  [dialog system]
+    context: 06 89 45 83 C4 08 FF 36 22 EF 9A 8F 02 A1 3E 59 8B C6
+  file 0x4B03F  [dialog system]
+    context: EB 6A 0B FF 75 06 FF 36 22 EF EB 04 FF 36 24 EF 9A 8F
+  file 0x4B7B8  [dialog system]
+    context: 1E 14 EF 83 C4 0A FF 36 22 EF 9A 8F 02 A1 3E 59 56 FF
+
+--- 122 references found ---

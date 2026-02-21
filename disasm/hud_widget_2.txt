@@ -1,0 +1,82 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 73
+Total: 73
+0x3DE9B  3749:000B  push bp                                ; x86
+0x3DE9C  3749:000C  mov bp,sp                              ; x86
+0x3DE9E  3749:000E  cmp [0x519a],sp                        ; x86
+0x3DEA2  3749:0012  ja 0x19                                ; x86
+0x3DEA4  3749:0014  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DEA9  3749:0019  cmp word [0x5142],0x0                  ; x86
+0x3DEAE  3749:001E  jnz 0x22                               ; x86
+0x3DEB0  3749:0020  pop bp                                 ; x86
+0x3DEB1  3749:0021  retf                                   ; x86  ; --- end ---
+0x3DEB2  3749:0022  push word [0xef28]                     ; x86
+0x3DEB6  3749:0026  mov ax,[0x518e]                        ; x86
+0x3DEB9  3749:0029  add ax,0x17                            ; x86
+0x3DEBC  3749:002C  push ax                                ; x86
+0x3DEBD  3749:002D  mov ax,[0xe9ee]                        ; x86
+0x3DEC0  3749:0030  dec ax                                 ; x86
+0x3DEC1  3749:0031  push ax                                ; x86
+0x3DEC2  3749:0032  mov ax,[0x518e]                        ; x86
+0x3DEC5  3749:0035  add ax,0xc                             ; x86
+0x3DEC8  3749:0038  push ax                                ; x86
+0x3DEC9  3749:0039  push word [0xe9ec]                     ; x86
+0x3DECD  3749:003D  call word far [0xef14]                 ; x86
+0x3DED1  3749:0041  add sp,0xa                             ; x86
+0x3DED4  3749:0044  les bx,word [bp+0x6]                   ; x86
+0x3DED7  3749:0047  les bx,word [es:bx+0xb2]               ; x86
+0x3DEDC  3749:004C  mov ax,[0xd556]                        ; x86
+0x3DEDF  3749:004F  add ax,ax                              ; x86
+0x3DEE1  3749:0051  add bx,ax                              ; x86
+0x3DEE3  3749:0053  cmp word [es:bx],0x0                   ; x86
+0x3DEE7  3749:0057  jng 0x5f                               ; x86
+0x3DEE9  3749:0059  push word [0xef22]                     ; x86
+0x3DEED  3749:005D  jmp 0x63                               ; x86
+0x3DEEF  3749:005F  push word [0xef24]                     ; x86
+0x3DEF3  3749:0063  call word 0x3ea1:word 0x28f            ; x86
+0x3DEF8  3749:0068  pop cx                                 ; x86
+0x3DEF9  3749:0069  les bx,word [bp+0x6]                   ; x86
+0x3DEFC  3749:006C  les bx,word [es:bx+0xb2]               ; x86
+0x3DF01  3749:0071  mov ax,[0xd556]                        ; x86
+0x3DF04  3749:0074  add ax,ax                              ; x86
+0x3DF06  3749:0076  add bx,ax                              ; x86
+0x3DF08  3749:0078  push word [es:bx]                      ; x86
+0x3DF0B  3749:007B  push ds                                ; x86
+0x3DF0C  3749:007C  push word 0x647d                       ; x86
+0x3DF0F  3749:007F  push ds                                ; x86
+0x3DF10  3749:0080  push word 0xe05e                       ; x86
+0x3DF13  3749:0083  call word 0x0:word 0x5754              ; x86
+0x3DF18  3749:0088  add sp,0xa                             ; x86
+0x3DF1B  3749:008B  push ds                                ; x86
+0x3DF1C  3749:008C  push word 0xe05e                       ; x86
+0x3DF1F  3749:008F  mov ax,[0x518e]                        ; x86
+0x3DF22  3749:0092  add ax,0xc                             ; x86
+0x3DF25  3749:0095  push ax                                ; x86
+0x3DF26  3749:0096  push word [0xe9ec]                     ; x86
+0x3DF2A  3749:009A  call word 0x4589:word 0x684            ; x86
+0x3DF2F  3749:009F  add sp,0x8                             ; x86
+0x3DF32  3749:00A2  push word [0x6e2a]                     ; x86
+0x3DF36  3749:00A6  push word [0xd556]                     ; x86
+0x3DF3A  3749:00AA  mov ax,[0x518e]                        ; x86
+0x3DF3D  3749:00AD  add ax,0xc                             ; x86
+0x3DF40  3749:00B0  push ax                                ; x86
+0x3DF41  3749:00B1  push word [0xe9ee]                     ; x86
+0x3DF45  3749:00B5  call word 0x1f71:word 0xc7             ; x86
+0x3DF4A  3749:00BA  add sp,0x8                             ; x86
+0x3DF4D  3749:00BD  pop bp                                 ; x86
+0x3DF4E  3749:00BE  retf                                   ; x86  ; --- end ---
+0x3DF4F  3749:00BF  pop bp                                 ; x86
+0x3DF50  3749:00C0  retf                                   ; x86  ; --- end ---
+
+; ============================================================
+; === FUNCTION at file 0x3DF51 ===
+; ============================================================
+0x3DF51  3749:00C1  enter word 0x4,byte 0x0                ; x86
+0x3DF55  3749:00C5  push si                                ; x86
+0x3DF56  3749:00C6  push di                                ; x86
+0x3DF57  3749:00C7  cmp [0x519a],sp                        ; x86
+0x3DF5B  3749:00CB  ja 0xd2                                ; x86
+0x3DF5D  3749:00CD  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x3DF62  3749:00D2  db 0xff                                ; x86

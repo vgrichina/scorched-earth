@@ -1,0 +1,98 @@
+
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 93
+Total: 93
+0x302F0  298F:0000  call word 0x3ea1:word 0x28f            ; x86
+0x302F5  298F:0005  pop cx                                 ; x86
+0x302F6  298F:0006  les bx,word [bp+0x6]                   ; x86
+0x302F9  298F:0009  push word [es:bx+0x20]                 ; x86
+0x302FD  298F:000D  les bx,word [bp+0x6]                   ; x86
+0x30300  298F:0010  push word [es:bx+0x1e]                 ; x86
+0x30304  298F:0014  les bx,word [bp+0x6]                   ; x86
+0x30307  298F:0017  push word [es:bx+0x1c]                 ; x86
+0x3030B  298F:001B  push word 0xa3                         ; x86
+0x3030E  298F:001E  call word 0x456b:word 0x5              ; x86
+0x30313  298F:0023  add sp,0x8                             ; x86
+0x30316  298F:0026  les bx,word [bp+0x6]                   ; x86
+0x30319  298F:0029  push word [es:bx+0xb8]                 ; x86
+0x3031E  298F:002E  push word [es:bx+0xb6]                 ; x86
+0x30323  298F:0033  push word [0x518e]                     ; x86
+0x30327  298F:0037  push word [0xe9dc]                     ; x86
+0x3032B  298F:003B  call word 0x4589:word 0x684            ; x86
+0x30330  298F:0040  add sp,0x8                             ; x86
+0x30333  298F:0043  push word [0xef22]                     ; x86
+0x30337  298F:0047  call word 0x3ea1:word 0x28f            ; x86
+0x3033C  298F:004C  pop cx                                 ; x86
+0x3033D  298F:004D  push word [0xef22]                     ; x86
+0x30341  298F:0051  push word [0xe344]                     ; x86
+0x30345  298F:0055  push word [0x518e]                     ; x86
+0x30349  298F:0059  push word [0xe9de]                     ; x86
+0x3034D  298F:005D  call word 0x1f71:word 0xc7             ; x86
+0x30352  298F:0062  add sp,0x8                             ; x86
+0x30355  298F:0065  cmp word [0xe344],0x0                  ; x86
+0x3035A  298F:006A  jnz 0x8d                               ; x86
+0x3035C  298F:006C  mov bx,[0xe344]                        ; x86
+0x30360  298F:0070  imul bx,bx,0x34                        ; x86
+0x30363  298F:0073  push word [bx+0x11f8]                  ; x86
+0x30367  298F:0077  push word [bx+0x11f6]                  ; x86
+0x3036B  298F:007B  push ds                                ; x86
+0x3036C  298F:007C  push word 0x57c2                       ; x86
+0x3036F  298F:007F  push ds                                ; x86
+0x30370  298F:0080  push word 0xe05e                       ; x86
+0x30373  298F:0083  call word 0x0:word 0x5754              ; x86
+0x30378  298F:0088  add sp,0xc                             ; x86
+0x3037B  298F:008B  jmp 0xbe                               ; x86
+0x3037D  298F:008D  mov bx,[0xe344]                        ; x86
+0x30381  298F:0091  imul bx,bx,0x34                        ; x86
+0x30384  298F:0094  push word [bx+0x11f8]                  ; x86
+0x30388  298F:0098  push word [bx+0x11f6]                  ; x86
+0x3038C  298F:009C  les bx,word [bp+0x6]                   ; x86
+0x3038F  298F:009F  les bx,word [es:bx+0xb2]               ; x86
+0x30394  298F:00A4  mov ax,[0xe344]                        ; x86
+0x30397  298F:00A7  add ax,ax                              ; x86
+0x30399  298F:00A9  add bx,ax                              ; x86
+0x3039B  298F:00AB  push word [es:bx]                      ; x86
+0x3039E  298F:00AE  push ds                                ; x86
+0x3039F  298F:00AF  push word 0x57c5                       ; x86
+0x303A2  298F:00B2  push ds                                ; x86
+0x303A3  298F:00B3  push word 0xe05e                       ; x86
+0x303A6  298F:00B6  call word 0x0:word 0x5754              ; x86
+0x303AB  298F:00BB  add sp,0xe                             ; x86
+0x303AE  298F:00BE  push ds                                ; x86
+0x303AF  298F:00BF  push word 0xe05e                       ; x86
+0x303B2  298F:00C2  push word [0x518e]                     ; x86
+0x303B6  298F:00C6  push word [0xe9e0]                     ; x86
+0x303BA  298F:00CA  call word 0x4589:word 0x684            ; x86
+0x303BF  298F:00CF  add sp,0x8                             ; x86
+0x303C2  298F:00D2  cmp word [0x5142],0x0                  ; x86
+0x303C7  298F:00D7  jnz 0xdc                               ; x86
+0x303C9  298F:00D9  jmp 0x235                              ; x86
+0x303CC  298F:00DC  push word [0xef22]                     ; x86
+0x303D0  298F:00E0  call word 0x3ea1:word 0x28f            ; x86
+0x303D5  298F:00E5  pop cx                                 ; x86
+0x303D6  298F:00E6  push word [0x2366]                     ; x86
+0x303DA  298F:00EA  push word [0x2364]                     ; x86
+0x303DE  298F:00EE  push ds                                ; x86
+0x303DF  298F:00EF  push word 0x57cc                       ; x86
+0x303E2  298F:00F2  push ds                                ; x86
+0x303E3  298F:00F3  push word 0xe05e                       ; x86
+0x303E6  298F:00F6  call word 0x0:word 0x5754              ; x86
+0x303EB  298F:00FB  add sp,0xc                             ; x86
+0x303EE  298F:00FE  push ds                                ; x86
+0x303EF  298F:00FF  push word 0xe05e                       ; x86
+0x303F2  298F:0102  mov ax,[0x518e]                        ; x86
+0x303F5  298F:0105  add ax,0xc                             ; x86
+0x303F8  298F:0108  push ax                                ; x86
+0x303F9  298F:0109  push word [0xe9e8]                     ; x86
+0x303FD  298F:010D  call word 0x4589:word 0x684            ; x86
+0x30402  298F:0112  add sp,0x8                             ; x86
+0x30405  298F:0115  push word [bp+0x8]                     ; x86
+0x30408  298F:0118  push word [bp+0x6]                     ; x86
+0x3040B  298F:011B  call word 0x2a16:word 0xd78            ; x86
+0x30410  298F:0120  add sp,0x4                             ; x86
+0x30413  298F:0123  push word [bp+0x8]                     ; x86
+0x30416  298F:0126  push word [bp+0x6]                     ; x86
+0x30419  298F:0129  db 0x9a                                ; x86
+0x3041A  298F:012A  db 0x6b                                ; x86
+0x3041B  298F:012B  db 0x03                                ; x86
