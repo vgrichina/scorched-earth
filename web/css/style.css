@@ -61,27 +61,10 @@ body {
   text-align: center;
 }
 
-/* CRT scanline overlay */
-#landing::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.15) 2px,
-    rgba(0, 0, 0, 0.15) 4px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
 .landing-inner {
   max-width: 520px;
   padding: 2rem 1.5rem;
   position: relative;
-  z-index: 2;
 }
 
 .title-glow {
@@ -220,22 +203,6 @@ body {
   display: flex;
 }
 
-/* CRT scanline overlay on game */
-#game-wrap::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
-  );
-  pointer-events: none;
-  z-index: 5;
-}
-
 #screen {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -243,9 +210,7 @@ body {
   width: min(960px, 100vw);
   height: min(calc(960px / var(--game-aspect)), calc(100vw / var(--game-aspect)));
   border-radius: 4px;
-  box-shadow:
-    0 0 30px rgba(255, 85, 0, 0.08),
-    inset 0 0 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 30px rgba(255, 85, 0, 0.08);
   touch-action: none;
 }
 
