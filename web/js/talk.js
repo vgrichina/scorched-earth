@@ -5,7 +5,7 @@
 // EXE: pre-fire handler at 0x30668 loads string from DS:0xCC8E
 
 import { config } from './config.js';
-import { drawText } from './font.js';
+import { drawText, measureText } from './font.js';
 import { fillRect } from './framebuffer.js';
 import { random } from './utils.js';
 
@@ -181,7 +181,7 @@ export function drawSpeechBubble() {
   // Truncate long text to fit on screen
   const maxChars = 35;
   const text = bubble.text.length > maxChars ? bubble.text.substring(0, maxChars) + '..' : bubble.text;
-  const textWidth = text.length * 8;
+  const textWidth = measureText(text);
 
   // Position bubble above tank, clamped to screen
   let bx = Math.max(2, Math.min(318 - textWidth - 4, bubble.x - textWidth / 2));

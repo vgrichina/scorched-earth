@@ -7,14 +7,14 @@
 
 import { config } from './config.js';
 import { fillRect, hline, vline } from './framebuffer.js';
-import { drawText, drawTextShadow } from './font.js';
+import { drawText, drawTextShadow, measureText } from './font.js';
 import { BLACK } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
 import { consumeKey, isKeyDown } from './input.js';
 import { random } from './utils.js';
 import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
-import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, CHAR_W,
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
 
 // Shop state
@@ -179,7 +179,7 @@ export function drawShop(player) {
     const color = i === shop.category ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
     drawText(x, 14, CATEGORY_NAMES[i], color);
     if (i === shop.category) {
-      hline(x, x + CATEGORY_NAMES[i].length * CHAR_W - 1, 22, color);
+      hline(x, x + measureText(CATEGORY_NAMES[i]) - 1, 22, color);
     }
   }
 

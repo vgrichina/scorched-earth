@@ -5,7 +5,7 @@
 
 import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
 import { fillRect, hline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
-import { drawText, drawTextEmbossed, measureText } from './font.js';
+import { drawText, drawTextEmbossed, measureText, FONT_HEIGHT } from './font.js';
 import { BLACK, initPalette } from './palette.js';
 import { consumeKey, consumeClick, mouse } from './input.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
@@ -13,44 +13,49 @@ import { generateTerrain, terrain, initSkyBackground, PLAYFIELD_TOP } from './te
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
          UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
-         SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT,
-         CHAR_W, CHAR_H } from './constants.js';
+         SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT
+         } from './constants.js';
 
-// --- Layout constants (320x200 small mode, EXE verified) ---
-const ROW_H = 17;       // EXE: DS:0x6316[1] = 17
-const START_Y = 5;      // EXE: small mode start Y
+// --- Layout helpers (EXE-verified, mode-dependent) ---
+// EXE at 0x3D161: if screenHeight <= 200 → small mode, else large mode
+// EXE: DS:0x6316 row height table: [0]=25 (large), [1]=17 (small)
 const LEFT_W = 128;     // left panel width (fits "Play Options..." + padding)
 const RIGHT_X = LEFT_W + 1;  // right panel start
-const BTN_H = 15;       // button height (ROW_H - 2 gap)
 const BTN_X = 4;        // button left margin
 const BTN_W = LEFT_W - 8;  // button width
-const SCREEN_W = 320;
-const SCREEN_H = 200;
+
+function isSmallMode() { return config.screenHeight <= 200; }
+function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
+function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
+function getBtnH()   { return getRowH() - 2; }             // button height = row_h - 2 gap
+function getScreenW() { return config.screenWidth; }
+function getScreenH() { return config.screenHeight; }
 
 // Terrain preview frame (EXE: draw_flat_box at file 0x3D59B)
-const FRAME_X = RIGHT_X;
-const FRAME_Y = 6;
-const FRAME_W = SCREEN_W - 6 - FRAME_X;
-const FRAME_H = SCREEN_H - 37 - FRAME_Y;
+function getFrameX() { return RIGHT_X; }
+function getFrameY() { return 6; }
+function getFrameW() { return getScreenW() - 6 - RIGHT_X; }
+function getFrameH() { return getScreenH() - 37 - 6; }
 // Interior (2px inset)
-const PREV_X = FRAME_X + 2;
-const PREV_Y = FRAME_Y + 2;
-const PREV_W = FRAME_W - 4;
-const PREV_H = FRAME_H - 4;
+function getPrevX() { return getFrameX() + 2; }
+function getPrevY() { return getFrameY() + 2; }
+function getPrevW() { return getFrameW() - 4; }
+function getPrevH() { return getFrameH() - 4; }
 
 // --- Main menu items (EXE string table at DS:0x212C-0x2154) ---
+// EXE string table at DS:0x212C-0x2154: labels include ~ for hotkey markers
 const MENU_ITEMS = [
-  { label: 'Start',           type: 'button',  action: 'start' },
-  { label: 'Players:',        type: 'spinner', key: 'numPlayers', min: 2, max: 10, step: 1 },
-  { label: 'Rounds:',         type: 'spinner', key: 'rounds', min: 1, max: 100, step: 1 },
-  { label: 'Sound...',        type: 'submenu', submenu: 'sound' },
-  { label: 'Hardware...',     type: 'submenu', submenu: 'hardware' },
-  { label: 'Economics...',    type: 'submenu', submenu: 'economics' },
-  { label: 'Physics...',      type: 'submenu', submenu: 'physics' },
-  { label: 'Landscape...',    type: 'submenu', submenu: 'landscape' },
-  { label: 'Play Options...', type: 'submenu', submenu: 'playoptions' },
-  { label: 'Weapons...',      type: 'submenu', submenu: 'weapons' },
-  { label: 'Save Changes',    type: 'button',  action: 'save' },
+  { label: '~Start',           type: 'button',  action: 'start' },
+  { label: '~Players:',        type: 'spinner', key: 'numPlayers', min: 2, max: 10, step: 1 },
+  { label: '~Rounds:',         type: 'spinner', key: 'rounds', min: 1, max: 100, step: 1 },
+  { label: 'S~ound...',        type: 'submenu', submenu: 'sound' },
+  { label: '~Hardware...',     type: 'submenu', submenu: 'hardware' },
+  { label: '~Economics...',    type: 'submenu', submenu: 'economics' },
+  { label: '~Landscape...',    type: 'submenu', submenu: 'landscape' },
+  { label: 'Ph~ysics...',      type: 'submenu', submenu: 'physics' },
+  { label: 'Play Op~tions...', type: 'submenu', submenu: 'playoptions' },
+  { label: '~Weapons...',      type: 'submenu', submenu: 'weapons' },
+  { label: 'Save ~Changes',    type: 'button',  action: 'save' },
 ];
 
 // --- Submenu definitions (EXE verified from RE doc) ---
@@ -188,7 +193,7 @@ function adjustValue(item, dir) {
 // --- Helper: center text X in right panel ---
 function centerXRight(str) {
   const tw = measureText(str);
-  return Math.floor((SCREEN_W - 6 - RIGHT_X - tw) / 2) + RIGHT_X;
+  return Math.floor((getScreenW() - 6 - RIGHT_X - tw) / 2) + RIGHT_X;
 }
 
 // --- 3D box helpers with standard UI colors ---
@@ -220,8 +225,8 @@ export function menuTick() {
 // Hit-test: is mouse over a main menu button?
 function hitTestMenuButton(mx, my) {
   for (let i = 0; i < MENU_ITEMS.length; i++) {
-    const bx = BTN_X, by = START_Y + i * ROW_H;
-    if (mx >= bx && mx < bx + BTN_W && my >= by && my < by + BTN_H) return i;
+    const bx = BTN_X, by = getStartY() + i * getRowH();
+    if (mx >= bx && mx < bx + BTN_W && my >= by && my < by + getBtnH()) return i;
   }
   return -1;
 }
@@ -325,8 +330,8 @@ function handleSubmenuInput() {
   if (mouse.over && consumeClick(0)) {
     const dlgW = 220;
     const dlgH = 30 + sub.items.length * 14;
-    const dlgX = Math.floor((SCREEN_W - dlgW) / 2);
-    const dlgY = Math.floor((SCREEN_H - dlgH) / 2);
+    const dlgX = Math.floor((getScreenW() - dlgW) / 2);
+    const dlgY = Math.floor((getScreenH() - dlgH) / 2);
 
     // Check if click is inside dialog
     if (mouse.x >= dlgX && mouse.x < dlgX + dlgW && mouse.y >= dlgY && mouse.y < dlgY + dlgH) {
@@ -448,23 +453,23 @@ export function drawMainMenu() {
   ensureTerrainPreview();
 
   // 1. Full-screen raised 3D box background (EXE: file 0x3D59B step 1)
-  boxRaised(0, 0, SCREEN_W, SCREEN_H);
+  boxRaised(0, 0, getScreenW(), getScreenH());
 
   // 2. Left panel: 11 buttons
   for (let i = 0; i < MENU_ITEMS.length; i++) {
     const item = MENU_ITEMS[i];
     const bx = BTN_X;
-    const by = START_Y + i * ROW_H;
+    const by = getStartY() + i * getRowH();
     const selected = i === menu.selectedOption && !menu.activeSubmenu;
 
     if (selected) {
-      boxSunken(bx, by, BTN_W, BTN_H, UI_BACKGROUND);
+      boxSunken(bx, by, BTN_W, getBtnH(), UI_BACKGROUND);
     } else {
-      boxRaised(bx, by, BTN_W, BTN_H);
+      boxRaised(bx, by, BTN_W, getBtnH());
     }
 
     const textColor = selected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-    const textY = by + Math.floor((BTN_H - CHAR_H) / 2);
+    const textY = by + Math.floor((getBtnH() - FONT_HEIGHT) / 2);
 
     if (item.type === 'spinner') {
       // Label on left, value on right with arrows when selected
@@ -484,7 +489,7 @@ export function drawMainMenu() {
   }
 
   // 3. Right panel: sunken terrain preview frame (EXE: draw_flat_box)
-  boxSunken(FRAME_X, FRAME_Y, FRAME_W, FRAME_H, BLACK);
+  boxSunken(getFrameX(), getFrameY(), getFrameW(), getFrameH(), BLACK);
 
   // 4. Render terrain preview inside frame
   drawTerrainPreview();
@@ -505,12 +510,12 @@ export function drawMainMenu() {
   // 7. Copyright at bottom of right panel (EXE: split across 2 lines in small mode)
   const copy1 = 'Copyright (c) 1991-1995';
   const copy2 = 'Wendell Hicken';
-  drawText(centerXRight(copy1), SCREEN_H - 33, copy1, UI_DARK_TEXT);
-  drawText(centerXRight(copy2), SCREEN_H - 20, copy2, UI_DARK_TEXT);
+  drawText(centerXRight(copy1), getScreenH() - 33, copy1, UI_DARK_TEXT);
+  drawText(centerXRight(copy2), getScreenH() - 20, copy2, UI_DARK_TEXT);
 
   // 8. Save feedback
   if (menu.saveFlash > 0) {
-    drawText(centerXRight('Saved!'), SCREEN_H - 46, 'Saved!', UI_HIGHLIGHT);
+    drawText(centerXRight('Saved!'), getScreenH() - 46, 'Saved!', UI_HIGHLIGHT);
   }
 
   // 9. Submenu overlay (if active)
@@ -521,25 +526,25 @@ export function drawMainMenu() {
 
 function drawTerrainPreview() {
   // Map terrain[] (320 wide, heights in screen coords) into the preview area
-  const playH = SCREEN_H - PLAYFIELD_TOP;
-  for (let cx = 0; cx < PREV_W; cx++) {
-    const tx = Math.floor(cx * SCREEN_W / PREV_W);
+  const playH = getScreenH() - PLAYFIELD_TOP;
+  for (let cx = 0; cx < getPrevW(); cx++) {
+    const tx = Math.floor(cx * getScreenW() / getPrevW());
     const terrainY = terrain[tx];
     // Scale terrain height into preview coordinates
-    const scaledTerrainRow = Math.floor((terrainY - PLAYFIELD_TOP) * PREV_H / playH);
+    const scaledTerrainRow = Math.floor((terrainY - PLAYFIELD_TOP) * getPrevH() / playH);
 
-    for (let cy = 0; cy < PREV_H; cy++) {
-      const px = PREV_X + cx;
-      const py = PREV_Y + cy;
+    for (let cy = 0; cy < getPrevH(); cy++) {
+      const px = getPrevX() + cx;
+      const py = getPrevY() + cy;
       if (cy < scaledTerrainRow) {
         // Sky — map row to sky palette
-        const screenRow = PLAYFIELD_TOP + Math.floor(cy * playH / PREV_H);
-        const skyIdx = SKY_PAL_START + Math.floor(screenRow * (SKY_PAL_COUNT - 1) / (SCREEN_H - 1));
+        const screenRow = PLAYFIELD_TOP + Math.floor(cy * playH / getPrevH());
+        const skyIdx = SKY_PAL_START + Math.floor(screenRow * (SKY_PAL_COUNT - 1) / (getScreenH() - 1));
         setPixel(px, py, skyIdx);
       } else {
         // Terrain — depth-based coloring
-        const depth = PREV_H - 1 - cy;
-        const palIdx = TERRAIN_PAL_START + Math.floor(depth * (TERRAIN_PAL_COUNT - 1) / Math.max(PREV_H - scaledTerrainRow, 1));
+        const depth = getPrevH() - 1 - cy;
+        const palIdx = TERRAIN_PAL_START + Math.floor(depth * (TERRAIN_PAL_COUNT - 1) / Math.max(getPrevH() - scaledTerrainRow, 1));
         setPixel(px, py, palIdx);
       }
     }
@@ -554,8 +559,8 @@ function drawSubmenu() {
   // Size the dialog to fit contents
   const dlgW = 220;
   const dlgH = 30 + itemCount * 14;
-  const dlgX = Math.floor((SCREEN_W - dlgW) / 2);
-  const dlgY = Math.floor((SCREEN_H - dlgH) / 2);
+  const dlgX = Math.floor((getScreenW() - dlgW) / 2);
+  const dlgY = Math.floor((getScreenH() - dlgH) / 2);
 
   // Raised dialog box
   boxRaised(dlgX, dlgY, dlgW, dlgH);
@@ -596,7 +601,7 @@ function drawSubmenu() {
 // --- Player setup screen (kept similar to original) ---
 export function drawPlayerSetupScreen() {
   // Use 3D background
-  boxRaised(0, 0, SCREEN_W, SCREEN_H);
+  boxRaised(0, 0, getScreenW(), getScreenH());
 
   const idx = menu.playerSetupIdx;
   if (idx >= config.numPlayers) return;
@@ -606,14 +611,14 @@ export function drawPlayerSetupScreen() {
 
   // Title area
   const titleStr = 'PLAYER SETUP';
-  drawText(Math.floor((SCREEN_W - measureText(titleStr)) / 2), 8, titleStr, UI_HIGHLIGHT);
-  hline(8, SCREEN_W - 9, 18, UI_MED_BORDER);
+  drawText(Math.floor((getScreenW() - measureText(titleStr)) / 2), 8, titleStr, UI_HIGHLIGHT);
+  hline(8, getScreenW() - 9, 18, UI_MED_BORDER);
 
   // Player indicator
   drawText(8, 28, `Player ${idx + 1} of ${config.numPlayers}`, baseColor);
 
   // Sunken fields area
-  boxSunken(20, 42, SCREEN_W - 40, 50, UI_BACKGROUND);
+  boxSunken(20, 42, getScreenW() - 40, 50, UI_BACKGROUND);
 
   // Name field
   const nameSelected = menu.playerSetupField === 0;
@@ -639,8 +644,8 @@ export function drawPlayerSetupScreen() {
   }
 
   // Instructions
-  const footerY = SCREEN_H - 24;
-  hline(8, SCREEN_W - 9, footerY - 4, UI_MED_BORDER);
+  const footerY = getScreenH() - 24;
+  hline(8, getScreenW() - 9, footerY - 4, UI_MED_BORDER);
   drawText(8, footerY, 'UP/DOWN:Field  L/R:Type  Type name', UI_DARK_TEXT);
   drawText(8, footerY + 10, 'ENTER:Next  ESC:Back', UI_DARK_TEXT);
 }

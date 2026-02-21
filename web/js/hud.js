@@ -8,11 +8,11 @@
 
 import { config } from './config.js';
 import { hline, fillRect, setPixel } from './framebuffer.js';
-import { drawText } from './font.js';
+import { drawText, measureText } from './font.js';
 import { BLACK } from './palette.js';
 import { WEAPONS } from './weapons.js';
 import { players } from './tank.js';
-import { CHAR_W, COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL } from './constants.js';
 
 // HUD layout constants (from EXE disasm at file 0x2FBCA)
@@ -52,14 +52,14 @@ export function drawHud(player, wind, round, opts) {
 
   // EXE: barX computed as LEFT + max(nameW+8, row2_label1W+colonW, row2_label2W+colonW)
   // name+8 accounts for the ":" appended by sprintf "%s:"
-  const nameColonW = (player.name.length + 1) * CHAR_W;
-  const windLabelW = 8 * CHAR_W; // "No Wind:" = 8 chars (worst case for alignment)
-  const angleLabelW = 6 * CHAR_W; // "Angle:" = 6 chars + ": " measurement
+  const nameColonW = measureText(player.name + ':');
+  const windLabelW = measureText('No Wind:'); // worst case for alignment
   const barX = LEFT + Math.max(nameColonW, windLabelW);
   const afterBarX = barX + BAR_WIDTH + AFTER_BAR_GAP;
 
   // Row 2 second bar position: afterBarX + "Angle:" width
-  const angleBarX = afterBarX + 7 * CHAR_W; // "Angle: " (7 chars including space)
+  const angleLabelW = measureText('Angle: ');
+  const angleBarX = afterBarX + angleLabelW;
   const angleBarW = Math.min(BAR_WIDTH, config.screenWidth - LEFT - angleBarX - 2);
 
   // Background — EXE: fg_rect(5, row1_y, screenW-5, bottom, bgColor)
@@ -80,7 +80,7 @@ export function drawHud(player, wind, round, opts) {
 
   // Per-player alive/dead status icons (EXE: 11px columns in after-bar area)
   // EXE: function at 0x1f71:0xc7 draws per-player indicator at afterBarX + idx*11
-  const iconBaseX = afterBarX + 4 * CHAR_W; // after power value
+  const iconBaseX = afterBarX + measureText('0000'); // after power value
   for (let i = 0; i < config.numPlayers && i < players.length; i++) {
     const p = players[i];
     const ix = iconBaseX + i * ICON_SPACING;
@@ -141,7 +141,7 @@ export function drawHud(player, wind, round, opts) {
 
     // Angle value after bar (web UX addition for precision)
     const angleAfterX = angleBarX + angleBarW + 3;
-    if (angleAfterX + 3 * CHAR_W < config.screenWidth - LEFT) {
+    if (angleAfterX + measureText('180') < config.screenWidth - LEFT) {
       drawText(angleAfterX, ROW2_Y, String(player.angle), COLOR_HUD_TEXT);
     }
   } else {
@@ -151,8 +151,8 @@ export function drawHud(player, wind, round, opts) {
 
   // Weapon name (Row 2, right-aligned — web UX addition)
   const wpnStr = weaponName + ammoStr;
-  const wpnX = config.screenWidth - LEFT - wpnStr.length * CHAR_W;
-  if (wpnX > angleBarX + angleBarW + 4 * CHAR_W) {
+  const wpnX = config.screenWidth - LEFT - measureText(wpnStr);
+  if (wpnX > angleBarX + angleBarW + measureText('    ')) {
     drawText(wpnX, ROW2_Y, wpnStr, COLOR_HUD_HIGHLIGHT);
   }
 

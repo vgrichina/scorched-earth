@@ -47,6 +47,5 @@ export const UI_MED_BORDER   = 207;  // DS:0xEF30 — bottom-right inner (raised
 export const UI_BRIGHT_BORDER = 208; // DS:0xEF32 — bottom-right outer, title layer 2
 
 // --- Font dimensions ---
-// CP437 8x8 BIOS font (IBM VGA standard, Fastgraph V4.02)
-export const CHAR_W = 8;
-export const CHAR_H = 8;
+// Fastgraph V4.02 proportional bitmap font (extracted from SCORCH.EXE)
+// FONT_HEIGHT is exported from font.js; use measureText() for text widths
