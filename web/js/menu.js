@@ -7,7 +7,7 @@ import { config, saveConfig } from './config.js';
 import { fillRect, hline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
 import { drawText, drawTextEmbossed, measureText } from './font.js';
 import { BLACK, initPalette } from './palette.js';
-import { consumeKey } from './input.js';
+import { consumeKey, consumeClick, mouse } from './input.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
 import { generateTerrain, terrain, initSkyBackground, PLAYFIELD_TOP } from './terrain.js';
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -216,6 +216,36 @@ export function menuTick() {
   return menu.screen;
 }
 
+// Hit-test: is mouse over a main menu button?
+function hitTestMenuButton(mx, my) {
+  for (let i = 0; i < MENU_ITEMS.length; i++) {
+    const bx = BTN_X, by = START_Y + i * ROW_H;
+    if (mx >= bx && mx < bx + BTN_W && my >= by && my < by + BTN_H) return i;
+  }
+  return -1;
+}
+
+// Activate the currently selected menu item
+function activateMenuItem(item) {
+  if (item.type === 'button' && item.action === 'start') {
+    saveConfig();
+    initPlayerSetup();
+    menu.screen = 'player_setup';
+    menu.playerSetupIdx = 0;
+    menu.playerSetupField = 0;
+    return 'player_setup';
+  }
+  if (item.type === 'button' && item.action === 'save') {
+    saveConfig();
+    menu.saveFlash = 60;
+  }
+  if (item.type === 'submenu') {
+    menu.activeSubmenu = item.submenu;
+    menu.submenuSelected = 0;
+  }
+  return null;
+}
+
 function handleMainMenuInput() {
   if (consumeKey('ArrowUp')) {
     menu.selectedOption = (menu.selectedOption - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
@@ -226,7 +256,7 @@ function handleMainMenuInput() {
 
   const item = MENU_ITEMS[menu.selectedOption];
 
-  // Spinner adjustment
+  // Spinner adjustment (keyboard)
   if (item.type === 'spinner') {
     if (consumeKey('ArrowLeft')) {
       config[item.key] = Math.max(item.min, config[item.key] - item.step);
@@ -236,23 +266,35 @@ function handleMainMenuInput() {
     }
   }
 
-  // Activate button/submenu
+  // Keyboard activate
   if (consumeKey('Enter') || consumeKey('Space')) {
-    if (item.type === 'button' && item.action === 'start') {
-      saveConfig();
-      initPlayerSetup();
-      menu.screen = 'player_setup';
-      menu.playerSetupIdx = 0;
-      menu.playerSetupField = 0;
-      return 'player_setup';
-    }
-    if (item.type === 'button' && item.action === 'save') {
-      saveConfig();
-      menu.saveFlash = 60;
-    }
-    if (item.type === 'submenu') {
-      menu.activeSubmenu = item.submenu;
-      menu.submenuSelected = 0;
+    const result = activateMenuItem(item);
+    if (result) return result;
+  }
+
+  // Mouse: hover to select, click to activate
+  if (mouse.over) {
+    const hit = hitTestMenuButton(mouse.x, mouse.y);
+    if (hit >= 0) {
+      menu.selectedOption = hit;
+      if (consumeClick(0)) {
+        const hitItem = MENU_ITEMS[hit];
+        // For spinners, check left/right click region for value adjustment
+        if (hitItem.type === 'spinner') {
+          const midX = BTN_X + BTN_W / 2;
+          if (mouse.x > midX) {
+            config[hitItem.key] = Math.min(hitItem.max, config[hitItem.key] + hitItem.step);
+          } else {
+            config[hitItem.key] = Math.max(hitItem.min, config[hitItem.key] - hitItem.step);
+          }
+        } else {
+          const result = activateMenuItem(hitItem);
+          if (result) return result;
+        }
+      }
+    } else {
+      // Consume click outside buttons (don't let it bleed through)
+      consumeClick(0);
     }
   }
 
@@ -277,6 +319,34 @@ function handleSubmenuInput() {
   if (consumeKey('ArrowLeft')) adjustValue(item, -1);
   if (consumeKey('ArrowRight')) adjustValue(item, 1);
 
+  // Mouse: click items to select, left/right half to adjust value
+  if (mouse.over && consumeClick(0)) {
+    const dlgW = 220;
+    const dlgH = 30 + sub.items.length * 14;
+    const dlgX = Math.floor((SCREEN_W - dlgW) / 2);
+    const dlgY = Math.floor((SCREEN_H - dlgH) / 2);
+
+    // Check if click is inside dialog
+    if (mouse.x >= dlgX && mouse.x < dlgX + dlgW && mouse.y >= dlgY && mouse.y < dlgY + dlgH) {
+      // Hit-test items
+      for (let i = 0; i < sub.items.length; i++) {
+        const iy = dlgY + 18 + i * 14;
+        if (mouse.y >= iy - 1 && mouse.y < iy + 10) {
+          menu.submenuSelected = i;
+          const clickedItem = sub.items[i];
+          if (!clickedItem.disabled) {
+            const midX = dlgX + dlgW / 2;
+            adjustValue(clickedItem, mouse.x > midX ? 1 : -1);
+          }
+          break;
+        }
+      }
+    } else {
+      // Click outside dialog = close
+      menu.activeSubmenu = null;
+    }
+  }
+
   // Mark terrain dirty if landscape/sky changed
   if (config.skyType !== prevSky || config.landType !== prevLand) {
     menu.terrainDirty = true;
@@ -292,18 +362,58 @@ function handleSubmenuInput() {
 function handlePlayerSetupInput() {
   const setup = playerSetup[menu.playerSetupIdx];
 
+  // AI type spinner (keyboard)
   if (menu.playerSetupField === 1) {
     if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
     if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
   }
 
+  // Name editing — handle typed characters and backspace
+  if (menu.playerSetupField === 0) {
+    if (consumeKey('Backspace')) {
+      setup.name = setup.name.slice(0, -1);
+    }
+    // Check for typed printable characters via the key buffer
+    for (let code = 65; code <= 90; code++) {  // A-Z
+      const keyCode = 'Key' + String.fromCharCode(code);
+      if (consumeKey(keyCode)) {
+        if (setup.name.length < 12) {
+          setup.name += String.fromCharCode(code);
+        }
+      }
+    }
+    for (let d = 0; d <= 9; d++) {
+      if (consumeKey('Digit' + d)) {
+        if (setup.name.length < 12) setup.name += String(d);
+      }
+    }
+    if (consumeKey('Space') && setup.name.length < 12) {
+      setup.name += ' ';
+    }
+  }
+
   if (consumeKey('ArrowUp')) menu.playerSetupField = Math.max(0, menu.playerSetupField - 1);
   if (consumeKey('ArrowDown')) menu.playerSetupField = Math.min(1, menu.playerSetupField + 1);
 
-  if (consumeKey('Enter') || consumeKey('Space')) {
+  if (consumeKey('Enter')) {
     menu.playerSetupIdx++;
     menu.playerSetupField = 0;
     if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
+  }
+
+  // Mouse: click name field (y~48) or AI field (y~66) to select
+  if (mouse.over && consumeClick(0)) {
+    if (mouse.y >= 42 && mouse.y < 58) {
+      menu.playerSetupField = 0;
+    } else if (mouse.y >= 58 && mouse.y < 78) {
+      menu.playerSetupField = 1;
+      // Left/right half adjusts AI type
+      if (mouse.x > 160) {
+        setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
+      } else if (mouse.x > 80) {
+        setup.aiType = Math.max(0, setup.aiType - 1);
+      }
+    }
   }
 
   if (consumeKey('Escape')) {
@@ -524,7 +634,7 @@ export function drawPlayerSetupScreen() {
   // Instructions
   const footerY = SCREEN_H - 24;
   hline(8, SCREEN_W - 9, footerY - 4, UI_MED_BORDER);
-  drawText(8, footerY, 'UP/DOWN:Field  L/R:Type', UI_DARK_TEXT);
+  drawText(8, footerY, 'UP/DOWN:Field  L/R:Type  Type name', UI_DARK_TEXT);
   drawText(8, footerY + 10, 'ENTER:Next  ESC:Back', UI_DARK_TEXT);
 }
 

@@ -17,7 +17,7 @@ import { getPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
-import { isKeyDown, consumeKey } from './input.js';
+import { isKeyDown, consumeKey, consumeClick, getMouseDelta, mouse } from './input.js';
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
@@ -261,6 +261,9 @@ function startNewRound() {
   }
 }
 
+// EXE: MOUSE_RATE (DS:0x6BF8) = 0.50 default — scales mouse delta to angle/power
+const MOUSE_RATE = 0.50;
+
 // Input handling during AIM state
 function handleAimInput(player) {
   // Angle: left/right arrows
@@ -276,6 +279,16 @@ function handleAimInput(player) {
   }
   if (isKeyDown('ArrowDown')) {
     player.power = clamp(player.power - 5, 0, 1000);
+  }
+
+  // Mouse aiming: horizontal delta → angle, vertical delta → power
+  // EXE: mouse delta scaled by MOUSE_RATE, horizontal=angle, vertical=power
+  const { dx, dy } = getMouseDelta();
+  if (dx !== 0 || dy !== 0) {
+    // Horizontal: right = decrease angle (aim right), left = increase (aim left)
+    player.angle = clamp(player.angle - dx * MOUSE_RATE, 0, 180);
+    // Vertical: up (negative dy) = increase power, down = decrease
+    player.power = clamp(Math.round(player.power - dy * MOUSE_RATE * 10), 0, 1000);
   }
 
   // Weapon cycling: Tab = next, Shift+Tab = previous
@@ -305,8 +318,8 @@ function handleAimInput(player) {
     }
   }
 
-  // Fire: space bar
-  if (consumeKey('Space')) {
+  // Fire: space bar or left click
+  if (consumeKey('Space') || consumeClick(0)) {
     return true;  // fire!
   }
   return false;
@@ -520,8 +533,9 @@ export function gameTick() {
     case STATE.FLIGHT: {
       stepSpeechBubble();
 
-      // Guided missile keyboard steering — human players only
+      // Guided missile keyboard/mouse steering — human players only
       game.guidedActive = false;
+      const gd = getMouseDelta(); // always consume delta to prevent buildup
       const firingPlayer = players[game.currentPlayer];
       if (firingPlayer && !isAI(firingPlayer)) {
         for (const proj of projectiles) {
@@ -532,6 +546,9 @@ export function gameTick() {
             if (isKeyDown('ArrowRight')) proj.guidanceCorrX += 0.3;
             if (isKeyDown('ArrowUp'))    proj.guidanceCorrY += 0.3;
             if (isKeyDown('ArrowDown'))  proj.guidanceCorrY -= 0.3;
+            // Mouse delta also steers guided missiles
+            proj.guidanceCorrX += gd.dx * 0.15;
+            proj.guidanceCorrY -= gd.dy * 0.15;
             break;
           }
         }
@@ -742,7 +759,7 @@ export function gameTick() {
     case STATE.ROUND_OVER: {
       game.roundOverTimer++;
       // Press space to continue (after brief delay)
-      if (game.roundOverTimer > 30 && consumeKey('Space')) {
+      if (game.roundOverTimer > 30 && (consumeKey('Space') || consumeClick(0))) {
         if (game.round >= config.rounds) {
           game.state = STATE.GAME_OVER;
         } else {
@@ -789,8 +806,8 @@ export function gameTick() {
     }
 
     case STATE.GAME_OVER: {
-      // Press space to go back to main menu
-      if (consumeKey('Space')) {
+      // Press space/click to go back to main menu
+      if (consumeKey('Space') || consumeClick(0)) {
         resetMenuState();
         game.state = STATE.CONFIG;
       }
@@ -888,8 +905,8 @@ export function gameTick() {
     // --- No Kibitzing / System Menu states ---
 
     case STATE.SCREEN_HIDE: {
-      // Black screen between human turns — press space to continue
-      if (consumeKey('Space')) {
+      // Black screen between human turns — press space/click to continue
+      if (consumeKey('Space') || consumeClick(0)) {
         game.state = STATE.AIM;
       }
       break;

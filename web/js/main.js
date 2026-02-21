@@ -30,7 +30,7 @@ function init() {
   const canvas = document.getElementById('screen');
   initFramebuffer(canvas);
 
-  initInput();
+  initInput(canvas);
   seedRandom(Date.now());
 
   // Set up palette for title screen (default terrain/sky)
