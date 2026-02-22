@@ -41,8 +41,9 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
   | E9FC | shield bar | 20px | W5 |
   | E9FE | [D566] item | `%2d` DS:57D4 | inline |
 
-- **Web**: X-positions now match EXE layout. All items always shown (dimColor if zero). Icons replaced with fill-bars. No tank icon or animation.
+- **Web**: X-positions now match EXE layout. All items always shown (dimColor if zero). Icons replaced with fill-bars. No tank icon or animation. Fuel display fixed to 0-1000 per-mille (×10). Battery count now reads inventory[43] correctly.
 - **Remaining gap**: No actual icons (battery icon, parachute icon). Item%/bar fill formulas are approximations. Widgets 6-7 not implemented.
+- **Icon data extracted** (via `disasm/icon_dump.py`): 48 icons at DS:0x3826, stride 125B. Icons are tiny (1-5px wide, 5-11px tall) HUD widget indicators. Notable shapes: icons 25-27 = oval/capsule (parachute?), icon 40 = right-arrow indicator. Icons with width=0 (entries 5,6,16,19-24,31,36,41-44) appear to be null/empty slots or handled via pattern_type. Implementing them would require pixel-by-pixel drawing at each widget position.
 
 ### 2b. Energy Bar Width ~~(MINOR)~~ **RESOLVED**
 - **EXE**: Widget 1 (fuel) draws text-only at E9EA — no separate fuel bar in Row 2 HUD. The 0x30=48 value appears in widget descriptor structs, not as a visible bar width.
@@ -74,25 +75,25 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 - **Web**: ~~`BTN_X = 4` (fixed)~~ Now: `getBtnX() = isSmallMode() ? 5 : 12`. Y was already correct.
 - **Impact**: Resolved — buttons now at correct X margin per mode.
 
-### 4b. Button Width (UNVERIFIED)
-- **EXE**: add_item_list parameter 0x50 = 80px button width. But this is the dialog widget item width, and actual rendered button width may include dialog padding.
-- **Web**: `BTN_W = LEFT_W - 8 = 120px`.
-- **Impact**: Buttons may be ~40px wider in web port. Need to verify how the dialog system expands widgets.
+### ~~4b. Button Width~~ — **FIXED**
+- **EXE**: add_item_list parameter 0x50 = 80px button width.
+- **Web**: ~~`BTN_W = LEFT_W - 8 = 120px`~~ Now: `BTN_W = 80`, matching EXE exactly.
+- **Impact**: Resolved — buttons are 40px narrower, matching EXE width.
 
-### 4c. Left Panel Width
-- **EXE**: Menu items rendered via dialog widget system. Left panel boundary is implicit from button positioning. Item list at width 0x50 starting at x=5/12.
-- **Web**: `LEFT_W = 128px` (hardcoded), which determines where the right panel begins.
-- **Impact**: If the EXE's left panel is narrower (~85-92px = start_x + item_width), the right panel in the web port is shifted ~36-43px to the right.
+### ~~4c. Left Panel Width~~ — **FIXED**
+- **EXE**: Menu items at x=5/12 with 80px width → left panel ends at x=89/96 (small/large mode).
+- **Web**: ~~`LEFT_W = 128px` (hardcoded)~~ Now: `getLeftW() = getBtnX() + BTN_W + 4` (89/96 per mode). Right panel `getRightX()` shifts ~33px left.
+- **Impact**: Resolved — right panel now starts at correct position, terrain preview is wider.
 
-### 4d. 3D Box Borders in Hi-Res (MISSING)
+### ~~4d. 3D Box Borders in Hi-Res~~ — **FIXED**
 - **EXE**: `draw_3d_box` uses **3-pixel borders** when `[DS:0x6E28]==3` (hi-res mode, e.g., 640x480+).
-- **Web**: Always uses 2-pixel borders regardless of resolution.
-- **Impact**: At 640x480, box edges are 1px thinner than EXE. Subtle but affects all menu elements.
+- **Web**: `drawBox3DRaised/Sunken` uses `config.screenHeight >= 400 ? 3 : 2` — matches EXE exactly.
+- **Impact**: Resolved.
 
-### 4e. Terrain Preview Frame Height (MINOR)
+### ~~4e. Terrain Preview Frame Height~~ — **FIXED**
 - **EXE**: Height = `screen_height - 37`, reduced to `screen_height - 51` if copyright text width exceeds the available right panel width.
-- **Web**: Fixed `getFrameH() = getScreenH() - 37 - 6`. No copyright width check.
-- **Impact**: Frame may be 14px too tall in edge cases where copyright overflows.
+- **Web**: ~~`getFrameH() = getScreenH() - 37 - 6`~~ Now: `getScreenH() - 37`, matching EXE normal case. Copyright overflow reduction not implemented (minor edge case).
+- **Impact**: Frame is now 6px taller, matching EXE.
 
 ### 4f. Embossed Title Position
 - **EXE**: Title rendered with 5-layer emboss. Position computed based on right panel dimensions. Exact X calculation involves the right panel center.
@@ -108,16 +109,16 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 - **Web**: `dlgW = 220` (hardcoded), `dlgH = 30 + itemCount * 14` (computed). Simple box with text.
 - **Impact**: Dialog may be wider/narrower than EXE at various resolutions.
 
-### 5b. Dialog Item Spacing
+### ~~5b. Dialog Item Spacing~~ — **FIXED**
 - **EXE**: Item spacing varies by resolution (adds 5px extra at screenH ≥ 400px, per shop analysis).
-- **Web**: Fixed 14px item spacing regardless of resolution.
-- **Impact**: At high resolutions items may be packed too tightly.
+- **Web**: ~~Fixed 14px item spacing~~ Now: `getSubRowH()` returns 19px at ≥400px, 14px otherwise. Applied in both rendering and mouse hit-testing.
+- **Impact**: Resolved — submenu dialogs now use correct spacing at all resolutions.
 
 ---
 
 ## 6. Shop Screen
 
-### 6a. Layout Architecture (FUNDAMENTALLY DIFFERENT)
+### ~~6a. Layout Architecture~~ — **MOSTLY FIXED**
 - **EXE**: Full dialog system modal. Created via `dialog_alloc(screenW, screenH, 0, 0)`. Has:
   - 3D beveled boxes for all UI elements
   - Scrollbar widget for item list
@@ -129,24 +130,25 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
   - Paint callback at 0x0DBC:0x124D for player-colored highlights
   - Tick callback at 0x0DBC:0x18F2 for animation
   - Palette animation: accent colors cycle palette indices 8-11 every 8 frames
+  - Mouse click: item rows select/buy on single/double click; tabs switch; Done exits
 
-- **Web**: Flat black background. 4 text categories at top. 10 visible rows. No 3D elements. No scrollbar. No sell dialog. No animation.
-- **Impact**: Shop is the most visually divergent screen. Barely resembles the EXE.
+- **Web**: ~~Flat black background. 4 text categories at top. No sell dialog. No animation.~~ 3D raised outer frame + sunken item panel. 3 tabs + ~Done. Score tab. **Now**: Sell sub-dialog with "Sell Equipment" title, Description/Amount/Quantity/Offer fields, Accept/Reject buttons. Palette animation: cycles accent colors (bright red, orange, magenta, dark red, deep pink) through palette entries 8-11 every 8 frames, restored on shop close. Mouse: click item to select, click selected to buy; click tabs to switch; click Done to exit.
+- **Remaining gap**: Miscellaneous sub-categories not implemented (all misc shown flat). No real scrollbar widget (uses simple vline indicator).
 
 ### ~~6b. Selection Highlight Color~~ — **FIXED**
 - **EXE**: Selection highlight = player_color + 4 (lighter shade).
 - **Web**: ~~`PLAYER_PALETTE_STRIDE + 1` (slot 1 = darkest)~~ Now: slot 3 = 80% brightness (visible player-colored highlight).
 - **Impact**: Resolved — highlight bar now clearly shows player color.
 
-### 6c. Tab Structure (DIFFERENT CATEGORIES)
+### ~~6c. Tab Structure~~ — **FIXED**
 - **EXE**: 3 main tabs: "Score" (view scores), "Weapons" (buy projectiles), "Miscellaneous" (all non-weapon items grouped by sub-category), plus "~Done" button.
-- **Web**: 4 flat categories: "Weapons", "Guidance", "Defense", "Accessories".
-- **Impact**: Different navigation structure. "Score" tab missing entirely.
+- **Web**: ~~4 flat categories: "Weapons", "Guidance", "Defense", "Accessories".~~ Now: Score | Weapons | Miscellaneous | ~Done matching EXE. Score tab shows ranked player table.
+- **Impact**: Resolved — tab structure and Score tab now match EXE.
 
-### ~~6d. Cash Label~~ — **FIXED**
+### ~~6d. Cash Label + Interest~~ — **FIXED**
 - **EXE**: "Cash Left:" (DS:0x22F8 at file 0x58B5D), plus "Earned interest" (DS:0x235C) shown between rounds.
-- **Web**: ~~"Cash: $N"~~ Now: "Cash Left: $N". Interest display still missing.
-- **Impact**: Label now matches EXE wording.
+- **Web**: ~~"Cash: $N"~~ Now: "Cash Left: $N" + "Earned interest: $N" (when > 0). `applyInterest()` now saves `player.earnedInterest` for display.
+- **Impact**: Resolved — label and interest display now match EXE.
 
 ### ~~6e. Privacy Guard~~ — **FIXED**
 - **EXE**: "NO KIBITZING!!" screen (DS:0x231C) displayed between players in hotseat mode to prevent peeking at opponent's inventory.
@@ -176,21 +178,23 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 
 ## 8. Palette / Colors
 
-### 8a. UI Palette RGB Values (UNVERIFIED)
-The web port sets these UI palette entries in `setupUIPalette()`:
-| Palette | Web RGB (6-bit) | Purpose |
-|---------|----------------|---------|
-| 200 | (63,63,63) | UI_HIGHLIGHT |
-| 201 | (20,20,20) | UI_DARK_TEXT |
-| 202 | (32,32,32) | UI_DARK_BORDER |
-| 203 | (48,48,48) | UI_BACKGROUND |
-| 204 | (52,52,52) | UI_LIGHT_ACCENT |
-| 205 | (8,8,8) | UI_DEEP_SHADOW |
-| 206 | (63,63,63) | UI_LIGHT_BORDER |
-| 207 | (24,24,24) | UI_MED_BORDER |
-| 208 | (40,40,40) | UI_BRIGHT_BORDER |
+### ~~8a. UI Palette RGB Values~~ — **FIXED**
+Extracted from `fg_setrgb` calls at file 0x2A640–0x2A770 (icons.cpp HUD init):
+| Web Palette | DS Var→EXE idx | EXE RGB (6-bit) | Old Web RGB | Updated |
+|-------------|----------------|-----------------|-------------|---------|
+| 200 UI_HIGHLIGHT | EF22 (dynamic) | player color | (63,63,63) | kept white (static sub) |
+| 201 UI_DARK_TEXT | EF24→153 | **(30,30,30)** | (20,20,20) | ✓ fixed |
+| 202 UI_DARK_BORDER | EF26→155 | **(63,63,63) WHITE** | (32,32,32) | ✓ fixed — outer raised highlight! |
+| 203 UI_BACKGROUND | EF28→151 | **(45,45,45)** | (48,48,48) | ✓ fixed |
+| 204 UI_LIGHT_ACCENT | EF2A→151 | **(45,45,45)** | (52,52,52) | ✓ fixed |
+| 205 UI_DEEP_SHADOW | EF2C→152 | **(0,0,0) BLACK** | (8,8,8) | ✓ fixed |
+| 206 UI_LIGHT_BORDER | EF2E→159 | **(55,55,55)** | (63,63,63) | ✓ fixed |
+| 207 UI_MED_BORDER | EF30→158 | **(5,5,5) near-black** | (24,24,24) | ✓ fixed |
+| 208 UI_BRIGHT_BORDER | EF32→156 | **(15,15,15)** | (40,40,40) | ✓ fixed |
 
-These values have not been verified against the EXE's actual `fg_setcolor` calls. The EXE sets UI colors via indirect function pointers (`fg_setcolor` at DS:0xEF08) in the dialog init code. The actual RGB values need to be extracted from the dialog system initialization or from VGA DAC dumps.
+**Key insight**: EF26 (UI_DARK_BORDER) = WHITE (63,63,63) — it's the **outer top-left highlight** of raised boxes, not a dark color. The naming is misleading; it means "dark side" in sunken-box context (bottom edge), not "dark color".
+
+**Also fixed**: Wall palette (150) updated from (40,40,40) to (50,50,50) per `fg_setrgb(150, 50,50,50)` at file 0x2A73B.
 
 **Known issue**: The web maps DS:0xEF22-0xEF32 to palette 200-208, but in the EXE these are **not palette indices** — they're variables holding the active drawing color. The EXE uses `fg_setcolor(color_variable)` then draws. The web treats them as fixed palette slots. This works functionally but means the web can't replicate the EXE's dynamic color switching (e.g., the HUD dynamically sets palette 163 to the player's RGB).
 
@@ -203,6 +207,11 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 
 ## 9. 3D Box Drawing
 
+### ~~9b. Raised Box Bevel Order~~ — **FIXED**
+- **EXE draw_3d_box** (0x444BB): outer TL=EF26(WHITE,63,63,63), inner TL=EF2E(55,55,55), inner BR=EF30(5,5,5), outer BR=EF32(15,15,15).
+- **Web**: ~~`boxRaised()` passed `UI_LIGHT_BORDER, UI_BRIGHT_BORDER, UI_MED_BORDER, UI_DARK_BORDER)` — happened to look correct by accident before palette fix (UI_LIGHT_BORDER was incorrectly set to white).~~ After palette fix, outer TL was (55,55,55) and outer BR was white (inverted). Now passes `(UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER)` matching EXE exactly.
+- **Impact**: Resolved — raised boxes now have correct white outer highlight on top-left and dark shadow on bottom-right.
+
 ### ~~9a. Sunken Box Bevel Order~~ — **FIXED**
 - **EXE draw_flat_box** (0x44630): Top=DS:0xEF30(MED), Left=DS:0xEF32(BRIGHT), Bottom=DS:0xEF26(DARK), Right=DS:0xEF2E(LIGHT).
 - **Web**: ~~`boxSunken()` passed `(UI_DARK_BORDER, UI_MED_BORDER, UI_LIGHT_BORDER, UI_BRIGHT_BORDER)` yielding Top=DARK, Left=MED — wrong.~~ Now passes `(UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER)` matching EXE edge assignment exactly.
@@ -214,15 +223,20 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 
 | Priority | Issue | Effort |
 |----------|-------|--------|
-| **HIGH** | Shop is fundamentally different (6a) | Large — needs dialog system |
+| ~~**HIGH**~~ | ~~Shop fundamentally different (6a)~~ | **MOSTLY FIXED** — sell dialog, palette anim, mouse clicks added |
 | ~~**HIGH**~~ | ~~Sunken box bevel order (9a)~~ | **FIXED** |
 | ~~**HIGH**~~ | ~~Full Row 2 widgets missing (2a)~~ | **PARTIALLY FIXED** (positions correct; icons still bars) |
-| **MEDIUM** | Weapon position in full Row 1 (1a) | Small — change to left-align |
+| ~~**HIGH**~~ | ~~UI palette RGB wrong (8a)~~ | **FIXED** (extracted from fg_setrgb calls) |
+| ~~**MEDIUM**~~ | ~~Weapon position in full Row 1 (1a)~~ | **FIXED** |
 | ~~**MEDIUM**~~ | ~~Menu button X margin (4a)~~ | **FIXED** |
-| **MEDIUM** | 3px borders in hi-res (4d) | Medium — conditional in drawBox3D |
+| ~~**MEDIUM**~~ | ~~Button width (4b)~~ | **FIXED** (BTN_W=80) |
+| ~~**MEDIUM**~~ | ~~Left panel width (4c)~~ | **FIXED** (dynamic, getBtnX+80+4) |
+| ~~**MEDIUM**~~ | ~~3px borders in hi-res (4d)~~ | **FIXED** (was already in code) |
+| ~~**MEDIUM**~~ | ~~Frame height (4e)~~ | **FIXED** (SH-37, removed extra -6) |
+| ~~**MEDIUM**~~ | ~~Dialog spacing (5b)~~ | **FIXED** (19px at ≥400px) |
 | **MEDIUM** | Player icons simplified (3a) | Medium — needs icon data extraction |
 | ~~**MEDIUM**~~ | ~~Shop highlight color (6b)~~ | **FIXED** |
-| **MEDIUM** | Quote char zero-width (7b) | Small — fix WIDTHS[2] |
+| ~~**MEDIUM**~~ | ~~Quote char zero-width (7b)~~ | **FIXED** |
 | ~~**MEDIUM**~~ | ~~Angle label colon (1c)~~ | **FIXED** |
 | **LOW** | Wind string format unknown (1b) | Unknown — need struct+0xB6 analysis |
 | ~~**LOW**~~ | ~~Energy bar in Row 2 (2b)~~ | **RESOLVED** (no bar, text only matches EXE) |
@@ -230,6 +244,8 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 | **LOW** | Extended font chars (7a) | Medium — extract CP437 glyphs |
 | ~~n/a~~ | ~~Shop cash label (6d)~~ | **FIXED** ("Cash Left:") |
 | ~~n/a~~ | ~~Shop items per page (6f)~~ | **FIXED** (dynamic, up to 15) |
-| **LOW** | UI palette RGB unverified (8a) | Medium — need DAC dump from EXE |
+| ~~**LOW**~~ | ~~Shop sell dialog (6a partial)~~ | **FIXED** — "Sell Equipment" sub-dialog with quantity/offer/Accept/Reject |
+| ~~**HIGH**~~ | ~~Raised box bevel order (9b)~~ | **FIXED** (caused by palette fix, now correct) |
+| **LOW** | Spinner text right-align bug | **FIXED** (bx+BTN_W instead of BTN_W) |
 | **INFO** | Row 2 wind text added (3b) | Intentional divergence |
 | **INFO** | HUD clear area smaller (noted in code) | Intentional divergence |

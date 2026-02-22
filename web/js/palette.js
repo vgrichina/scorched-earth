@@ -246,8 +246,9 @@ export function setupExplosionPalette() {
 }
 
 // --- Wall color (VGA 150) ---
+// EXE: fg_setrgb(150, 50,50,50) at file 0x2A73B — medium gray wall
 function setupWallPalette() {
-  setEntry(150, 40, 40, 40); // Gray wall
+  setEntry(150, 50, 50, 50); // Gray wall (was 40, EXE verified 50)
 }
 
 // --- System colors ---
@@ -261,18 +262,27 @@ function setupSystemColors() {
 }
 
 // --- 3D UI palette (VGA 200-208) ---
-// EXE: UI color variables at DS:0xEF22-0xEF32
-// Gray-scheme colors for Windows 3.1-style 3D menu UI
+// EXE: UI color variables at DS:0xEF22-0xEF32 → palette indices 151-159
+// Values extracted from fg_setrgb calls at file 0x2A640-0x2A770 (icons.cpp init):
+//   fg_setrgb(151, 45,45,45) → EF2A=EF28 — background fill, medium gray
+//   fg_setrgb(152,  0, 0, 0) → EF2C=EF22 — deepest shadow, black
+//   fg_setrgb(153, 30,30,30) → EF24 — dark text, dark gray
+//   fg_setrgb(155, 63,63,63) → EF26 — raised outer highlight, white (outer top-left)
+//   fg_setrgb(156, 15,15,15) → EF32 — raised outer shadow, dark gray (outer bottom-right)
+//   fg_setrgb(158,  5, 5, 5) → EF30 — sunken outer top, near-black
+//   fg_setrgb(159, 55,55,55) → EF2E — raised inner highlight, light gray (inner top-left)
+// EXE: UI_HIGHLIGHT (EF22) is dynamic — set to current player's base color before HUD draw
+//   Web uses static white (63,63,63) as substitute since menus aren't per-player
 function setupUIPalette() {
-  setEntry(200, 63, 63, 63);  // UI_HIGHLIGHT — bright white
-  setEntry(201, 20, 20, 20);  // UI_DARK_TEXT — dark gray text
-  setEntry(202, 32, 32, 32);  // UI_DARK_BORDER — dark border edge
-  setEntry(203, 48, 48, 48);  // UI_BACKGROUND — panel fill gray
-  setEntry(204, 52, 52, 52);  // UI_LIGHT_ACCENT — light accent
-  setEntry(205,  8,  8,  8);  // UI_DEEP_SHADOW — deepest shadow
-  setEntry(206, 63, 63, 63);  // UI_LIGHT_BORDER — top-left highlight
-  setEntry(207, 24, 24, 24);  // UI_MED_BORDER — bottom-right inner
-  setEntry(208, 40, 40, 40);  // UI_BRIGHT_BORDER — bottom-right outer
+  setEntry(200, 63, 63, 63);  // UI_HIGHLIGHT — white (EXE: dynamic player color)
+  setEntry(201, 30, 30, 30);  // UI_DARK_TEXT  — EF24→pal 153, dark gray (was 20)
+  setEntry(202, 63, 63, 63);  // UI_DARK_BORDER — EF26→pal 155, WHITE outer highlight (was 32!)
+  setEntry(203, 45, 45, 45);  // UI_BACKGROUND  — EF28→pal 151, medium gray (was 48)
+  setEntry(204, 45, 45, 45);  // UI_LIGHT_ACCENT — EF2A→pal 151, same as background (was 52)
+  setEntry(205,  0,  0,  0);  // UI_DEEP_SHADOW — EF2C→pal 152, black (was 8)
+  setEntry(206, 55, 55, 55);  // UI_LIGHT_BORDER — EF2E→pal 159, light gray (was 63)
+  setEntry(207,  5,  5,  5);  // UI_MED_BORDER  — EF30→pal 158, near-black (was 24!)
+  setEntry(208, 15, 15, 15);  // UI_BRIGHT_BORDER — EF32→pal 156, dark gray (was 40!)
 }
 
 // --- Laser sight palette (VGA 253-254) ---
@@ -291,6 +301,49 @@ function setupLaserPalette() {
   setEntry(LASER_GREEN, 0, 48, 0);
   // EXE: Plasma white — 0xFE is bright white in the original VGA DAC
   setEntry(LASER_WHITE, 63, 63, 63);
+}
+
+// --- Shop accent palette animation (EXE: palette tick at file 0x14E34) ---
+// EXE: accent color table at DS:0x1F62, 5 entries × 6 bytes RGB words.
+// Cycles palette indices 8-11 every 8 frames (test [EC], 7).
+// Palette entries 8-11 are player-1 slots 0-3 (dark gradient); they're safe
+// to hijack during the shop because those dark shades aren't used in shop UI.
+const ACCENT_COLORS = [
+  [63,  0,  0],  // bright red
+  [63, 32, 10],  // orange
+  [63,  0, 63],  // magenta
+  [63, 12, 12],  // dark red
+  [63,  0, 30],  // deep pink
+];
+// Saved copies of palette entries 8-11 for restore after shop
+const _savedAccent = new Uint8Array(4 * 3);
+
+export function saveAccentPalette() {
+  for (let i = 0; i < 4; i++) {
+    const j = (8 + i) * 3;
+    _savedAccent[i * 3]     = palette6[j];
+    _savedAccent[i * 3 + 1] = palette6[j + 1];
+    _savedAccent[i * 3 + 2] = palette6[j + 2];
+  }
+}
+
+export function restoreAccentPalette() {
+  for (let i = 0; i < 4; i++) {
+    setEntry(8 + i, _savedAccent[i * 3], _savedAccent[i * 3 + 1], _savedAccent[i * 3 + 2]);
+  }
+  updatePalette32();
+}
+
+// Called each shop frame. Only updates palette (and returns true) every 8 frames.
+export function tickAccentPalette(frame) {
+  if ((frame & 7) !== 0) return false;
+  const step = Math.floor(frame / 8) % ACCENT_COLORS.length;
+  for (let i = 0; i < 4; i++) {
+    const [r, g, b] = ACCENT_COLORS[(step + i) % ACCENT_COLORS.length];
+    setEntry(8 + i, r, g, b);
+  }
+  updatePalette32();
+  return true;
 }
 
 // Initialize entire palette
