@@ -48,7 +48,6 @@ import { hline, fillRect, setPixel } from './framebuffer.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS } from './weapons.js';
 import { players } from './tank.js';
-import { SHIELD_CONFIG } from './shields.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
 
@@ -157,7 +156,8 @@ export function drawHud(player, wind, round, opts) {
     // EXE: sprintf(buf, "%4d", player.power) at [E9D6]
     drawText(x, HUD_Y, String(player.power).padStart(4), baseColor);
     x += barWidth;
-    // EXE: sprintf(buf, "%s:", "Angle") at [E9D8]
+    // EXE: sprintf("%s:", "Angle") at DS:0x57BA formats "Angle:" → drawn at E9D8
+    // E9DA = E9D8 + measureText("Angle") + 8 (advance uses "Angle" width, not "Angle:")
     drawText(x, HUD_Y, 'Angle:', baseColor);
     x += measureText('Angle') + 8; // EXE: E9DA = E9D8 + measureText("Angle") + 8
     // EXE: sprintf(buf, "%2d", player.angle) at [E9DA] — DS:0x57BE = "%2d"
@@ -221,59 +221,90 @@ export function drawHud(player, wind, round, opts) {
     }
   } else {
     // --- Full mode Row 2: inventory widgets (EXE: draw_hud_full 0x301B2) ---
-    // EXE: Row 2 label = player name (DS:0x2364), drawn in [EF22]
+    // Layout from compute_hud_layout_full (0x2FEBE). Color rule:
+    //   baseColor if count > 0, dimColor if count == 0 — ALL items always shown.
+    //
+    //   E9E8 = LEFT=5           → player name "Name:"
+    //   E9EA = barX             → W1: fuel% text ("%4ld") [field=m("8888 ")]
+    //   E9EC = E9EA+m("8888 ") → W2 (0x3DE9B): battery count ("%2d") [DS:647D]
+    //   E9EE = E9EC+m("99 ")   → W2: battery indicator (25px, icons.cpp)
+    //   E9F0 = E9EE+25          → inline: parachute count ("%2d") [DS:57D0, inv[D554=42]]
+    //   E9F2 = E9F0+m("99 ")   → W3 (0x3DE5E): parachute indicator (25px, icons.cpp)
+    //   E9F4 = E9F2+25          → W4 (0x3DB30): item count [field=m("99 ")]
+    //   E9F6 = E9F4+m("99 ")   → W4: item bar (20px)
+    //   E9F8 = E9F6+20          → W4: item% text [field=m("100% ")]
+    //   E9FA = E9F8+m("100% ") → W5 (0x3DC94): shield count ("%d") [DS:6476]
+    //   E9FC = E9FA+m("99 ")   → W5: shield bar (20px)
+    //   E9FE = E9FC+20          → inline: [D566] item ("%2d") [DS:57D4]
     drawText(LEFT, ROW2_Y, player.name + ':', baseColor);
 
-    let x = barX;
+    const countFieldW = measureText('99 ');    // DS:579B / 579F / 57A9
+    const pctFieldW   = measureText('100% ');  // DS:57A3
 
-    // Widget 1: Energy/fuel bar (EXE: 0x318D8, 48px bar, fuel percentage)
-    // EXE: (total - spent) * 100 / total → percentage, formats "%4ld"
-    const energyBarW = Math.min(40, barWidth);
-    drawBarOutline(x, ROW2_Y, energyBarW, baseColor);
-    drawBarFill(x, ROW2_Y, energyBarW, UI_DEEP_SHADOW);
-    const energyFill = Math.floor((player.energy / 100) * energyBarW);
-    drawBarFill(x, ROW2_Y, energyFill, baseColor);
-    x += energyBarW + 2;
-    // EXE: energy text (format "%d%%")
-    const energyColor = player.energy > 0 ? baseColor : dimColor;
-    drawText(x, ROW2_Y, player.energy + '%', energyColor);
-    x += measureText('100% ');
+    // Widget 1 (0x318D8): fuel% at barX = E9EA, format "%4ld" → 4-char integer
+    // EXE: (total_fuel - used_fuel) related metric; web: player.energy = 0-100%
+    let x = barX; // E9EA
+    const fuelPct = Math.max(0, Math.min(100, player.energy || 0));
+    const fuelColor = fuelPct > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(fuelPct).padStart(4), fuelColor);
+    x += barWidth; // → E9EC
 
-    // Widget 5: Shield display (EXE: 0x3DC94, reads struct[0x9A] = activeShield)
-    // EXE: if shield != [D548](none), show count + bar; else show filled bar
-    if (player.activeShield > 0 && x + measureText('Shd:200 ') < config.screenWidth - LEFT) {
-      const shieldCfg = SHIELD_CONFIG[player.activeShield];
-      const sName = shieldCfg ? shieldCfg.name.slice(0, 4) : 'Shd';
-      const sText = sName + ':' + player.shieldEnergy;
-      drawText(x, ROW2_Y, sText, baseColor);
-      x += measureText(sText) + measureText(' ');
-    }
+    // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), indicator (25px) at E9EE
+    // EXE: inventory[D556=43] = battery count; icons.cpp draws indicator icon
+    const batCount = player.batteries || 0;
+    const batColor = batCount > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(batCount).padStart(2), batColor);
+    x += countFieldW; // → E9EE
+    drawBarOutline(x, ROW2_Y, 25, batColor);
+    drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
+    if (batCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, Math.ceil(batCount * 2.5)), batColor);
+    x += 25; // → E9F0
 
-    // Widget 3/6: Key inventory items (EXE: checks struct[0x28], struct[0x2A])
-    // Web port: show batteries, parachutes, laser counts
-    // EXE pattern: color = count > 0 ? [EF22] : [EF24]
-    if (player.batteries > 0 && x + measureText('B:9 ') < config.screenWidth - LEFT) {
-      drawText(x, ROW2_Y, 'B:' + player.batteries, baseColor);
-      x += measureText('B:9 ');
-    }
-    const parachutes = player.inventory[42]; // WPN index 42 = Parachute
-    if (parachutes > 0 && x + measureText('P:9 ') < config.screenWidth - LEFT) {
-      drawText(x, ROW2_Y, 'P:' + parachutes, baseColor);
-      x += measureText('P:9 ');
-    }
-    const lasers = player.inventory[35]; // WPN index 35 = Laser
-    if (lasers > 0 && x + measureText('L:9 ') < config.screenWidth - LEFT) {
-      drawText(x, ROW2_Y, 'L:' + lasers, baseColor);
-      x += measureText('L:9 ');
-    }
+    // Inline (draw_hud_full 0x303CC): parachute count at E9F0, format "%2d" [DS:57D0]
+    // EXE: inventory[D554=42] = parachute count
+    const paraCount = player.inventory ? (player.inventory[42] || 0) : 0;
+    const paraColor = paraCount > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(paraCount).padStart(2), paraColor);
+    x += countFieldW; // → E9F2
 
-    // Weapon name + ammo — right-aligned (EXE: format "%d: %s" or "%s")
-    const ammoStr = ammo === -1 ? '' : ' x' + ammo;
-    const wpnStr = weaponName + ammoStr;
-    const wpnX = config.screenWidth - LEFT - measureText(wpnStr);
-    if (wpnX > x) {
-      drawText(wpnX, ROW2_Y, wpnStr, baseColor);
+    // Widget 3 (0x3DE5E): parachute indicator (25px) at E9F2 — icons.cpp icon
+    drawBarOutline(x, ROW2_Y, 25, paraColor);
+    drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
+    if (paraCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, paraCount * 5), paraColor);
+    x += 25; // → E9F4
+
+    // Widget 4 (0x3DB30): current item count at E9F4, bar (20px) at E9F6, % at E9F8
+    // EXE: selected weapon count from weapon_sub_struct; bar = quantity level; % = ammo%
+    const itemCount = ammo === -1 ? 0 : Math.max(0, ammo || 0);
+    const itemColor = (ammo === -1 || itemCount > 0) ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(Math.min(99, itemCount)), itemColor);
+    x += countFieldW; // → E9F6
+    drawBarOutline(x, ROW2_Y, 20, itemColor);
+    drawBarFill(x, ROW2_Y, 20, UI_DEEP_SHADOW);
+    if (ammo === -1) {
+      drawBarFill(x, ROW2_Y, 20, itemColor); // unlimited = full bar
+    } else if (itemCount > 0) {
+      drawBarFill(x, ROW2_Y, Math.min(20, Math.round(itemCount / 5)), itemColor);
     }
+    x += 20; // → E9F8
+    // Item % text (format "%d%%") — EXE draws quantity as percentage of some max
+    const itemPct = ammo === -1 ? 100 : Math.min(100, itemCount * 10);
+    drawText(x, ROW2_Y, itemPct + '%', itemColor);
+    x += pctFieldW; // → E9FA
+
+    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), bar (20px) at E9FC
+    // EXE: inventory[activeShield] = shield qty; web: shieldEnergy = HP remaining
+    const shieldCount = player.shieldEnergy || 0;
+    const shieldColor = shieldCount > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(Math.min(99, shieldCount)), shieldColor);
+    x += countFieldW; // → E9FC
+    drawBarOutline(x, ROW2_Y, 20, shieldColor);
+    drawBarFill(x, ROW2_Y, 20, UI_DEEP_SHADOW);
+    if (shieldCount > 0) drawBarFill(x, ROW2_Y, Math.min(20, Math.round(shieldCount / 5)), shieldColor);
+    x += 20; // → E9FE
+
+    // Inline (draw_hud_full 0x304A9): [D566] item at E9FE ("%2d" DS:57D4)
+    // EXE: DS:D566 = weapon index (currently 0 at runtime = none); skip if 0
   }
 
   // Guided missile indicator (gameplay feature, not from EXE HUD)

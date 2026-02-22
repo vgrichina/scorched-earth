@@ -17,41 +17,36 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 - **Web**: Generates "No Wind" or "Wind: N" manually.
 - **Impact**: Minor visual difference in wind indicator text. Functional equivalent but not pixel-identical.
 
-### 1c. Angle Label Spacing (MINOR)
-- **EXE**: Angle value X = angle_label_x + measureText("Angle") + 8. The "Angle:" label has its colon measured separately; +8 is added AFTER the label text without colon.
-- **Web**: `x += measureText('Angle') + 8` — close match, but the code draws "Angle:" (with colon), so the colon occupies extra pixels beyond the +8 gap.
-- **Impact**: ~3px shift in angle value position.
+### 1c. Angle Label Spacing ~~(MINOR)~~ **FIXED**
+- **EXE**: `sprintf("%s:", "Angle")` at DS:0x57BA → draws "Angle:". E9DA = E9D8 + measureText("Angle") + 8 (advance uses bare "Angle" width, not "Angle:").
+- **Web**: Now draws "Angle:" with `x += measureText('Angle') + 8` — matches EXE exactly.
 
 ---
 
 ## 2. HUD — Full Mode Row 2
 
-### 2a. Widget System (SIMPLIFIED — largest gap)
-- **EXE**: 7 distinct inventory widgets, each with its own rendering function:
-  | Widget | File | Display | Bar Width |
-  |--------|------|---------|-----------|
-  | 1 | 0x318D8 | Tank icon + fuel % (with scale animation) | 48px |
-  | 2 | 0x3DE9B | Inventory bar + count | 25px |
-  | 3 | 0x3DE5E | Defense icon + bar (Parachute) | 25px |
-  | 4 | 0x3DB30 | Item name + percentage bar | 31px |
-  | 5 | 0x3DC94 | Shield selector + bar | 18px |
-  | 6 | 0x3DD59 | Item icon + bar (Super Mag) | 34px |
-  | 7 | 0x3DD95 | Conditional display (flag-based) | 33px |
+### 2a. Widget System ~~(SIMPLIFIED — largest gap)~~ **PARTIALLY FIXED**
+- **EXE**: 7 distinct inventory widgets with icons (via icons.cpp), using exact positions from `compute_hud_layout_full`:
+  | Position | Content | Format | Source |
+  |----------|---------|--------|--------|
+  | E9EA=barX | fuel% text | `%4ld` | W1 (0x318D8) |
+  | E9EC | battery count | `%2d` DS:647D | W2 (0x3DE9B) |
+  | E9EE | battery indicator (icon) | 25px | W2 icons.cpp |
+  | E9F0 | parachute count | `%2d` DS:57D0 | inline |
+  | E9F2 | parachute indicator (icon) | 25px | W3 (0x3DE5E) |
+  | E9F4 | item count | `%d` | W4 (0x3DB30) |
+  | E9F6 | item bar | 20px | W4 |
+  | E9F8 | item% text | `%d%%` | W4 |
+  | E9FA | shield count | `%d` DS:6476 | W5 (0x3DC94) |
+  | E9FC | shield bar | 20px | W5 |
+  | E9FE | [D566] item | `%2d` DS:57D4 | inline |
 
-  Each widget: clears sub-area → draws icon → draws fill bar → formats value. Color = `count > 0 ? [EF22] : [EF24]`.
+- **Web**: X-positions now match EXE layout. All items always shown (dimColor if zero). Icons replaced with fill-bars. No tank icon or animation.
+- **Remaining gap**: No actual icons (battery icon, parachute icon). Item%/bar fill formulas are approximations. Widgets 6-7 not implemented.
 
-- **Web**: Text-only approximation:
-  ```
-  [Energy bar + %] [Shd:NNN] [B:n] [P:n] [L:n] [weapon name]
-  ```
-  No icons. No per-widget bars. Only 3 inventory items shown (batteries, parachutes, lasers) vs. 7 widget slots. Shield shown as text not bar.
-
-- **Impact**: Row 2 in full mode looks fundamentally different. Missing tank icon, item bars, fill animations.
-
-### 2b. Energy Bar Width (MINOR)
-- **EXE**: Widget 1 bar is 48px (0x30).
-- **Web**: `energyBarW = Math.min(40, barWidth)` — typically 40px or less.
-- **Impact**: Bar is ~8px narrower than EXE.
+### 2b. Energy Bar Width ~~(MINOR)~~ **RESOLVED**
+- **EXE**: Widget 1 (fuel) draws text-only at E9EA — no separate fuel bar in Row 2 HUD. The 0x30=48 value appears in widget descriptor structs, not as a visible bar width.
+- **Web**: Removed the fuel bar; now shows fuel% text only, matching EXE layout.
 
 ---
 
@@ -221,15 +216,16 @@ These values have not been verified against the EXE's actual `fg_setcolor` calls
 |----------|-------|--------|
 | **HIGH** | Shop is fundamentally different (6a) | Large — needs dialog system |
 | ~~**HIGH**~~ | ~~Sunken box bevel order (9a)~~ | **FIXED** |
-| **HIGH** | Full Row 2 widgets missing (2a) | Large — needs icon extraction + 7 renderers |
+| ~~**HIGH**~~ | ~~Full Row 2 widgets missing (2a)~~ | **PARTIALLY FIXED** (positions correct; icons still bars) |
 | **MEDIUM** | Weapon position in full Row 1 (1a) | Small — change to left-align |
 | ~~**MEDIUM**~~ | ~~Menu button X margin (4a)~~ | **FIXED** |
 | **MEDIUM** | 3px borders in hi-res (4d) | Medium — conditional in drawBox3D |
 | **MEDIUM** | Player icons simplified (3a) | Medium — needs icon data extraction |
 | ~~**MEDIUM**~~ | ~~Shop highlight color (6b)~~ | **FIXED** |
 | **MEDIUM** | Quote char zero-width (7b) | Small — fix WIDTHS[2] |
+| ~~**MEDIUM**~~ | ~~Angle label colon (1c)~~ | **FIXED** |
 | **LOW** | Wind string format unknown (1b) | Unknown — need struct+0xB6 analysis |
-| **LOW** | Energy bar 8px narrower (2b) | Trivial — change to 48 |
+| ~~**LOW**~~ | ~~Energy bar in Row 2 (2b)~~ | **RESOLVED** (no bar, text only matches EXE) |
 | ~~**LOW**~~ | ~~Privacy guard (6e)~~ | **FIXED** |
 | **LOW** | Extended font chars (7a) | Medium — extract CP437 glyphs |
 | ~~n/a~~ | ~~Shop cash label (6d)~~ | **FIXED** ("Cash Left:") |
