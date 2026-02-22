@@ -222,42 +222,49 @@ export function clear(colorIndex) {
 }
 
 // EXE: draw_3d_box at file 0x444BB (0x3DAB:0x000B) — raised box, Windows 3.1-style
-// EXE: 2px beveled border. Left/Top = DS:0xEF26(dark) + DS:0xEF2E(light),
+// EXE: 2px beveled border normally; 3px when [DS:0x6E28]==3 (hi-res mode, 640x480+)
+// EXE: Left/Top = DS:0xEF26(dark) + DS:0xEF2E(light),
 //      Right/Bottom = DS:0xEF30(med) + DS:0xEF32(bright). Interior = fill_color.
 export function drawBox3DRaised(x, y, w, h, fill, lightBorder, darkBorder, medBorder, brightBorder) {
-  // Fill interior
-  fillRect(x + 2, y + 2, x + w - 3, y + h - 3, fill);
-  // Top edge: 2px — outer=light, inner=dark (matches EXE DS:0xEF2E then DS:0xEF26)
+  // EXE: 3px border at hi-res ([DS:0x6E28]==3 i.e. 640x480+)
+  const b = config.screenHeight >= 400 ? 3 : 2;
+  fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
+  // Top/Left edges — outer=light, inner(s)=dark
   hline(x, x + w - 1, y, lightBorder);
-  hline(x + 1, x + w - 2, y + 1, darkBorder);
-  // Left edge: 2px
   vline(x, y, y + h - 1, lightBorder);
-  vline(x + 1, y + 1, y + h - 2, darkBorder);
-  // Bottom edge: 2px — outer=bright, inner=med (matches EXE DS:0xEF32 then DS:0xEF30)
+  for (let i = 1; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + i, darkBorder);
+    vline(x + i, y + i, y + h - 1 - i, darkBorder);
+  }
+  // Bottom/Right edges — outer=bright, inner(s)=med
   hline(x, x + w - 1, y + h - 1, brightBorder);
-  hline(x + 1, x + w - 2, y + h - 2, medBorder);
-  // Right edge: 2px
   vline(x + w - 1, y, y + h - 1, brightBorder);
-  vline(x + w - 2, y + 1, y + h - 2, medBorder);
+  for (let i = 1; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + h - 1 - i, medBorder);
+    vline(x + w - 1 - i, y + i, y + h - 1 - i, medBorder);
+  }
 }
 
 // EXE: draw_flat_box at file 0x44630 (0x3DAB:0x0180) — sunken/inset frame
 // EXE: reversed bevel. Top=DS:0xEF30, Left=DS:0xEF32, Bottom=DS:0xEF26, Right=DS:0xEF2E
+// EXE: also uses 3px border at hi-res (same [DS:0x6E28] check)
 export function drawBox3DSunken(x, y, w, h, fill, medBorder, brightBorder, darkBorder, lightBorder) {
-  // Fill interior
-  fillRect(x + 2, y + 2, x + w - 3, y + h - 3, fill);
-  // Top edge: sunken = med then bright
+  const b = config.screenHeight >= 400 ? 3 : 2;
+  fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
+  // Top/Left edges — outer=med, inner(s)=bright
   hline(x, x + w - 1, y, medBorder);
-  hline(x + 1, x + w - 2, y + 1, brightBorder);
-  // Left edge: sunken = bright then med
   vline(x, y, y + h - 1, brightBorder);
-  vline(x + 1, y + 1, y + h - 2, medBorder);
-  // Bottom edge: sunken = dark then light
+  for (let i = 1; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + i, brightBorder);
+    vline(x + i, y + i, y + h - 1 - i, medBorder);
+  }
+  // Bottom/Right edges — outer=dark, inner(s)=light
   hline(x, x + w - 1, y + h - 1, darkBorder);
-  hline(x + 1, x + w - 2, y + h - 2, lightBorder);
-  // Right edge: sunken = light then dark
   vline(x + w - 1, y, y + h - 1, lightBorder);
-  vline(x + w - 2, y + 1, y + h - 2, darkBorder);
+  for (let i = 1; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + h - 1 - i, lightBorder);
+    vline(x + w - 1 - i, y + i, y + h - 1 - i, darkBorder);
+  }
 }
 
 // Blit indexed framebuffer to canvas

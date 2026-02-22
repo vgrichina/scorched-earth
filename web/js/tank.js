@@ -48,11 +48,12 @@ export function createPlayer(index, name) {
     aiType: 0,           // 0 = human
     activeShield: 0,     // shield type index
     shieldEnergy: 0,
-    batteries: 0,
+    // batteries: use inventory[43] (Battery item) — not a separate field
 
     // Phase 5: scoring
     score: 0,
     wins: 0,
+    earnedInterest: 0,  // EXE: DS:0x235C "Earned interest" shown in shop
   };
 }
 

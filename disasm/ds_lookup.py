@@ -6,7 +6,7 @@ Converts between DS-relative offsets (e.g. DS:0x2B04) and file offsets,
 and optionally dumps raw bytes or interprets data at that location.
 
 Usage:
-    python3 ds_lookup.py <exe_path> <offset> [options]
+    python3 ds_lookup.py <exe_path> [options] <addr1> [addr2 ...]
 
     Offset formats:
         DS:0x1234   — DS-relative offset → shows file offset + data
@@ -21,9 +21,11 @@ Usage:
         -f32        — interpret as float32
         -f64        — interpret as float64
 
+    Multiple addresses can be given; options apply to all of them.
+
 Examples:
     python3 ds_lookup.py earth/SCORCH.EXE DS:0x2B04 -s
-    python3 ds_lookup.py earth/SCORCH.EXE 0x058884 -s
+    python3 ds_lookup.py earth/SCORCH.EXE -s DS:0x5778 DS:0x577E DS:0x5783
     python3 ds_lookup.py earth/SCORCH.EXE DS:0xEF22 -w -n 32
     python3 ds_lookup.py earth/SCORCH.EXE DS:0x11F6 -d -n 8
 """
@@ -50,67 +52,15 @@ def file_to_ds(file_offset):
     return None
 
 
-def main():
-    if len(sys.argv) < 3:
-        print(__doc__)
-        sys.exit(1)
-
-    exe_path = sys.argv[1]
-    offset_str = sys.argv[2]
-    args = sys.argv[3:]
-
-    # Parse options
-    num_bytes = 16
-    mode = 'hex'
-    i = 0
-    while i < len(args):
-        if args[i] == '-n' and i + 1 < len(args):
-            num_bytes = int(args[i + 1])
-            i += 2
-        elif args[i] == '-s':
-            mode = 'string'
-            i += 1
-        elif args[i] == '-w':
-            mode = 'words'
-            i += 1
-        elif args[i] == '-d':
-            mode = 'dwords'
-            i += 1
-        elif args[i] == '-f32':
-            mode = 'f32'
-            i += 1
-        elif args[i] == '-f64':
-            mode = 'f64'
-            i += 1
-        else:
-            print(f"Unknown option: {args[i]}")
-            sys.exit(1)
-
-    # Parse offset
-    offset_str_lower = offset_str.lower()
-    if offset_str_lower.startswith('ds:'):
-        ds_off = int(offset_str[3:], 16)
-        file_off = ds_to_file(ds_off)
-        print(f"DS:0x{ds_off:04X} → file 0x{file_off:05X}")
-    else:
-        file_off = int(offset_str, 16)
-        ds_off = file_to_ds(file_off)
-        if ds_off is not None:
-            print(f"file 0x{file_off:05X} → DS:0x{ds_off:04X}")
-        else:
-            print(f"file 0x{file_off:05X} (outside DS segment)")
-
-    # Read data
-    with open(exe_path, 'rb') as f:
-        f.seek(file_off)
-        data = f.read(max(num_bytes, 256) if mode == 'string' else num_bytes)
+def dump_at(exe_file, file_off, mode, num_bytes):
+    exe_file.seek(file_off)
+    data = exe_file.read(max(num_bytes, 256) if mode == 'string' else num_bytes)
 
     if not data:
-        print("(no data at offset)")
+        print("  (no data at offset)")
         return
 
     if mode == 'string':
-        # Find null terminator
         end = data.find(b'\x00')
         if end == -1:
             end = len(data)
@@ -170,6 +120,69 @@ def main():
             hex_str = ' '.join(f'{b:02X}' for b in chunk)
             ascii_str = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
             print(f"  {off:05X}: {hex_str:<48s} {ascii_str}")
+
+
+def main():
+    if len(sys.argv) < 3:
+        print(__doc__)
+        sys.exit(1)
+
+    exe_path = sys.argv[1]
+    rest = sys.argv[2:]
+
+    # Separate options from addresses (addresses start with DS: or 0x/hex digit)
+    num_bytes = 16
+    mode = 'hex'
+    addresses = []
+    i = 0
+    while i < len(rest):
+        arg = rest[i]
+        if arg == '-n' and i + 1 < len(rest):
+            num_bytes = int(rest[i + 1])
+            i += 2
+        elif arg == '-s':
+            mode = 'string'
+            i += 1
+        elif arg == '-w':
+            mode = 'words'
+            i += 1
+        elif arg == '-d':
+            mode = 'dwords'
+            i += 1
+        elif arg == '-f32':
+            mode = 'f32'
+            i += 1
+        elif arg == '-f64':
+            mode = 'f64'
+            i += 1
+        elif arg.startswith('-'):
+            print(f"Unknown option: {arg}")
+            sys.exit(1)
+        else:
+            addresses.append(arg)
+            i += 1
+
+    if not addresses:
+        print("Error: no address specified.")
+        sys.exit(1)
+
+    with open(exe_path, 'rb') as f:
+        for offset_str in addresses:
+            if len(addresses) > 1:
+                print(f"=== {offset_str} ===")
+            lower = offset_str.lower()
+            if lower.startswith('ds:'):
+                ds_off = int(offset_str[3:], 16)
+                file_off = ds_to_file(ds_off)
+                print(f"DS:0x{ds_off:04X} → file 0x{file_off:05X}")
+            else:
+                file_off = int(offset_str, 16)
+                ds_off = file_to_ds(file_off)
+                if ds_off is not None:
+                    print(f"file 0x{file_off:05X} → DS:0x{ds_off:04X}")
+                else:
+                    print(f"file 0x{file_off:05X} (outside DS segment)")
+            dump_at(f, file_off, mode, num_bytes)
 
 
 if __name__ == '__main__':

@@ -241,17 +241,17 @@ export function drawHud(player, wind, round, opts) {
     const countFieldW = measureText('99 ');    // DS:579B / 579F / 57A9
     const pctFieldW   = measureText('100% ');  // DS:57A3
 
-    // Widget 1 (0x318D8): fuel% at barX = E9EA, format "%4ld" → 4-char integer
-    // EXE: (total_fuel - used_fuel) related metric; web: player.energy = 0-100%
+    // Widget 1 (0x318D8): fuel at barX = E9EA, format "%4ld" → 4-char integer
+    // EXE: shows 0-1000 (per mille). Web: player.energy = 0-100%, so multiply by 10.
     let x = barX; // E9EA
-    const fuelPct = Math.max(0, Math.min(100, player.energy || 0));
-    const fuelColor = fuelPct > 0 ? baseColor : dimColor;
-    drawText(x, ROW2_Y, String(fuelPct).padStart(4), fuelColor);
+    const fuelVal = Math.max(0, Math.min(1000, Math.round((player.energy || 0) * 10)));
+    const fuelColor = fuelVal > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(fuelVal).padStart(4), fuelColor);
     x += barWidth; // → E9EC
 
     // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), indicator (25px) at E9EE
     // EXE: inventory[D556=43] = battery count; icons.cpp draws indicator icon
-    const batCount = player.batteries || 0;
+    const batCount = (player.inventory && player.inventory[43]) || 0;
     const batColor = batCount > 0 ? baseColor : dimColor;
     drawText(x, ROW2_Y, String(batCount).padStart(2), batColor);
     x += countFieldW; // → E9EE

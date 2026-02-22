@@ -659,19 +659,26 @@ These pointers are initialized at runtime based on the selected graphics mode.
 
 #### UI Color Variables
 
-All colors are stored as palette indices and set at runtime:
+All colors are stored as palette indices set at runtime via `fg_setrgb` calls at file 0x2A640–0x2A770 (icons.cpp init). Values extracted from disassembly:
 
-| DS Offset | Role in 3D UI | Used In |
-|:---------:|---------------|---------|
-| DS:0xEF22 | Bright highlight (selected items) | Menu selection, weapon names |
-| DS:0xEF24 | Dark text / mid shadow | 3D title layer 3, unselected text |
-| DS:0xEF26 | Dark border (top-left shadow) | Box shadows, title layer 5 |
-| DS:0xEF28 | Background fill color | Screen clear, box interiors |
-| DS:0xEF2A | Light accent | 3D title layer 4 |
-| DS:0xEF2C | Deep shadow | 3D title layer 1, item shadow |
-| DS:0xEF2E | Light border (top-left highlight) | Box top/left edges |
-| DS:0xEF30 | Medium border (bottom-right) | Box bottom/right edges |
-| DS:0xEF32 | Bright border (bottom-right highlight) | Box bright edges, title layer 2 |
+| DS Offset | Palette Index | RGB (6-bit) | RGB (8-bit) | Role in 3D UI | Used In |
+|:---------:|:-------------:|:-----------:|:-----------:|---------------|---------|
+| DS:0xEF22 | dynamic (player) | player color | — | Bright highlight | Menu selection, HUD text; initially = EF2C |
+| DS:0xEF24 | 0x99 (153) | (30,30,30) | (120,120,120) | Dark text / mid shadow | 3D title layer 3, unselected text |
+| DS:0xEF26 | 0x9B (155) | **(63,63,63)** | **(255,255,255)** | **Outer highlight (WHITE)** | Raised box outer TL, title layer 5, sunken box bottom |
+| DS:0xEF28 | 0x97 (151) | (45,45,45) | (180,180,180) | Background fill | Screen clear, box interiors; initially = EF2A |
+| DS:0xEF2A | 0x97 (151) | (45,45,45) | (180,180,180) | Light accent (= background) | 3D title layer 4 |
+| DS:0xEF2C | 0x98 (152) | **(0,0,0)** | **(0,0,0)** | Deep shadow (BLACK) | 3D title layer 1, bar fill, HUD highlight init |
+| DS:0xEF2E | 0x9F (159) | (55,55,55) | (222,222,222) | Inner highlight, light border | Raised box inner TL, sunken box right |
+| DS:0xEF30 | 0x9E (158) | **(5,5,5)** | **(20,20,20)** | Near-black shadow | Raised box inner BR, sunken box top |
+| DS:0xEF32 | 0x9C (156) | (15,15,15) | (61,61,61) | Dark outer shadow | Raised box outer BR, sunken box left, title layer 2 |
+
+**Key insight**: EF26 (labeled "dark" in old code comments) is actually **pure white (63,63,63)** — it serves as the outermost highlight of raised boxes and the bottom bright edge of sunken boxes. The label "dark" was misleading; it means "dark side context" (bottom/shadow edge in sunken) not "dark color".
+
+**Draw_3d_box raised** (0x444BB): outer TL=EF26(white), inner TL=EF2E, inner BR=EF30, outer BR=EF32
+**Draw_flat_box sunken** (0x44630): outer top=EF30, outer left=EF32, outer bottom=EF26(white), outer right=EF2E
+
+**Also**: Wall palette (index 150) = `fg_setrgb(150, 50,50,50)` at file 0x2A73B = medium gray (200,200,200).
 
 
 ### Status Bar / HUD
@@ -4033,23 +4040,29 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 **Remaining gaps** — full audit in `HUD_MENU_COMPARISON.md`. Summary:
 
 HIGH:
-- Shop is fundamentally different — EXE uses dialog system with 3D boxes, scrollbar, tabs (Score/Weapons/Miscellaneous/Done), sell sub-dialog, palette animation, privacy guard ("NO KIBITZING!!"); web uses flat black background
-- Sunken box bevel order (`boxSunken` params) may swap dark/light edges vs EXE `draw_flat_box` (Top=EF30, Left=EF32, Bottom=EF26, Right=EF2E)
-- Full Row 2: 7 inventory widgets (icon + fill bar each, widths 48/25/25/31/18/34/33px) replaced by text-only "B:n P:n L:n"
+- Shop sell sub-dialog missing (EXE: "Sell Equipment" title, "Quantity to sell:", Accept/Reject)
+- Shop palette animation missing (accent colors cycle indices 8-11 every 8 frames)
+- Full Row 2: 7 inventory widgets (icon + fill bar each) replaced by text approximations; no actual battery/parachute icons
+- ~~Sunken box bevel order~~ — verified correct (outer edges match EF26/EE/30/32 mapping)
 
 MEDIUM:
-- Full Row 1 weapon position: EXE left-aligns at computed E9E0; web right-aligns to screen edge
-- Menu button X margin: EXE uses 5 (small) / 12 (large); web uses BTN_X=4 fixed
-- 3D boxes should use 3px borders in hi-res (`[DS:0x6E28]==3`); web always uses 2px
+- ~~Full Row 1 weapon position~~ — FIXED (left-aligned at E9E0)
+- ~~Menu button X margin~~ — FIXED (5px small / 12px large)
+- ~~3D box hi-res borders~~ — already implemented (3px at screenH≥400)
 - Player icon bitmaps: need icon data extraction from DS:0x3826 (48 × 125 bytes)
-- Shop selection highlight: EXE uses player_color+4 (bright); web uses slot 1 (darkest)
-- Font: double-quote char `"` (0x22) has zero width in WIDTHS array
+- ~~Shop selection highlight~~ — FIXED (slot 3 = 80% brightness)
+- ~~Font double-quote zero width~~ — FIXED (WIDTHS[2]=3)
 
 LOW:
 - Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
 - Wind display string: struct+0xB6 format unknown; text approximation is sufficient
-- Energy bar 40px vs EXE 48px
-- Shop: 10 visible rows vs EXE 14-15; missing "Cash Left:" label, interest display, Score tab
+- HUD fuel display: ~~0-100% scale~~ — FIXED (now 0-1000 per mille, player.energy×10)
+- HUD battery count: ~~reads stale player.batteries~~ — FIXED (now reads inventory[43])
+- ~~Shop Score tab missing~~ — FIXED (Score tab shows ranked player table)
+- ~~Shop row count 10 vs EXE 14-15~~ — FIXED (scales with resolution)
+- ~~Shop "Cash Left:" label~~ — FIXED
+- ~~Shop tab structure~~ — FIXED (Score/Weapons/Miscellaneous/~Done)
+- ~~Shop interest display~~ — FIXED (shows "Earned interest: $N" when > 0)
 - Extended font: 95 chars vs EXE 161 (missing CP437 0x80-0xFF)
 - UI palette RGB values (200-208) unverified against actual EXE DAC state
 

@@ -1,0 +1,274 @@
+0x2FEBE  294B:000E  push bp                                ; x86
+0x2FEBF  294B:000F  mov bp,sp                              ; x86
+0x2FEC1  294B:0011  push si                                ; x86
+0x2FEC2  294B:0012  push di                                ; x86
+0x2FEC3  294B:0013  cmp [0x519a],sp                        ; x86
+0x2FEC7  294B:0017  ja 0x1e                                ; x86
+0x2FEC9  294B:0019  call word 0x0:word 0xa2ce              ; x86  → __stkchk
+0x2FECE  294B:001E  cmp word [0x5142],0x0                  ; x86
+0x2FED3  294B:0023  jnz 0x2d                               ; x86
+0x2FED5  294B:0025  mov word [0xea10],0x4                  ; x86
+0x2FEDB  294B:002B  jmp 0x33                               ; x86
+0x2FEDD  294B:002D  mov word [0xea10],0xb                  ; x86
+0x2FEE3  294B:0033  mov word [0xe9d4],0x5                  ; x86
+0x2FEE9  294B:0039  push word [0x220e]                     ; x86
+0x2FEED  294B:003D  push word [0x220c]                     ; x86
+0x2FEF1  294B:0041  call word 0x4589:word 0xb87            ; x86
+0x2FEF6  294B:0046  add sp,0x4                             ; x86
+0x2FEF9  294B:0049  add ax,0x8                             ; x86
+0x2FEFC  294B:004C  mov si,ax                              ; x86
+0x2FEFE  294B:004E  mov ax,[0xe9d4]                        ; x86
+0x2FF01  294B:0051  add ax,si                              ; x86
+0x2FF03  294B:0053  mov [0xe9d6],ax                        ; x86
+0x2FF06  294B:0056  push ds                                ; x86
+0x2FF07  294B:0057  push word 0x5778                       ; x86
+0x2FF0A  294B:005A  call word 0x4589:word 0xb87            ; x86
+0x2FF0F  294B:005F  add sp,0x4                             ; x86
+0x2FF12  294B:0062  mov si,ax                              ; x86
+0x2FF14  294B:0064  mov ax,[0xe9d6]                        ; x86
+0x2FF17  294B:0067  add ax,si                              ; x86
+0x2FF19  294B:0069  mov [0xe9d8],ax                        ; x86
+0x2FF1C  294B:006C  push word [0x2212]                     ; x86
+0x2FF20  294B:0070  push word [0x2210]                     ; x86
+0x2FF24  294B:0074  call word 0x4589:word 0xb87            ; x86
+0x2FF29  294B:0079  add sp,0x4                             ; x86
+0x2FF2C  294B:007C  add ax,0x8                             ; x86
+0x2FF2F  294B:007F  mov si,ax                              ; x86
+0x2FF31  294B:0081  mov ax,[0xe9d8]                        ; x86
+0x2FF34  294B:0084  add ax,si                              ; x86
+0x2FF36  294B:0086  mov [0xe9da],ax                        ; x86
+0x2FF39  294B:0089  push ds                                ; x86
+0x2FF3A  294B:008A  push word 0x577e                       ; x86
+0x2FF3D  294B:008D  call word 0x4589:word 0xb87            ; x86
+0x2FF42  294B:0092  add sp,0x4                             ; x86
+0x2FF45  294B:0095  mov si,ax                              ; x86
+0x2FF47  294B:0097  mov ax,[0xe9da]                        ; x86
+0x2FF4A  294B:009A  add ax,si                              ; x86
+0x2FF4C  294B:009C  mov [0xe9dc],ax                        ; x86
+0x2FF4F  294B:009F  push ds                                ; x86
+0x2FF50  294B:00A0  push word 0x5783                       ; x86
+0x2FF53  294B:00A3  call word 0x4589:word 0xb87            ; x86
+0x2FF58  294B:00A8  add sp,0x4                             ; x86
+0x2FF5B  294B:00AB  mov si,ax                              ; x86
+0x2FF5D  294B:00AD  mov ax,[0xe9dc]                        ; x86
+0x2FF60  294B:00B0  add ax,si                              ; x86
+0x2FF62  294B:00B2  add ax,0x2                             ; x86
+0x2FF65  294B:00B5  mov [0xe9de],ax                        ; x86
+0x2FF68  294B:00B8  mov ax,[0xe9de]                        ; x86
+0x2FF6B  294B:00BB  add ax,0xf                             ; x86
+0x2FF6E  294B:00BE  mov [0xe9e0],ax                        ; x86
+0x2FF71  294B:00C1  mov ax,[0xe9d4]                        ; x86
+0x2FF74  294B:00C4  mov [0xe9e8],ax                        ; x86
+0x2FF77  294B:00C7  push word [0x2366]                     ; x86
+0x2FF7B  294B:00CB  push word [0x2364]                     ; x86
+0x2FF7F  294B:00CF  call word 0x4589:word 0xb87            ; x86
+0x2FF84  294B:00D4  add sp,0x4                             ; x86
+0x2FF87  294B:00D7  push ax                                ; x86
+0x2FF88  294B:00D8  push ds                                ; x86
+0x2FF89  294B:00D9  push word 0x5793                       ; x86
+0x2FF8C  294B:00DC  call word 0x4589:word 0xb87            ; x86
+0x2FF91  294B:00E1  add sp,0x4                             ; x86
+0x2FF94  294B:00E4  pop dx                                 ; x86
+0x2FF95  294B:00E5  add dx,ax                              ; x86
+0x2FF97  294B:00E7  mov si,dx                              ; x86
+0x2FF99  294B:00E9  mov ax,[0xe9e8]                        ; x86
+0x2FF9C  294B:00EC  add ax,si                              ; x86
+0x2FF9E  294B:00EE  mov [0xe9ea],ax                        ; x86
+0x2FFA1  294B:00F1  mov ax,[0xe9ea]                        ; x86
+0x2FFA4  294B:00F4  cmp ax,[0xe9d6]                        ; x86
+0x2FFA8  294B:00F8  jnl 0x100                              ; x86
+0x2FFAA  294B:00FA  mov ax,[0xe9d6]                        ; x86
+0x2FFAD  294B:00FD  mov [0xe9ea],ax                        ; x86
+0x2FFB0  294B:0100  push ds                                ; x86
+0x2FFB1  294B:0101  push word 0x5795                       ; x86
+0x2FFB4  294B:0104  call word 0x4589:word 0xb87            ; x86
+0x2FFB9  294B:0109  add sp,0x4                             ; x86
+0x2FFBC  294B:010C  mov si,ax                              ; x86
+0x2FFBE  294B:010E  mov ax,[0xe9ea]                        ; x86
+0x2FFC1  294B:0111  add ax,si                              ; x86
+0x2FFC3  294B:0113  mov [0xe9ec],ax                        ; x86
+0x2FFC6  294B:0116  push ds                                ; x86
+0x2FFC7  294B:0117  push word 0x579b                       ; x86
+0x2FFCA  294B:011A  call word 0x4589:word 0xb87            ; x86
+0x2FFCF  294B:011F  add sp,0x4                             ; x86
+0x2FFD2  294B:0122  mov si,ax                              ; x86
+0x2FFD4  294B:0124  mov ax,[0xe9ec]                        ; x86
+0x2FFD7  294B:0127  add ax,si                              ; x86
+0x2FFD9  294B:0129  mov [0xe9ee],ax                        ; x86
+0x2FFDC  294B:012C  mov ax,[0xe9ee]                        ; x86
+0x2FFDF  294B:012F  add ax,0x19                            ; x86
+0x2FFE2  294B:0132  mov [0xe9f0],ax                        ; x86
+0x2FFE5  294B:0135  push ds                                ; x86
+0x2FFE6  294B:0136  push word 0x579f                       ; x86
+0x2FFE9  294B:0139  call word 0x4589:word 0xb87            ; x86
+0x2FFEE  294B:013E  add sp,0x4                             ; x86
+0x2FFF1  294B:0141  mov si,ax                              ; x86
+0x2FFF3  294B:0143  mov ax,[0xe9f0]                        ; x86
+0x2FFF6  294B:0146  add ax,si                              ; x86
+0x2FFF8  294B:0148  mov [0xe9f2],ax                        ; x86
+0x2FFFB  294B:014B  mov ax,[0xe9f2]                        ; x86
+0x2FFFE  294B:014E  add ax,0x19                            ; x86
+0x30001  294B:0151  mov [0xe9f4],ax                        ; x86
+0x30004  294B:0154  mov ax,[0xe9f4]                        ; x86
+0x30007  294B:0157  add ax,si                              ; x86
+0x30009  294B:0159  mov [0xe9f6],ax                        ; x86
+0x3000C  294B:015C  mov ax,[0xe9f6]                        ; x86
+0x3000F  294B:015F  add ax,0x14                            ; x86
+0x30012  294B:0162  mov [0xe9f8],ax                        ; x86
+0x30015  294B:0165  push ds                                ; x86
+0x30016  294B:0166  push word 0x57a3                       ; x86
+0x30019  294B:0169  call word 0x4589:word 0xb87            ; x86
+0x3001E  294B:016E  add sp,0x4                             ; x86
+0x30021  294B:0171  mov si,ax                              ; x86
+0x30023  294B:0173  mov ax,[0xe9f8]                        ; x86
+0x30026  294B:0176  add ax,si                              ; x86
+0x30028  294B:0178  mov [0xe9fa],ax                        ; x86
+0x3002B  294B:017B  push ds                                ; x86
+0x3002C  294B:017C  push word 0x57a9                       ; x86
+0x3002F  294B:017F  call word 0x4589:word 0xb87            ; x86
+0x30034  294B:0184  add sp,0x4                             ; x86
+0x30037  294B:0187  mov si,ax                              ; x86
+0x30039  294B:0189  mov ax,[0xe9fa]                        ; x86
+0x3003C  294B:018C  add ax,si                              ; x86
+0x3003E  294B:018E  mov [0xe9fc],ax                        ; x86
+0x30041  294B:0191  mov ax,[0xe9fc]                        ; x86
+0x30044  294B:0194  add ax,0x14                            ; x86
+0x30047  294B:0197  mov [0xe9fe],ax                        ; x86
+0x3004A  294B:019A  mov ax,[0xe9fe]                        ; x86
+0x3004D  294B:019D  add ax,si                              ; x86
+0x3004F  294B:019F  mov [0xea00],ax                        ; x86
+0x30052  294B:01A2  cmp word [0xef3e],0x140                ; x86
+0x30058  294B:01A8  jng 0x1cc                              ; x86
+0x3005A  294B:01AA  mov ax,[0xea00]                        ; x86
+0x3005D  294B:01AD  add ax,0x14                            ; x86
+0x30060  294B:01B0  mov [0xea02],ax                        ; x86
+0x30063  294B:01B3  push ds                                ; x86
+0x30064  294B:01B4  push word 0x57ad                       ; x86
+0x30067  294B:01B7  call word 0x4589:word 0xb87            ; x86
+0x3006C  294B:01BC  add sp,0x4                             ; x86
+0x3006F  294B:01BF  mov si,ax                              ; x86
+0x30071  294B:01C1  mov ax,[0xea02]                        ; x86
+0x30074  294B:01C4  add ax,0x14                            ; x86
+0x30077  294B:01C7  mov [0xea04],ax                        ; x86
+0x3007A  294B:01CA  jmp 0x1d2                              ; x86
+0x3007C  294B:01CC  mov word [0xea02],0x0                  ; x86
+0x30082  294B:01D2  xor di,di                              ; x86
+0x30084  294B:01D4  jmp 0x1f2                              ; x86
+0x30086  294B:01D6  mov bx,di                              ; x86
+0x30088  294B:01D8  imul bx,bx,0xc                         ; x86
+0x3008B  294B:01DB  mov ax,[0x518e]                        ; x86
+0x3008E  294B:01DE  mov [bx+0x56b0],ax                     ; x86
+0x30092  294B:01E2  mov bx,di                              ; x86
+0x30094  294B:01E4  imul bx,bx,0xc                         ; x86
+0x30097  294B:01E7  mov ax,[0x518e]                        ; x86
+0x3009A  294B:01EA  add ax,0xb                             ; x86
+0x3009D  294B:01ED  mov [bx+0x56b4],ax                     ; x86
+0x300A1  294B:01F1  inc di                                 ; x86
+0x300A2  294B:01F2  cmp di,0x4                             ; x86
+0x300A5  294B:01F5  jl 0x1d6                               ; x86
+0x300A7  294B:01F7  mov ax,[0xe9d4]                        ; x86
+0x300AA  294B:01FA  mov [0x56ae],ax                        ; x86
+0x300AD  294B:01FD  mov ax,[0xe9d8]                        ; x86
+0x300B0  294B:0200  add ax,0xfffe                          ; x86
+0x300B3  294B:0203  mov [0x56b2],ax                        ; x86
+0x300B6  294B:0206  mov ax,[0xe9d8]                        ; x86
+0x300B9  294B:0209  mov [0x56ba],ax                        ; x86
+0x300BC  294B:020C  mov ax,[0xe9dc]                        ; x86
+0x300BF  294B:020F  add ax,0xfffe                          ; x86
+0x300C2  294B:0212  mov [0x56be],ax                        ; x86
+0x300C5  294B:0215  mov ax,[0xe9dc]                        ; x86
+0x300C8  294B:0218  mov [0x56c6],ax                        ; x86
+0x300CB  294B:021B  mov ax,[0xe9de]                        ; x86
+0x300CE  294B:021E  add ax,0xfffe                          ; x86
+0x300D1  294B:0221  mov [0x56ca],ax                        ; x86
+0x300D4  294B:0224  mov ax,[0xe9de]                        ; x86
+0x300D7  294B:0227  mov [0x56d2],ax                        ; x86
+0x300DA  294B:022A  mov ax,[0xef3c]                        ; x86
+0x300DD  294B:022D  mov [0x56d6],ax                        ; x86
+0x300E0  294B:0230  jmp 0x251                              ; x86
+0x300E2  294B:0232  mov bx,di                              ; x86
+0x300E4  294B:0234  imul bx,bx,0xc                         ; x86
+0x300E7  294B:0237  mov ax,[0x518e]                        ; x86
+0x300EA  294B:023A  add ax,0xc                             ; x86
+0x300ED  294B:023D  mov [bx+0x56b0],ax                     ; x86
+0x300F1  294B:0241  mov bx,di                              ; x86
+0x300F3  294B:0243  imul bx,bx,0xc                         ; x86
+0x300F6  294B:0246  mov ax,[0x518e]                        ; x86
+0x300F9  294B:0249  add ax,0x17                            ; x86
+0x300FC  294B:024C  mov [bx+0x56b4],ax                     ; x86
+0x30100  294B:0250  inc di                                 ; x86
+0x30101  294B:0251  cmp di,0xb                             ; x86
+0x30104  294B:0254  jl 0x232                               ; x86
+0x30106  294B:0256  mov ax,[0xe9ec]                        ; x86
+0x30109  294B:0259  mov [0x56de],ax                        ; x86
+0x3010C  294B:025C  mov ax,[0xe9f0]                        ; x86
+0x3010F  294B:025F  add ax,0xfffb                          ; x86
+0x30112  294B:0262  mov [0x56e2],ax                        ; x86
+0x30115  294B:0265  mov ax,0x30                            ; x86
+0x30118  294B:0268  mov [0x56e8],ax                        ; x86
+0x3011B  294B:026B  mov [0x56e6],ax                        ; x86
+0x3011E  294B:026E  mov ax,[0xe9f0]                        ; x86
+0x30121  294B:0271  mov [0x56ea],ax                        ; x86
+0x30124  294B:0274  mov ax,[0xe9f4]                        ; x86
+0x30127  294B:0277  add ax,0xfffb                          ; x86
+0x3012A  294B:027A  mov [0x56ee],ax                        ; x86
+0x3012D  294B:027D  mov ax,0x19                            ; x86
+0x30130  294B:0280  mov [0x56f4],ax                        ; x86
+0x30133  294B:0283  mov [0x56f2],ax                        ; x86
+0x30136  294B:0286  mov ax,[0xe9f4]                        ; x86
+0x30139  294B:0289  mov [0x56f6],ax                        ; x86
+0x3013C  294B:028C  mov ax,[0xe9f8]                        ; x86
+0x3013F  294B:028F  dec ax                                 ; x86
+0x30140  294B:0290  mov [0x56fa],ax                        ; x86
+0x30143  294B:0293  mov ax,0x1f                            ; x86
+0x30146  294B:0296  mov [0x5700],ax                        ; x86
+0x30149  294B:0299  mov [0x56fe],ax                        ; x86
+0x3014C  294B:029C  mov ax,[0xe9f8]                        ; x86
+0x3014F  294B:029F  mov [0x5702],ax                        ; x86
+0x30152  294B:02A2  mov ax,[0xe9fa]                        ; x86
+0x30155  294B:02A5  add ax,0xfffb                          ; x86
+0x30158  294B:02A8  mov [0x5706],ax                        ; x86
+0x3015B  294B:02AB  mov ax,0x12                            ; x86
+0x3015E  294B:02AE  mov [0x570c],ax                        ; x86
+0x30161  294B:02B1  mov [0x570a],ax                        ; x86
+0x30164  294B:02B4  mov ax,[0xe9fa]                        ; x86
+0x30167  294B:02B7  mov [0x570e],ax                        ; x86
+0x3016A  294B:02BA  mov ax,[0xe9fe]                        ; x86
+0x3016D  294B:02BD  add ax,0xfffb                          ; x86
+0x30170  294B:02C0  mov [0x5712],ax                        ; x86
+0x30173  294B:02C3  mov ax,0x22                            ; x86
+0x30176  294B:02C6  mov [0x5718],ax                        ; x86
+0x30179  294B:02C9  mov [0x5716],ax                        ; x86
+0x3017C  294B:02CC  mov ax,[0xea02]                        ; x86
+0x3017F  294B:02CF  mov [0x571a],ax                        ; x86
+0x30182  294B:02D2  mov ax,[0xea04]                        ; x86
+0x30185  294B:02D5  add ax,0x14                            ; x86
+0x30188  294B:02D8  mov [0x571e],ax                        ; x86
+0x3018B  294B:02DB  mov ax,0x21                            ; x86
+0x3018E  294B:02DE  mov [0x5724],ax                        ; x86
+0x30191  294B:02E1  mov [0x5722],ax                        ; x86
+0x30194  294B:02E4  mov ax,[0xe9fe]                        ; x86
+0x30197  294B:02E7  mov [0x5726],ax                        ; x86
+0x3019A  294B:02EA  mov ax,[0xea00]                        ; x86
+0x3019D  294B:02ED  add ax,0xf                             ; x86
+0x301A0  294B:02F0  mov [0x572a],ax                        ; x86
+0x301A3  294B:02F3  mov ax,0xc                             ; x86
+0x301A6  294B:02F6  mov [0x5724],ax                        ; x86
+0x301A9  294B:02F9  mov [0x572e],ax                        ; x86
+0x301AC  294B:02FC  jmp 0x2fe                              ; x86
+0x301AE  294B:02FE  pop di                                 ; x86
+0x301AF  294B:02FF  pop si                                 ; x86
+0x301B0  294B:0300  pop bp                                 ; x86
+0x301B1  294B:0301  retf                                   ; x86  ; --- end ---
+0x301B2  294B:0302  push bp                                ; x86
+0x301B3  294B:0303  mov bp,sp                              ; x86
+0x301B5  294B:0305  push si                                ; x86
+0x301B6  294B:0306  cmp [0x519a],sp                        ; x86
+0x301BA  294B:030A  ja 0x311                               ; x86
+0x301BC  294B:030C  db 0x9a                                ; x86
+0x301BD  294B:030D  into                                   ; x86
+--- Statistics ---
+FPU instructions: 0
+x86 instructions: 269
+Total: 269
+

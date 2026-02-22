@@ -19,23 +19,28 @@ import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
 // --- Layout helpers (EXE-verified, mode-dependent) ---
 // EXE at 0x3D161: if screenHeight <= 200 → small mode, else large mode
 // EXE: DS:0x6316 row height table: [0]=25 (large), [1]=17 (small)
-const LEFT_W = 128;     // left panel width (fits "Play Options..." + padding)
-const RIGHT_X = LEFT_W + 1;  // right panel start
-const BTN_W = LEFT_W - 8;  // button width
+// EXE: item list width = 0x50 (80px); left panel = getBtnX + BTN_W + right margin
+// EXE: large mode start_x=12, item_w=80 → panel ends at x≈96; small=5+80+4=89
+const BTN_W = 80;  // EXE: 0x50 — item list/button width (was 120 before)
+function getLeftW()  { return (isSmallMode() ? 5 : 12) + BTN_W + 4; }
+function getRightX() { return getLeftW() + 1; }
 
 function isSmallMode() { return config.screenHeight <= 200; }
 function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
 function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
 function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
 function getBtnH()   { return getRowH() - 2; }             // button height = row_h - 2 gap
+// EXE: dialog item spacing — adds 5px at screenH >= 400px (shop analysis confirmed)
+function getSubRowH() { return getScreenH() >= 400 ? 19 : 14; }
 function getScreenW() { return config.screenWidth; }
 function getScreenH() { return config.screenHeight; }
 
 // Terrain preview frame (EXE: draw_flat_box at file 0x3D59B)
-function getFrameX() { return RIGHT_X; }
+function getFrameX() { return getRightX(); }
 function getFrameY() { return 6; }
-function getFrameW() { return getScreenW() - 6 - RIGHT_X; }
-function getFrameH() { return getScreenH() - 37 - 6; }
+function getFrameW() { return getScreenW() - 6 - getRightX(); }
+// EXE: height = screenH - 37 (reduced to screenH - 51 if copyright overflows)
+function getFrameH() { return getScreenH() - 37; }
 // Interior (2px inset)
 function getPrevX() { return getFrameX() + 2; }
 function getPrevY() { return getFrameY() + 2; }
@@ -193,12 +198,14 @@ function adjustValue(item, dir) {
 // --- Helper: center text X in right panel ---
 function centerXRight(str) {
   const tw = measureText(str);
-  return Math.floor((getScreenW() - 6 - RIGHT_X - tw) / 2) + RIGHT_X;
+  return Math.floor((getScreenW() - 6 - getRightX() - tw) / 2) + getRightX();
 }
 
 // --- 3D box helpers with standard UI colors ---
 function boxRaised(x, y, w, h) {
-  drawBox3DRaised(x, y, w, h, UI_BACKGROUND, UI_LIGHT_BORDER, UI_BRIGHT_BORDER, UI_MED_BORDER, UI_DARK_BORDER);
+  // EXE draw_3d_box: outer TL=EF26(UI_DARK_BORDER=WHITE), inner TL=EF2E(UI_LIGHT_BORDER),
+  //                 inner BR=EF30(UI_MED_BORDER), outer BR=EF32(UI_BRIGHT_BORDER)
+  drawBox3DRaised(x, y, w, h, UI_BACKGROUND, UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
 }
 function boxSunken(x, y, w, h, fill) {
   // EXE draw_flat_box: Top=EF30(MED), Left=EF32(BRIGHT), Bottom=EF26(DARK), Right=EF2E(LIGHT)
@@ -329,8 +336,9 @@ function handleSubmenuInput() {
 
   // Mouse: click items to select, left/right half to adjust value
   if (mouse.over && consumeClick(0)) {
+    const rowH = getSubRowH();
     const dlgW = 220;
-    const dlgH = 30 + sub.items.length * 14;
+    const dlgH = 30 + sub.items.length * rowH;
     const dlgX = Math.floor((getScreenW() - dlgW) / 2);
     const dlgY = Math.floor((getScreenH() - dlgH) / 2);
 
@@ -338,8 +346,8 @@ function handleSubmenuInput() {
     if (mouse.x >= dlgX && mouse.x < dlgX + dlgW && mouse.y >= dlgY && mouse.y < dlgY + dlgH) {
       // Hit-test items
       for (let i = 0; i < sub.items.length; i++) {
-        const iy = dlgY + 18 + i * 14;
-        if (mouse.y >= iy - 1 && mouse.y < iy + 10) {
+        const iy = dlgY + 18 + i * rowH;
+        if (mouse.y >= iy - 1 && mouse.y < iy + rowH - 1) {
           menu.submenuSelected = i;
           const clickedItem = sub.items[i];
           if (!clickedItem.disabled) {
@@ -478,9 +486,9 @@ export function drawMainMenu() {
       const valStr = String(config[item.key]);
       if (selected) {
         const arrowStr = '< ' + valStr + ' >';
-        drawText(BTN_W - measureText(arrowStr), textY, arrowStr, textColor);
+        drawText(bx + BTN_W - measureText(arrowStr), textY, arrowStr, textColor);
       } else {
-        drawText(BTN_W - measureText(valStr), textY, valStr, textColor);
+        drawText(bx + BTN_W - measureText(valStr), textY, valStr, textColor);
       }
     } else {
       // Center text in button
@@ -557,9 +565,10 @@ function drawSubmenu() {
   if (!sub) return;
 
   const itemCount = sub.items.length;
-  // Size the dialog to fit contents
+  // EXE: item spacing 14px; +5px at screenH >= 400
+  const rowH = getSubRowH();
   const dlgW = 220;
-  const dlgH = 30 + itemCount * 14;
+  const dlgH = 30 + itemCount * rowH;
   const dlgX = Math.floor((getScreenW() - dlgW) / 2);
   const dlgY = Math.floor((getScreenH() - dlgH) / 2);
 
@@ -574,13 +583,13 @@ function drawSubmenu() {
   // Items
   for (let i = 0; i < itemCount; i++) {
     const item = sub.items[i];
-    const iy = dlgY + 18 + i * 14;
+    const iy = dlgY + 18 + i * rowH;
     const selected = i === menu.submenuSelected;
     const color = item.disabled ? UI_MED_BORDER : (selected ? UI_HIGHLIGHT : UI_DARK_TEXT);
 
     // Highlight bar
     if (selected && !item.disabled) {
-      fillRect(dlgX + 3, iy - 1, dlgX + dlgW - 4, iy + 9, UI_DEEP_SHADOW);
+      fillRect(dlgX + 3, iy - 1, dlgX + dlgW - 4, iy + rowH - 3, UI_DEEP_SHADOW);
     }
 
     drawText(dlgX + 8, iy, item.label, color);

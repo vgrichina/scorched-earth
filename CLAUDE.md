@@ -59,6 +59,21 @@ python3 disasm/struct_dump.py earth/SCORCH.EXE mode -n 9      # graphics modes
 python3 disasm/xref.py earth/SCORCH.EXE DS:0xED58 --code      # font selector refs
 python3 disasm/xref.py earth/SCORCH.EXE DS:0xEF22 --code      # highlight color refs
 python3 disasm/xref.py earth/SCORCH.EXE DS:0x518E -c 8        # HUD Y with context
+
+# SEG:OFF ↔ file offset converter
+python3 disasm/seg_offset.py 2910:0184 DS:0x3826 0x261D7       # multiple at once
+
+# Icon bitmap extractor (DS:0x3826, 48 icons × 125 bytes)
+python3 disasm/icon_dump.py earth/SCORCH.EXE                   # list all icons
+python3 disasm/icon_dump.py earth/SCORCH.EXE 0 -n 8            # render icons 0-7 as ASCII
+python3 disasm/icon_dump.py earth/SCORCH.EXE 0 --raw           # raw hex bytes
+
+# Font glyph dump (NOTE: pixel data is BSS — use runtime dump or web/js/font.js)
+python3 disasm/font_dump.py earth/SCORCH.EXE 65 -n 26          # widths for A-Z (via ptr table)
+
+# VGA palette dump
+python3 disasm/palette_dump.py earth/SCORCH.EXE --accent       # shop animation colors
+python3 disasm/palette_dump.py earth/SCORCH.EXE --scan         # find palette blocks
 ```
 
 ### Key Binary Layout
