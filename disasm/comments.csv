@@ -1,0 +1,47 @@
+# comments.csv — Scorched Earth v1.50 inline disassembly annotations
+# Format: file_offset_hex,comment   OR   DS:offset_hex,comment
+# Comments appear as inline annotations in dis.py output.
+
+# ---- Module starts ----
+0x20EA0,extras.cpp: explosion/damage/projectile system
+0x263F0,icons.cpp: tank and icon rendering
+0x2F830,play.cpp: main game loop
+0x31FB0,player.cpp: player and tank management
+0x33690,ranges.cpp: terrain/mountain generation
+0x38070,shark.cpp: AI trajectory solver
+0x38780,shields.cpp: shield system
+0x3B8D0,menu module: main menu/config UI and sub-dialogs
+0x4C290,font module: Fastgraph text rendering (font_init/text_display/text_measure)
+
+# ---- Known functions ----
+0x25DE9,ai_inject_noise: scanning architecture — freq_base=PI/(2*noise_amp) freq_cap=2PI/10 amp=rand01*budget*0.5
+0x24F01,ai_solver: AI trajectory solver start
+0x2943A,generate_wind: formula rand(max_wind)-max_wind/4 range [-max/4 +3max/4); nested doubling 8% total
+0x28E99,update_wind: per-turn wind update with +-MAX_WIND clamp
+0x19B54,viscosity_clamp: clamp AIR_VISCOSITY to [0..20]; max constant DS:0x0408=20.0
+0x21C56,apply_viscosity: formula 1.0-AIR_VISCOSITY/10000 per-step; skip when 1.0
+0x14391,apply_viscosity2: second viscosity application site (trajectory module)
+0x3D140,main_menu: far address 34ED:1870; called from game loop at 0x2A850
+0x2120A,weapon_fire_dispatch: call word far [bx+0x1200] — dispatches weapon behavior fn ptr
+0x1D5D4,equip_init: initializes equipment/weapon shop; marks Laser/Plasma as accessories (NULL fn ptr)
+0x25B30,apogee_detect: compares velocity sign against stored last-sign; triggers MIRV split on flip
+0x2C759,sub_warhead_damage: damage=(radius-dist)*100/radius capped at 110
+0x2CB6B,sub_warhead_spawn: spawns sub-warheads; param selects MIRV(0) vs DeathsHead(1) spread table
+0x3D59B,main_menu_right_panel: renders terrain preview and title on right side of main menu
+0x36321,targeting_line: laser sight display function; seg 2F76:01C1
+0x36271,targeting_pixel_cb: per-pixel callback — checks bounds/cavern; Laser blends Plasma overwrites
+0x45DDC,dialog_draw: dialog system render function at seg 3F19:024C
+0x45FED,dialog_run: dialog system event loop at seg 3F19:045D
+
+# ---- Data segment variables ----
+DS:0x515C,MAX_WIND: maximum wind speed (default 200; slider 5-500); per-turn clamp uses +-this
+DS:0x5190,AIR_VISCOSITY: air viscosity value (0-20); formula 1.0-val/10000 per physics step
+DS:0xED58,layout_mode: 0=spacious(25px rows) 1=compact(17px rows); same font both modes
+DS:0xEF22,highlight_color: UI highlight/selected-item color (pal 200 dynamic player color)
+DS:0x518E,HUD_Y: HUD Y position
+DS:0xCEB8,player_struct_base: far ptr to player struct array; stride 0x6C (108 bytes)
+DS:0xD568,tank_struct_base: tank/sub struct array base; stride 0xCA (202 bytes)
+DS:0x11F6,weapon_struct_base: weapon struct array; stride 0x34 (52 bytes); index 2=Baby Missile
+DS:0x519A,stack_limit: stack overflow check limit (compared in __stkchk)
+DS:0x529E,sub_radius_table: [MIRV=20 DeathsHead=35] sub-warhead blast radius by param
+DS:0x52A2,sub_count_table: [MIRV=5 DeathsHead=9] sub-warhead count by param

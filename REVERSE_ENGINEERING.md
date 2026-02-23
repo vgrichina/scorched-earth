@@ -2255,7 +2255,11 @@ All located in `disasm/` directory:
 | **`terrain_palettes_search.txt`** | **All 7 terrain type palettes with gradient calculations** |
 | **`damage_formula.txt`** | **Explosion/damage system: functions, constants, formula** |
 | **`war_quotes.txt`** | **All 15 war quotes with attributions** |
-| **`fpu_decode.py`** | **Borland INT 34h-3Dh FPU instruction decoder script** |
+| **`fpu_decode.py`** | **Borland INT 34h-3Dh FPU instruction decoder script (legacy — uses ndisasm)** |
+| **`instruction_set_x86.py`** | **Complete x86 16-bit + FPU decoder, no external deps** |
+| **`dis.py`** | **Primary disassembler: file/DS/SEG:OFF addr, loads labels.csv+comments.csv** |
+| **`labels.csv`** | **Knowledge base: file_offset→name and DS:offset→name** |
+| **`comments.csv`** | **Knowledge base: per-address inline annotations** |
 | **`ai_solver_decoded.txt`** | **AI solver (shark.cpp) with decoded FPU instructions** |
 | **`damage_decoded.txt`** | **Damage system (extras.cpp) with decoded FPU instructions** |
 | **`extras_decoded.txt`** | **Explosion system with decoded FPU instructions** |

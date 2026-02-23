@@ -9,33 +9,55 @@ Goal: extract game mechanics, data structures, and algorithms for faithful reimp
 
 - `earth/SCORCH.EXE` — Original DOS binary (MZ format, 415,456 bytes, header=0x6A00)
 - `REVERSE_ENGINEERING.md` — Master document with all findings (weapons, AI, physics, shields, etc.)
-- `disasm/fpu_decode.py` — Borland INT 34h-3Dh FPU instruction decoder
-- `disasm/*_decoded.txt` — Decoded disassembly regions with readable FPU mnemonics
-- `disasm/*.txt` — Raw disassembly and analysis intermediate files
+- `disasm/instruction_set_x86.py` — Complete x86 16-bit decoder with native FPU emulation (no subprocess)
+- `disasm/dis.py` — **Primary disassembler** — replaces r2+fpu_decode pipeline; loads labels/comments
+- `disasm/labels.csv` — Knowledge base: file_offset→name and DS:offset→name
+- `disasm/comments.csv` — Knowledge base: per-address inline annotations
+- `disasm/fpu_decode.py` — Legacy Borland INT 34h-3Dh decoder (uses ndisasm subprocess; kept for reference)
+- `disasm/*_decoded.txt` — Decoded disassembly regions (historical output files)
 
 ## Tools & Techniques
 
-### FPU Decoder (critical tool)
-Borland C++ 1993 encodes ALL floating-point math as INT 34h-3Dh software interrupts.
-Raw radare2 disassembly is unreadable without decoding these first.
+### Primary Disassembler (dis.py) — use this for all new work
+Zero-dependency x86 16-bit disassembler. Handles all instructions + Borland FPU emulation natively.
+Loads `disasm/labels.csv` and `disasm/comments.csv` and inlines them into output.
 
 ```bash
-# Decode a region with constant annotations and function boundaries:
-python3 disasm/fpu_decode.py earth/SCORCH.EXE <start_offset> <end_or_+length> -c -f
+# Disassemble by file offset (default 40 instructions):
+python3 disasm/dis.py 0x25DE9 60        # ai_inject_noise
+python3 disasm/dis.py 0x2943A 30        # generate_wind
+python3 disasm/dis.py 0x20EA0 50        # extras.cpp start
 
-# Example: decode AI solver region
+# Disassemble by DS offset (data region or near-data code):
+python3 disasm/dis.py DS:0x11F6 20      # weapon struct area
+
+# Disassemble by segment:offset:
+python3 disasm/dis.py 1A4A:0 50         # extras.cpp from seg start
+python3 disasm/dis.py 34ED:1870 40      # main_menu function
+```
+
+Output columns: `file_offset  SEG:OFF  raw_bytes  mnemonic  operands  ; comment/DS-ref`
+
+### Knowledge Files (labels.csv / comments.csv)
+Add new findings here — they appear automatically in all future dis.py runs.
+
+```
+# labels.csv format:  file_offset_hex,name   OR   DS:offset_hex,name
+0x25DE9,ai_inject_noise
+DS:0x515C,MAX_WIND
+
+# comments.csv format:  file_offset_hex,comment   OR   DS:offset_hex,comment
+0x25DE9,ai_inject_noise: scanning architecture with harmonics
+DS:0x515C,MAX_WIND: maximum wind speed (default 200; slider 5-500)
+```
+
+### Legacy FPU Decoder (fpu_decode.py) — kept for reference only
+Uses ndisasm subprocess. Prefer dis.py for all new work.
+
+```bash
+# Legacy usage (requires ndisasm installed):
 python3 disasm/fpu_decode.py earth/SCORCH.EXE 0x24F01 0x2610F -c -f
 ```
-
-Always decode with `-c -f` flags for maximum annotation.
-
-### Radare2
-```bash
-r2 -a x86 -b 16 -s 0x6a00 earth/SCORCH.EXE
-# Then: s <file_offset>; pd 200
-```
-
-Note: r2 misinterprets INT 34h-3Dh as software interrupts. Use fpu_decode.py instead for FPU-heavy regions.
 
 ### Research Tools
 

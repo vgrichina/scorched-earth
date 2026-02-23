@@ -35,10 +35,11 @@ Read REVERSE_ENGINEERING.md '## Next Tasks' section. Pick the top $TASKS uncheck
 
 Tasks fall into two categories:
 
-**RE investigation tasks** (disasm tools — fpu_decode.py, ds_lookup.py, xref.py, struct_dump.py, etc.):
+**RE investigation tasks** (disasm tools — dis.py is primary, plus ds_lookup.py, xref.py, struct_dump.py):
 1. Run 2-3 investigation tool calls.
 2. Immediately write findings to REVERSE_ENGINEERING.md.
 3. Repeat: a few more tool calls, then write again.
+4. Add new labels/symbols to disasm/labels.csv; add explanatory notes to disasm/comments.csv.
 Do not batch all investigation before writing — write after every few tool calls.
 
 **Web port fix tasks** (editing web/js/*.js files):
@@ -51,7 +52,16 @@ Mark task done (\`- [x]\`) once fully documented/implemented.
 End your final message with: SESSION_SUMMARY: <one line>
 
 RE tools (all under disasm/):
-  python3 disasm/fpu_decode.py earth/SCORCH.EXE <start> <end_or_+len> -c -f
+  # Primary disassembler — zero deps, handles FPU natively, annotates DS refs:
+  python3 disasm/dis.py 0xXXXXX 40           # by file offset (default 40 instructions)
+  python3 disasm/dis.py DS:0xXXXX 20         # by DS offset
+  python3 disasm/dis.py SEG:OFF 30            # by segment:offset (e.g. 1A4A:0)
+
+  # Knowledge base — add new findings here:
+  # disasm/labels.csv:   file_offset_hex,name   OR   DS:offset_hex,name
+  # disasm/comments.csv: file_offset_hex,comment OR   DS:offset_hex,comment
+
+  # Supporting tools:
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -s
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -w -n 32
   python3 disasm/xref.py earth/SCORCH.EXE DS:0xXXXX --code
@@ -101,7 +111,7 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
   SUMMARY=$(git diff REVERSE_ENGINEERING.md | grep '^+- \[x\]' | head -1 | sed 's/^+- \[x\] //' || true)
   [[ -z "$SUMMARY" ]] && SUMMARY="session $i progress"
 
-  git add REVERSE_ENGINEERING.md web/
+  git add REVERSE_ENGINEERING.md web/ disasm/labels.csv disasm/comments.csv
   if git diff --cached --quiet; then
     echo "No changes — stopping loop."
     break
