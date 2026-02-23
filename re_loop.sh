@@ -113,8 +113,8 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
 
   git add REVERSE_ENGINEERING.md web/ disasm/labels.csv disasm/comments.csv
   if git diff --cached --quiet; then
-    echo "No changes — stopping loop."
-    break
+    echo "No changes — retrying same task..."
+    continue
   fi
 
   git commit -m "RE loop session $i: $SUMMARY"
