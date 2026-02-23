@@ -121,13 +121,13 @@ export function setupSkyPalette(skyType) {
         setEntry(80 + i, grey, grey, Math.floor(grey * 1.1));
       }
       break;
-    case 4: // Sunset — warm orange to purple gradient
+    case 4: // Sunset — cool blue/indigo at top → warm orange/red at bottom (verified from v86)
       for (let i = 0; i < 24; i++) {
         const t = i / 23;
-        const r = Math.floor(63 - t * 35);
-        const g = Math.floor(20 - t * 15);
-        const b = Math.floor(10 + t * 40);
-        setEntry(80 + i, Math.max(0, r), Math.max(0, g), Math.min(63, b));
+        const r = Math.floor(28 + t * 35);   // 28→63 (warm at bottom)
+        const g = Math.floor(5 + t * 15);    // 5→20
+        const b = Math.floor(50 - t * 40);   // 50→10 (cool at top)
+        setEntry(80 + i, r, g, b);
       }
       break;
     case 5: // Cavern — dark brownish

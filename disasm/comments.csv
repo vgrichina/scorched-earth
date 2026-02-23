@@ -45,3 +45,6 @@ DS:0x11F6,weapon_struct_base: weapon struct array; stride 0x34 (52 bytes); index
 DS:0x519A,stack_limit: stack overflow check limit (compared in __stkchk)
 DS:0x529E,sub_radius_table: [MIRV=20 DeathsHead=35] sub-warhead blast radius by param
 DS:0x52A2,sub_count_table: [MIRV=5 DeathsHead=9] sub-warhead count by param
+0x28592,setup_player_palette: sets VGA 0-79 = player colors (8 per player); slot 5 mod 8 = white(63,63,63); slot 7 mod 8 = grey(30,30,30); if sky==6 all black; then fg_setdacs(0,80)
+0x3A0A9,setup_sky_ceiling_palette: if sky!=6 returns; sets VGA 110-149 from DS:DEA8 table; sets VGA 0-104 from DS:DD5E table (all black for Black sky); arg [bp+6]==0 = all-black variant
+DS:0x6E2A,sky_gradient_base_index: base VGA palette index for sky gradient = 0x50=80; used as color in hline/vline calls for terrain borders

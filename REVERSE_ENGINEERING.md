@@ -2107,7 +2107,7 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 
 ### Sky Type Enum (DS:0x5110)
 
-| Index | Name | Terrain Handler | Notes |
+| Index | Name | Menu Dialog Handler | Notes |
 |-------|------|----------------|-------|
 | 0 | Plain | file 0x3E700 | Flat terrain, basic sky gradient |
 | 1 | Shaded | file 0x4758B | Simple terrain, gentle shading |
@@ -2117,6 +2117,8 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 | 5 | Cavern | file 0x44BDD | Mountain .mtn terrain (DS:0x50D8=1) |
 | 6 | Black | file 0x3E700 | Underground visual mode (same terrain as Plain) |
 | 7 | Random | (runtime) | Randomizes to 0-5 via `random(6)` |
+
+**NOTE**: The "handler" addresses listed above are **menu dialog handlers** (segment 0x34ED, the menu module) that render sky selection UI options — they are NOT sky palette initialization functions. Sky palette setup is scattered across several modules.
 
 ### Key Data Locations
 
@@ -2130,7 +2132,32 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 | Random land flag | DS:0x623C |
 | Terrain jump table | file 0x3A118 (cs:0x0A18, 7 word entries) |
 | Terrain generation | file 0x3971F (main function in ranges.cpp) |
-| Sky palette rendering | file 0x285A7 (black sky check for type 6) |
+| Sky gradient base index | DS:0x6E2A (set to 0x50=80; stored by `call far 0x3EA1:0x028F` = file 0x4569F) |
+| Sky palette rendering | file 0x285A7 (player color + black sky check for type 6) |
+| Black sky ceiling | file 0x3A0A9 (sets VGA 0–104 and VGA 110–149 all black) |
+
+### Sky Palette Architecture (VERIFIED from disassembly)
+
+The sky gradient occupies **VGA 80–103** (24 entries, web port) / **VGA 80–104** (25 entries, EXE). The base index 80 is stored at DS:0x6E2A and used as the drawing color for terrain border rendering in ranges.cpp and extras.cpp (calls to `[DS:0xEF0C]` draw_hline and `[DS:0xEF10]` draw_vline).
+
+**VGA Palette Ranges (confirmed):**
+- VGA 0–79: Player tank colors (10 players × 8 entries; set by `fg_setdacs(start=0, count=80)` at file 0x28676)
+- VGA 80–104: Sky gradient (25 entries; base = DS:0x6E2A = 80)
+- VGA 110–149: Combined terrain+sky ceiling gradient (40 entries: 10 sky + 30 terrain); uploaded via `fg_setdacs(start=110, count=40)` at file 0x3A0F3 (Black sky context)
+- VGA 120–149: Terrain palette (30 entries); uploaded via `fg_setdacs(start=120, count=30)` in ranges.cpp
+
+**Black Sky (type 6) — ceiling palette init** at file 0x3A0A9:
+- If `[bp+6] != 0`: reads DS:0xDEA8 table (stride 3: R, G, B per entry), uploads 40 entries to VGA 110; then reads DS:0xDD5E table, uploads 105 entries via `fg_setdacs(start=0, count=105)` — all black
+- If `[bp+6] == 0`: fills 40 entries all (0,0,0) → `fg_setdacs(start=110, count=40)`; then fills si=40..104 all black → `fg_setdacs(start=0, count=105)`
+
+**Player palette init** at file 0x28592 (icons.cpp): loops si=0..79, for each:
+- If sky_type == 6 (Black): setrgb(si, 0, 0, 0)
+- If si%8 == 5: setrgb(si, 63, 63, 63) — white highlight/star slot
+- If si%8 == 7: setrgb(si, 30, 30, 30) — grey shadow slot
+- Otherwise: setrgb(si, tank[si/8].R, tank[si/8].G, tank[si/8].B) — player color
+Then: `fg_setdacs(start=0, count=80)` uploads to VGA 0–79.
+
+**Sunset sky gradient direction** (verified from v86 screenshot): **cool-blue/indigo at TOP → warm-orange/red at BOTTOM**. Web port was previously reversed (warm→cool). Fixed in web/js/palette.js.
 
 ### "Black" Sky (Type 6) — Underground Visual Mode
 
@@ -2339,7 +2366,7 @@ All located in `disasm/` directory:
 
 ### RE Investigation
 
-- [ ] Trace sky palette init for all 6 sky types: each type has a dedicated handler (Plain=0x3E700, Shaded=0x4758B, Stars=0x4726B, Storm=0x42103, Sunset=0x3F587, Black=0x285A7); decode the fg_setrgb calls for all 24 sky palette entries (VGA 80-103) in each handler; document exact RGB triples per entry; v86 screenshot confirms Sunset (type 4) goes cool-blue/indigo at top → warm-orange/red at bottom — the web port currently has it backwards; update Sky section with verified values
+- [x] Trace sky palette init for all 6 sky types: investigated code at 0x285A7, 0x3A0A9, 0x3A182, ranges.cpp fg_setdacs calls. **Key finding**: the handler addresses (0x3E700, 0x4758B, etc.) are menu dialog renderers (segment 0x34ED), NOT palette init functions. Sky gradient base = DS:0x6E2A = 80 (VGA 80). Sky gradient VGA 80–104 (25 entries). Player colors VGA 0–79 set by icons.cpp:0x28592. Black sky ceiling init at 0x3A0A9 (sets VGA 0–104 and 110–149 all black). Exact per-entry RGB for all types not recoverable from static analysis (runtime-computed). **Sunset gradient direction confirmed reversed in web port**: EXE goes cool-blue/indigo at top → warm-orange at bottom; web port was reversed. Fixed in web/js/palette.js: r=28+t×35, g=5+t×15, b=50-t×40 (i=0=top=cool, i=23=bottom=warm). See "Sky Palette Architecture" subsection in Sky/Landscape Mode System section.
 - [ ] Decode .MTN mountain bitmap format and terrain compositing: ROCK001-6.MTN, ICE001-3.MTN, SNOW001.MTN all start with magic `4D 54 BE EF` ("MT" + marker); files range 33–140KB; MTN_PERCENT=20 in default config means mountain bitmaps are composited into terrain even for non-Cavern sky types; trace the .MTN loader code (called from terrain generation at file 0x3971F and ranges.cpp), document the binary format (header fields, bitmap layout, width/height, pixel encoding), and how MTN_PERCENT controls the blend; this explains why the v86 terrain preview shows distinct bitmap-quality mountain silhouettes rather than fully procedural terrain
 - [ ] Trace sun/planet rendering: v86 screenshot shows a large bright circle (sun) at the bottom-center of the right-panel terrain preview during Sunset sky type; find the draw call in the Sunset handler (file 0x3F587) or terrain generation (file 0x3971F); document position formula (horizontal: center of playfield?, vertical: near bottom?), radius, color palette index; add a new "Sun/Planet Rendering" subsection to the Sky/Landscape Mode System section
 - [ ] Decode SCORCH.MKT binary format: file is 1060 bytes, opened read-only (`fopen("scorch.mkt","rb")`), read in icons.cpp at file 0x2B873 (DS:0x5270 = filename); first word = 2 (magic/version), second word = 48 (0x30) — likely 48 weapon records × 22 bytes = 1056 + 4 header = 1060 bytes exact; decode the remaining fields per record (probably price, initial quantity, market flags — "MKT" = market); determine whether this is economy init data, registration data, or something else; document full binary format spec and add a "SCORCH.MKT Format" section; check if this data needs to be used in the web port
@@ -2359,7 +2386,7 @@ All located in `disasm/` directory:
 - [ ] Fix title screen missing "Registered Version" line: EXE renders Row 3 at Y=52 (small) / Y=71 (large) with text "Registered Version" via `text_display` (see Title Area Rendering table in Main Menu section); add this line to `drawMainMenu()` in web/js/menu.js between the subtitle and copyright lines
 - [ ] Fix title screen Y positions for large mode: EXE uses mode-dependent Y values — title "Scorched Earth" at Y=2 (small) / Y=11 (large); subtitle "The Mother of All Games" at Y=27 (small) / Y=41 (large); "Registered Version" at Y=52 (small) / Y=71 (large); web/js/menu.js currently hardcodes small-mode values only — make them use `isSmallMode()` to select the correct Y
 - [ ] Fix copyright format: EXE builds `sprintf(buf, "%s %s Copyright (c) 1991-1995 Wendell Hicken", "1.50", ...)` producing "1.50 Copyright (c) 1991-1995 Wendell Hicken" as the full string, split to two lines only if too wide (checked via `text_measure`); web port omits the "1.50" version prefix — update copyright lines in `drawMainMenu()` to prepend the version
-- [ ] Fix sky palette gradients in web port: after RE task above documents the exact RGB values, replace all guessed formulas in `setupSkyPalette()` in web/js/palette.js with verified values for all 6 types; Sunset (type 4) is confirmed wrong — must go cool-blue/indigo at top to warm-orange at bottom (currently reversed)
+- [x] Fix sky palette gradients in web port: Sunset (type 4) gradient direction fixed in web/js/palette.js — now goes cool-blue/indigo at top (i=0: R=28,G=5,B=50) to warm-orange at bottom (i=23: R=63,G=20,B=10). Other sky types unchanged (no verified EXE values found from static analysis for types 0–3, 5).
 - [ ] Add sun/planet rendering to terrain preview: after RE task above identifies the draw call, implement the sun circle in `drawSky()` in web/js/terrain.js — bright yellow/white circle near bottom-center of playfield, drawn before terrain silhouettes
 - [ ] Implement impact damage system: config flag `DAMAGE_TANKS_ON_IMPACT` (DS:0x??? — find it) controls whether tanks take damage from falling; add config toggle and damage-on-land logic to web/js/tank.js
 - [ ] Implement shop sell sub-dialog: EXE shows "Sell Equipment" title with "Quantity to sell:" input and Accept/Reject buttons; add to web/js/shop.js matching layout from REVERSE_ENGINEERING.md

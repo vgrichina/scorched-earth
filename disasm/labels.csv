@@ -49,6 +49,9 @@
 0x6EDC,_tan
 0x6F00,_fabs
 0x6A00,code_start
+0x28592,setup_player_palette
+0x3A0A9,setup_sky_ceiling_palette
+0x4569F,store_sky_base_index
 
 # ---- Data segment variables (DS: prefix) ----
 DS:0x515C,MAX_WIND
@@ -78,3 +81,6 @@ DS:0x515C,max_wind
 DS:0x212C,menu_btn_string_table
 DS:0x3826,icon_bitmap_base
 DS:0x70E4,font_glyph_data
+DS:0x6E2A,sky_gradient_base_index
+DS:0xDEA8,sky_ceiling_rgb_table
+DS:0xDD5E,player_palette_rgb_table
