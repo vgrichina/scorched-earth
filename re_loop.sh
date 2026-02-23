@@ -22,12 +22,16 @@ done
 
 cd "$(dirname "$0")"
 remaining() { grep -c '^- \[ \]' REVERSE_ENGINEERING.md 2>/dev/null || true; }
+mkdir -p re_loop_sessions
+RUN_TS=$(date '+%Y%m%d_%H%M%S')
 
 for (( i=1; i<=MAX; i++ )); do
   [[ $(remaining) -eq 0 ]] && echo "All tasks done!" && break
   echo ""
   echo "=== Session $i ($(remaining) tasks left) ==="
   [[ "$DRY" == true ]] && echo "[dry-run]" && break
+
+  LOG="re_loop_sessions/${RUN_TS}_session_$(printf '%03d' $i).txt"
 
   PROMPT="Continue the Scorched Earth v1.50 reverse-engineering and web port project.
 
@@ -75,13 +79,17 @@ IMPORTANT tool rules — violations will be blocked:
 - Use the Glob tool (NOT ls/find via Bash) to list files
 - Do NOT run python3 inline scripts — write a .py file first, then run it
 
-Do not re-document already-covered addresses. Stop after $TASKS tasks."
+Do not re-document already-covered addresses. Stop after $TASKS tasks.
+
+Session logs from this and previous runs are in re_loop_sessions/ (format: YYYYMMDD_HHMMSS_session_NNN.txt).
+Use Read or Grep on those files if you need context from a prior session."
 
   echo "$PROMPT" | claude -p \
     --output-format stream-json \
     --max-turns 50 \
     --allowedTools "Bash(python3 disasm/fpu_decode.py*),Bash(python3 disasm/ds_lookup.py*),Bash(python3 disasm/xref.py*),Bash(python3 disasm/struct_dump.py*),Bash(python3 disasm/strings_dump.py*),Bash(python3 disasm/icon_dump.py*),Bash(python3 disasm/font_dump.py*),Bash(python3 disasm/palette_dump.py*),Bash(python3 disasm/seg_offset.py*),Bash(python3 disasm/*.py*),Bash(git add*),Bash(git commit*),Bash(git log*),Bash(git status*),Bash(git diff*),Read,Edit,Write,Glob,Grep" \
-    | jq -r '
+    | tee "$LOG" \
+    | jq --unbuffered -r '
         if .type == "assistant" then
           .message.content[] |
           if .type == "text" then .text
