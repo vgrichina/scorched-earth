@@ -100,14 +100,17 @@ export const game = {
   aimTimer: 0,
 };
 
-// EXE: wind generation — center-biased with random doubling
-// EXE: 20% chance double, 40% chance double again (from disasm/physics_timestep_wind_analysis.txt)
+// EXE: wind generation — positive-biased with NESTED random doubling (file 0x2943A)
+// Formula: rand(max_wind) - max_wind/4 → range [-max/4, +3*max/4); positive-biased
+// 20% chance ×2; nested 40% of that = 8% total chance of ×4
 export function generateWind() {
   const maxWind = config.wind;
   if (maxWind === 0) { game.wind = 0; return; }
-  let wind = random(Math.floor(maxWind / 2) + 1) - Math.floor(maxWind / 4);
-  if (random(100) < 20) wind *= 2;
-  if (random(100) < 40) wind *= 2;
+  let wind = random(maxWind) - Math.floor(maxWind / 4);
+  if (random(100) < 20) {
+    wind *= 2;
+    if (random(100) < 40) wind *= 2;  // nested: only if first double fired
+  }
   game.wind = clamp(wind, -maxWind * 4, maxWind * 4);
 }
 
@@ -119,11 +122,11 @@ function resolveRandomWallType() {
   setResolvedWallType(concreteTypes[random(concreteTypes.length)]);
 }
 
-// EXE: wind random walk per turn — delta in [-5, +5], clamped to ±wind*4
+// EXE: wind random walk per turn — delta in [-5, +5], clamped to ±max_wind (file 0x28E99)
 function updateWind() {
   if (!config.changeWind) return;
   const delta = random(11) - 5;  // [-5, +5]
-  game.wind = clamp(game.wind + delta, -config.wind * 4, config.wind * 4);
+  game.wind = clamp(game.wind + delta, -config.wind, config.wind);
 }
 
 // Get the current active player

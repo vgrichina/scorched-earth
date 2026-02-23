@@ -957,15 +957,23 @@ Applied to vx and vy each physics sub-step, both in extras.cpp and an earlier tr
 
 **Wind is horizontal only** — `wind_y` always set to 0 (file 0x226D3).
 
-**Generation** (round start, file 0x2943A) — center-biased with random doubling:
+**Generation** (round start, file 0x2943A) — positive-biased with nested random doubling:
 ```c
 int generate_wind(int max_wind) {
-    int wind = random(max_wind / 2) - max_wind / 4;  // [-max/4, +max/4)
-    if (random(100) < 20)  wind *= 2;   // 20% chance double
-    if (random(100) < 40)  wind *= 2;   // 40% chance double (independent)
-    return wind;
+    // file 0x2943A: mov ax,[515c]; push ax; call rand(n); then mov ax,[515c]; mov bx,4; idiv
+    int wind = random(max_wind) - max_wind / 4;  // [-max/4, +3*max/4)  NOTE: asymmetric!
+    // file 0x29462-0x29485: NESTED — second double only if first fires
+    if (random(100) < 20) {      // 20% chance
+        wind *= 2;
+        if (random(100) < 40)    // 40% of that 20% = 8% total chance of ×4
+            wind *= 2;
+    }
+    return wind;                 // no clamp on generation; per-turn update clamps to ±max_wind
 }
-// Distribution: 48% small, 12% moderate, 32% strong, 8% extreme
+// Distribution: 80% base [-max/4, +3max/4), 12% doubled, 8% quadrupled
+// Mean ≈ +max/4 (positive-biased); e.g. max_wind=200 → mean ≈ +49.5
+// DS:515c = MAX_WIND (slider 5–500, default 200); DS:515a = current wind (signed int16)
+// DS:633c = 5.0 (slider min float32); DS:6348 = 500.0 (slider max float32)
 ```
 
 **Changing wind** (per-turn, file 0x28E99) — random walk when `CHANGING_WIND=On`:
@@ -2331,7 +2339,7 @@ All located in `disasm/` directory:
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
 - [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
 - [x] Verify viscosity formula scaling: confirmed formula `1.0 - AIR_VISCOSITY/10000` per-step, range 0–20 (clamped by EXE at file 0x19B54; max constant DS:0x0408 = 20.0). Divisor DS:0x040C = DS:0x637C = 10000.0. Integer intermediate DS:0x5180. Skip-when-1.0 optimization at file 0x21C56. Two application sites: extras.cpp (0x21C56) and earlier trajectory module (0x14391). Web port formula and range are correct.
-- [ ] Verify wind generation distribution: trace wind randomization code near file 0x2943A; document the exact distribution (center-biased? uniform?) and fix game.js if it diverges
+- [x] Verify wind generation distribution: traced wind code at file 0x2943A (generate_wind) and 0x28E99 (update_wind). **Corrections to previous doc**: (1) initial formula is `rand(max_wind) - max_wind/4` NOT `rand(max_wind/2) - max_wind/4` — range is `[-max/4, +3*max/4)`, twice as wide and positive-biased; (2) second doubling is NESTED inside first (8% total ×4 chance) NOT independent (was mis-documented as independent 40%). DS:515c = MAX_WIND (default 200, slider 5–500); DS:633c = 5.0 (slider min), DS:6348 = 500.0 (slider max). Per-turn clamp uses ±DS:515c directly. Web port game.js fixed: `random(maxWind)` replacing `random(Math.floor(maxWind/2)+1)`, nested doubling, clamp changed from `config.wind*4` to `config.wind`.
 - [ ] Verify UI palette RGB values (200-208): trace DAC write code to find exact r,g,b for indices 200-208; update web/js/palette.js if values differ from current estimates
 - [ ] Extend font to 161 chars: trace CP437 0x80-0xFF glyph data in the EXE (DS:0x70E4-0x94EA range), extract widths and pixel data, add to web/js/font.js
 
