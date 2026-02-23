@@ -1461,34 +1461,72 @@ int ai_wind_correction(void) {
 // Difficulty param controls wavelength (higher = smaller noise = more accurate).
 // Harmonics are summed per-column to produce aim wobble.
 // =====================================================================
+//
+// VERIFIED constants (decoded from binary — DS offsets with IEEE double/float values):
+//   DS:0x322C = harmonic count (runtime, init to 0; max 5, min 2)
+//   DS:0x322E = π     = 3.14159  (double) — freq_base divisor
+//   DS:0x3236 = 2π    = 6.28318  (double) — freq_cap divisor
+//   DS:0x323E = 4.0   (float)    — freq multiplier scale per harmonic
+//   DS:0x3242 = 0.5   (float)    — amplitude scale factor
+//   DS:0x3246 = 2.0   (float)    — budget deduction factor per harmonic
+//   Runtime tables (BSS, zero in binary, initialized by this function):
+//     freq table:  DS:[i*8 - 0x3070]  (= DS:0xCF90 for i=0)
+//     phase table: DS:[i*8 - 0x2FD0]  (= DS:0xD030 for i=0)
+//     amp table:   DS:[i*8 - 0x3020]  (= DS:0xCFE0 for i=0)
 
-void ai_inject_noise(int difficulty, int arc_center) {
-    double wavelength_x = DS:322E / (double)(difficulty * 2);
-    double wavelength_y = DS:3236 / 10.0;
-    double amp_decay = wavelength_x * DS:323E;
+void ai_inject_noise(int noise_amplitude, int shot_range) {
+    // freq_base = π / (2 * noise_amplitude)
+    double freq_base = 3.14159 / (double)(noise_amplitude * 2);
+    // freq_cap = 2π / 10
+    double freq_cap  = 6.28318 / 10.0;
+    // freq_mult starts at freq_base * 4.0, multiplied by 4.0 each harmonic
+    double freq_mult = freq_base * 4.0;
 
-    int x_pos = arc_center - 30;
-    int n = 0;  // DS:322C = harmonic count
+    int budget = shot_range - 30;  // remaining amplitude budget
+    int n = 0;  // DS:0x322C = harmonic count
 
-    while (x_pos > 10 && n < 5) {
-        amplitude[n] = random_float() * (double)x_pos * DS:3242;
+    while (budget > 10 && n < 5) {
+        // amplitude = rand01() * budget * 0.5
+        amplitude[n] = random_float() * (double)budget * 0.5;
 
-        // Rejection-sample frequency into valid band
-        do { frequency[n] = random_float() * amp_decay; }
-        while (frequency[n] >= wavelength_x || frequency[n] <= wavelength_y);
+        // frequency: rejection-sample into [freq_base, freq_cap]
+        do { frequency[n] = random_float() * freq_mult; }
+        while (frequency[n] < freq_base || frequency[n] > freq_cap);
 
+        // phase: random integer 0–299
         phase[n] = (double)random_int(300);
 
-        x_pos = (int)((double)x_pos - amplitude[n] * DS:3246);
-        amp_decay *= DS:323E;
+        // reduce remaining budget by 2 * amplitude
+        budget = (int)((double)budget - amplitude[n] * 2.0);
+        freq_mult *= 4.0;  // next harmonic has 4× higher frequency range
         n++;
     }
-    if (n < 2) goto retry;  // need at least 2 harmonics
+    if (n < 2) goto retry;  // need at least 2 harmonics; retry entire generation
 }
 
-// Noise application: for each column in firing arc:
-//   displacement = base_y + SUM(amplitude[h] * sin(frequency[h] * (phase[h] + step)))
-// This produces smooth sinusoidal aim wobble proportional to AI difficulty.
+// Noise application (file 0x25F37): called with (player_ptr, min_target, min_angle,
+//   max_angle, max_target, min_angle2). For each target si from min_target..max_target:
+//   shot_number increments once per outer call; base_angle chosen once per call as:
+//     base_angle = ftol(min_angle + total_amp + rand(shot_range - 20 - 2*total_amp))
+//   angle_for_target = base_angle + SUM(i=0..n-1; amplitude[i] * sin(frequency[i]*(phase[i]+shot_number)))
+//   → ftol(angle_for_target) → simulate trajectory at that angle
+// This is a SCANNING mechanism — the AI explores the angle space smoothly across
+// successive firing attempts, NOT random noise added to a solved answer.
+```
+
+**IMPORTANT web port discrepancy — AI noise is architecturally different:**
+The EXE does NOT compute a "correct" angle and add noise. Instead, `ai_inject_noise` generates
+a sinusoidal scan pattern: the base angle is a random starting point within the valid range,
+and each successive firing attempt uses `shot_number++` to walk the sinusoid. More accurate AI
+types (lower `noise_amplitude`) have higher-frequency harmonics (smaller wavelength, faster
+scanning), meaning they cover more of the angle space per shot. The web port's model of
+`analytically solved angle + sinusoidalNoise() * 0.15 (angle) / * 3.0 (power)` is architecturally
+incorrect — those multipliers (0.15, 3.0) are guesses with no basis in the EXE constants.
+
+**Actual EXE amplitude for Moron (noise_amplitude=50, shot_range≈90°):**
+- freq_base = π/100 ≈ 0.031 rad, freq_cap = 2π/10 ≈ 0.628 rad
+- budget = 90 - 30 = 60, amp[0] ≈ rand() * 30 (±30° first harmonic)
+- After 1 harmonic, budget ≈ 0 → typically 2 harmonics forced by min_count=2
 ```
 
 **Key architecture insight**: The AI does NOT use a closed-form ballistic equation to solve for
@@ -2272,7 +2310,7 @@ All located in `disasm/` directory:
 
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
-- [ ] Verify AI noise calibration: web/js/ai.js multiplies sinusoidal noise by 0.15 (angle) and 3.0 (power) — trace shark.cpp solver at file 0x38070+ to find the actual scaling constants used in the EXE
+- [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
 - [ ] Verify viscosity formula scaling: trace the DS:0x5178 load and its use in physics to confirm the formula `1.0 - viscosity/10000` applies per-step; check what viscosity range the EXE actually allows vs what's in config.js
 - [ ] Verify wind generation distribution: trace wind randomization code near file 0x2943A; document the exact distribution (center-biased? uniform?) and fix game.js if it diverges
 - [ ] Verify UI palette RGB values (200-208): trace DAC write code to find exact r,g,b for indices 200-208; update web/js/palette.js if values differ from current estimates
