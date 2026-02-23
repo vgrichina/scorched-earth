@@ -35,7 +35,9 @@ for (( i=1; i<=MAX; i++ )); do
 
   PROMPT="Continue the Scorched Earth v1.50 reverse-engineering and web port project.
 
-Read REVERSE_ENGINEERING.md '## Next Tasks' section. Pick the top $TASKS unchecked items (\`- [ ]\`).
+Before picking a task, read the 2-3 most recent session logs in re_loop_sessions/ (format: YYYYMMDD_HHMMSS_session_NNN.txt, sorted by name — pick the last few). Skim them to understand what was just investigated and what dead ends were hit, so you don't repeat the same work.
+
+Then read REVERSE_ENGINEERING.md '## Next Tasks' section. Pick the top $TASKS unchecked items (\`- [ ]\`).
 
 Tasks fall into two categories:
 
@@ -79,10 +81,7 @@ IMPORTANT tool rules — violations will be blocked:
 - Use the Glob tool (NOT ls/find via Bash) to list files
 - Do NOT run python3 inline scripts — write a .py file first, then run it
 
-Do not re-document already-covered addresses. Stop after $TASKS tasks.
-
-Session logs from this and previous runs are in re_loop_sessions/ (format: YYYYMMDD_HHMMSS_session_NNN.txt).
-Use Read or Grep on those files if you need context from a prior session."
+Do not re-document already-covered addresses. Stop after $TASKS tasks."
 
   echo "$PROMPT" | claude -p \
     --output-format stream-json \
