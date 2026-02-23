@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 disasm/fpu_decode.py*)",
+      "Bash(python3 disasm/ds_lookup.py*)",
+      "Bash(python3 disasm/xref.py*)",
+      "Bash(python3 disasm/struct_dump.py*)",
+      "Bash(python3 disasm/strings_dump.py*)",
+      "Bash(python3 disasm/icon_dump.py*)",
+      "Bash(python3 disasm/font_dump.py*)",
+      "Bash(python3 disasm/palette_dump.py*)",
+      "Bash(python3 disasm/seg_offset.py*)",
+      "Bash(python3 disasm/*.py*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git log*)",
+      "Bash(git status*)",
+      "Bash(git diff*)"
+    ]
+  }
+}
