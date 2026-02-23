@@ -28,6 +28,9 @@ API:
 
 import struct
 
+# MZ header size for SCORCH.EXE — used to convert far-call seg:off → file offset
+_MZ_HEADER = 0x6A00
+
 # ---------------------------------------------------------------------------
 # Register tables
 # ---------------------------------------------------------------------------
@@ -733,8 +736,8 @@ def decode(data, pos, labels=None):
         if pos + 4 < len(data):
             off16 = struct.unpack_from('<H', data, pos+1)[0]
             seg16 = struct.unpack_from('<H', data, pos+3)[0]
-            # far calls in Borland use seg=0 (reloc); look up by offset only
-            lname = (labels.get(off16) if labels else None) or f'0x{seg16:04X}:0x{off16:04X}'
+            file_tgt = _MZ_HEADER + seg16 * 16 + off16
+            lname = (labels.get(file_tgt) if labels else None) or f'0x{seg16:04X}:0x{off16:04X}'
             return 5+pfx_len, 'call far', lname, False, None
         return 5+pfx_len, 'call far', '??:??', False, None
     if op == 0x9B: return 1+pfx_len, 'fwait', '', True, None
@@ -761,7 +764,7 @@ def decode(data, pos, labels=None):
     _STR = {0xA4:'movsb',0xA5:'movsw',0xA6:'cmpsb',0xA7:'cmpsw',
             0xAA:'stosb',0xAB:'stosw',0xAC:'lodsb',0xAD:'lodsw',
             0xAE:'scasb',0xAF:'scasw'}
-    if op in _STR: return 1+pfx_len, rep_pfx.strip()+_STR[op] if rep_pfx else _STR[op], '', False, None
+    if op in _STR: return 1+pfx_len, rep_pfx+_STR[op] if rep_pfx else _STR[op], '', False, None
 
     # ---- 0xA8-0xA9: TEST AL/AX, imm ------------------------------------
     if op == 0xA8: return 2+pfx_len, 'test', f'al, 0x{imm8():02X}', False, None
@@ -869,7 +872,9 @@ def decode(data, pos, labels=None):
         if pos + 4 < len(data):
             off16 = struct.unpack_from('<H', data, pos+1)[0]
             seg16 = struct.unpack_from('<H', data, pos+3)[0]
-            return 5+pfx_len, 'jmp far', f'0x{seg16:04X}:0x{off16:04X}', False, None
+            file_tgt = _MZ_HEADER + seg16 * 16 + off16
+            lname = (labels.get(file_tgt) if labels else None) or f'0x{seg16:04X}:0x{off16:04X}'
+            return 5+pfx_len, 'jmp far', lname, False, None
         return 5+pfx_len, 'jmp far', '??:??', False, None
     if op == 0xEB:
         tgt = rel8_target(2)
