@@ -210,9 +210,14 @@ function bhvBounce(proj, weapon, hitResult) {
   return { explode: true, radius: 5, spawn: [], dirtAdd: false, skipDamage: false, keepAlive: true };
 }
 
-// --- MIRV (0x0239): detect apogee (vy sign flip), spawn 6 sub-warheads ---
+// --- MIRV (0x0239): detect apogee (vy sign flip), spawn sub-warheads ---
 // EXE: handler seg 0x25D5 (file 0x2C750)
 // EXE: apogee detection — velocity sign comparison at DS:E4DC/E4E4
+// EXE: sub-warhead params from DS:0x529E/52A2/52A6 table indexed by weapon.param:
+//   MIRV (param=0):        count=5, sub_radius=20, spread_coeff=50
+//   Death's Head (param=1): count=9, sub_radius=35, spread_coeff=20
+// EXE spread formula: vx_offset = (i - (count+1)) * coeff (all negative, left-biased)
+// EXE: vy for sub-warheads is unchanged from parent (no angle math)
 function bhvMirv(proj, weapon) {
   // If hit something before splitting, just explode
   return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
@@ -224,18 +229,22 @@ function mirvFlightCheck(proj, weapon) {
   // Detect apogee: vy was positive (going up), now negative or zero (coming down)
   if (proj.prevVy !== undefined && proj.prevVy > 0 && proj.vy <= 0) {
     proj.hasSplit = true;
-    const subCount = 6;
-    const spread = weapon.param === 1 ? 3.0 : 1.5;  // Death's Head wider spread
-    const subRadius = weapon.param === 1 ? 25 : 15;
+    // EXE-verified: MIRV=5, Death's Head=9 sub-warheads (DS:0x52A2)
+    const subCount  = weapon.param === 1 ? 9 : 5;
+    // EXE-verified: explosion radius per sub-warhead (DS:0x529E)
+    const subRadius = weapon.param === 1 ? 35 : 20;
+    // EXE-verified: spread is purely horizontal (vx offset only, vy unchanged)
+    // EXE formula: (i - (count+1)) * coeff; we use symmetric centering for JS
+    const coeff = weapon.param === 1 ? 20 : 50;  // DS:0x52A6 values
+    const center = (subCount - 1) / 2;           // symmetric center index
     const spawn = [];
 
     for (let i = 0; i < subCount; i++) {
-      const angle = ((i - (subCount - 1) / 2) / subCount) * spread;
       spawn.push({
         x: proj.x,
         y: proj.y,
-        vx: proj.vx + Math.sin(angle) * 100,
-        vy: proj.vy - Math.abs(Math.cos(angle)) * 25,
+        vx: proj.vx + (i - center) * coeff,
+        vy: proj.vy,  // EXE: vy unchanged
         weaponIdx: proj.weaponIdx,
         attackerIdx: proj.attackerIdx,
         isSubWarhead: true,

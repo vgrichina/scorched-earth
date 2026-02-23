@@ -239,7 +239,7 @@ int mirv_per_frame() {
     if (sign(vy) != proj->last_sign_y) split_flag = 1;  // +0x68
 
     if (split_flag && proj->split_type == 1) {  // +0x6A
-        spawn_sub_warheads();  // 6 sub-warheads, 12-byte stride
+        spawn_sub_warheads();  // 5 sub-warheads (MIRV) or 9 (Death's Head)
         do_crater(pos_x, pos_y);
         kill_projectile(DS:E4DA);
         return 0;  // consumed
@@ -249,6 +249,33 @@ int mirv_per_frame() {
 ```
 
 **Sub-warhead damage** (file 0x2C759): `damage = (radius - dist) * 100 / radius`, capped at 110. Death's Head (param=1) uses wider spread table than MIRV (param=0) via DS:529E.
+
+**Sub-warhead spawn parameters** — three packed 2-word arrays at DS:0x529E, each indexed by `weapon.param * 2` (MIRV=0, Death's Head=1):
+
+| DS Offset | param=0 (MIRV) | param=1 (Death's Head) | Usage |
+|-----------|----------------|------------------------|-------|
+| DS:0x529E | 20 | 35 | Sub-warhead explosion radius |
+| DS:0x52A2 | 5 | 9 | Sub-warhead spawn count |
+| DS:0x52A6 | 50 | 20 | vx spread coefficient per slot |
+
+**Sub-warhead spawn code** (function at file 0x2CB6B, seg 0x25D5:012B):
+```c
+// sub_count  = DS:0x52A2[param]   → 5 (MIRV) or 9 (Death's Head)
+// sub_radius = DS:0x529E[param]   → 20 (MIRV) or 35 (Death's Head)
+// spread_coeff = DS:0x52A6[param] → 50 (MIRV) or 20 (Death's Head)
+
+int center_idx = sub_count + 1;  // 6 or 10
+for (int i = 0; i < sub_count; i++) {
+    int vx_offset = (i - center_idx) * spread_coeff;
+    // MIRV:   vx_offset = -300, -250, -200, -150, -100  (all negative / left-biased)
+    // D.Head: vx_offset = -200, -180, -160, ..., -20
+    spawn_sub_warhead(parent.x, parent.y,
+        parent.vx + vx_offset,  // spread is pure horizontal offset
+        parent.vy,              // vy unchanged from parent
+        sub_radius);
+}
+```
+Note: Spread is purely horizontal (vx-only), no angle/sin/cos math. All offsets are negative relative to parent vx, so sub-warheads fan left of the parent trajectory; net spread depends on parent vx magnitude. EXE velocity units are internal integers (not pixels/sec).
 
 #### Funky Bomb (BhvType 0x0000, Segment 0x1DCE)
 
@@ -2211,7 +2238,7 @@ All located in `disasm/` directory:
 
 15. ~~**Roller physics**~~ — **RESOLVED**. Two-phase: impact handler scans terrain left/right for deeper valley to determine roll direction, then spawns rolling projectile with per-frame terrain-follower callback. Gravity acceleration increases speed. Supports all wall types. Terrain threshold = pixel >= 0x69. See "Weapon Behavior Dispatch" section.
 
-16. ~~**MIRV split mechanics**~~ — **RESOLVED**. Apogee detected via velocity sign flip (stored last_sign at +0x66/+0x68). At split: 6 sub-warheads (12-byte stride). Damage = (radius-dist)*100/radius, capped at 110. Death's Head uses wider spread table (param=1 vs param=0). See "Weapon Behavior Dispatch" section.
+16. ~~**MIRV split mechanics**~~ — **RESOLVED**. Apogee detected via velocity sign flip (stored last_sign at +0x66/+0x68). At split: **5 sub-warheads** (MIRV, param=0) or **9** (Death's Head, param=1) — confirmed from spawn function DS:0x52A2 table (file 0x2CB6B). Damage = (radius-dist)*100/radius, capped at 110. Sub-warhead radii: 20 (MIRV) / 35 (Death's Head) from DS:0x529E. Spread is pure horizontal vx offset, no angle math. See "Weapon Behavior Dispatch" section.
 
 17. ~~**Laser/beam weapons**~~ — **RESOLVED**. Laser and Plasma Laser are ACCESSORIES (not fireable beam weapons). They provide a visual "laser sight" targeting line during aiming — Laser draws green (0x78), Plasma Laser draws white (0xFE). Both have NULL behavior function pointers (0:0). Targeting line at file 0x36321 uses Bresenham with per-pixel callback (0x2F76:0x0111). BhvType/BhvSub are far function pointers (offset:segment), not type codes. See `disasm/laser_weapons_analysis.txt`.
 
@@ -2244,7 +2271,7 @@ All located in `disasm/` directory:
 ### RE Investigation
 
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
-- [ ] Decode MIRV/Death's Head spread table: DS:529E holds the sub-warhead angle offsets; dump with ds_lookup.py and compare to web/js/behaviors.js spread formula to get pixel-accurate dispersion
+- [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
 - [ ] Verify AI noise calibration: web/js/ai.js multiplies sinusoidal noise by 0.15 (angle) and 3.0 (power) — trace shark.cpp solver at file 0x38070+ to find the actual scaling constants used in the EXE
 - [ ] Verify viscosity formula scaling: trace the DS:0x5178 load and its use in physics to confirm the formula `1.0 - viscosity/10000` applies per-step; check what viscosity range the EXE actually allows vs what's in config.js
 - [ ] Verify wind generation distribution: trace wind randomization code near file 0x2943A; document the exact distribution (center-biased? uniform?) and fix game.js if it diverges
