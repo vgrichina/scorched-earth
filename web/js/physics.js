@@ -4,7 +4,7 @@
 // EXE: viscosity factor = 1.0 - config/10000 (multiplicative per step)
 // EXE: gravity = 4.9 px/sec² (from SCORCH.CFG GRAVITY=0.05-10.0, default 1.0)
 // EXE: wind = horizontal only, WIND_SCALE applied per step
-// EXE: speed limit = 1.5 speed-squared threshold
+// EXE: no explicit speed limit — velocity bounded naturally by viscosity damping
 
 import { config } from './config.js';
 import { clamp } from './utils.js';
@@ -244,43 +244,36 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   proj.trail.push({ x: Math.round(proj.x), y: Math.round(proj.y) });
   if (proj.trail.length > 200) proj.trail.shift();
 
-  // EXE physics order: Mag → Speed limit → Position → Viscosity → Gravity → Wind
+  // EXE physics order: Mag → Position → Viscosity → Gravity → Wind
+  // NOTE: The EXE has NO explicit speed limit check. DS:1CA2 = 1.5 is only
+  // used as a sound frequency multiplier in Mag Deflector (sqrt(dist)*1.5+1000),
+  // not a speed threshold. Speed is bounded naturally by viscosity damping.
 
   // 1. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
   if (!proj.isNapalmParticle) {
     applyMagDeflection(proj);
   }
 
-  // 2. Speed limit (EXE: speed² threshold = 1.5, normalize to unit vector)
-  if (!proj.isNapalmParticle) {
-    const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-    if (speedSq > 160000) {  // ~400 px/sec max (MAX_SPEED²)
-      const scale = 400 / Math.sqrt(speedSq);
-      proj.vx *= scale;
-      proj.vy *= scale;
-    }
-  }
-
-  // 3. Integrate position (screen coords: y increases downward)
+  // 2. Integrate position (screen coords: y increases downward)
   proj.x += proj.vx * DT;
   proj.y -= proj.vy * DT;  // subtract because screen y is inverted
 
-  // 4. Viscosity (air resistance) — skip for napalm particles (they have own damping)
+  // 3. Viscosity (air resistance) — skip for napalm particles (they have own damping)
   if (!proj.isNapalmParticle) {
     const visc = getViscosityFactor();
     proj.vx *= visc;
     proj.vy *= visc;
   }
 
-  // 5. Gravity (reduce upward velocity)
+  // 4. Gravity (reduce upward velocity)
   proj.vy -= GRAVITY * DT;
 
-  // 6. Wind (horizontal only, from RE) — skip for napalm particles
+  // 5. Wind (horizontal only, from RE) — skip for napalm particles
   if (!proj.isNapalmParticle) {
     proj.vx += wind * WIND_SCALE * DT;
   }
 
-  // 5. Wall collision
+  // 6. Wall collision
   const wallResult = handleWallCollision(proj);
   if (wallResult === 'hit_wall') return 'hit_wall';
   if (wallResult === 'offscreen') return 'offscreen';
@@ -288,7 +281,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   const sx = Math.round(proj.x);
   const sy = Math.round(proj.y);
 
-  // 6. Vertical bounds check
+  // 7. Vertical bounds check
   if (sy > config.screenHeight + 50) {
     proj.active = false;
     return 'offscreen';
@@ -298,7 +291,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     return 'offscreen';
   }
 
-  // 7. Collision detection via pixel color (only when on-screen and below HUD)
+  // 8. Collision detection via pixel color (only when on-screen and below HUD)
   // EXE: fire_weapon at file 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12)
   // EXE: pixel-based collision — player colors 0-79, terrain >= 105
   // EXE VERIFIED: thresholds (>0 && <80 = tank, >=105 = terrain) match EXE collision

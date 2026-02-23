@@ -874,16 +874,16 @@ void sim_step(projectile_t *proj) {
     //    makes exact field accesses hard to decode — fpu_decode.py bug.
     //    Conditional on DS:5146 flag: plays distance-based sound effect
     //    via sqrt(distSq) * DS:1CA2 + 1000.0 → _ftol → call 0xA281
+    //    DS:1CA2 = 1.5 is ONLY used here as a sound frequency multiplier.
+    //    It is NOT a speed limit threshold (earlier doc was wrong).
 
-    // 1. Speed limit (DS:1CA2 = 1.5 speed-squared threshold)
-    double speed_sq = proj->vx * proj->vx + proj->vy * proj->vy;
-    if (speed_sq > 1.5) {
-        double speed = sqrt(speed_sq);
-        proj->vx /= speed;
-        proj->vy /= speed;
-    }
+    // NOTE: There is NO explicit speed limit check in the EXE physics loop.
+    // DS:1CA2 = 1.5 appears only in: (a) MIPS benchmark timing loop
+    // (file 0x21000), and (b) Mag Deflector sound distance scaling here.
+    // Speed is bounded naturally by viscosity damping per step.
+    // The web port's `speedSq > 160000` check is non-original.
 
-    // 2. Position update (screen Y inverted)
+    // 1. Position update (screen Y inverted)
     proj->x += proj->vx * dt;       // DS:CEAC
     proj->y -= proj->vy * dt;       // FSUBR: y = y - vy*dt
 
@@ -947,7 +947,7 @@ void update_wind(int *wind, int max_wind_limit) {
 | DS:5178 | f64 | viscosity factor |
 | DS:1C86 | u32 | MIPS count |
 | DS:1CFA | f64 | 0.02 (fallback dt) |
-| DS:1CA2 | f32 | 1.5 (speed-sq limit) |
+| DS:1CA2 | f32 | 1.5 (Mag Deflector sound multiplier: sqrt(distSq)*1.5+1000 → sound frequency) |
 
 ### Key Float Constants (from binary)
 
@@ -2236,6 +2236,32 @@ All located in `disasm/` directory:
 27. ~~**Mouse/joystick wrapper functions**~~ — **RESOLVED**. No direct INT 33h calls in game code — all 3 `cd 33` byte matches (0x9D18, 0x130B2, 0x1C1C2) are false positives spanning instruction boundaries. Mouse is accessed entirely through Fastgraph V4.02's mouse API (fg_mouseini, fg_mousepos, etc.), which internally calls INT 33h. Input mode at DS:0x5030 (0=keyboard, 1=mouse/buffered, 2=joystick/direct). MOUSE_RATE (DS:0x6BF8) = 0.50 default (IEEE double), scales mouse delta to angle/power. Click regions: 12-byte structs at DS:0x56AE with dynamic count at DS:0xEA10 (4 or 11 entries). Menu dialog system at seg 0x3F19 handles pointer via DS:0x5148. See "Mouse/Pointer System" section below.
 
 24. ~~**Simultaneous/Synchronous play modes**~~ — **RESOLVED**. Play mode variable at DS:0x5188 (0=Sequential, 1=Simultaneous, 2=Synchronous). 36 code references across binary. Sequential: one-at-a-time turns with full display updates. Simultaneous: all aim at once, fire callbacks cleared (player +0xAE/+0xB0 = NULL), timer-controlled, projectile screen-wrapping enabled. Synchronous: sequential aiming + simultaneous firing. See "Play Modes" section below.
+
+---
+
+## Next Tasks
+
+### RE Investigation
+
+- [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
+- [ ] Decode MIRV/Death's Head spread table: DS:529E holds the sub-warhead angle offsets; dump with ds_lookup.py and compare to web/js/behaviors.js spread formula to get pixel-accurate dispersion
+- [ ] Verify AI noise calibration: web/js/ai.js multiplies sinusoidal noise by 0.15 (angle) and 3.0 (power) — trace shark.cpp solver at file 0x38070+ to find the actual scaling constants used in the EXE
+- [ ] Verify viscosity formula scaling: trace the DS:0x5178 load and its use in physics to confirm the formula `1.0 - viscosity/10000` applies per-step; check what viscosity range the EXE actually allows vs what's in config.js
+- [ ] Verify wind generation distribution: trace wind randomization code near file 0x2943A; document the exact distribution (center-biased? uniform?) and fix game.js if it diverges
+- [ ] Verify UI palette RGB values (200-208): trace DAC write code to find exact r,g,b for indices 200-208; update web/js/palette.js if values differ from current estimates
+- [ ] Extend font to 161 chars: trace CP437 0x80-0xFF glyph data in the EXE (DS:0x70E4-0x94EA range), extract widths and pixel data, add to web/js/font.js
+
+### Web Port Implementation
+
+- [ ] Implement impact damage system: config flag `DAMAGE_TANKS_ON_IMPACT` (DS:0x??? — find it) controls whether tanks take damage from falling; add config toggle and damage-on-land logic to web/js/tank.js
+- [ ] Implement shop sell sub-dialog: EXE shows "Sell Equipment" title with "Quantity to sell:" input and Accept/Reject buttons; add to web/js/shop.js matching layout from REVERSE_ENGINEERING.md
+- [ ] Implement shop palette animation: accent colors cycle through indices 8-11 every 8 frames; trace animation loop at shop render and implement in web/js/shop.js + web/js/palette.js
+- [ ] Implement Full Row 2 HUD widgets: replace text approximations with actual icon+bar widgets using icon bitmap data from DS:0x3826 (48 icons × 125 bytes); implement all 7 per-player inventory widgets in web/js/hud.js
+
+### Documentation
+
+- [ ] Draw ASCII architecture diagrams: create `docs/architecture_exe.md` with call graph, module layout, memory map, and data flow for the EXE (code segments → functions → shared DS); create `docs/architecture_web.md` with equivalent diagram for the web port (JS module graph, render loop, event flow, shared state)
+- [ ] Full fidelity audit: read every section of REVERSE_ENGINEERING.md against every web/js/*.js file, compare documented EXE values/formulas/behaviors against the implementation, and add new `- [ ]` tasks here for every gap found; mark this task done only after the task list is fully refreshed
 
 ---
 
