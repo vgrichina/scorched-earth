@@ -88,7 +88,6 @@ Use Read or Grep on those files if you need context from a prior session."
     --output-format stream-json \
     --max-turns 50 \
     --allowedTools "Bash(python3 disasm/fpu_decode.py*),Bash(python3 disasm/ds_lookup.py*),Bash(python3 disasm/xref.py*),Bash(python3 disasm/struct_dump.py*),Bash(python3 disasm/strings_dump.py*),Bash(python3 disasm/icon_dump.py*),Bash(python3 disasm/font_dump.py*),Bash(python3 disasm/palette_dump.py*),Bash(python3 disasm/seg_offset.py*),Bash(python3 disasm/*.py*),Bash(git add*),Bash(git commit*),Bash(git log*),Bash(git status*),Bash(git diff*),Read,Edit,Write,Glob,Grep" \
-    | tee "$LOG" \
     | jq --unbuffered -r '
         if .type == "assistant" then
           .message.content[] |
@@ -113,7 +112,7 @@ Use Read or Grep on those files if you need context from a prior session."
           end
         else empty
         end
-      ' &
+      ' | tee "$LOG" &
   wait $!
 
   SUMMARY=$(git diff REVERSE_ENGINEERING.md | grep '^+- \[x\]' | head -1 | sed 's/^+- \[x\] //' || true)
