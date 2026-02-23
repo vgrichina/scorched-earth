@@ -53,10 +53,10 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 
 ## 3. HUD — Basic Mode (320x200)
 
-### 3a. Player Icons (SIMPLIFIED)
-- **EXE**: Icon bitmap data at DS:0x3826, stride 125 bytes, 48 icons. Each icon has `pattern_type(1B), width(1B), height(1B), pixel_data(122B)`. Rendered via `draw_icon_alive` (filled), `draw_icon_dead` (outline), `draw_icon_blank` (erase).
-- **Web**: Simple rectangles: alive = `fillRect(ix, HUD_Y+3, ix+4, HUD_Y+7)` (5x5 filled), dead = 4 edge lines (5x5 outline).
-- **Impact**: Original icons are likely detailed tank silhouettes; web shows plain squares.
+### ~~3a. Player Icons (SIMPLIFIED)~~ — **MOSTLY FIXED**
+- **EXE**: Icon bitmap data at DS:0x3826, stride 125 bytes, 48 icons. Each icon has `pattern_type(1B), width(1B), height(1B), pixel_data(122B)`. Column-major pixel format. Rendered via `draw_icon_alive` (0x261D7, flag=1, filled in player color), `draw_icon_dead` (0x26245, flag=0, outline in palette 0xA9=169). Icon index from sub struct +0x16; draw_hud always calls draw_icon_alive. Dead player color = dimmed.
+- **Web**: Now renders icon 0 (4×7px) as actual bitmap (column-major). Alive = player color, dead = UI_DARK_TEXT. Active player indicator dot at y=HUD_Y+ICON_H+2.
+- **Remaining**: Exact EXE icon index (sub struct +0x16) not traced — using icon 0 as default. EXE may use different icon per player type.
 
 ### 3b. Row 2 Wind Text (INTENTIONAL ADDITION)
 - **EXE**: Basic mode Row 2 does NOT display wind. Only shows: name + energy bar + "Angle:" + angle bar.
@@ -234,7 +234,7 @@ Extracted from `fg_setrgb` calls at file 0x2A640–0x2A770 (icons.cpp HUD init):
 | ~~**MEDIUM**~~ | ~~3px borders in hi-res (4d)~~ | **FIXED** (was already in code) |
 | ~~**MEDIUM**~~ | ~~Frame height (4e)~~ | **FIXED** (SH-37, removed extra -6) |
 | ~~**MEDIUM**~~ | ~~Dialog spacing (5b)~~ | **FIXED** (19px at ≥400px) |
-| **MEDIUM** | Player icons simplified (3a) | Medium — needs icon data extraction |
+| ~~**MEDIUM**~~ | ~~Player icons simplified (3a)~~ | **MOSTLY FIXED** — bitmap icon 0 used |
 | ~~**MEDIUM**~~ | ~~Shop highlight color (6b)~~ | **FIXED** |
 | ~~**MEDIUM**~~ | ~~Quote char zero-width (7b)~~ | **FIXED** |
 | ~~**MEDIUM**~~ | ~~Angle label colon (1c)~~ | **FIXED** |

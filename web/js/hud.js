@@ -51,6 +51,26 @@ import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
 
+// Player icon bitmap (icon 0 from EXE: DS:0x3826, 4×7px, type=2)
+// Column-major: pixel_data[col * height + row], 0=transparent, nonzero=foreground
+// EXE: draw_icon_alive (0x261D7) renders filled; draw_icon_dead (0x26245) renders outline
+const PLAYER_ICON_W = 4, PLAYER_ICON_H = 7;
+const PLAYER_ICON = [
+  1, 1, 1, 0, 0, 0, 0,   // col 0
+  0, 1, 1, 1, 1, 1, 1,   // col 1
+  1, 1, 1, 0, 0, 0, 0,   // col 2
+  1, 0, 0, 0, 0, 0, 0,   // col 3
+];
+
+// Draw an icon bitmap at (x, y) in given color (column-major pixel data)
+function drawIconBitmap(x, y, pixels, width, height, color) {
+  for (let col = 0; col < width; col++) {
+    for (let row = 0; row < height; row++) {
+      if (pixels[col * height + row]) setPixel(x + col, y + row, color);
+    }
+  }
+}
+
 // HUD layout constants
 // EXE: compute_hud_layout at file 0x2FBCA computes all positions dynamically
 const LEFT = 5;            // EXE: mov word [0xE9D4], 0x5 — left margin
@@ -137,16 +157,11 @@ export function drawHud(player, wind, round, opts) {
       const ix = iconBaseX + i * ICON_SPACING;
       if (ix + 6 > config.screenWidth - LEFT) break;
       const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-      if (p.alive) {
-        fillRect(ix, HUD_Y + 3, ix + 4, HUD_Y + 7, pColor);
-      } else {
-        hline(ix, ix + 4, HUD_Y + 3, pColor);
-        hline(ix, ix + 4, HUD_Y + 7, pColor);
-        fillRect(ix, HUD_Y + 4, ix, HUD_Y + 6, pColor);
-        fillRect(ix + 4, HUD_Y + 4, ix + 4, HUD_Y + 6, pColor);
-      }
+      // EXE: draw_icon_alive (filled in player color) / draw_icon_dead (outline in palette 0xA9)
+      const iconColor = p.alive ? pColor : UI_DARK_TEXT;
+      drawIconBitmap(ix, HUD_Y, PLAYER_ICON, PLAYER_ICON_W, PLAYER_ICON_H, iconColor);
       if (i === player.index) {
-        setPixel(ix + 2, HUD_Y + 9, pColor);
+        setPixel(ix + 2, HUD_Y + PLAYER_ICON_H + 2, pColor);
       }
     }
   } else {
