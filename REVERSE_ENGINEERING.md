@@ -2340,7 +2340,7 @@ All located in `disasm/` directory:
 - [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
 - [x] Verify viscosity formula scaling: confirmed formula `1.0 - AIR_VISCOSITY/10000` per-step, range 0–20 (clamped by EXE at file 0x19B54; max constant DS:0x0408 = 20.0). Divisor DS:0x040C = DS:0x637C = 10000.0. Integer intermediate DS:0x5180. Skip-when-1.0 optimization at file 0x21C56. Two application sites: extras.cpp (0x21C56) and earlier trajectory module (0x14391). Web port formula and range are correct.
 - [x] Verify wind generation distribution: traced wind code at file 0x2943A (generate_wind) and 0x28E99 (update_wind). **Corrections to previous doc**: (1) initial formula is `rand(max_wind) - max_wind/4` NOT `rand(max_wind/2) - max_wind/4` — range is `[-max/4, +3*max/4)`, twice as wide and positive-biased; (2) second doubling is NESTED inside first (8% total ×4 chance) NOT independent (was mis-documented as independent 40%). DS:515c = MAX_WIND (default 200, slider 5–500); DS:633c = 5.0 (slider min), DS:6348 = 500.0 (slider max). Per-turn clamp uses ±DS:515c directly. Web port game.js fixed: `random(maxWind)` replacing `random(Math.floor(maxWind/2)+1)`, nested doubling, clamp changed from `config.wind*4` to `config.wind`.
-- [ ] Verify UI palette RGB values (200-208): trace DAC write code to find exact r,g,b for indices 200-208; update web/js/palette.js if values differ from current estimates
+- [x] Verify UI palette RGB values (200-208): decoded fg_setrgb calls at file 0x2A640–0x2A770 (icons.cpp init). **All 9 web port values are CORRECT** — no changes needed to palette.js. Confirmed mapping: pal 151=(45,45,45)→web203/204, pal 152=(0,0,0)→web205, pal 153=(30,30,30)→web201, pal 155=(63,63,63)→web202, pal 156=(15,15,15)→web208, pal 158=(5,5,5)→web207, pal 159=(55,55,55)→web206. web200=UI_HIGHLIGHT is dynamic player color (correct as static white). **New discovery**: three additional hardcoded palette entries in same init block not accessed via DS:EFxx variables — pal 154=(40,40,63) medium blue, pal 157=(50,50,50) medium gray, pal 161=(10,63,63) cyan — purpose unknown, not needed by web port. Also: pal 80 overridden with (20,63,20)=green (overwritten by sky setup), pal 87 overridden with (40,40,63) (overwritten by player color setup). See VGA Palette System section.
 - [ ] Extend font to 161 chars: trace CP437 0x80-0xFF glyph data in the EXE (DS:0x70E4-0x94EA range), extract widths and pixel data, add to web/js/font.js
 
 ### Web Port Implementation
@@ -3213,6 +3213,30 @@ Attacker colors loaded from DS:0xDD4C (R), DS:0xDD4E (G), DS:0xDD50 (B).
 
 (si = 0..9 within each group)
 All groups share R ramp (43-61). Green distinguishes: low=red, medium=orange, high=yellow.
+
+### UI Color Palette Entries (VERIFIED from disassembly)
+
+All set via `fg_setrgb` calls at file 0x2A640–0x2A770 (icons.cpp init), calling `0x456B:0x0005`. Calling convention: `fg_setrgb(index, R, G, B)` → push B, G, R, index (cdecl right-to-left).
+
+| Palette Index | DS Var | R | G | B | 8-bit RGB | Role |
+|:---:|:---:|:-:|:-:|:-:|:---------:|------|
+| 151 (0x97) | EF28=EF2A | 45 | 45 | 45 | (180,180,180) | Background fill / light accent |
+| 152 (0x98) | EF2C=EF22 | 0 | 0 | 0 | (0,0,0) | Deep shadow (black) |
+| 153 (0x99) | EF24 | 30 | 30 | 30 | (120,120,120) | Dark text / mid shadow |
+| 154 (0x9A) | *(none)* | 40 | 40 | 63 | (160,160,255) | Medium blue — purpose TBD |
+| 155 (0x9B) | EF26 | 63 | 63 | 63 | (255,255,255) | White outer highlight |
+| 156 (0x9C) | EF32 | 15 | 15 | 15 | (61,61,61) | Dark outer shadow |
+| 157 (0x9D) | *(none)* | 50 | 50 | 50 | (200,200,200) | Medium gray — purpose TBD |
+| 158 (0x9E) | EF30 | 5 | 5 | 5 | (20,20,20) | Near-black sunken border |
+| 159 (0x9F) | EF2E | 55 | 55 | 55 | (222,222,222) | Inner highlight |
+| 161 (0xA1) | *(none)* | 10 | 63 | 63 | (40,255,255) | Cyan — purpose TBD |
+
+Also in same init block (overridden later by game setup):
+- `fg_setrgb(80, 20, 63, 20)` = green — overwritten by sky palette setup each round
+- `fg_setrgb(87, 40, 40, 63)` = medium blue — player 9 slot 7, overwritten by player setup
+- `fg_setrgb(120, 9, 9, 31)` = dark blue — terrain palette base, overwritten per terrain type
+
+**Web port mapping** (DS EF22–EF32 → web indices 200–208): ALL verified correct. `setupUIPalette()` in palette.js uses the exact EXE values.
 
 ### Underground/Black Mode (file 0x39F90)
 
@@ -4182,7 +4206,7 @@ LOW:
 - ~~Shop tab structure~~ — FIXED (Score/Weapons/Miscellaneous/~Done)
 - ~~Shop interest display~~ — FIXED (shows "Earned interest: $N" when > 0)
 - Extended font: 95 chars vs EXE 161 (missing CP437 0x80-0xFF)
-- UI palette RGB values (200-208) unverified against actual EXE DAC state
+- ~~UI palette RGB values (200-208)~~ — VERIFIED CORRECT. All 9 entries (web 200–208 → EXE 151–159) confirmed from fg_setrgb disassembly at file 0x2A640–0x2A770. No changes needed to palette.js.
 
 **Intermediate files**: `disasm/keyboard_input_analysis.txt`
 
