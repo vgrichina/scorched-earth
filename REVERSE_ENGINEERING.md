@@ -928,14 +928,30 @@ void sim_step(projectile_t *proj) {
 
 Projectile sub-struct fields (via ES:BX): `+0x04`=f64 vx, `+0x0C`=f64 vy, `+0x14`=f64 x, `+0x1C`=f64 y.
 
-#### Air Viscosity (file 0x19B60)
+#### Air Viscosity — VERIFIED from disassembly
 
-Config value (0-20) converted to per-step multiplicative factor:
+**Range clamping** (file 0x19B54–0x19B7D, seg 0x130F): after parsing AIR_VISCOSITY as float, the EXE clamps to [0.0, 20.0] (min = 0.0 via `fldz`; max = DS:0x0408 = 20.0 via `fcomp dword [0x408]`).
+
+**Factor computation** (file 0x19B87–0x19BA4, seg 0x130F):
+```c
+DS:0x5180 = (int16_t)AIR_VISCOSITY_float;       // integer intermediate
+DS:0x5178 = 1.0 - (double)DS:0x5180 / 10000.0; // divisor DS:0x040C = 10000.0 (f32)
+// value 0  → factor 1.000 (no damping)
+// value 20 → factor 0.998 (max damping per step)
 ```
-DS:5178 = 1.0 - (double)AIR_VISCOSITY / 10000.0
-// value 0  → 1.000 (no damping)
-// value 20 → 0.998 (max damping per step)
+Menu module repeats same computation at file 0x3CA0A–0x3CA19 (DS:0x637C = 10000.0).
+
+**Per-step application** (file 0x21C56–0x21CA7, extras.cpp; also file 0x14391–0x143BA, earlier physics path):
+```c
+// Skip optimization: if factor == 1.0 (viscosity=0), skip multiply entirely
+if (DS:5178 != 1.0) {
+    vx *= DS:5178;
+    vy *= DS:5178;
+}
 ```
+Applied to vx and vy each physics sub-step, both in extras.cpp and an earlier trajectory module.
+
+**Web port**: formula and per-step application in `physics.js` are correct. Range 0–20 matches EXE.
 
 #### Wind System — VERIFIED from disassembly
 
@@ -971,7 +987,10 @@ void update_wind(int *wind, int max_wind_limit) {
 | DS:5140 | i16 | FIRE_DELAY (default 100) |
 | DS:5152 | i16 | CHANGING_WIND flag |
 | DS:515C | i16 | MAX_WIND (0-200) |
-| DS:5178 | f64 | viscosity factor |
+| DS:5178 | f64 | viscosity factor (= 1.0 − AIR_VISCOSITY/10000) |
+| DS:5180 | i16 | AIR_VISCOSITY integer (0–20), intermediate for DS:5178 computation |
+| DS:0408 | f32 | 20.0 — max AIR_VISCOSITY clamp value |
+| DS:040C | f32 | 10000.0 — viscosity divisor constant |
 | DS:1C86 | u32 | MIPS count |
 | DS:1CFA | f64 | 0.02 (fallback dt) |
 | DS:1CA2 | f32 | 1.5 (Mag Deflector sound multiplier: sqrt(distSq)*1.5+1000 → sound frequency) |
@@ -2311,7 +2330,7 @@ All located in `disasm/` directory:
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
 - [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
-- [ ] Verify viscosity formula scaling: trace the DS:0x5178 load and its use in physics to confirm the formula `1.0 - viscosity/10000` applies per-step; check what viscosity range the EXE actually allows vs what's in config.js
+- [x] Verify viscosity formula scaling: confirmed formula `1.0 - AIR_VISCOSITY/10000` per-step, range 0–20 (clamped by EXE at file 0x19B54; max constant DS:0x0408 = 20.0). Divisor DS:0x040C = DS:0x637C = 10000.0. Integer intermediate DS:0x5180. Skip-when-1.0 optimization at file 0x21C56. Two application sites: extras.cpp (0x21C56) and earlier trajectory module (0x14391). Web port formula and range are correct.
 - [ ] Verify wind generation distribution: trace wind randomization code near file 0x2943A; document the exact distribution (center-biased? uniform?) and fix game.js if it diverges
 - [ ] Verify UI palette RGB values (200-208): trace DAC write code to find exact r,g,b for indices 200-208; update web/js/palette.js if values differ from current estimates
 - [ ] Extend font to 161 chars: trace CP437 0x80-0xFF glyph data in the EXE (DS:0x70E4-0x94EA range), extract widths and pixel data, add to web/js/font.js

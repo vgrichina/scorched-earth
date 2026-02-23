@@ -27,7 +27,7 @@ export const config = {
 
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
   gravity: 1.0,        // EXE: GRAVITY=1.000000 (scaled to 4.9 px/sec² in physics.js)
-  viscosity: 0,        // EXE: VISCOSITY=0 (factor = 1.0 - viscosity/10000)
+  viscosity: 0,        // EXE: AIR_VISCOSITY=0 (range 0–20; factor = 1.0 - value/10000 per step; DS:5178)
   wind: 5,             // EXE: WIND=5 (max initial wind magnitude)
   changeWind: 1,       // EXE: CHANGE_WIND=On (random walk per turn)
 
