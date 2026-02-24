@@ -98,3 +98,8 @@ DS:0x5298,MKT_SIGNAL_DIV
 DS:0x50D4,NUM_PLAYERS
 DS:0x1BB6,WEAPON_COUNT
 DS:0x5270,mkt_filename
+
+# ---- SCORCH.PCX background image ----
+DS:0x575C,pcx_filename
+0x2FAE0,pcx_display
+0x2FB6B,play_loop_switch_table

@@ -2359,6 +2359,55 @@ Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll (skip guidance i
 
 ---
 
+## SCORCH.PCX Background Image (VERIFIED from disassembly)
+
+### Overview
+
+SCORCH.PCX is an **optional user-provided** PCX background image that can be displayed during gameplay by pressing the **'B' key** (scancode 0x30). The file is NOT shipped with the game distribution — it is a customization feature allowing players to provide their own full-screen backdrop.
+
+### Loading Code — play.cpp
+
+The PCX display is triggered via the play loop's keyboard/click switch table at file 0x2FB6B (CS:0x05DB in segment 0x28B9). Action code 0x30 (scancode for 'B') dispatches to CS:0x0550 (file 0x2FAE0):
+
+```
+; Play loop switch case for 'B' key (scancode 0x30)
+; CS:0x0550 (file 0x2FAE0)
+push ds
+push 0x575C              ; far ptr to "scorch.pcx" (DS:0x575C)
+call far fg_pcxopen      ; 0x480A:0x0009 — returns file handle in AX
+push ax                  ; file handle
+push 0x00                ; page 0
+call far fg_pcxhead      ; 0x480A:0x0004 — read PCX header
+push ax                  ; width/status
+push 0x00                ; page 0
+call far fg_pcximage     ; 0x4847:0x0002 — display PCX on screen
+add sp, 0x0C             ; clean up 12 bytes (6 pushes × 2)
+jmp common_exit          ; return to play loop
+```
+
+### Key Details
+
+| Property | Value |
+|----------|-------|
+| Filename string | DS:0x575C = "scorch.pcx" |
+| Trigger | 'B' key (scancode 0x30) during gameplay turn |
+| Switch table entry | Index 46 at CS:0x05DB (file 0x2FB6B), value CS:0x0550 |
+| Code location | File 0x2FAE0–0x2FAFB (CS:0x0550–0x056B) |
+| Fastgraph calls | fg_pcxopen (0x480A:0x0009), fg_pcxhead (0x480A:0x0004), fg_pcximage (0x4847:0x0002) |
+| Error handling | **None** — no check on fg_pcxopen return value; if file missing, behavior undefined |
+| References | **1 total** — only play.cpp at file 0x2FAE0 |
+| File present | **No** — not in earth/ directory, not shipped with game |
+
+### Clarification: DS:0x5188 is NOT related
+
+The task description noted "conditional on DS:0x5188 != 0" but this is incorrect. DS:0x5188 is the **PLAY_MODE** variable (0=Sequential, 1=Simultaneous, 2=Synchronous), already documented in the Play Modes section. The code at file 0x2FAD1 that checks DS:0x5188 is a **separate switch case** (action 0x28) adjacent to but independent from the PCX loading block. The PCX block at 0x2FADF is only reachable via the switch table dispatch for action 0x30.
+
+### Web Port Impact
+
+No action needed — SCORCH.PCX is an optional customization file that was never part of the standard game content. The web port does not need to support this feature. The file should NOT be added to v86/images/game.img.
+
+---
+
 ## SCORCH.MKT Market File Format (VERIFIED from disassembly)
 
 ### Overview
@@ -2595,7 +2644,7 @@ All located in `disasm/` directory:
 - [x] Decode .MTN mountain bitmap format and terrain compositing: **RESOLVED**. Format fully decoded by `disasm/decode_mtn.py` (9/10 files verified). 72-byte header (16b core + 8b unknown + 48b palette). Fields: magic=`MT\xBE\xEF`, version=0x0100, h=rows_per_column (419–1483), x_start/x_end=encoded column range, n_colors=16, palette=16×RGB888 at byte 24. Pixel data at byte 72: **PCX-RLE nibble-packed 4bpp, column-major**. Index 0=(255,255,255)=sky, indices 1–15=terrain. Terrain height at column x = first non-zero pixel row from the top (row 0=top of image). Files contain TWO consecutive PCX-RLE blocks (block2 purpose unknown, possibly background layer). MTN_PERCENT is a **selection probability** (binary choice: scanned vs. procedural), not a visual blend. Sky type jump table at file 0x39198 (CS:0x0A18 in seg 0x31D8) dispatches terrain handlers per sky type; type 5 (Cavern) handler at file 0x3F146. Descriptor table at DS:0x5F04 (8 bytes/entry: 4-byte far ptr to filename + 4-byte file_size). Reference parser: https://github.com/zsennenga/scorched-earth-mountain. See "MTN Terrain File Format" section for full spec.
 - [x] Trace sun/planet rendering: **RESOLVED — No explicit sun circle**. The "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes. No Fastgraph circle/ellipse calls originate from terrain gen or sky palette code. Sunset case handler (file 0x39C31) only sets palette entries (VGA 120–149) and generates terrain height. Full sunset palette interpolation documented (3 gradient segments of 10 entries, FPU-computed from float32 constants at DS:0x6258–0x6270). See "Sun/Planet Rendering" subsection in Sky/Landscape Mode System section.
 - [x] Decode SCORCH.MKT binary format: **RESOLVED**. 1060-byte file = 4-byte header (version=2, count=48) + 48×22-byte records. Per-weapon record: int32 mkt_cost (weapon+0x1A), int16 unsold_rounds (+0x22), float64 price_signal (+0x24), float64 demand_avg (+0x2C). Implements a dynamic pricing economy: EMA-based market simulation with α=0.7 smoothing, demand tracks purchase rate per player, price_signal tracks squared price ratio / 10.0, adjustment = mkt_cost × (1 + (demand - signal) × 0.05). Price clamped to [base×0.1, base×100] on load. Purchase tracking via `inc sold_qty` at file 0x14A2A in buy function. Gated by FREE_MARKET config (DS:0x514A). Key constants: DS:0x5260=0.7 (α), DS:0x5268=0.1 (init), DS:0x5298=10.0 (divisor), DS:0x5190=0.05 (sensitivity). **Correction**: DS:0x5190 is MKT_SENSITIVITY (0.05), not AIR_VISCOSITY as previously labeled. See "SCORCH.MKT Market File Format" section.
-- [ ] Trace SCORCH.PCX loading context: referenced at DS:0x575C, loaded in play.cpp at file 0x2FAD1–0x2FAF8 (conditional on DS:0x5188 != 0); Fastgraph calls are 0x480a:0x9 (open/load PCX) and 0x4847:0x2 (display); SCORCH.PCX is NOT present in the earth/ directory — determine (a) when this code runs (which game state), (b) what DS:0x5188 represents, (c) what visual content SCORCH.PCX contains (a full-screen image?), (d) whether the file should be included in v86/images/game.img; document in a new "SCORCH.PCX" section
+- [x] Trace SCORCH.PCX loading context: **RESOLVED — optional user background**. (a) Code runs when **'B' key** (scancode 0x30) is pressed during gameplay turn, dispatched via play loop switch table at CS:0x05DB index 46 → CS:0x0550 (file 0x2FAE0). (b) DS:0x5188 is **PLAY_MODE** (already documented) — NOT related to PCX; the DS:0x5188 check at 0x2FAD1 is a separate adjacent switch case (fire action for Sequential mode). (c) SCORCH.PCX is a **user-provided full-screen PCX background image** — loaded via fg_pcxopen→fg_pcxhead→fg_pcximage with no error handling if file missing. (d) File should **NOT** be added to v86/images/game.img — it was never shipped with the game. Only 1 real reference in entire binary (play.cpp 0x2FAE0; other xref hits are false positives matching 0x5C8D quote strings). See "SCORCH.PCX Background Image" section.
 - [ ] Trace terrain generation for each sky type: ranges.cpp (file 0x3971F) has the main generation function; there's a jump table at file 0x3A118 (7 entries for sky types 0-6); decode the terrain shape algorithm for Sunset (type 4) specifically — does it call the .MTN loader, use procedural noise, or both?; also check HOSTILE_ENVIRONMENT flag (DS:0x??? — find offset) which enables lightning/meteor random events; document the per-type terrain shape differences
 - [ ] Trace TALK1.CFG / TALK2.CFG parsing: files are plain text (one taunt per line); find the loader code (search for DS ref to "talk1.cfg" at DS:0x??? from config parser); document how many lines are read, how a random line is selected (random(count)?), how the text is displayed on screen, and what triggers attack vs die comments; verify web port talks.js (if it exists) or add to implementation tasks
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.

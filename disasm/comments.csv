@@ -61,3 +61,8 @@ DS:0x5268,MKT_INIT: default EMA init value = 0.1 (float64); also minimum price r
 DS:0x5298,MKT_SIGNAL_DIV: price signal divisor = 10.0 (float32)
 DS:0x50D4,NUM_PLAYERS: total player count (runtime); used to normalize demand in market update
 DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
+
+# ---- SCORCH.PCX background image ----
+DS:0x575C,pcx_filename: "scorch.pcx" — optional user-provided background image
+0x2FAE0,pcx_display: B-key handler — push ds/offset; fg_pcxopen; fg_pcxhead; fg_pcximage; no error check
+0x2FB6B,play_loop_switch_table: 80 word entries at CS:0x05DB; index = (scancode-2)*2; dispatches gameplay input
