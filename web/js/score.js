@@ -4,7 +4,9 @@
 // EXE: endOfRoundScoring at file 0x37381
 // 3 modes: Standard (0), Corporate (1), Vicious (2)
 // Per-damage: +30x enemy weapon, +2x enemy shield, -15x friendly weapon, -1x friendly shield
-// Per-death: +4000 enemy kill, -2000 teammate kill, -1500 self-destruction
+// Per-death: teams enabled → +500 enemy kill; teams disabled → +4000 enemy kill
+//            -2000 teammate kill, -1500 self-destruction
+// Teams: DS:0x5148 — when disabled (0, default), all players are enemies
 
 import { config } from './config.js';
 import { players } from './tank.js';
@@ -27,13 +29,15 @@ export function scoreOnDamage(attacker, target, damage, isDamageToShield) {
 }
 
 // EXE: score_on_death at file 0x375E3
+// EXE: different_team → teams_enabled ? +500 : +4000
 export function scoreOnDeath(attacker, victim) {
   if (!attacker) return;
 
   if (attacker === victim) {
     attacker.score -= 1500;  // self-destruction
   } else if (isEnemy(attacker, victim)) {
-    attacker.score += 4000;  // killed enemy
+    // EXE: DS:0x5148 teams flag — +500 when teams enabled, +4000 when disabled
+    attacker.score += teamsEnabled() ? 500 : 4000;
   } else {
     attacker.score -= 2000;  // killed teammate
   }
@@ -66,9 +70,26 @@ export function applyInterest() {
   }
 }
 
-// Check if two players are enemies (no team system yet — all are enemies)
+// EXE: DS:0x5148 — teams enabled when any two players share a team number
+// Currently no team assignment UI; each player is their own team → teamsEnabled() = false
+function teamsEnabled() {
+  // EXE checks DS:0x5148 != 0. Web port: check if any players share a team number.
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      if (players[i].team === players[j].team) return true;
+    }
+  }
+  return false;
+}
+
+// EXE: same_team at file 0x324ED — compares player.team_number (+0x30)
 function isEnemy(a, b) {
-  return a.index !== b.index;
+  if (a.index === b.index) return false;
+  // When teams exist, compare team numbers; otherwise all different players are enemies
+  if (a.team !== undefined && b.team !== undefined) {
+    return a.team !== b.team;
+  }
+  return true;
 }
 
 // Get sorted leaderboard

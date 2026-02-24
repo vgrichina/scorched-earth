@@ -52,6 +52,7 @@ export function createPlayer(index, name) {
     // batteries: use inventory[43] (Battery item) — not a separate field
 
     // Phase 5: scoring
+    team: index,         // EXE: player struct +0x30, default = player index (each on own team)
     score: 0,
     wins: 0,
     earnedInterest: 0,  // EXE: DS:0x235C "Earned interest" shown in shop

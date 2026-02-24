@@ -3331,7 +3331,7 @@ All located in `disasm/` directory:
 - [x] Fix AI target selection: EXE uses Euclidean distance via `compute_distance` (file 0x2640F: `sqrt(dx²+dy²)`); web port used horizontal-only `Math.abs(p.x - shooter.x)`. **DONE**: ai.js `selectTarget()` and `selectWeapon()` changed to use Euclidean distance `sqrt(dx²+dy²)`. Note: DS:0x5186=40 threshold is for heat guidance proximity (already correct in behaviors.js HEAT_PROXIMITY=40), not general AI targeting. EXE per-type AI functions (e.g., Moron at 0x38B4E) iterate all players using both x and y for visibility/targeting.
 
 #### Score system (score.js)
-- [ ] Fix scoreOnDeath teams-enabled branch: EXE gives +500 (not +4000) when teams enabled
+- [x] Fix scoreOnDeath teams-enabled branch: EXE gives +500 (not +4000) when teams enabled. **DONE**: score.js — `scoreOnDeath()` now checks `teamsEnabled()`: +500 when teams enabled (players share team numbers), +4000 when teams disabled (default). Added `teamsEnabled()` helper (checks if any players share `.team` property) and updated `isEnemy()` to compare team numbers. tank.js — added `team: index` to `createPlayer()` (each player on own team by default, matching EXE player struct +0x30). Current default: teams disabled → +4000 (unchanged behavior until team assignment UI is added).
 - [ ] Fix scoreOnDamage teams-disabled guard: EXE suppresses per-damage scoring when teams disabled (the default)
 - [ ] Fix endOfRoundScoring teams-enabled branch: missing pool formula (round×500+5000+maxPower×30+shieldEnergy×2)
 
