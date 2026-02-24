@@ -209,6 +209,7 @@ function advancePlayer() {
 
 // Called by main.js startGame to set up first round state (turn order, sync mode, wall type)
 export function initGameRound() {
+  initMarket();  // Initialize market prices at game start (EXE: mkt_init_defaults)
   computeTurnOrder();
   if (game.turnOrder.length > 0) {
     game.currentPlayer = game.turnOrder[0];
@@ -773,6 +774,7 @@ export function gameTick() {
           game.state = STATE.GAME_OVER;
         } else {
           // Go to shop
+          mktUpdate();  // EXE: mkt_update — adjust dynamic market prices before shopping
           game.shopPlayerIdx = 0;
           applyInterest();
           openShop(0);

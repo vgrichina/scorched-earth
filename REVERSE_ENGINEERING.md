@@ -3141,12 +3141,12 @@ The buy function at file 0x14924 increments `weapon[i].sold_qty` (field +0x1E) a
 
 ### Web Port Impact
 
-The free market system is a complete economic simulation. To implement in the web port:
+The free market system is a complete economic simulation. Web port implementation:
 - ~~Add `FREE_MARKET` toggle to config~~ — DONE (`config.freeMarket` in config.js + menu.js Economics)
-- Use `mkt_cost` for shop prices when enabled (fall back to base price when disabled)
-- Call `mkt_update()` at end of each round
-- Persist market state to localStorage (matching the 22-byte per-weapon format)
-- Initialize EMAs to 0.1 and prices to base prices on first run
+- ~~Use `mkt_cost` for shop prices when enabled (fall back to base price when disabled)~~ — DONE (`getWeaponPrice()` in shop.js)
+- ~~Call `mkt_update()` at end of each round~~ — DONE (game.js ROUND_OVER→SHOP transition)
+- ~~Initialize EMAs to 0.1 and prices to base prices on first run~~ — DONE (`initMarket()` in game.js `initGameRound()`)
+- Persist market state to localStorage (optional — EXE uses SCORCH.MKT file persistence across game sessions)
 
 ---
 
@@ -3363,7 +3363,7 @@ All located in `disasm/` directory:
 - [x] Add missing sounds: terrain generation ping, impact random tone, terrain-hit rising sound, shield-hit random tone. **DONE**: sound.js — added 4 new functions: (1) `playTerrainGenPing()`: 10 accelerating click bursts (fg_click(0,20) with delay 25→7 ticks, matching ranges.cpp 0x35D41), called from game.js after generateTerrain(). (2) `playImpactFrame()`: random(3000) Hz tone per frame (extras.cpp 0x247BA, confirmed no base — just random(0xBB8) directly to fg_sound_on), called from explosions.js stepExplosion(). (3) `playTerrainHitSound(steps)`: rising tone starting 1000 Hz +200 Hz/step (extras.cpp 0x24DCD, init 0x3E8 at 0x24CE4, step 0xC8 at 0x24DDD), called from game.js on hit_terrain. (4) `playShieldHitSound()`: random(50) Hz low buzz (shields.cpp 0x3AF33, confirmed no base — just random(0x32) to fg_sound_on), called from explosions.js when shield absorbs damage.
 
 #### Shop system (shop.js)
-- [ ] Implement dynamic market pricing (mkt_update per round): EMA-based price adjustment with alpha=0.7, sensitivity=0.05, signal_div=10.0. Currently only sell refund factor uses freeMarket toggle.
+- [x] Implement dynamic market pricing (mkt_update per round): **DONE**. shop.js — added market state array (per-weapon: mktCost, soldQty, unsoldRounds, priceSignal, demandAvg), `initMarket()` (resets to base prices + EMA init=0.1), `getWeaponPrice(idx)` (returns mktCost when freeMarket on, base price otherwise), `trackPurchase(idx)` (increments soldQty), `mktUpdate()` (EMA algorithm: alpha=0.7, sensitivity=0.05, signal_div=10.0, clamped to [base×0.1, base×100]). All price references replaced with `getWeaponPrice()` — buy actions, sell refunds, AI auto-purchase, draw code, info panel, sell dialog. game.js — `initMarket()` called in `initGameRound()` (game start), `mktUpdate()` called in ROUND_OVER→SHOP transition (between rounds). Constants match EXE DS:0x5260=0.7, DS:0x5190=0.05, DS:0x5298=10.0, DS:0x5268=0.1.
 - [ ] Fix AI auto-purchase to use 12-case jump table (random(11) dispatch) instead of hardcoded 3-condition sequence
 
 #### HUD (hud.js)
