@@ -340,7 +340,7 @@ export function drawTextShadow(x, y, str, colorIndex, shadowIndex) {
 // EXE layer order: DS:0xEF2C(deep shadow), DS:0xEF32(bright), DS:0xEF24(dark),
 //   DS:0xEF2A(light), DS:0xEF26(dark border/top surface)
 export function drawTextEmbossed(x, y, str, colors) {
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < colors.length; i++) {
     drawText(x + i, y + i, str, colors[i]);
   }
 }

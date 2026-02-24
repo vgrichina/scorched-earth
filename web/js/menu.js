@@ -551,7 +551,9 @@ export function drawMainMenu() {
   // 5. Embossed title "Scorched Earth" (EXE: title_3d_text at 0x4CEFD)
   // EXE layers: deep_shadow(0,0), bright(1,1), dark(2,2), light(3,3), dark_border(4,4)
   const titleStr = 'Scorched Earth';
-  const titleX = centerXRight(titleStr) - 2; // offset for emboss width
+  const embossLayers = 5;
+  const embossShift = embossLayers - 1; // 4px total shift from layer 0 to layer 4
+  const titleX = centerXRight(titleStr) - Math.floor(embossShift / 2); // center the full embossed width
   const titleY = isSmallMode() ? 2 : 11;   // EXE: Y=2 (small) / Y=11 (large)
   drawTextEmbossed(titleX, titleY, titleStr, [
     UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
