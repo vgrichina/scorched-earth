@@ -7,6 +7,7 @@
 import { config } from './config.js';
 import { drawText, measureText } from './font.js';
 import { fillRect } from './framebuffer.js';
+import { players } from './tank.js';
 import { random } from './utils.js';
 
 // All 54 attack phrases from earth/TALK1.CFG
@@ -143,7 +144,20 @@ export const bubble = {
 };
 
 // Trigger attack speech when a player fires
+// EXE show_attack_comment at 0x181A1: 1-in-100 chance a random other player
+// delivers the taunt instead (forces TALKING_TANKS=1 for the special case)
 export function triggerAttackSpeech(player) {
+  // Special case: 1% random-player taunt (EXE: random(100)==2)
+  if (player.alive && random(100) === 2 && players.length > 0) {
+    const randomPlayer = players[random(players.length)];
+    bubble.active = true;
+    bubble.text = ATTACK_PHRASES[random(ATTACK_PHRASES.length)];
+    bubble.x = randomPlayer.x;
+    bubble.y = randomPlayer.y - 19;
+    bubble.frames = 0;
+    return;
+  }
+
   if (!config.talkingTanks) return;
   if (random(100) >= config.talkProbability) return;
 
