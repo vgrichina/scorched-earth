@@ -18,7 +18,12 @@ import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
 // EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
 // 0x3070C — handled in game.js fireWeapon(). Bal Guidance is not a valid guidance type.
 const GUIDANCE = { HEAT: 37, BAL: 38, HORZ: 39, VERT: 40 };
-const GUIDANCE_STRENGTH = 2.0;  // correction magnitude per step (applied via wind_x/wind_y)
+// EXE VERIFIED: Heat guidance uses continuous attraction force model (callback at 0x2589C).
+// Correction = GUIDANCE_K * DT / distSq^(1/4), where GUIDANCE_K = DS:0x3224 = 10000.0.
+// For Horz/Vert, a constant ±1 correction per step is fine (they redirect).
+const GUIDANCE_K = 10000.0;     // DS:0x3224 — guidance correction multiplier
+const GUIDANCE_DT = 0.02;       // DS:CEAC default timestep
+const GUIDANCE_MIN_DISTSQ = 0.001;  // DS:0x321C — skip if closer than this
 
 // Behavior dispatch — called when a projectile hits something
 // Returns: { explode: bool, radius: number, spawn: projectile[], dirtAdd: bool, skipDamage: bool }
@@ -440,7 +445,7 @@ function bhvPopcorn(proj, weapon, hitResult) {
 // the projectile, and sets guidanceType = 0 (consumed). After trigger, the
 // correction vector is applied each step (EXE installs callback at +0x4C/+0x4E).
 
-const HEAT_PROXIMITY = 60;  // pixel radius for heat-seek trigger
+const HEAT_PROXIMITY = 40;  // EXE: DS:0x5186 = 40 pixel Euclidean distance threshold
 
 // Select which guidance type to use at fire time. Consumes 1 ammo.
 // EXE: priority order matches cascading if-else: Horz → Vert → Heat
@@ -481,16 +486,41 @@ function findNearestEnemy(proj) {
   return bestDist < Infinity ? { x: targetX, y: targetY } : null;
 }
 
-// Called each physics step. Checks trigger condition and applies one-shot correction.
-// EXE: per-step check at extras.cpp 0x2263D
+// Called each physics step. Checks trigger condition and applies correction.
+// EXE: per-step check at extras.cpp 0x2263D, callback at 0x21A85
 export function applyGuidance(proj) {
   if (proj.isNapalmParticle || proj.isSubWarhead || proj.rolling) return;
 
-  // After trigger: apply persistent correction vector each step
-  // EXE: callback at +0x4C applies wind_x/wind_y correction per step
+  // After Heat trigger: apply continuous attraction toward stored target
+  // EXE callback (0x2589C): correction = GUIDANCE_K * dt / distSq^(1/4) per step
+  if (proj.heatTarget) {
+    const dx = proj.heatTarget.x - proj.x;
+    const dy = proj.y - proj.heatTarget.y;  // EXE: fsubr = current.Y - target.Y
+    const distSq = dx * dx + dy * dy;
+    // Overshoot check: sign(dx) matches initial wind_x OR sign(dy) opposes wind_y
+    let overshot = false;
+    if (proj.heatWindX !== 0) {
+      if ((dx < 0 && proj.heatWindX < 0) || (dx > 0 && proj.heatWindX > 0)) overshot = true;
+    }
+    if (proj.heatWindY !== 0) {
+      if ((dy < 0 && proj.heatWindY > 0) || (dy > 0 && proj.heatWindY < 0)) overshot = true;
+    }
+    if (overshot) {
+      // EXE fire_mode==2: remove callback, stop guidance
+      delete proj.heatTarget;
+      return;
+    }
+    if (distSq < GUIDANCE_MIN_DISTSQ) return;  // too close
+    const correction = GUIDANCE_K * GUIDANCE_DT / Math.sqrt(Math.sqrt(distSq));
+    proj.vx += correction * dx;
+    proj.vy -= correction * dy;  // screen Y inverted: subtract to match EXE convention
+    return;
+  }
+
+  // After Horz/Vert trigger: apply persistent ±1 correction each step
   if (proj.guidanceCorrX !== undefined) {
-    proj.vx += proj.guidanceCorrX * GUIDANCE_STRENGTH;
-    proj.vy += proj.guidanceCorrY * GUIDANCE_STRENGTH;
+    proj.vx += proj.guidanceCorrX;
+    proj.vy += proj.guidanceCorrY;
     return;
   }
 
@@ -527,13 +557,16 @@ export function applyGuidance(proj) {
     }
   } else if (proj.guidanceType === GUIDANCE.HEAT) {
     // Heat Guidance: triggers via proximity check
-    // EXE: call shark.cpp heat_seek — triggers when close to any enemy
+    // EXE: call ai_select_target (0x24F01) — Euclidean distance < DS:0x5186 (40 pixels)
     const dx = target.x - proj.x;
     const dy = target.y - proj.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < HEAT_PROXIMITY) {
-      proj.guidanceCorrX = Math.sign(dx);
-      proj.guidanceCorrY = (target.y > proj.y) ? -1 : 1;  // screen y inverted
+      // Store target and initial wind direction for overshoot detection
+      // EXE: wind_x = -sign(target.X - current.X), wind_y = -sign(target.Y - current.Y)
+      proj.heatTarget = { x: target.x, y: target.y };
+      proj.heatWindX = (target.x > proj.x) ? -1 : 1;
+      proj.heatWindY = (target.y > proj.y) ? -1 : 1;
       proj.guidanceType = 0;  // consumed
     }
   }

@@ -2390,6 +2390,53 @@ elif (guidance_type == DS:D54A [Heat Guidance]):
 - **Callback installation**: When triggered, installs a far function pointer at +0x4C/+0x4E (segment 0x1E50 = shark.cpp), sets wind correction vector at +0x66/+0x68, and fire_mode at +0x6A
 - **Bal Guidance override**: At fire_weapon 0x3070C, if weapon == DS:D54C (Bal Guidance), it is replaced with DS:D548 (Earth Disrupter). Bal Guidance is intentionally non-functional as a guidance mode.
 
+### Heat Guidance — Trigger and Correction (VERIFIED)
+
+**Trigger**: `ai_select_target` (file 0x24F01, aka 0x1E50:0x0001) is called each physics step. Iterates all tanks, computes Euclidean distance via `compute_distance` (file 0x2640F: `sqrt(dx²+dy²)` truncated to int). Threshold = **DS:0x5186 = 40 pixels** (NOT 60 as web port used). If any alive enemy is within 40 pixels → stores target ptr (+0x3E), target X/Y (+0x44/+0x46), returns 1.
+
+**Wind vector sign** (overshoot detection, NOT correction direction):
+- `wind_x = (target_X > current_X) ? -1 : +1` — **inverted** from direction to target
+- `wind_y = (target_Y > current_Y) ? -1 : +1` — **inverted** from direction to target
+- These are used ONLY for overshoot detection in the callback, NOT as velocity correction
+
+**Callback** (0x1E50:099C = file 0x2589C, same as Vert guidance):
+Called every physics step at file 0x21A85 via `call far [es:bx+0x4C]`. Per-step logic:
+```
+dx = (double)target_X - current_X_f64    // target minus current
+dy = current_Y_f64 - (double)target_Y    // current minus target (reversed for screen Y)
+distSq = dx * dx + dy * dy
+
+// Overshoot check: sign(dx) matches sign(wind_x) OR sign(dy) opposes sign(wind_y)
+overshot = false
+if (wind_x != 0):
+  if (dx < 0 && wind_x < 0) || (dx > 0 && wind_x > 0): overshot = true
+if (wind_y != 0):
+  if (dy < 0 && wind_y > 0) || (dy > 0 && wind_y < 0): overshot = true
+
+if (overshot):
+  if (fire_mode == 1):  // Vert: redirect to target
+    call recalc_physics(); fire_at_position(X, Y); return 0
+  else:                  // Heat (fire_mode==2): stop guidance
+    callback = NULL      // clear +0x4C/+0x4E to 0
+    return
+else:
+  if (distSq < DS:0x321C [0.001]):  return 1   // too close, skip correction
+  correction = DS:0x3224 [10000.0] * DS:0xCEAC [dt] / sqrt(sqrt(distSq))
+  vel_x += correction * dx
+  vel_y += correction * dy
+  return 1
+```
+
+**Key constants**:
+| DS Offset | Value | Purpose |
+|-----------|-------|---------|
+| DS:0x5186 | 40 (int16) | Heat seek proximity threshold (pixels) |
+| DS:0x321C | 0.001 (float64) | Min distSq for correction (skip if closer) |
+| DS:0x3224 | 10000.0 (float32) | Guidance correction multiplier |
+| DS:0xCEAC | runtime (float64) | Adaptive timestep dt (default 0.02) |
+
+**Correction model**: Continuous attraction force toward stored target position. Magnitude = `10000.0 * dt * dist^(3/4)` (scales with distance via 4th-root normalization). Applied each physics step via callback until overshoot, then callback removed. This is fundamentally different from the web port's constant ±2.0 per step.
+
 ### DS Offset Cross-Reference
 
 | DS Offset | Item |
@@ -2398,12 +2445,15 @@ elif (guidance_type == DS:D54A [Heat Guidance]):
 | DS:0xD54C | Bal Guidance (weapon index, overridden at fire) |
 | DS:0xD54E | Horz Guidance (weapon index) |
 | DS:0xD550 | Vert Guidance (weapon index) |
+| DS:0x5186 | Heat seek distance threshold (40 pixels) |
+| DS:0x321C | Min distSq threshold (0.001) |
+| DS:0x3224 | Guidance correction multiplier (10000.0) |
 
 ### JS Implementation
 
-The web port (`behaviors.js`) now implements the EXE model:
+The web port (`behaviors.js`) implements the EXE model:
 - `selectGuidanceType()`: at fire time, picks highest-priority guidance (Horz > Vert > Heat), decrements ammo, returns type constant. Called from `game.js:fireWeapon()`.
-- `applyGuidance()`: per-step check with spatial trigger conditions. On trigger, computes persistent correction vector (wind_x/wind_y) and consumes guidance. After trigger, correction applied each step.
+- `applyGuidance()`: per-step check with spatial trigger conditions. Heat guidance uses continuous attraction force model matching EXE callback: `correction = GUIDANCE_K * dt / distSq^(1/4)`, applied per step until overshoot.
 
 **Intermediate files**: Plan transcript from laser/MAYHEM investigation session.
 
@@ -3083,7 +3133,7 @@ All located in `disasm/` directory:
 - [x] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: **RESOLVED**. Main handler at file 0x246E0, spawner at 0x24894. Parent explosion radius = **20** (hardcoded at 0x24AA9, NOT scaled by EXPLOSION_SCALE). Sub-bomb explosion radius = **(random(10)+15) × DS:0x50DA** (EXPLOSION_SCALE float, base 15-24). Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with own explosion logic (no weapon index). Shield hit (damage=10) blocks sub-bomb spawn (early return). Web port fixed: parent radius 15→20, sub-bomb radius 10→random(10)+15 scaled by explosionScale. See "Funky Bomb" section in Weapon Behavior Dispatch.
 - [x] Trace Leap Frog / Bounce explosion radii: **RESOLVED**. Handler at file 0x2A226. Uses damage_type countdown (player+0x54, initial=2, set at 0x21397). Bounce radius table at DS:0x50CA = {20, 25, 30} indexed by damage_type. Sequence: 1st hit radius=30, 2nd=25, 3rd(final)=20, all × EXPLOSION_SCALE (DS:0x50DA). Speed ÷ 1.5 (DS:0x50D0=1.5f) per bounce via sin/cos angle reconstruction. Web port fixed: decreasing radii 30→25→20 × explosionScale, speed ÷ 1.5 (was 0.7/0.9), damage_type countdown (was bounceCount vs param). See "LeapFrog / Bounce" section in Weapon Behavior Dispatch.
 - [x] Trace napalm particle physics: **RESOLVED — NOT velocity-based**. Main handler at file 0x2DA00. Particles use **pixel-walking cellular automaton**: each step checks adjacent pixels via `check_direction(x,y)` (file 0x2DFCC) and moves 1 pixel. Direction: 0=terrain below (drop), -1/+1=move left/right (wind via DS:0x515A determines when both available), 2=erode upward. No velocity vectors, no damping. DS:0x1D60=0.7 is explosion damage falloff (file 0x235B6), NOT particle damping. DS:0x1D68=0.001 is explosion sqrt epsilon (file 0x23638), NOT speed threshold. Damage: Hot Napalm (param>15) max 50 at range 40 (DS:0x5682/0x5686), Regular Napalm max 30 at range 25 (DS:0x568A/0x568E). Max 1000 steps per particle, explosion array stores every 20th position. See "Napalm / Hot Napalm" section in Weapon Behavior Dispatch.
-- [ ] Trace heat guidance trigger and correction: behaviors.js uses HEAT_PROXIMITY=60 (undocumented) and GUIDANCE_STRENGTH=2.0 (undocumented). EXE calls shark.cpp:heat_seek for trigger, not a simple proximity check. Also EXE heat guidance X correction sign is inverted (wind_x=-1 when target is right).
+- [x] Trace heat guidance trigger and correction: **RESOLVED**. Trigger: `ai_select_target` (file 0x24F01) iterates all tanks, computes Euclidean distance, threshold = DS:0x5186 = **40 pixels** (web port had 60). Callback (0x2589C): continuous attraction force `correction = 10000.0 × dt / distSq^(1/4)` applied per step toward stored target, with overshoot detection (sign flip of dx/dy vs initial wind_x/wind_y → removes callback). Wind vectors are **inverted**: wind_x = -sign(target.X - current.X) — used ONLY for overshoot detection, NOT as correction direction. Web port fixed: HEAT_PROXIMITY 60→40, replaced constant GUIDANCE_STRENGTH=2.0 with continuous attraction model (GUIDANCE_K=10000, GUIDANCE_DT=0.02, GUIDANCE_MIN_DISTSQ=0.001), added overshoot detection and callback removal. See "Heat Guidance — Trigger and Correction" subsection.
 - [ ] Trace gravity/wind pre-scaling formula: EXE computes gravity_step=50.0×GRAVITY/d and wind_step=wind/(d×40.0) once before the physics loop. Web port uses GRAVITY=4.9 and WIND_SCALE=0.15 which have no traceable connection to EXE constants. Need to derive correct web-equivalent formulas.
 - [ ] Trace sky type enum mapping: EXE sky list appears to be Plain/Shaded/Stars/Storm/Sunset/Black/Random (7 types). Web port has Cavern at index 5 and Black at index 6 with no Random. Verify EXE sky type enum from config parsing and sky dispatch table.
 - [ ] Trace play order enum: EXE PLAY_ORDER options are Random/Losers-First/Winners-First/Round-Robin. Web port uses Sequential/Random/Losers First/Winners First. Verify from config string table.
