@@ -3370,7 +3370,7 @@ All located in `disasm/` directory:
 - [x] Fix Widget 6: should read WPN.SUPER_MAG (52) inventory, not WPN.MAG_DEFLECTOR (45). **DONE**: hud.js line 399 — changed `player.inventory[WPN.MAG_DEFLECTOR]` to `player.inventory[WPN.SUPER_MAG]`, matching EXE inventory[D566=52] at draw_hud_full 0x303CC.
 
 #### Menu system (menu.js)
-- [ ] Add missing config sub-dialog options: Computers Buy (Economics), Flatten Peaks / MTN Percent (Landscape), Bomb Icon / Tunneling / Useless Items / Teams / Status Bar (Play Options)
+- [x] Add missing config sub-dialog options: Computers Buy (Economics), Flatten Peaks / MTN Percent (Landscape), Bomb Icon / Tunneling / Useless Items / Teams / Status Bar (Play Options). **DONE**: config.js — added 8 new properties with EXE defaults: computersBuy=0 (Basic), flattenPeaks=0 (Off), mtnPercent=20, bombIcon=1 (Big), tunneling=1 (On), uselessItems=0 (Off), teamMode=0 (None), statusBar=1 (On). menu.js — Economics submenu: added Computers Buy (Basic/Greedy/Erratic/Random). Landscape submenu: added Flatten Peaks (Off/On) and % Scanned MTN (0-100). Play Options submenu: added Bomb Icon (Small/Big/Invisible), Tunneling (Off/On), Useless Items (Off/On), Teams (None/On), Status Bar (Off/On). Weapons submenu: added Bomb Icon, Tunneling, Useless Items (matching EXE's shared subset). All persisted via localStorage PERSIST_KEYS.
 - [ ] Fix sky type list: should be Plain/Shaded/Stars/Storm/Sunset/Black/Random (not ...Cavern/Black)
 
 #### Tank rendering (tank.js)

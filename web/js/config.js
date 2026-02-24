@@ -73,6 +73,20 @@ export const config = {
   playMode: 0,           // EXE: 0=Sequential, 1=Simultaneous, 2=Synchronous
   hostileEnvironment: 1, // EXE: HOSTILE_ENVIRONMENT=On (random lightning/meteor events)
   talkProbability: 100,  // EXE: % chance of speech on fire/death
+
+  // Economics
+  computersBuy: 0,       // EXE: COMPUTERS_BUY (0=Basic, 1=Greedy, 2=Erratic, 3=Random)
+
+  // Landscape
+  flattenPeaks: 0,       // EXE: FLATLAND=Off (flatten terrain peaks)
+  mtnPercent: 20,        // EXE: MTN_PERCENT=20.0 (% chance of scanned mountain vs procedural)
+
+  // Play options
+  bombIcon: 1,           // EXE: BOMB_ICON=Big (0=Small, 1=Big, 2=Invisible)
+  tunneling: 1,          // EXE: TUNNELLING=On (weapons dig through terrain)
+  uselessItems: 0,       // EXE: USELESS_ITEMS=Off (include joke/novelty items)
+  teamMode: 0,           // EXE: TEAM_MODE=None (0=None, 1=On)
+  statusBar: 1,          // EXE: STATUS_BAR=On (show status bar)
 };
 
 // Keys to persist in localStorage (exclude derived/constant values)
@@ -86,6 +100,8 @@ const PERSIST_KEYS = [
   'soundEnabled', 'flySoundEnabled',
   'fallingTanks', 'impactDamage', 'explosionScale', 'tracePaths', 'extraDirt',
   'playMode', 'hostileEnvironment', 'talkProbability',
+  'computersBuy', 'flattenPeaks', 'mtnPercent',
+  'bombIcon', 'tunneling', 'uselessItems', 'teamMode', 'statusBar',
 ];
 
 const STORAGE_KEY = 'scorched_earth_config';
