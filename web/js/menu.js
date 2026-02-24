@@ -507,14 +507,14 @@ export function drawMainMenu() {
   // EXE layers: deep_shadow(0,0), bright(1,1), dark(2,2), light(3,3), dark_border(4,4)
   const titleStr = 'Scorched Earth';
   const titleX = centerXRight(titleStr) - 2; // offset for emboss width
-  const titleY = 2;
+  const titleY = isSmallMode() ? 2 : 11;   // EXE: Y=2 (small) / Y=11 (large)
   drawTextEmbossed(titleX, titleY, titleStr, [
     UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
   ]);
 
-  // 6. Subtitle "The Mother of All Games" (EXE: plain text, Y=27 small mode)
+  // 6. Subtitle "The Mother of All Games" (EXE: Y=27 small / Y=41 large)
   const subStr = 'The Mother of All Games';
-  drawText(centerXRight(subStr), 27, subStr, UI_DARK_TEXT);
+  drawText(centerXRight(subStr), isSmallMode() ? 27 : 41, subStr, UI_DARK_TEXT);
 
   // 6b. "Registered Version" (EXE: Row 3, Y=52 small / Y=71 large)
   const regStr = 'Registered Version';
