@@ -126,6 +126,10 @@ DS:0x5270,mkt_filename
 
 # ---- Terrain generation (ranges.cpp) ----
 0x3971F,terrain_gen_main
+0x39956,terrain_type0_palette
+0x39969,terrain_type1_palette
+0x3999A,fill_height_array_palIdx
+0x399D7,terrain_type2_palette
 0x3AB39,setTerrainPixel
 0x29720,drawColumn
 0x29808,height_random_walk

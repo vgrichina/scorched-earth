@@ -70,6 +70,10 @@ DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
 
 # ---- Terrain generation (ranges.cpp) ----
 0x3971F,terrain_gen_main: enter; alloc height/bitmap arrays; 7-way switch on TERRAIN_TYPE(DS:5110)
+0x39956,terrain_type0_palette: setTerrainPalette(120,9,9,31) → 16-step gradient black→(9,9,31) blue ice
+0x39969,terrain_type1_palette: loop di=0..29: fg_setcolor(di, 29-di, 29-di, 63); flush to VGA 120-149
+0x3999A,fill_height_array_palIdx: height_array[y]=(bottom-y)*29/height+120; surface→149 underground→120
+0x399D7,terrain_type2_palette: setTerrainPalette(120,5,5,10) base; then loop di=0..28: R=G=B=di*2+7 scatter
 0x3AB39,setTerrainPixel: 7-way switch on TERRAIN_TYPE; jump table at CS:0x16E5 (reloc-corrupted)
 0x29720,drawColumn: per-column renderer; type0=vline(120); else per-pixel via setTerrainPixel loop
 0x29808,height_random_walk: momentum-based random walk kernel; flat_chance/bump_chance params
