@@ -3344,7 +3344,7 @@ All located in `disasm/` directory:
 - [x] Add shield pixel marker 0xFF and terrain boundary 0x69 detection: **DONE**. EXE shield callbacks use pixel-based discrimination: shield_draw_pixel_callback (0x38649) skips sky range 0x50-0x68 (VGA 80-104) — shields only drawn over terrain/tanks, NOT sky. shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (105 = terrain). White 0xFF marker is the terrain impact pixel (0x3EBD7) which >= 0x69 so shields can be drawn over it. Web port shields.js: `drawShield()` and `drawShieldBreak()` now call `getPixel()` before each shield pixel — skip if existing pixel is in sky range (80-104). Shields now only appear where they overlap terrain, matching EXE visual behavior
 
 #### Talk system (talk.js)
-- [ ] Fix talk bubble Y offset: EXE uses tank.y-19, web uses player.y-20
+- [x] Fix talk bubble Y offset: EXE uses tank.y-19, web uses player.y-20. **DONE**: talk.js — changed `bubble.y = player.y - 20` to `player.y - 19` in both `triggerAttackSpeech()` and `triggerDeathSpeech()`, matching EXE `display_talk_bubble` positioning at tank.y-19 (file 0x182FD).
 - [ ] Add death speech probability roll: web port's triggerDeathSpeech bypasses talkProbability check entirely
 - [ ] Add 2% random-player attack taunt: EXE has 1-in-100 chance a random other player delivers the taunt instead
 - [ ] Fix talkingTanks to be 3-way enum (Off/Computers/All) not binary Off/On

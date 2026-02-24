@@ -150,7 +150,7 @@ export function triggerAttackSpeech(player) {
   bubble.active = true;
   bubble.text = ATTACK_PHRASES[random(ATTACK_PHRASES.length)];
   bubble.x = player.x;
-  bubble.y = player.y - 20;
+  bubble.y = player.y - 19;
   bubble.frames = 0;
 }
 
@@ -161,7 +161,7 @@ export function triggerDeathSpeech(player) {
   bubble.active = true;
   bubble.text = DEATH_PHRASES[random(DEATH_PHRASES.length)];
   bubble.x = player.x;
-  bubble.y = player.y - 20;
+  bubble.y = player.y - 19;
   bubble.frames = 0;
 }
 
