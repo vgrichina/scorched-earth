@@ -117,6 +117,28 @@ DS:0x624E,cached_terrain_type
 DS:0x513C,HOSTILE_ENVIRONMENT
 DS:0x50D8,is_castle_terrain
 
+# ---- Talk system (comments.cpp, seg 0x1144) ----
+0x17E49,alloc_talk_struct
+0x17E8D,free_talk_data
+0x17F09,get_random_line
+0x17F50,load_talk_file
+0x18107,load_talk_files
+0x18155,show_die_comment
+0x181A1,show_attack_comment
+0x182FD,display_talk_bubble
+0x1826C,draw_border
+0x18433,talk_delay
+0x184A7,CommentGenerator
+0x184E5,free_all_talk
+DS:0xCC8E,attack_talk_struct
+DS:0xCC94,die_talk_struct
+DS:0x5118,TALKING_TANKS
+DS:0x511A,TALK_PROBABILITY
+DS:0x511C,TALK_DELAY
+DS:0xECD8,attack_filename
+DS:0xED18,die_filename
+DS:0x0128,talk_files_loaded
+
 # ---- SCORCH.PCX background image ----
 DS:0x575C,pcx_filename
 0x2FAE0,pcx_display

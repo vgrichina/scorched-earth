@@ -80,6 +80,28 @@ DS:0x624E,cached_terrain_type: last terrain_type used; compared to skip redundan
 DS:0x513C,HOSTILE_ENVIRONMENT: config flag (0=Off 1=On); enables lightning/meteor random events and hit damage
 DS:0x50D8,is_castle_terrain: 1 when terrain_type==5 (Castle); 0 otherwise
 
+# ---- Talk system (comments.cpp) ----
+0x17E49,alloc_talk_struct: malloc(6); zeroes count field
+0x17E8D,free_talk_data: frees all strdup'd lines + pointer array; flag bit0 → also free struct
+0x17F09,get_random_line: returns lines[random(count)] or empty string if count==0
+0x17F50,load_talk_file: fopen(filename,"rt"); 2-pass: count lines then strdup each; max 80 chars/line (fgets buf=0x50)
+0x18107,load_talk_files: loads attack(DS:ECD8→DS:CC8E) + die(DS:ED18→DS:CC94); sets DS:0x0128=1
+0x18155,show_die_comment: tank death handler; get_random_line(&die_talk) → display_talk_bubble
+0x181A1,show_attack_comment: tank fire handler; 2% random-player taunt; get_random_line(&attack_talk) → display_talk_bubble
+0x182FD,display_talk_bubble: checks TALKING_TANKS!=0 & TALK_PROB!=0; rolls random(100)<TALK_PROB; renders bordered speech bubble; delays TALK_DELAY ticks
+0x1826C,draw_border: draws 4-sided outline rectangle using vline/hline indirect calls
+0x18433,talk_delay: busy-waits TALK_DELAY ticks via BIOS timer (int 1Ah)
+0x184A7,CommentGenerator: overlay entry point; allocates both talk structs
+0x184E5,free_all_talk: frees both attack + die talk data
+DS:0xCC8E,attack_talk_struct: {word count, dword far_ptr_to_line_array}
+DS:0xCC94,die_talk_struct: {word count, dword far_ptr_to_line_array}
+DS:0x5118,TALKING_TANKS: 0=Off, 1=Computers, 2=All
+DS:0x511A,TALK_PROBABILITY: 0-100, default 100
+DS:0x511C,TALK_DELAY: timer ticks (default 18 ≈ 1 second)
+DS:0xECD8,attack_filename: default "talk1.cfg" from ATTACK_COMMENTS= config
+DS:0xED18,die_filename: default "talk2.cfg" from DIE_COMMENTS= config
+DS:0x0128,talk_files_loaded: set to 1 after load_talk_files() runs
+
 # ---- SCORCH.PCX background image ----
 DS:0x575C,pcx_filename: "scorch.pcx" — optional user-provided background image
 0x2FAE0,pcx_display: B-key handler — push ds/offset; fg_pcxopen; fg_pcxhead; fg_pcximage; no error check

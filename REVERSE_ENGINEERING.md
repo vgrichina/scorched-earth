@@ -1973,7 +1973,79 @@ DAMAGE_TANKS_ON_IMPACT=On # Collision damage
 
 ---
 
-## Talk Files
+## Talk Files — comments.cpp (seg 0x1144, file base ~0x17E40)
+
+### Overview
+
+The "Talking Tanks" system displays speech bubble taunts above tanks when they fire (attack comment) or are destroyed (die comment). Lines are loaded from plain-text config files (one phrase per line). Source file: `comments.cpp`.
+
+### Config Variables
+
+| DS Offset | Name | Type | Default | Description |
+|-----------|------|------|---------|-------------|
+| 0x5118 | TALKING_TANKS | word | 0 (Off) | 0=Off, 1=Computers only, 2=All players |
+| 0x511A | TALK_PROBABILITY | word | 100 | Percentage chance (0–100) of showing a bubble |
+| 0x511C | TALK_DELAY | word | 18 | Display duration in timer ticks (~1 second at 18.2 Hz) |
+| 0xECD8 | attack_filename | string | "talk1.cfg" | Path to attack comments file (from ATTACK_COMMENTS= in SCORCH15.CFG) |
+| 0xED18 | die_filename | string | "talk2.cfg" | Path to die comments file (from DIE_COMMENTS= in SCORCH15.CFG) |
+| 0x0128 | talk_files_loaded | word | 0 | Set to 1 after load_talk_files() completes |
+
+### Talk Data Structure (6 bytes each)
+
+Two instances: attack at DS:0xCC8E, die at DS:0xCC94.
+
+| Offset | Type | Description |
+|--------|------|-------------|
+| +0 | word | count — number of lines loaded |
+| +2 | dword | far pointer to line pointer array (count × 4 bytes; each entry is a far ptr to a strdup'd string) |
+
+### Functions
+
+| File Offset | Name | Description |
+|-------------|------|-------------|
+| 0x17E49 | alloc_talk_struct | Allocates 6-byte talk struct via malloc(6), zeroes count |
+| 0x17E8D | free_talk_data | Frees all strdup'd lines, the pointer array, and optionally the struct itself (flag param bit 0) |
+| 0x17F09 | get_random_line | `get_random_line(talk_struct*)` → returns far ptr to a random line; if count==0, returns DS:0x0152 (empty string ""); selection: `lines[random(count)]` |
+| 0x17F50 | load_talk_file | `load_talk_file(talk_struct*, filename)` — opens file with fopen(filename, "rt"); first pass counts lines via fgets(buf, 0x50, fp) + strips '\n' via strchr(buf, '\n'); allocates `count * 4` bytes for pointer array; second pass reads again and strdup's each line into the array; returns count or -1 on failure |
+| 0x18107 | load_talk_files | Loads both files: `load_talk_file(&attack_talk, attack_filename)` then `load_talk_file(&die_talk, die_filename)`; sets talk_files_loaded=1 |
+| 0x18155 | show_die_comment | Called when a tank is destroyed; if talk_files_loaded, calls load_talk_files first; calls `get_random_line(&die_talk)` → `display_talk_bubble(tank_ptr, line)` |
+| 0x181A1 | show_attack_comment | Called when a tank fires; complex trigger logic (see below); calls `get_random_line(&attack_talk)` → `display_talk_bubble(tank_ptr, line)` |
+| 0x182FD | display_talk_bubble | Renders bordered speech bubble: checks TALKING_TANKS!=0, TALK_PROBABILITY!=0, DS:0x50F0==0 (sound idle); rolls `random(100) < TALK_PROBABILITY`; measures text width via text_measure; positions bubble above tank (Y = tank.y - 19); clamps X to screen bounds; saves screen region via fg_getblock; draws border rectangle via draw_border (0x1826C); renders text via text_display; delays TALK_DELAY ticks; restores screen via fg_putblock |
+| 0x18433 | talk_delay | Busy-waits for TALK_DELAY timer ticks using BIOS timer (int 1Ah / far call to timer) |
+| 0x184A7 | CommentGenerator | Overlay entry point — calls alloc_talk_struct for both, loads files |
+| 0x184E5 | free_all_talk | Calls free_talk_data for both attack (DS:0xCC8E) and die (DS:0xCC94) structs |
+
+### Attack Comment Trigger Logic (show_attack_comment at 0x181A1)
+
+```
+show_attack_comment(tank_ptr):
+    if tank_ptr == NULL:
+        assertion_fail("comments.cpp", 143)   // DS:0x0265
+        return
+    if talk_files_loaded:
+        load_talk_files()   // reload if needed
+    if DS:0x5198 != 0:      // simultaneous/network mode
+        goto skip_special
+    if tank_ptr->alive == 0:
+        goto skip_special
+    if tank_ptr->target->alive == 0:  // target already dead
+        goto skip_special
+    // Special case: 2% chance of random player taunt
+    if random(100) == 2:
+        save TALKING_TANKS; set TALKING_TANKS=1
+        pick random player from DS:0x012A table (10 entries)
+        display_talk_bubble(random_player, random_attack_line)
+        restore TALKING_TANKS
+        return
+skip_special:
+    line = get_random_line(&attack_talk)
+    if line[0] != '\0':
+        display_talk_bubble(tank_ptr, line)
+```
+
+### File Format
+
+Both `TALK1.CFG` and `TALK2.CFG` are plain text, one phrase per line, max 79 chars per line (fgets buffer = 0x50 = 80 bytes). Trailing newlines are stripped. Empty file = no taunts shown (count stays 0).
 
 ### TALK1.CFG - Attack Comments (54 phrases)
 
@@ -2646,7 +2718,7 @@ All located in `disasm/` directory:
 - [x] Decode SCORCH.MKT binary format: **RESOLVED**. 1060-byte file = 4-byte header (version=2, count=48) + 48×22-byte records. Per-weapon record: int32 mkt_cost (weapon+0x1A), int16 unsold_rounds (+0x22), float64 price_signal (+0x24), float64 demand_avg (+0x2C). Implements a dynamic pricing economy: EMA-based market simulation with α=0.7 smoothing, demand tracks purchase rate per player, price_signal tracks squared price ratio / 10.0, adjustment = mkt_cost × (1 + (demand - signal) × 0.05). Price clamped to [base×0.1, base×100] on load. Purchase tracking via `inc sold_qty` at file 0x14A2A in buy function. Gated by FREE_MARKET config (DS:0x514A). Key constants: DS:0x5260=0.7 (α), DS:0x5268=0.1 (init), DS:0x5298=10.0 (divisor), DS:0x5190=0.05 (sensitivity). **Correction**: DS:0x5190 is MKT_SENSITIVITY (0.05), not AIR_VISCOSITY as previously labeled. See "SCORCH.MKT Market File Format" section.
 - [x] Trace SCORCH.PCX loading context: **RESOLVED — optional user background**. (a) Code runs when **'B' key** (scancode 0x30) is pressed during gameplay turn, dispatched via play loop switch table at CS:0x05DB index 46 → CS:0x0550 (file 0x2FAE0). (b) DS:0x5188 is **PLAY_MODE** (already documented) — NOT related to PCX; the DS:0x5188 check at 0x2FAD1 is a separate adjacent switch case (fire action for Sequential mode). (c) SCORCH.PCX is a **user-provided full-screen PCX background image** — loaded via fg_pcxopen→fg_pcxhead→fg_pcximage with no error handling if file missing. (d) File should **NOT** be added to v86/images/game.img — it was never shipped with the game. Only 1 real reference in entire binary (play.cpp 0x2FAE0; other xref hits are false positives matching 0x5C8D quote strings). See "SCORCH.PCX Background Image" section.
 - [x] Trace terrain generation for each sky type: **RESOLVED**. All 7 terrain types fully decoded. Main function at file 0x3971F, setTerrainPixel at 0x3AB39 (7-way switch, jump table at CS:0x16E5 partially corrupted by MZ relocations). **Type 0 (Flat)**: solid VGA 120, constant height. **Type 1 (Slope)**: linear Y-gradient height_array, gray palette. **Type 2 (Rolling)**: bitmap texture + aux_array(rand(32000)×x%30) pattern; falls back to Flat if no bitmap. **Type 3 (MTN)**: scanned mountain data; depth gradient VGA 130–150 for recesses; falls back to Flat if no .MTN file. **Type 4 (V-Shaped)**: reversed bitmap logic, shallow 9-level gradient, Sunset-style 3-band FPU palette. **Type 5 (Castle)**: multiple LandGenerator segments with random gaps creating rampart shapes; Sunset palette. **Type 6 (Cavern)**: mountains+slope underground, 3-band gradient. Types 1/5/6 share identical setTerrainPixel code (pure height_array[y] lookup); visual difference is palette only. **HOSTILE_ENVIRONMENT** at **DS:0x513C**: config flag (On/Off); when enabled, projectiles inflict 1 damage per pixel traversed through tank body (file 0x3EB72: `damage_tank(10, tank_ptr, 1)` when pixel < 0x50). See "Per-Type Height Generation Handlers" and "HOSTILE_ENVIRONMENT System" subsections in Terrain Generation section.
-- [ ] Trace TALK1.CFG / TALK2.CFG parsing: files are plain text (one taunt per line); find the loader code (search for DS ref to "talk1.cfg" at DS:0x??? from config parser); document how many lines are read, how a random line is selected (random(count)?), how the text is displayed on screen, and what triggers attack vs die comments; verify web port talks.js (if it exists) or add to implementation tasks
+- [x] Trace TALK1.CFG / TALK2.CFG parsing: **RESOLVED**. Source: `comments.cpp` (seg 0x1144, file base ~0x17E40). Plain text files, one phrase per line, max 79 chars. **Loader** `load_talk_file` (0x17F50): fopen(filename, "rt"), 2-pass (count lines, then strdup each into malloc'd pointer array). **Data struct** (6 bytes, at DS:0xCC8E for attack, DS:0xCC94 for die): {word count, dword far_ptr_to_line_array}. **Selection**: `get_random_line` (0x17F09) returns `lines[random(count)]` or empty string if count==0. **Trigger**: `show_attack_comment` (0x181A1) called on fire — has 2% random-player taunt special case; `show_die_comment` (0x18155) called on tank death. **Display**: `display_talk_bubble` (0x182FD) checks TALKING_TANKS(DS:0x5118)!=0, TALK_PROBABILITY(DS:0x511A)!=0; rolls random(100)<TALK_PROBABILITY; measures text, positions bubble at tank.y-19, clamps X to screen, draws bordered box, renders text, delays TALK_DELAY(DS:0x511C, default 18) ticks. **Web port** `web/js/talk.js` exists and is functional with all 54 attack + 61 death phrases; minor gaps: treats talkingTanks as boolean (EXE has Off/Computers/All), no 2% random-player taunt, no bordered rectangle style. See "Talk Files" section.
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
 - [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
