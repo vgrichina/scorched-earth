@@ -388,7 +388,8 @@ function gameLoop() {
     // EXE: system menu uses full 3D dialog widget system (0x3F19:0x2577 add_item_list)
     // Same raised box + UI palette as shop/submenu dialogs
     const smOptions = SYSTEM_MENU_OPTIONS;
-    const rowH = 14;
+    // EXE dialog system: +5px spacing at screenH >= 400 (same as submenus)
+    const rowH = config.screenHeight >= 400 ? 19 : 14;
     // Auto-size dialog width based on content (matching menu.js submenu pattern)
     let maxW = measureText('System Menu');
     for (const opt of smOptions) maxW = Math.max(maxW, measureText(opt.label));
