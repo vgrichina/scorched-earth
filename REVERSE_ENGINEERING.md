@@ -1978,18 +1978,42 @@ Mary, Medusa, Moria, Mozart
 
 ### Shield Type Configuration Table — DS:0x616C (file 0x05BF4C)
 
-6 entries of 16 bytes each. Count at DS:0x61E4 = 5 (excluding "None").
+6 entries of 16 bytes each. Count at DS:0x61E4 = 5 (excluding "None"). Pointer array at DS:0x61CC (6 far ptrs).
 
-| Type | Name | Energy (HP) | Radius (px) | Color VGA (R,G,B) | Flags | Behavior |
-|------|------|-------------|-------------|--------------------|----|------|
-| 0 | None | 0 | 0 | (0, 0, 0) | 0 | No shield |
-| 1 | Shield | 55 | 16 | (63, 63, 23) yellow | 2 | Basic absorption |
-| 2 | Warp Shield | 100 | 15 | (63, 63, 63) white | 0 | Random teleport on hit |
-| 3 | Teleport Shield | 100 | 15 | (63, 23, 63) purple | 1 | Teleport when triggered |
-| 4 | Force Shield | 150 | 16 | (63, 63, 63) white | 0 | Absorption + deflection |
-| 5 | Heavy Shield | 200 | 16 | (63, 53, 33) orange | 4 | Max absorption + deflection |
+Config entry mapping formula (dialog builder at file 0x3E9D2): `config_ptr = (weapon_index - DS:D558 + 1) × 16 + DS:0x616C`. DS:D558 = Mag Deflector weapon index (45 at runtime). Config +0x0E field = 0 for all entries → `dispatch_type = 0 + 1 = 1` for all standard shields.
 
-**Flicker Shield** (type 4 in switch) has **no config table entry** — uses probabilistic on/off cycling. When "on", fully blocks; when "off", no protection at all.
+| Entry | Weapon | Name | Energy (HP) | Radius (px) | Color VGA (R,G,B) | +0x0C | +0x0E |
+|-------|--------|------|-------------|-------------|--------------------|----|------|
+| 0 | — | None | 0 | 0 | (0, 0, 0) | 0 | 0xFFFF |
+| 1 | 45 | Mag Deflector | 55 | 16 | (63, 63, 23) yellow | 2 | 0 |
+| 2 | 46 | Shield | 100 | 15 | (63, 63, 63) white | 0 | 0 |
+| 3 | 47 | Warp Shield | 100 | 15 | (63, 23, 63) purple | 1 | 0 |
+| 4 | 48 | Teleport Shield | 150 | 16 | (63, 63, 63) white | 0 | 0 |
+| 5 | 49 | Flicker Shield | 200 | 16 | (63, 53, 33) orange | 4 | 0 |
+
+**Field +0x0C** is a dialog navigation aid (stored to DS:0x6FF0 during equip dialog), NOT a gameplay behavior flag.
+
+**Field +0x0E** determines dispatch_type: `dispatch_type = config[+0x0E] + 1`. All standard shields have +0x0E=0 → dispatch_type=1. If dispatch_type=8, it's "Random Shield" (randomized to 1-7 at equip time, file 0x27A24).
+
+**Flicker Shield** (config entry 5) is a **regular absorption shield** with 200 HP, orange color, radius 16. It has NO probabilistic on/off cycling, NO flickering behavior, NO special dispatch handler in v1.50. Same flat 1:1 absorption as all other shields. Despite the name, its behavior is identical to all other standard shields — only energy, radius, and color differ. It is the highest-energy shield in the game at the cheapest price (1,000) with the most generous quantity (25).
+
+**Force Shield (weapon 50), Heavy Shield (weapon 51), Super Mag (weapon 52)** are OUTSIDE the shield config range [DS:D558=45, DS:D560=49]. They have corrupted weapon struct data (linker bug, see weapon table notes) and are NOT in the config table.
+
+### Shield Dispatch Table — DS:0x026A (16 bytes/entry, 7 types)
+
+Used ONLY when Random Shield is selected (dispatch_type=8 → random(7)+1). Standard shields all use type 1 (NULL per-step, HUD per-frame).
+
+| Type | Per-frame (DS+0x026A) | Per-step (DS+0x026E) | File offset | Purpose |
+|------|----------------------|---------------------|-------------|---------|
+| 1 | 262C:0241 | NULL | 0x2CF01 | Inventory counting / HUD update |
+| 2 | 320D:007E | 320D:0380 | 0x38B4E / 0x38E50 | Flicker toggle (DS:EC88) |
+| 3 | 315D:000C | 315D:0241 | 0x37FDC / 0x38211 | Unknown |
+| 4 | 3B6B:0007 | 3B6B:00FE | 0x420B7 / 0x421AE | Unknown |
+| 5 | 1132:000F | 1132:00F0 | 0x17D2F / 0x17E10 | Unknown |
+| 6 | 34B2:0163 | 34B2:02F3 | 0x3B683 / 0x3B813 | Unknown |
+| 7 | 14C8:03E3 | 14C8:0501 | 0x1BA63 / 0x1BB81 | Unknown |
+
+Types 2-7 have unique per-step handlers for Random Shield gameplay effects. Type 2's flicker toggle (DS:EC88) is the only confirmed special behavior, used exclusively by the Random Shield mechanism.
 
 ### Damage Absorption Formula
 
