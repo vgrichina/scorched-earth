@@ -95,7 +95,7 @@ export const config = {
 const PERSIST_KEYS = [
   'graphicsMode',
   'gravity', 'viscosity', 'edgesExtend', 'suspendDirt', 'wind', 'changeWind',
-  'landType', 'skyType', 'wallType',
+  'landType', 'skyType', 'wallType', 'land1', 'land2', 'randomLand',
   'numPlayers', 'rounds', 'armsLevel',
   'scoringMode', 'startCash', 'interest', 'freeTurns', 'freeMarket',
   'talkingTanks', 'playOrder',
