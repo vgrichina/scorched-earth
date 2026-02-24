@@ -200,6 +200,35 @@ function formatValue(item) {
   return String(val) + (item.suffix || '');
 }
 
+// Compute submenu dialog width from content (EXE dialog system computes width, not hardcoded)
+function computeSubmenuWidth(sub) {
+  const pad = 16; // 8px left + 8px right margin
+  const gap = 6;  // min gap between label and value
+  let w = measureText(sub.title) + pad;
+  w = Math.max(w, measureText('ESC/Enter: Back') + pad);
+  for (const item of sub.items) {
+    const labelW = measureText(item.label);
+    // Find widest possible value for this item (including < > arrows)
+    let maxValW = 0;
+    if (item.disabled) {
+      maxValW = measureText('< ' + item.fixed + ' >');
+    } else if (item.names) {
+      for (const name of item.names) {
+        maxValW = Math.max(maxValW, measureText('< ' + name + ' >'));
+      }
+    } else {
+      const suffix = item.suffix || '';
+      const fmtVal = v => item.float ? v.toFixed(2) : String(v);
+      maxValW = Math.max(
+        measureText('< ' + fmtVal(item.min) + suffix + ' >'),
+        measureText('< ' + fmtVal(item.max) + suffix + ' >')
+      );
+    }
+    w = Math.max(w, labelW + gap + maxValW + pad);
+  }
+  return w;
+}
+
 // --- Helper: adjust a config value ---
 function adjustValue(item, dir) {
   if (item.disabled || !item.key) return;
@@ -353,7 +382,7 @@ function handleSubmenuInput() {
   // Mouse: click items to select, left/right half to adjust value
   if (mouse.over && consumeClick(0)) {
     const rowH = getSubRowH();
-    const dlgW = 220;
+    const dlgW = computeSubmenuWidth(sub);
     const dlgH = 30 + sub.items.length * rowH;
     const dlgX = Math.floor((getScreenW() - dlgW) / 2);
     const dlgY = Math.floor((getScreenH() - dlgH) / 2);
@@ -595,7 +624,7 @@ function drawSubmenu() {
   const itemCount = sub.items.length;
   // EXE: item spacing 14px; +5px at screenH >= 400
   const rowH = getSubRowH();
-  const dlgW = 220;
+  const dlgW = computeSubmenuWidth(sub);
   const dlgH = 30 + itemCount * rowH;
   const dlgX = Math.floor((getScreenW() - dlgW) / 2);
   const dlgY = Math.floor((getScreenH() - dlgH) / 2);
