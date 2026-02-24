@@ -178,15 +178,14 @@ export function setupTerrainPalette(terrainType) {
       }
       break;
 
-    case 3: // Night: dark blue core + gray surface
-      for (let di = 0; di < 15; di++) {
-        const t = di / 14;
-        setEntry(120 + di, 0, 0, Math.floor(30 * t));
+    case 3: // Night/MTN: 10-entry blue-gray + 20-entry gray depth (EXE 0x39AEF)
+      // Loop 1 (VGA 120-129): R=G=di, B=di+30 — blue-tinted terrain gradient
+      for (let di = 0; di < 10; di++) {
+        setEntry(120 + di, di, di, di + 30);
       }
-      for (let di = 15; di < 30; di++) {
-        const t = (di - 15) / 14;
-        const gray = Math.floor(38 * t);
-        setEntry(120 + di, gray, gray, gray);
+      // Loop 2 (VGA 130-149): R=G=B=(di-10)*2 — gray depth gradient
+      for (let di = 10; di < 30; di++) {
+        setEntry(120 + di, (di - 10) * 2, (di - 10) * 2, (di - 10) * 2);
       }
       break;
 
