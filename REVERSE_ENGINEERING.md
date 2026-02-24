@@ -3357,7 +3357,7 @@ All located in `disasm/` directory:
 - [x] Fix terrain bitmap shading direction once RE investigation confirms correct mapping (surface=120 or surface=149): **No fix needed** — web port already has correct direction (surface=149, underground=120), matching EXE. See RE investigation task above.
 
 #### Sound system (sound.js)
-- [ ] Fix config.soundEnabled to actually control sound output (currently disconnected from playTone)
+- [x] Fix config.soundEnabled to actually control sound output (currently disconnected from playTone): **DONE**. sound.js had a local `soundEnabled` variable (initialized `true`) that was independent of `config.soundEnabled`. Removed local variable; `playTone()` and `playFlightSound()` now gate on `config.soundEnabled`. `toggleSound()` toggles `config.soundEnabled` (0/1). `isSoundEnabled()` returns `config.soundEnabled`. 'H' key toggle and config menu setting now properly control all sound output.
 - [ ] Fix explosion sound: should be 7 discrete frequency steps (1000→10000 Hz, +100 per step, 5-tick delay), not continuous ramp
 - [ ] Fix turn-change click sound: EXE uses 100 rapid speaker toggles (fg_click), not a 40 Hz continuous tone
 - [ ] Add missing sounds: terrain generation ping, impact random tone, terrain-hit rising sound, shield-hit random tone

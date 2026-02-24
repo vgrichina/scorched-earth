@@ -6,8 +6,6 @@
 import { config } from './config.js';
 
 let audioCtx = null;
-let soundEnabled = true;
-
 // Lazy-init AudioContext on first user gesture (browser autoplay policy)
 export function initSound() {
   if (audioCtx) return;
@@ -19,17 +17,17 @@ export function initSound() {
 }
 
 export function toggleSound() {
-  soundEnabled = !soundEnabled;
-  return soundEnabled;
+  config.soundEnabled = config.soundEnabled ? 0 : 1;
+  return config.soundEnabled;
 }
 
 export function isSoundEnabled() {
-  return soundEnabled;
+  return config.soundEnabled;
 }
 
 // Play a tone sweep (frequency ramp over duration)
 function playTone(startFreq, endFreq, duration, type = 'square', volume = 0.15) {
-  if (!audioCtx || !soundEnabled) return;
+  if (!audioCtx || !config.soundEnabled) return;
   initSound();
 
   const osc = audioCtx.createOscillator();
@@ -65,7 +63,7 @@ export function playExplosionSound(radius) {
 // freq = 1,193,277 / (speed * 1000); starts at 20 Hz (0x3162C), updates per frame
 // Web: speed ≈ sqrt(distSq) pixel/frame; approximates EXE formula
 export function playFlightSound(distSq) {
-  if (!audioCtx || !soundEnabled) return;
+  if (!audioCtx || !config.soundEnabled) return;
   const speed = Math.sqrt(distSq);
   const freq = speed > 0 ? Math.min(4000, 1193.277 / speed) : 20;
   playTone(freq, freq, 0.03, 'square', 0.04);
