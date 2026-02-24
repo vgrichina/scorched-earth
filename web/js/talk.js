@@ -5,10 +5,11 @@
 // EXE: pre-fire handler at 0x30668 loads string from DS:0xCC8E
 
 import { config } from './config.js';
-import { drawText, measureText } from './font.js';
-import { fillRect } from './framebuffer.js';
+import { drawText, measureText, FONT_HEIGHT } from './font.js';
+import { fillRect, hline, vline } from './framebuffer.js';
 import { players } from './tank.js';
 import { random } from './utils.js';
+import { UI_DEEP_SHADOW, UI_DARK_BORDER } from './constants.js';
 
 // All 54 attack phrases from earth/TALK1.CFG
 const ATTACK_PHRASES = [
@@ -195,22 +196,45 @@ export function stepSpeechBubble() {
 }
 
 // Draw the speech bubble as an overlay
+// EXE: display_talk_bubble at 0x182FD — draws bordered rectangle via draw_border (0x1826C)
+// EXE draw_border: 4 edge lines in EF2C (deep shadow/black), interior fill in EF26 (white)
+// EXE: text rendered in EF2C (black) at (si, tank.Y-19)
+// EXE: box spans (si-3, tank.Y-20) to (si+textW+2, tank.Y-7) — 14px tall for 12px font
 export function drawSpeechBubble() {
   if (!bubble.active) return;
 
-  // Truncate long text to fit on screen
-  const maxChars = 35;
-  const text = bubble.text.length > maxChars ? bubble.text.substring(0, maxChars) + '..' : bubble.text;
+  const text = bubble.text;
   const textWidth = measureText(text);
 
-  // Position bubble above tank, clamped to screen
-  let bx = Math.max(2, Math.min(318 - textWidth - 4, bubble.x - textWidth / 2));
-  let by = Math.max(16, bubble.y - 8);
+  // EXE: si = tank.X - textWidth/2 (center text on tank)
+  // EXE: clamps X to screen bounds: left = EF42+5, right = EF3C - textWidth - 11
+  const sw = config.screenWidth;
+  let tx = Math.round(bubble.x - textWidth / 2);
+  if (tx < 5) tx = 5;
+  if (tx + textWidth > sw - 11) tx = sw - 11 - textWidth;
 
-  // Background box
-  fillRect(bx - 1, by - 1, bx + textWidth + 2, by + 9, 0);
-  fillRect(bx, by, bx + textWidth + 1, by + 8, 199);
+  // EXE: text Y = tank.Y - 19 (bubble.y is already set to player.y - 19)
+  const ty = Math.max(1, bubble.y);
 
-  // Text
-  drawText(bx + 1, by + 1, text, 0);
+  // EXE draw_border: box from (tx-3, ty-1) to (tx+textW+2, ty+FONT_HEIGHT)
+  const bx1 = tx - 3;
+  const by1 = ty - 1;
+  const bx2 = tx + textWidth + 2;
+  const by2 = ty + FONT_HEIGHT;
+
+  // Interior fill in EF26 = UI_DARK_BORDER (white, 63,63,63)
+  fillRect(bx1 + 1, by1 + 1, bx2 - 1, by2 - 1, UI_DARK_BORDER);
+
+  // 4 border edges in EF2C = UI_DEEP_SHADOW (black)
+  // Left edge: vline(bx1, by1+1, by2-1)
+  vline(bx1, by1 + 1, by2 - 1, UI_DEEP_SHADOW);
+  // Right edge: vline(bx2, by1+1, by2-1)
+  vline(bx2, by1 + 1, by2 - 1, UI_DEEP_SHADOW);
+  // Top edge: hline(bx1+1, bx2-1, by1)
+  hline(bx1 + 1, bx2 - 1, by1, UI_DEEP_SHADOW);
+  // Bottom edge: hline(bx1+1, bx2-1, by2)
+  hline(bx1 + 1, bx2 - 1, by2, UI_DEEP_SHADOW);
+
+  // Text in EF2C = UI_DEEP_SHADOW (black)
+  drawText(tx, ty, text, UI_DEEP_SHADOW);
 }

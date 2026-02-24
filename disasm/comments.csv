@@ -125,7 +125,7 @@ DS:0x50D8,is_castle_terrain: 1 when terrain_type==3(MTN) or 5(Castle); 0 otherwi
 0x18155,show_die_comment: tank death handler; get_random_line(&die_talk) → display_talk_bubble
 0x181A1,show_attack_comment: tank fire handler; 2% random-player taunt; get_random_line(&attack_talk) → display_talk_bubble
 0x182FD,display_talk_bubble: checks TALKING_TANKS!=0 & TALK_PROB!=0; rolls random(100)<TALK_PROB; renders bordered speech bubble; delays TALK_DELAY ticks
-0x1826C,draw_border: draws 4-sided outline rectangle using vline/hline indirect calls
+0x1826C,draw_border: 4 edge lines in EF2C (deep shadow) via vline/hline + interior fill in EF26 (white) via drect
 0x18433,talk_delay: busy-waits TALK_DELAY ticks via BIOS timer (int 1Ah)
 0x184A7,CommentGenerator: overlay entry point; allocates both talk structs
 0x184E5,free_all_talk: frees both attack + die talk data

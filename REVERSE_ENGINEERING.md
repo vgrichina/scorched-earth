@@ -3414,6 +3414,11 @@ All located in `disasm/` directory:
 - [x] Fix Wrap-around wall type name: Web had `Wrap`. EXE has `Wrap-around` (DS:0x278E). **DONE**. menu.js Physics submenu: wall type name[1] changed to `Wrap-around`. **Files**: menu.js
 - [x] Remove extra colons from Economics toggle items: Web had `Computers ~Buy:` and `~Free Market:` with trailing colons. EXE has no colons on these toggle items (DS:0x293F, DS:0x294E). **DONE**. menu.js Economics submenu: removed trailing colons. **Files**: menu.js
 - [x] Full HUD/Menu/Shop fidelity re-audit: **DONE** (session 77). Systematic comparison of all EXE menu label strings (DS:0x2827-0x2DD5) against web/js/menu.js. 3 discrepancies found and fixed, 1 intentional divergence noted. (1) Hardware submenu 4 labels missing `~` hotkey markers: `Graphics Mode:`→`~Graphics Mode:` (DS:0x28C3), `Small Memory`→`~Small Memory` (DS:0x28E2), `Mouse Enabled`→`~Mouse Enabled` (DS:0x28F0). (2) "BIOS"→"Bios" case mismatch: `BIOS Keyboard`→`~Bios Keyboard` (DS:0x28D3). (3) Hardware submenu missing 5 EXE items: added ~Firing Delay:, ~Hardware Delay:, Falling ~Delay:, ~Calibrate Joystick, ~Fast Computers as disabled N/A (EXE DS:0x28FF/0x290E). Info: Land ~Type: in Landscape submenu is a web-only addition — EXE has no LAND_TYPE labeled menu item (config-file-only). All other menus (Economics, Physics, Landscape, Play Options, Sound, Weapons) fully verified — labels, hotkeys, colons all match EXE. HUD_MENU_COMPARISON.md updated with new section 13. **Files**: menu.js, HUD_MENU_COMPARISON.md, REVERSE_ENGINEERING.md
+- [x] Full HUD/Menu/Shop fidelity re-audit: **DONE** (session 78). Disassembled `draw_border` (0x1826C) and `display_talk_bubble` (0x182FD). Found 8 talk bubble rendering discrepancies and fixed all: (1) fill color palette 199→UI_DARK_BORDER (EXE EF26=white), (2) border now 4 edge lines via vline/hline (EXE EF2C=black) instead of overlapping fillRects, (3) text color UI_DEEP_SHADOW (EXE EF2C), (4) Y position fixed — text at bubble.y directly not bubble.y-8 (was 7px too high), (5) height 14px (FONT_HEIGHT+2) not 11px, (6) X clamp uses config.screenWidth not hardcoded 318, (7) removed 35-char text truncation (EXE doesn't truncate), (8) 3px left padding matching EXE (was 2px). Also fixed stale RE doc pseudocode at line 5385: "weapon_name at E9DC" corrected to "player_name" matching HUD_MENU_COMPARISON section 1b resolution. No other menu/HUD/shop discrepancies found — all previous audit items confirmed resolved. HUD_MENU_COMPARISON.md section 14 added. **Files**: talk.js, HUD_MENU_COMPARISON.md, REVERSE_ENGINEERING.md
+
+#### Web Port Fixes (from re-audit session 78)
+
+- [x] Fix talk bubble rendering: EXE `draw_border` (0x1826C) draws 4 black edge lines (EF2C=UI_DEEP_SHADOW) + white interior fill (EF26=UI_DARK_BORDER). Text in EF2C at (si, tank.Y-19), box from (si-3, Y-1) to (si+textW+2, Y+FONT_HEIGHT). Web had: wrong fill color (palette 199 bright yellow → UI_DARK_BORDER white), wrong text position (7px too high), wrong height (11px → 14px for 12px font), hardcoded 320px X clamp (→ config.screenWidth), 35-char truncation (removed), 2px left padding (→ 3px). **DONE**. **Files**: talk.js
 - [ ] Full HUD/Menu/Shop fidelity re-audit: Read HUD_MENU_COMPARISON.md and all web/js UI files (hud.js, menu.js, shop.js, font.js). Compare every rendering detail against EXE behavior documented in REVERSE_ENGINEERING.md. For each remaining discrepancy found, add a new `- [ ]` task to this section with: what EXE does (with file offsets/DS refs), what web does wrong, and the fix. Also re-add this same meta audit task as a new `- [ ]` entry so it runs again after the next batch of fixes. Update HUD_MENU_COMPARISON.md with any new findings. **Files**: HUD_MENU_COMPARISON.md, REVERSE_ENGINEERING.md
 
 ---
@@ -5380,9 +5385,8 @@ sprintf(buf, "%s:", name)                   ; "Wolfgang:" at (5, HUD_Y)
 sprintf(buf, "%4d", player.power)           ; "1000" at (bar_x, HUD_Y)   [0xe9d6]
 sprintf(buf, "%s:", "Angle")                ; "Angle:" at [0xe9d8]
 sprintf(buf, "%2d", player.angle)           ; "90" at [0xe9da]
-fg_setcolor(0xA3)                           ; wind color (163, fixed)
-draw_wind_indicator(player+0x1C..0x20, 0xA3) ; custom wind display
-fg_text(weapon_name, [0xe9dc], HUD_Y)       ; weapon name
+fg_setrgb(0xA3, player.R, player.G, player.B) ; set palette 163 = player color
+fg_text(player_name, [0xe9dc], HUD_Y)        ; PLAYER NAME at E9DC in palette 163
 draw_player_icon([0xe9de], HUD_Y, wpn_idx)  ; weapon selector icon
 if wpn_idx == 0: sprintf("%s", name)         ; "Baby Missile"
 else:            sprintf("%d: %s", ammo, name) ; "3: Nuke"
