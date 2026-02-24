@@ -2453,6 +2453,51 @@ return refund;
 
 **Intermediate files**: `disasm/cavern_shop_analysis.txt`
 
+### Shop Palette Animation (file 0x14E34, VERIFIED)
+
+Function `palette_tick` at file 0x14E34 (seg 0x0DBC:0x0874). Called as a shop dialog callback. Uses frame counter at DS:0x00EC (0..100, wrapping). Three animation effects:
+
+**Part 1: VGA 2 — Pulsing Red/Orange** (every frame)
+```
+counter = ++DS:0x00EC
+if counter > 100: counter = 0
+tri = (counter < 50) ? counter : (100 - counter)   // triangle wave 0→50→0
+R = tri * 63 / 50    // 0→63→0 (full red pulse)
+G = tri * 10 / 50    // 0→10→0 (orange tint)
+B = 0
+fg_setrgb(2, R, G, B)
+```
+
+**Part 2: VGA 8-11 — Accent Color Cycling** (every 8 frames)
+```
+if (counter & 7) != 0: skip
+si = ((counter >> 3) & 3) + 1    // cycles 1,2,3,4
+for palette_idx in [8, 9, 10, 11]:
+    fg_setrgb(palette_idx, accent[si].R, accent[si].G, accent[si].B)
+    si++; if si > 4: si = 1      // wraps to entry 1, never uses entry 0
+```
+Uses accent table entries 1-4 only (orange, magenta, dark red, deep pink). Entry 0 (bright red) is reserved for sparkle animation at file 0x24894.
+
+**Part 3: VGA 14-18 — Gray Gradient Cycling** (every frame, changes every 2)
+```
+si = (counter / 2) % 5 + 14     // starting VGA index: 14..18
+for gray in [0, 15, 30, 45, 60]:
+    fg_setrgb(si, gray, gray, gray)
+    si++; if si > 18: si = 14    // wraps within 14-18
+```
+
+**Accent Color Table** at DS:0x1F62 (5 entries × 6 bytes = 3 uint16 R,G,B per entry):
+
+| Index | R | G | B | 8-bit RGB | Name | Used By |
+|:-----:|:--:|:--:|:--:|:---------:|------|---------|
+| 0 | 63 | 0 | 0 | (255,0,0) | Bright red | Sparkle animation only |
+| 1 | 63 | 32 | 10 | (255,130,40) | Orange | Accent cycling |
+| 2 | 63 | 0 | 63 | (255,0,255) | Magenta | Accent cycling |
+| 3 | 63 | 12 | 12 | (255,49,49) | Dark red | Accent cycling |
+| 4 | 63 | 0 | 30 | (255,0,121) | Deep pink | Accent cycling |
+
+**Web port**: Fixed in `web/js/palette.js`. Corrections: (1) accent cycling now uses entries 1-4 with 4-step modulo (was using all 5 entries with 5-step modulo); (2) added pulsing VGA 2 red/orange triangle wave; (3) added gray gradient cycling on VGA 14-18. Save/restore expanded to cover VGA 2, 8-11, and 14-18.
+
 ---
 
 ## SCORCH.PCX Background Image (VERIFIED from disassembly)
@@ -2760,7 +2805,7 @@ All located in `disasm/` directory:
 - [x] Add sun/planet rendering to terrain preview: **CANCELLED** — RE investigation resolved as "No explicit sun circle"; the "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes (see "Sun/Planet Rendering" section). No draw call to implement. Sunset palette gradient already fixed in web/js/palette.js.
 - [x] Implement impact damage system: **DS:0x5114** = DAMAGE_TANKS_ON_IMPACT (0=Off, 1=On, default On). **DS:0x5164** = 2 (hardcoded fall damage per pixel). Two modes: Off = per-step damage during fall; On = accumulated damage on landing. Total damage identical (2 × fall_distance). Parachute negates all damage. Web port: `config.impactDamage` toggle added (config.js, menu.js); `tank.js` fall damage corrected from `fallDist/5` to `2*fallDist`; `fallStartY` tracks fall origin for accurate distance; both damage modes implemented. See "Falling Tank / Impact Damage System" section.
 - [x] Implement shop sell sub-dialog: EXE sell refund formula = `floor(qty × price × factor / bundle)` where factor = **0.8** (normal, DS:0x613C) or **0.65** (free market, DS:0x6144). Web port had 0.5 — fixed to 0.8/0.65 in shop.js; `config.freeMarket` toggle added (config.js, menu.js Economics sub-dialog). Sell dialog UI was already implemented. See "Sell Equipment — Refund Price Formula" subsection.
-- [ ] Implement shop palette animation: accent colors cycle through indices 8-11 every 8 frames; trace animation loop at shop render and implement in web/js/shop.js + web/js/palette.js
+- [x] Implement shop palette animation: Full palette tick function traced at file 0x14E34. Three effects: (1) VGA 2 pulsing red/orange triangle wave (100-frame counter, R=tri×63/50, G=tri×10/50), (2) VGA 8-11 accent cycling entries 1-4 only (every 8 frames, si=((counter>>3)&3)+1, 4-step rotation), (3) VGA 14-18 gray gradient cycling (5 levels: 0/15/30/45/60, starting index = (counter/2)%5+14). Web port corrected: was using all 5 entries with 5-step modulo; now uses entries 1-4 with 4-step modulo; added pulsing VGA 2 and gray gradient VGA 14-18. See "Shop Palette Animation" subsection.
 - [ ] Implement Full Row 2 HUD widgets: replace text approximations with actual icon+bar widgets using icon bitmap data from DS:0x3826 (48 icons × 125 bytes); implement all 7 per-player inventory widgets in web/js/hud.js
 
 ### Documentation

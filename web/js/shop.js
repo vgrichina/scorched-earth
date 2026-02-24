@@ -52,11 +52,10 @@
 //   DS:0xEF28 = background fill
 //   Player color: player_struct+0x1A, selection highlight = player_color+4 (lighter shade)
 //
-// EXE palette animation (palette tick at file 0x14E34):
-//   Accent color table at DS:0x1F62 (5 entries × 6 bytes RGB words):
-//     bright red (63,0,0), orange (63,32,10), magenta (63,0,63),
-//     dark red (63,12,12), deep pink (63,0,30)
-//   Cycles palette indices 8-11 every 8 frames (test [0xEC], 7)
+// EXE palette animation (palette tick at file 0x14E34, DS:0x00EC counter):
+//   Three effects: (1) VGA 2 pulsing red/orange triangle wave (100-frame period),
+//   (2) VGA 8-11 accent cycling entries 1-4 every 8 frames (4-step rotation),
+//   (3) VGA 14-18 gray gradient cycling every 2 frames (5 levels: 0,15,30,45,60)
 //
 // NOTE: Web port uses simplified flat categories vs EXE's tabbed dialog system.
 // The EXE shop is significantly more complex (dialog widgets, scrollbar, sell sub-dialog,

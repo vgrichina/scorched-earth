@@ -303,45 +303,94 @@ function setupLaserPalette() {
   setEntry(LASER_WHITE, 63, 63, 63);
 }
 
-// --- Shop accent palette animation (EXE: palette tick at file 0x14E34) ---
-// EXE: accent color table at DS:0x1F62, 5 entries × 6 bytes RGB words.
-// Cycles palette indices 8-11 every 8 frames (test [EC], 7).
-// Palette entries 8-11 are player-1 slots 0-3 (dark gradient); they're safe
-// to hijack during the shop because those dark shades aren't used in shop UI.
+// --- Shop palette animation (EXE: palette tick at file 0x14E34) ---
+// Three animation effects driven by DS:0x00EC frame counter (0..100 wrapping):
+//   1. VGA 2: pulsing red/orange triangle wave (every frame, 100-frame period)
+//   2. VGA 8-11: accent color cycling using entries 1-4 (every 8 frames, 4-step rotation)
+//   3. VGA 14-18: gray gradient cycling with 5 levels (every frame, changes every 2 frames)
+//
+// Accent color table at DS:0x1F62 (5 entries × 6 bytes RGB words):
+//   [0] bright red (63,0,0) — used by sparkle animation only, NOT accent cycling
+//   [1] orange (63,32,10)
+//   [2] magenta (63,0,63)
+//   [3] dark red (63,12,12)
+//   [4] deep pink (63,0,30)
 const ACCENT_COLORS = [
-  [63,  0,  0],  // bright red
-  [63, 32, 10],  // orange
-  [63,  0, 63],  // magenta
-  [63, 12, 12],  // dark red
-  [63,  0, 30],  // deep pink
+  [63,  0,  0],  // [0] bright red (sparkle only)
+  [63, 32, 10],  // [1] orange
+  [63,  0, 63],  // [2] magenta
+  [63, 12, 12],  // [3] dark red
+  [63,  0, 30],  // [4] deep pink
 ];
-// Saved copies of palette entries 8-11 for restore after shop
-const _savedAccent = new Uint8Array(4 * 3);
+// 5 gray levels for VGA 14-18 cycling (0x00, 0x0F, 0x1E, 0x2D, 0x3C)
+const GRAY_LEVELS = [0, 15, 30, 45, 60];
+
+// Saved copies of palette entries 2, 8-11, 14-18 for restore after shop
+const _savedAccent = new Uint8Array((1 + 4 + 5) * 3);
 
 export function saveAccentPalette() {
+  // Save VGA 2
+  for (let c = 0; c < 3; c++) _savedAccent[c] = palette6[2 * 3 + c];
+  // Save VGA 8-11
   for (let i = 0; i < 4; i++) {
-    const j = (8 + i) * 3;
-    _savedAccent[i * 3]     = palette6[j];
-    _savedAccent[i * 3 + 1] = palette6[j + 1];
-    _savedAccent[i * 3 + 2] = palette6[j + 2];
+    for (let c = 0; c < 3; c++) _savedAccent[3 + i * 3 + c] = palette6[(8 + i) * 3 + c];
+  }
+  // Save VGA 14-18
+  for (let i = 0; i < 5; i++) {
+    for (let c = 0; c < 3; c++) _savedAccent[15 + i * 3 + c] = palette6[(14 + i) * 3 + c];
   }
 }
 
 export function restoreAccentPalette() {
+  // Restore VGA 2
+  setEntry(2, _savedAccent[0], _savedAccent[1], _savedAccent[2]);
+  // Restore VGA 8-11
   for (let i = 0; i < 4; i++) {
-    setEntry(8 + i, _savedAccent[i * 3], _savedAccent[i * 3 + 1], _savedAccent[i * 3 + 2]);
+    const o = 3 + i * 3;
+    setEntry(8 + i, _savedAccent[o], _savedAccent[o + 1], _savedAccent[o + 2]);
+  }
+  // Restore VGA 14-18
+  for (let i = 0; i < 5; i++) {
+    const o = 15 + i * 3;
+    setEntry(14 + i, _savedAccent[o], _savedAccent[o + 1], _savedAccent[o + 2]);
   }
   updatePalette32();
 }
 
-// Called each shop frame. Only updates palette (and returns true) every 8 frames.
+// Called each shop frame. EXE counter wraps 0..100 with triangle wave.
 export function tickAccentPalette(frame) {
-  if ((frame & 7) !== 0) return false;
-  const step = Math.floor(frame / 8) % ACCENT_COLORS.length;
-  for (let i = 0; i < 4; i++) {
-    const [r, g, b] = ACCENT_COLORS[(step + i) % ACCENT_COLORS.length];
-    setEntry(8 + i, r, g, b);
+  // EXE: DS:0x00EC counter wraps at 100
+  const counter = frame % 101;
+
+  // Part 1: VGA 2 — pulsing red/orange triangle wave
+  // tri = (counter < 50) ? counter : (100 - counter)  → range 0..50
+  // R = tri*63/50, G = tri*10/50, B = 0
+  const tri = (counter < 50) ? counter : (100 - counter);
+  setEntry(2, Math.floor(tri * 63 / 50), Math.floor(tri * 10 / 50), 0);
+
+  // Part 2: VGA 8-11 — accent cycling every 8 frames
+  // EXE: si = ((counter >> 3) & 3) + 1, uses entries 1-4 only
+  if ((counter & 7) === 0) {
+    let si = ((counter >> 3) & 3) + 1;
+    for (let idx = 8; idx <= 11; idx++) {
+      const [r, g, b] = ACCENT_COLORS[si];
+      setEntry(idx, r, g, b);
+      si++;
+      if (si > 4) si = 1;
+    }
   }
+
+  // Part 3: VGA 14-18 — gray gradient cycling
+  // EXE: si = (counter/2) % 5 + 14, writes 5 gray levels cycling through 14-18
+  let gi = Math.floor(counter / 2) % 5;
+  for (let k = 0; k < 5; k++) {
+    const palIdx = 14 + gi;
+    const g = GRAY_LEVELS[k];
+    setEntry(palIdx, g, g, g);
+    gi++;
+    if (gi >= 5) gi = 0;
+  }
+
   updatePalette32();
   return true;
 }
