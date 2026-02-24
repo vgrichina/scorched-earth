@@ -29,9 +29,9 @@
 //   "Shields" DS:0x2EFE, "~Inventory" DS:0x2EEF
 //
 // EXE sell dialog strings:
-//   "Sell Equipment" DS:0x234C, "Description" DS:0x233C, "Amount in stock" DS:0x2340,
-//   "~Quantity to sell:" DS:0x2344, "Offer" DS:0x2348,
-//   "~Accept" DS:0x2350, "~Reject" DS:0x2354
+//   "Sell Equipment" DS:0x2EB0, "Description" DS:0x2E7B, "Amount in stock" DS:0x2E87,
+//   "~Quantity to sell:" DS:0x2E97, "Offer" DS:0x2EAA,
+//   "~Accept" DS:0x2EBF, "~Reject" DS:0x2EC7
 //
 // EXE other strings:
 //   "Cash Left:"          — DS:0x22F8 (file 0x58B5D)
@@ -1000,13 +1000,13 @@ export function drawShop(player) {
       // Fields
       const lx = dlgX + 6;
       const vx = dlgX + Math.floor(dlgW * 0.55);
-      drawText(lx, dlgY + 18, 'Description:',     UI_DARK_TEXT);
+      drawText(lx, dlgY + 18, 'Description',       UI_DARK_TEXT);
       drawText(vx, dlgY + 18, item.weapon.name,    baseColor);
-      drawText(lx, dlgY + 30, 'Amount in stock:',  UI_DARK_TEXT);
+      drawText(lx, dlgY + 30, 'Amount in stock',   UI_DARK_TEXT);
       drawText(vx, dlgY + 30, String(owned),        baseColor);
 
       // Quantity field with sunken inset
-      drawText(lx, dlgY + 42, 'Quantity to sell:', UI_DARK_TEXT);
+      drawText(lx, dlgY + 42, '~Quantity to sell:', UI_DARK_TEXT);
       const qtyStr = String(shop.sellQty);
       const qw = Math.max(20, measureText(qtyStr) + 6);
       drawBox3DSunken(vx - 2, dlgY + 40, qw, 13, BLACK,
@@ -1015,7 +1015,7 @@ export function drawShop(player) {
 
       // Offer
       hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 56, UI_MED_BORDER);
-      drawText(lx, dlgY + 60, 'Offer:', UI_DARK_TEXT);
+      drawText(lx, dlgY + 60, 'Offer', UI_DARK_TEXT);
       drawText(vx, dlgY + 60, '$' + offer, UI_HIGHLIGHT);
       hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 72, UI_MED_BORDER);
 
