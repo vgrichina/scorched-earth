@@ -150,6 +150,14 @@ DS:0x5164,FALL_DAMAGE_PER_PIXEL: hardcoded constant = 2; total damage = 2 * fall
 0x30F0E,init_deploy_threshold: sub[0x2C] = 5 — initial default deploy threshold
 0x20A59,fall_damage_off_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jnz skip; calls damage_tank(tank, 2, 1)
 0x20AE4,fall_damage_on_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jz skip; calls damage_tank(tank, accum, 1)
+0x20B09,crush_check: test crushed_tank[faller_player*4] far ptr; null→skip, non-null→crush damage
+0x20B4C,crush_to_victim: shield_and_damage(crushed_tank, faller_accum+50, 1) — through shield
+0x20B8C,crush_self_damage: damage_tank(falling_tank, faller_accum/2+10, 1) — direct self-damage
+0x20690,pixel_scan: scan columns below falling tank; pixel<0x50→tank hit (player=pixel/8); >=0x69→terrain
+0x2071C,crush_threshold: if >2 columns overlap with another tank → immediate crush landing
+0x207CB,glancing_contact: if 1-2 columns overlap → sound(5,200) ping but continue falling
+0x207B3,crush_landing: set landing_flag=1 and inc landed_count for crush landings
+0x3FFD2,shield_and_damage(tank_ptr, damage, flag): inc attacker stats, shield_absorb_damage, damage_tank(rem,0)
 0x31B48,damage_tank: args(tank_far_ptr, amount, flag); if flag>0: subtract HP; if amount==0: no-op
 0x37955,compute_sell_refund: refund = floor(qty * price * SELL_FACTOR / bundle); factor=0.8 normal; 0.65 free market
 DS:0x613C,SELL_FACTOR: float64 0.8 — normal sell refund = 80% of per-unit price

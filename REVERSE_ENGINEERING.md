@@ -3313,7 +3313,7 @@ All located in `disasm/` directory:
 - [x] Trace Type 4 (Desert/Lava) terrain palette: **RESOLVED**. 3-segment FPU interpolation (10+10+9 entries) at file 0x39C31 using float32 constants DS:0x6258-0x626C. VGA 120=(63,63,0) set by set_sky_palette_entry. Loop 1 (VGA 121-130): R=63, G=58→20, B=2→20 (warm gold→red-brown). Loop 2 (VGA 131-140): R=59→29, G=20→29, B=24→63 (red→blue-purple). Loop 3 (VGA 141-149): R=G=27→11, B=59→34 (blue→dark indigo). Previous doc had Loop 2 RGB values swapped (said (24,20,59) start, correct is (59,20,24)) and Loop 3 end wrong (said (9,9,31), correct is (11,11,34)). DS:0x626C=31.0 (not 31.5). DS:0x6270=45.0 is unused by these loops. Full 30-entry table with exact integer values added to "Desert/Lava Gradient Detail" section. Web port palette.js case 4 uses single linear lerp — needs 3-segment replacement.
 - [x] Trace Type 3 (Night/MTN) terrain palette: **RESOLVED — blue tint, not greenish**. Two palette loops at file 0x39AEF: Loop 1 (di=0..9, VGA 120–129): `fg_setrgb(di, di, di, di+30)` — R=G=i, B=i+30, creating dark **blue** gradient (not green as doc previously stated). Loop 2 (di=10..29, VGA 130–149): `fg_setrgb(di, (di-10)*2, (di-10)*2, (di-10)*2)` — gray depth gradient (0,0,0)→(38,38,38). Previous doc notation "(i, i+30, i, i)" had +30 on wrong channel (R instead of B). Type 3 falls through to Type 4's shared code (fg_setdacs upload, 9-level height_array, bitmap fill, LandGenerator). setTerrainPixel case 3: bitmap clear → height_array[y] (VGA 120–128 blue); bitmap set → depth+130 (VGA 130–150 gray depth). Web port had 15/15 split with pure-blue ramp; EXE has 10/20 split with blue-gray terrain + gray depth. See "Night/MTN Palette Detail" table.
 - [x] Trace parachute deploy mechanics: **RESOLVED**. Sub struct field `sub[0x2C]` is a deploy damage threshold (NOT inventory count): default=5, with Battery item=10 (0x18852/0x18872). `check_deploy` (0x202F6) simulates remaining fall returning predicted damage (2/pixel). Deploy when predicted_damage > threshold. Deploy action: sound(30, 2000Hz), flash white (63,63,63), set `sub[0x0C]=1`. Half-speed: `DS:0x1C68` frame counter % 2 == 0 → skip iteration (0x20626). Per-step delay(20) for visual effect (0x20A8F). Parachuted tanks accumulate zero damage. Web port gaps: no mid-fall threshold check, no frame-skipping half-speed, no deploy sound/flash, no Battery interaction. See "Parachute Deploy Mechanics" subsection in Falling Tank section.
-- [ ] Trace landing crater explosion: EXE always fires explosion(player, accum+50, 1) when tank lands. Web port has no landing crater at all.
+- [x] Trace landing crater explosion: **RESOLVED — crush damage mechanic, NOT universal crater**. The "landing crater" at 0x20B4C only triggers when a falling tank lands on top of another tank (>2 pixel columns overlap, detected by per-step pixel scan at 0x20690). Crush damage to victim = faller_accum + 50 (through shield via shield_and_damage at 0x3912:0x04B2 / file 0x3FFD2). Faller self-damage = faller_accum/2 + 10 (direct). Pixel scan: pixel < 0x50 = tank pixel, hit_player = pixel/8, tank substruct = DS:D568 + hit_player × 0xCA. Glancing contact (1-2 columns): sound(5, 200) but no landing. Normal terrain landings have NO crater explosion. See "Crush Damage Summary" in Falling Tank section.
 - [ ] Trace dome direction-dependent rendering: EXE has two asymmetric dome shapes (dir1 base at Y+5 with 4px rise, dir2 base at Y+7 with 3px rise) using separate color globals. Web port draws single direction-independent dome.
 
 ### Web Port Fixes (from audit)
@@ -3371,7 +3371,7 @@ All located in `disasm/` directory:
 
 #### Tank rendering (tank.js)
 - [ ] Fix parachute deploy and fall speed: EXE has mid-fall deployment with threshold (sub[0x2C]=5, or 10 with Battery), check_deploy simulates remaining fall (2 damage/pixel), deploys when predicted > threshold. Deployed: half speed via frame skip (frame_counter%2==0 → skip), delay(20) per step, sound(30, 2000Hz), flash white. Web port has no threshold, no speed reduction, no deploy sound.
-- [ ] Add landing crater: EXE fires explosion(player, fallDamageAccum+50, 1) on every landing
+- [ ] Add crush damage: When a falling tank lands on another tank (>2 pixel columns overlap), deal faller_accum+50 damage to victim (through shield), and faller_accum/2+10 self-damage to faller. Sound(5, 200) on glancing contact (1-2 columns). Detection: check if any player tank occupies pixels below the falling tank. See "Crush Damage Summary" in Falling Tank section.
 
 #### Napalm particles (behaviors.js)
 - [ ] Fix napalm particle pool cap: EXE allows 99 particles; web caps at 20
@@ -4492,15 +4492,55 @@ function handle_falling_tanks():
                     damage_tank(tank, 0, 1)              // no-op (0 damage skipped)
                 delay(20)                                // slow landing animation
 
+    // === PER-STEP CRUSH DETECTION (0x20690–0x20717) ===
+    // Scans pixels below falling tank, column by column:
+    //   pixel >= 0x69: solid terrain (ignored for crush)
+    //   pixel 0x50-0x68: sky/effects (ignored)
+    //   pixel < 0x50: another tank → hit_player = pixel / 8
+    // Stores crushed tank substruct far ptr in local array:
+    //   crushed_tank[faller_player] = DS:D568 + hit_player * 0xCA
+    // If >2 columns overlap (0x2071C): immediate landing on that tank
+    // If 1-2 columns overlap (0x207CB): sound(5, 200) glancing ping, continue falling
+
     // === POST-LANDING PHASE (after all tanks settled) ===
-    for each player that fell (fall_damage_accum[player] > 0):
-        sound(0x1E, 0xC8)                               // impact thud
+    for each player that fell (landing_flag[player] != 0):   // [bp-0x7A]
+        sound(0x1E, 0xC8)                               // impact thud (200 Hz)
         if DAMAGE_TANKS_ON_IMPACT != 0 (On):             // DS:0x5114
             damage_tank(tank, fall_damage_accum[player], 1)  // total impact damage
 
-        // Landing crater: explosion(player_ptr, accum + 50, 1) at 0x3912:0x04B2
-        // Always runs regardless of DAMAGE_TANKS_ON_IMPACT setting
+        // Crush damage — ONLY when landed on another tank (0x20B09)
+        if crushed_tank[faller_player] != NULL:           // [bp-0x66 + player*4]
+            save DS:5182/5184                             // save current attacker ptr
+            DS:5182/5184 = falling_tank                   // set faller as attacker
+            sound(0x1E, 0xC8)                             // second thud (200 Hz)
+
+            // Deal crush damage to victim through shield (0x20B4C)
+            accum = fall_damage_accum[player]             // DS:CE80[player]
+            shield_and_damage(crushed_tank, accum + 50, 1)  // at 0x3912:0x04B2
+            // shield_and_damage: increments attacker stats (+0x52, +0x66),
+            // calls shield_absorb_damage, remaining damage via damage_tank(victim, rem, 0)
+
+            restore DS:5182/5184
+
+            // Faller self-damage from crushing impact (0x20B8C)
+            damage_tank(falling_tank, accum/2 + 10, 1)   // round-toward-zero division
 ```
+
+### Crush Damage Summary (VERIFIED from disassembly)
+
+The "landing crater explosion" is actually a **crush damage** mechanic. It does NOT always fire — it only triggers when a falling tank lands directly on top of another tank (detected by pixel scan finding >2 columns of overlap).
+
+| Damage Target | Formula | Through Shield? | Address |
+|---------------|---------|-----------------|---------|
+| Crushed victim | faller_accum + 50 | Yes (shield_absorb_damage first) | 0x20B4C → 0x3912:0x04B2 |
+| Falling tank (self) | faller_accum/2 + 10 | No (direct damage_tank) | 0x20B8C |
+| Impact damage (self) | faller_accum | No (direct damage_tank) | 0x20AE4 (if DAMAGE_ON_IMPACT=On) |
+
+**Example**: Tank falls 30 pixels (accum = 60). Lands on another tank with shield.
+- Impact self-damage: 60
+- Crush damage to victim: 60 + 50 = 110 (reduced by shield)
+- Crush self-damage: 60/2 + 10 = 40
+- Total self-damage: 60 + 40 = 100
 
 ### Damage Mode Summary
 
@@ -4579,7 +4619,13 @@ Signature: `damage_tank(tank_far_ptr, amount, flag)`
 | 0x20A59 | DAMAGE_TANKS_ON_IMPACT check (per-step) |
 | 0x20A8F | Parachute delay(20) per step |
 | 0x20AE4 | DAMAGE_TANKS_ON_IMPACT check (post-landing) |
-| 0x20B4C | Landing crater explosion call |
+| 0x20B09 | Crush detection: check crushed_tank far ptr non-null |
+| 0x20B4C | Crush damage to victim: shield_and_damage(victim, accum+50, 1) |
+| 0x20B8C | Crush self-damage to faller: damage_tank(self, accum/2+10, 1) |
+| 0x20690 | Per-step pixel scan for crush detection (column loop) |
+| 0x2071C | Crush threshold check: >2 columns overlap → immediate landing |
+| 0x207CB | Glancing contact: 1-2 columns → sound(5, 200) |
+| 0x3FFD2 | shield_and_damage(tank_ptr, damage, flag): shield absorb + damage_tank wrapper |
 | 0x30F0E | Init: set `sub[0x2C] = 5` (default deploy threshold) |
 | 0x31B48 | damage_tank function entry |
 

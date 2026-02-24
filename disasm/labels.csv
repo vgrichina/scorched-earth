@@ -200,7 +200,14 @@ DS:0x1C68,fall_frame_counter
 0x20A41,fall_damage_per_step
 0x20A8F,parachute_fall_delay
 0x20AE4,fall_damage_on_impact
-0x20B4C,landing_crater_explosion
+0x20B4C,crush_damage_to_victim
+0x20B8C,crush_self_damage
+0x20B09,crush_check_victim_ptr
+0x20690,pixel_scan_loop
+0x2071C,crush_threshold_check
+0x207CB,glancing_contact_check
+0x207B3,crush_landing_flag_set
+0x3FFD2,shield_and_damage
 0x18852,turn_set_deploy_threshold_default
 0x18872,turn_set_deploy_threshold_battery
 0x30F0E,init_deploy_threshold
