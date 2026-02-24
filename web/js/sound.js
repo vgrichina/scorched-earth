@@ -94,10 +94,39 @@ export function playFlightSound(distSq) {
   playTone(freq, freq, 0.03, 'square', 0.04);
 }
 
-// EXE: beep — turn-change uses 100 fg_click toggles (play.cpp 0x30991)
-// Approximated as short low-frequency burst
+// EXE: turn-change click — fg_click(20, 100) at play.cpp 0x30991
+// 200 speaker toggles (count×2) with delay=20 busy-wait each toggle.
+// On ~10 MHz 286: ~1-2ms burst of broadband clicking — a short "tick" pop.
+// Web: short noise burst via AudioBuffer to approximate PC speaker toggle clicks.
 export function playBeep() {
-  playTone(40, 40, 0.2, 'square', 0.1);
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  // Create a short noise burst (~3ms) to emulate 200 rapid speaker toggles
+  const sampleRate = audioCtx.sampleRate;
+  const duration = 0.003; // ~3ms matches fg_click(20,100) timing
+  const numSamples = Math.ceil(sampleRate * duration);
+  const buffer = audioCtx.createBuffer(1, numSamples, sampleRate);
+  const data = buffer.getChannelData(0);
+
+  // Simulate speaker toggle: alternating +1/-1 with irregular timing
+  // fg_click toggles bit 1 of port 0x61 — each toggle is a step impulse
+  let val = 1;
+  for (let i = 0; i < numSamples; i++) {
+    // Toggle roughly every few samples to approximate the busy-wait timing
+    if (i % 3 === 0) val = -val;
+    data[i] = val;
+  }
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(audioCtx.currentTime);
 }
 
 // Lightning strike — high-freq crack (2000→200Hz, 0.1s)
