@@ -182,13 +182,17 @@ export function aiComputeShot(player) {
 }
 
 // Select nearest alive enemy
+// EXE: ai_select_target (0x24F01) uses Euclidean distance via compute_distance (0x2640F)
+// EXE per-type AI functions also use both x and y coordinates for target selection
 function selectTarget(shooter) {
   let bestTarget = null;
   let bestDist = Infinity;
 
   for (const p of players) {
     if (p === shooter || !p.alive) continue;
-    const dist = Math.abs(p.x - shooter.x);
+    const dx = p.x - shooter.x;
+    const dy = p.y - shooter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < bestDist) {
       bestDist = dist;
       bestTarget = p;
@@ -199,7 +203,9 @@ function selectTarget(shooter) {
 
 // Select weapon based on AI intelligence and inventory
 function selectWeapon(player, target, aiType) {
-  const dist = Math.abs(target.x - player.x);
+  const dx = target.x - player.x;
+  const dy = target.y - player.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
 
   // Smarter AIs use better weapons when available
   if (aiType >= AI_TYPE.CHOOSER) {
