@@ -3345,7 +3345,7 @@ All located in `disasm/` directory:
 
 #### Talk system (talk.js)
 - [x] Fix talk bubble Y offset: EXE uses tank.y-19, web uses player.y-20. **DONE**: talk.js — changed `bubble.y = player.y - 20` to `player.y - 19` in both `triggerAttackSpeech()` and `triggerDeathSpeech()`, matching EXE `display_talk_bubble` positioning at tank.y-19 (file 0x182FD).
-- [ ] Add death speech probability roll: web port's triggerDeathSpeech bypasses talkProbability check entirely
+- [x] Add death speech probability roll: **DONE**. talk.js — `triggerDeathSpeech()` now has `if (random(100) >= config.talkProbability) return;` matching EXE `display_talk_bubble` (0x182FD) which rolls `random(100) < TALK_PROBABILITY` for both attack and death speeches. Previously only `triggerAttackSpeech()` had this check.
 - [ ] Add 2% random-player attack taunt: EXE has 1-in-100 chance a random other player delivers the taunt instead
 - [ ] Fix talkingTanks to be 3-way enum (Off/Computers/All) not binary Off/On
 

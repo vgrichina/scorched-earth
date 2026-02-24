@@ -157,6 +157,7 @@ export function triggerAttackSpeech(player) {
 // Trigger death speech when a player is killed
 export function triggerDeathSpeech(player) {
   if (!config.talkingTanks) return;
+  if (random(100) >= config.talkProbability) return;
 
   bubble.active = true;
   bubble.text = DEATH_PHRASES[random(DEATH_PHRASES.length)];
