@@ -52,11 +52,36 @@ export function playFireSound() {
   playTone(400, 800, 0.15, 'square', 0.12);
 }
 
-// EXE: explosion — rising sweep 1000→10000 Hz in steps of 100 Hz (extras.cpp 0x21267)
-// Duration scales with blast radius
+// EXE: explosion — 7 discrete frequency steps (extras.cpp 0x21267)
+// for (si = 0; si < 100; si += 15): freq = si * 100 + 1000; delay(5 ticks)
+// Steps: 1000, 2500, 4000, 5500, 7000, 8500, 10000 Hz
 export function playExplosionSound(radius) {
-  const duration = Math.min(0.8, 0.1 + radius * 0.01);
-  playTone(1000, 10000, duration, 'square', 0.15);
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  const frequencies = [1000, 2500, 4000, 5500, 7000, 8500, 10000];
+  const stepDuration = 5 / 18.2; // 5 clock ticks at 18.2 Hz PIT timer
+  const totalDuration = frequencies.length * stepDuration;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = 'square';
+  const now = audioCtx.currentTime;
+
+  // Schedule discrete frequency steps (not a continuous ramp)
+  for (let i = 0; i < frequencies.length; i++) {
+    osc.frequency.setValueAtTime(frequencies[i], now + i * stepDuration);
+  }
+
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.setValueAtTime(0, now + totalDuration);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + totalDuration);
 }
 
 // EXE: flight sound — velocity-based PIT divisor: speed*1000 → divisor (play.cpp 0x31663)

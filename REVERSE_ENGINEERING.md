@@ -3358,7 +3358,7 @@ All located in `disasm/` directory:
 
 #### Sound system (sound.js)
 - [x] Fix config.soundEnabled to actually control sound output (currently disconnected from playTone): **DONE**. sound.js had a local `soundEnabled` variable (initialized `true`) that was independent of `config.soundEnabled`. Removed local variable; `playTone()` and `playFlightSound()` now gate on `config.soundEnabled`. `toggleSound()` toggles `config.soundEnabled` (0/1). `isSoundEnabled()` returns `config.soundEnabled`. 'H' key toggle and config menu setting now properly control all sound output.
-- [ ] Fix explosion sound: should be 7 discrete frequency steps (1000→10000 Hz, +100 per step, 5-tick delay), not continuous ramp
+- [x] Fix explosion sound: should be 7 discrete frequency steps (1000→10000 Hz, +100 per step, 5-tick delay), not continuous ramp. **DONE**: sound.js `playExplosionSound()` replaced continuous `linearRampToValueAtTime(1000→10000)` with 7 discrete `setValueAtTime` steps matching EXE loop `for(si=0;si<100;si+=15): freq=si*100+1000`: 1000, 2500, 4000, 5500, 7000, 8500, 10000 Hz. Each step held for 5 clock ticks (5/18.2≈275ms). Radius parameter retained for API compat but unused (EXE doesn't scale explosion sound by radius).
 - [ ] Fix turn-change click sound: EXE uses 100 rapid speaker toggles (fg_click), not a 40 Hz continuous tone
 - [ ] Add missing sounds: terrain generation ping, impact random tone, terrain-hit rising sound, shield-hit random tone
 
