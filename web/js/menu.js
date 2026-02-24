@@ -516,6 +516,10 @@ export function drawMainMenu() {
   const subStr = 'The Mother of All Games';
   drawText(centerXRight(subStr), 27, subStr, UI_DARK_TEXT);
 
+  // 6b. "Registered Version" (EXE: Row 3, Y=52 small / Y=71 large)
+  const regStr = 'Registered Version';
+  drawText(centerXRight(regStr), isSmallMode() ? 52 : 71, regStr, UI_DARK_TEXT);
+
   // 7. Copyright at bottom of right panel (EXE: split across 2 lines in small mode)
   const copy1 = 'Copyright (c) 1991-1995';
   const copy2 = 'Wendell Hicken';
