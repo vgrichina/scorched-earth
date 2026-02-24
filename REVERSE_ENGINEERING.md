@@ -2811,7 +2811,87 @@ All located in `disasm/` directory:
 ### Documentation
 
 - [x] Draw ASCII architecture diagrams: created `docs/architecture_exe.md` (binary layout, module call graph, per-turn execution flow, shared DS data layout with writer/reader annotations, weapon handler dispatch, shield dispatch, AI solver architecture, font system) and `docs/architecture_web.md` (23-module dependency graph, state machine diagram, game loop per-frame flow, shared state objects, VGA-style rendering pipeline, event flow, EXE-to-web module mapping table)
-- [ ] Full fidelity audit: read every section of REVERSE_ENGINEERING.md against every web/js/*.js file, compare documented EXE values/formulas/behaviors against the implementation, and add new `- [ ]` tasks here for every gap found; mark this task done only after the task list is fully refreshed
+- [x] Full fidelity audit: read every section of REVERSE_ENGINEERING.md against every web/js/*.js file, compare documented EXE values/formulas/behaviors against the implementation, and add new `- [ ]` tasks here for every gap found. **Completed**: 8 parallel audit agents compared all major sections. Found ~70 discrepancies across physics, AI, shields, terrain, score, config, tank, explosions, shop, sound, HUD, and palette. All gaps added as new tasks below.
+
+### RE Investigation (from audit)
+
+- [ ] Trace wall bounce coefficients: EXE Padded/Rubber/Spring wall bounce velocity factors are undocumented. physics.js uses 0.5/0.8/1.2 but these are unverified guesses. Disassemble wall handler code to find the actual multipliers.
+- [ ] Trace WALL enum ordering: EXE ELASTIC config string order appears to be None=0, Wrap=1, Padded=2, Rubber=3, Spring=4, Concrete=5, Random=6, Erratic=7. Web port uses different ordering (Erratic=1, Random=2, Wrap=3...). Verify from binary config parsing.
+- [ ] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: RE doc says "spawns 5-10 sub-bombs as Baby Missiles" but does not document the parent explosion radius. behaviors.js uses radius=15 (unverified). Also verify sub-bomb weapon index (currently 2).
+- [ ] Trace Leap Frog / Bounce explosion radii: behaviors.js uses radius=20 (final) and radius=5 (intermediate) but neither value is documented from EXE disassembly.
+- [ ] Trace napalm particle physics: behaviors.js applies 0.7× velocity damping per frame to napalm particles citing DS:1D60, but DS:1D60=0.7 is the explosion damage attenuation between successive player hits, not a per-frame particle damping factor. Disassemble napalm particle step to find actual per-step physics.
+- [ ] Trace heat guidance trigger and correction: behaviors.js uses HEAT_PROXIMITY=60 (undocumented) and GUIDANCE_STRENGTH=2.0 (undocumented). EXE calls shark.cpp:heat_seek for trigger, not a simple proximity check. Also EXE heat guidance X correction sign is inverted (wind_x=-1 when target is right).
+- [ ] Trace gravity/wind pre-scaling formula: EXE computes gravity_step=50.0×GRAVITY/d and wind_step=wind/(d×40.0) once before the physics loop. Web port uses GRAVITY=4.9 and WIND_SCALE=0.15 which have no traceable connection to EXE constants. Need to derive correct web-equivalent formulas.
+- [ ] Trace sky type enum mapping: EXE sky list appears to be Plain/Shaded/Stars/Storm/Sunset/Black/Random (7 types). Web port has Cavern at index 5 and Black at index 6 with no Random. Verify EXE sky type enum from config parsing and sky dispatch table.
+- [ ] Trace play order enum: EXE PLAY_ORDER options are Random/Losers-First/Winners-First/Round-Robin. Web port uses Sequential/Random/Losers First/Winners First. Verify from config string table.
+- [ ] Trace shield color rendering formula: EXE uses continuous fade `shieldEnergy × configColor / maxEnergy` and palette index `playerIndex + 5`. Web port uses quantized 4-step slot system with `playerIndex × 8 + slot`. Disassemble shield draw to confirm.
+- [ ] Trace shield break animation sequence: EXE has 50-frame accelerating fade + final white flash. Web port triggers white flash on frame 0 (first frame, not last). Verify frame ordering.
+- [ ] Trace Flicker Shield implementation: EXE has no config table entry for Flicker Shield (type 4 in switch). Web port invents SHIELD_CONFIG[6] with energy=80, radius=14, rgb=(50,50,63), flags=8. Disassemble flicker shield switch case to find actual values.
+- [ ] Trace terrain bitmap shading direction: RE doc line 2153 says "DAC 149 = surface, DAC 120 = deepest underground" but the formula at line 2155 gives surface=120. Web port assigns surface=120 (darkest). Verify which direction is correct.
+- [ ] Trace Type 4 (Desert/Lava) terrain palette: EXE uses 3-segment FPU interpolation (10+10+9 entries). Web port uses single linear lerp. VGA 120 B channel: EXE=0, web=2. VGA 131-149 colors completely wrong in web. Need exact per-entry RGB from disassembly.
+- [ ] Trace Type 3 (Night/MTN) terrain palette: EXE uses (i, i+30, i, i) for VGA 120-129 (greenish tint) per RE doc. Web port uses black→dark-blue smooth ramp. Also EXE has separate depth palette at VGA 130-150 not implemented in web.
+- [ ] Trace parachute deploy mechanics: EXE deploys mid-fall at threshold, sets flag, halves fall speed by skipping every other frame. Web port only consumes parachute at landing with no speed reduction.
+- [ ] Trace landing crater explosion: EXE always fires explosion(player, accum+50, 1) when tank lands. Web port has no landing crater at all.
+- [ ] Trace dome direction-dependent rendering: EXE has two asymmetric dome shapes (dir1 base at Y+5 with 4px rise, dir2 base at Y+7 with 3px rise) using separate color globals. Web port draws single direction-independent dome.
+
+### Web Port Fixes (from audit)
+
+#### Config defaults (config.js)
+- [ ] Fix config defaults to match EXE: gravity 0.2 (not 1.0), startCash 1000000 (not 25000), interest 30 (not 10), wind 0 (not 5), changeWind 0 (not 1), hostileEnvironment 1 (not 0), talkingTanks 0 (not 1), land2 20 (not 0), armsLevel 4 (not 0), playOrder to match EXE enum, explosionScale 2/Large (not 1), soundEnabled 0 (not 1)
+
+#### Physics (physics.js)
+- [ ] Fix gravity/wind formulas once RE investigation resolves the pre-scaling (see RE task above)
+
+#### AI system (ai.js)
+- [ ] Fix AI noise parameter counts: Shooter/Poolshark should have 1 param [23] not 3; Tosser should have 2 [63,23] not 3. Rewrite sinusoidalNoise to use EXE scanning architecture: shot-number domain (not wall-clock), budget-driven random amplitudes, freq_base=π/(2×amp) with 4× multiplier, 2-5 harmonics, random phase 0-299
+- [ ] Fix Cyborg/Unknown randomization range: EXE randomizes to 0-5 (includes Human, excludes Spoiler); web port uses 1-6 (excludes Human, includes Spoiler)
+- [ ] Add Sentient AI type (EXE type 9): web port omits it entirely, only has types 0-8
+- [ ] Fix AI target selection: EXE uses Euclidean distance with threshold DS:5186; web port uses horizontal-only distance with no threshold
+
+#### Score system (score.js)
+- [ ] Fix scoreOnDeath teams-enabled branch: EXE gives +500 (not +4000) when teams enabled
+- [ ] Fix scoreOnDamage teams-disabled guard: EXE suppresses per-damage scoring when teams disabled (the default)
+- [ ] Fix endOfRoundScoring teams-enabled branch: missing pool formula (round×500+5000+maxPower×30+shieldEnergy×2)
+
+#### Shield system (shields.js)
+- [ ] Fix Mag Deflector collision damping: EXE uses fixed 0.7× factor; web port uses random 0.6-1.0× plus additive scatter ±100/±50 not in EXE
+- [ ] Add shield pixel marker 0xFF and terrain boundary 0x69 detection (EXE uses these for shield-vs-terrain pixel discrimination)
+
+#### Talk system (talk.js)
+- [ ] Fix talk bubble Y offset: EXE uses tank.y-19, web uses player.y-20
+- [ ] Add death speech probability roll: web port's triggerDeathSpeech bypasses talkProbability check entirely
+- [ ] Add 2% random-player attack taunt: EXE has 1-in-100 chance a random other player delivers the taunt instead
+- [ ] Fix talkingTanks to be 3-way enum (Off/Computers/All) not binary Off/On
+
+#### Terrain/palette (terrain.js, palette.js)
+- [ ] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103)
+- [ ] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table
+- [ ] Fix terrain bitmap shading direction once RE investigation confirms correct mapping (surface=120 or surface=149)
+
+#### Sound system (sound.js)
+- [ ] Fix config.soundEnabled to actually control sound output (currently disconnected from playTone)
+- [ ] Fix explosion sound: should be 7 discrete frequency steps (1000→10000 Hz, +100 per step, 5-tick delay), not continuous ramp
+- [ ] Fix turn-change click sound: EXE uses 100 rapid speaker toggles (fg_click), not a 40 Hz continuous tone
+- [ ] Add missing sounds: terrain generation ping, impact random tone, terrain-hit rising sound, shield-hit random tone
+
+#### Shop system (shop.js)
+- [ ] Implement dynamic market pricing (mkt_update per round): EMA-based price adjustment with alpha=0.7, sensitivity=0.05, signal_div=10.0. Currently only sell refund factor uses freeMarket toggle.
+- [ ] Fix AI auto-purchase to use 12-case jump table (random(11) dispatch) instead of hardcoded 3-condition sequence
+
+#### HUD (hud.js)
+- [ ] Fix Widget 6: should read WPN.SUPER_MAG (52) inventory, not WPN.MAG_DEFLECTOR (45)
+
+#### Menu system (menu.js)
+- [ ] Add missing config sub-dialog options: Computers Buy (Economics), Flatten Peaks / MTN Percent (Landscape), Bomb Icon / Tunneling / Useless Items / Teams / Status Bar (Play Options)
+- [ ] Fix sky type list: should be Plain/Shaded/Stars/Storm/Sunset/Black/Random (not ...Cavern/Black)
+
+#### Tank rendering (tank.js)
+- [ ] Fix parachute fall speed: EXE halves fall speed by skipping every other frame; web port applies no speed reduction
+- [ ] Add landing crater: EXE fires explosion(player, fallDamageAccum+50, 1) on every landing
+
+#### Napalm particles (behaviors.js)
+- [ ] Fix napalm particle pool cap: EXE allows 99 particles; web caps at 20
+- [ ] Fix napalm speed threshold: EXE uses DS:1D68=0.001 per-step; web uses speedSq<25 (different units/magnitude)
 
 ---
 
