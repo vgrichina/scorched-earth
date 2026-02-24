@@ -36,7 +36,8 @@ export const SHIELD_CONFIG = [
 ];
 
 // Shield break animation state — exported for main.js to render
-export const shieldBreak = { active: false, x: 0, y: 0, radius: 0, frame: 0, maxFrames: 50, playerIdx: 0 };
+// EXE: 51-frame palette fade from full config color to ~17% brightness (no white flash)
+export const shieldBreak = { active: false, x: 0, y: 0, radius: 0, frame: 0, maxFrames: 51, playerIdx: 0, shieldType: 0 };
 
 // Activate a shield on a player
 export function activateShield(player, shieldType) {
@@ -78,6 +79,7 @@ export function applyShieldDamage(player, damage) {
       shieldBreak.radius = cfg.radius;
       shieldBreak.frame = 0;
       shieldBreak.playerIdx = player.index;
+      shieldBreak.shieldType = player.activeShield;
     }
     player.shieldEnergy = 0;
     player.activeShield = SHIELD_TYPE.NONE;
@@ -104,6 +106,7 @@ export function checkShieldDeflection(player, proj) {
       shieldBreak.radius = cfg.radius;
       shieldBreak.frame = 0;
       shieldBreak.playerIdx = player.index;
+      shieldBreak.shieldType = player.activeShield;
     }
     player.activeShield = SHIELD_TYPE.NONE;
   }
@@ -194,38 +197,31 @@ export function drawShield(player) {
   }
 }
 
-// Draw shield break animation — expanding/fading ring
+// Draw shield break animation — EXE: 51-frame palette fade from full config color to ~17%
+// EXE: no white flash, no ring expansion. VGA palette animation fades shield in-place.
+// Formula: R = configR × (60-frame) / 60, same for G/B. Sound descends 6000→1100 Hz.
 export function drawShieldBreak() {
   if (!shieldBreak.active) return;
 
-  const t = shieldBreak.frame / shieldBreak.maxFrames;
-  const expandRadius = shieldBreak.radius + t * 20;
-  const baseColor = shieldBreak.playerIdx * 8;
+  const cfg = SHIELD_CONFIG[shieldBreak.shieldType];
+  if (!cfg) { shieldBreak.active = false; return; }
 
-  // Final frame: white flash
-  if (shieldBreak.frame === 0) {
-    for (let angle = 0; angle < 360; angle += 3) {
-      const rad = angle * Math.PI / 180;
-      const px = Math.round(shieldBreak.x + Math.cos(rad) * shieldBreak.radius);
-      const py = Math.round(shieldBreak.y + Math.sin(rad) * shieldBreak.radius);
-      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-        setPixel(px, py, 199);  // white
-      }
-    }
-  } else {
-    // Expanding fading ring
-    const alpha = 1.0 - t;
-    if (alpha > 0.1) {
-      const slot = Math.max(1, Math.floor(alpha * 5));
-      for (let angle = 0; angle < 360; angle += 5) {
-        if (random(3) === 0) continue;  // sparse for fading effect
-        const rad = angle * Math.PI / 180;
-        const px = Math.round(shieldBreak.x + Math.cos(rad) * expandRadius);
-        const py = Math.round(shieldBreak.y + Math.sin(rad) * expandRadius);
-        if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-          setPixel(px, py, baseColor + slot);
-        }
-      }
+  const di = shieldBreak.frame;
+  const paletteIdx = SHIELD_PALETTE_BASE + shieldBreak.playerIdx;
+
+  // EXE: R = configR * (60 - di) / 60 — fade from full brightness to ~17%
+  const r = Math.floor(cfg.r * (60 - di) / 60);
+  const g = Math.floor(cfg.g * (60 - di) / 60);
+  const b = Math.floor(cfg.b * (60 - di) / 60);
+  setPaletteRgb(paletteIdx, Math.max(0, r), Math.max(0, g), Math.max(0, b));
+
+  // Draw shield circle at original position using the fading palette entry
+  for (let angle = 0; angle < 360; angle += 4) {
+    const rad = angle * Math.PI / 180;
+    const px = Math.round(shieldBreak.x + Math.cos(rad) * shieldBreak.radius);
+    const py = Math.round(shieldBreak.y + Math.sin(rad) * shieldBreak.radius);
+    if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
+      setPixel(px, py, paletteIdx);
     }
   }
 

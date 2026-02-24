@@ -176,4 +176,12 @@ DS:0x0A03,config format "PLAY_ORDER=%s\n"
 DS:0xEC80,shield pixel value = player*8+5 (activation drawing)
 DS:0xEC84,shield pixel match value = player*8+5 (replacement scan)
 DS:0xEC86,shield replacement value = player+200 (ongoing rendering)
+0x38344,shield_absorb_damage(player_far_ptr, config_far_ptr, damage): flat 1:1 absorption
+0x38421,shield break path: triggers 51-frame fade-to-dark + erase; remainder = damage - energy
+0x3848A,break fade init: freq=6000 (descending), then loop di=0..50
+0x38493,break fade loop body: sound(20,freq), freq-=100, R=configR*(60-di)/60
+0x3850B,post-break: final beep sound(10,1000), then erase shield pixels
+0x3FC11,shield erase callback: if getpixel==entry, call setTerrainPixel (restore terrain)
+0x3FC46,shield draw callback: if getpixel>=0x69 (terrain), draw with shield palette entry
+DS:0xEE48,shield palette entry for current draw/erase operation
 DS:0x57E2,player color RGB table: 10 players * 6 bytes (R,G,B words, VGA 6-bit)

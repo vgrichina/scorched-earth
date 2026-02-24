@@ -2040,6 +2040,44 @@ for (i = 0; i <= 50; i++) {
 }
 ```
 
+**Break animation** (within `shield_absorb_damage` at file 0x38344, break path at 0x38421):
+```c
+// Step 1: Trigger one last shield hit visual effect with remaining energy
+call_shield_hit_effect(player, shieldEnergy);
+
+// Step 2: Set palette to full brightness (start of fade)
+fg_setrgb(player*8+5, configR, configG, configB);
+
+// Step 3: 51-frame fade-to-dark (di=0 to 50 inclusive)
+freq = 6000;
+for (di = 0; di <= 50; di++) {
+    fg_sound(20, freq);                    // constant 20-tick delay, descending tone
+    freq -= 100;                           // 6000 → 5900 → ... → 1100 Hz
+    R = configR * (60 - di) / 60;          // fade from 100% to 10/60 ≈ 17%
+    G = configG * (60 - di) / 60;
+    B = configB * (60 - di) / 60;
+    fg_setrgb(player*8+5, R, G, B);        // VGA palette animation
+}
+
+// Step 4: Final beep
+fg_sound(10, 1000);                        // short 1000 Hz tone
+
+// Step 5: Erase shield pixels (callback replaces shield color with terrain)
+erase_shield_shape(player, callback_restore_terrain);  // file 0x3FC11
+
+// Step 6: Cleanup
+player.shieldEnergy = 0;
+redraw_area(config.radius, player.x);
+```
+
+**Break animation key details**:
+- **No white flash**: The EXE has NO distinct white flash — just a smooth fade starting at full config color. The web port's frame-0 white flash is spurious.
+- **Constant delay**: Unlike activation (which has accelerating delay `2*i`), break uses constant 20-tick sound duration per frame.
+- **Fade range**: Full brightness → ~17% (NOT to black). Formula divisor is 60, not 50.
+- **Sound**: Descending tone 6000→1100 Hz (reverse of activation's ascending 1000→6000 Hz).
+- **Erase callback** (file 0x3FC11): For each shield pixel, checks `fg_getpixel(x,y) == player*8+5`; if so, calls `setTerrainPixel(x,y)` to restore the underlying terrain.
+- **Draw callback** (file 0x3FC46): For shield drawing, checks `fg_getpixel(x,y) >= 0x69` (105 = terrain boundary); if so, draws with shield palette entry.
+
 **Pixel replacement** (callback at file 0x3899C): After activation, `update_shield_color` redraws the shield shape using a callback that replaces pixels of value `player*8+5` with `player+200`, switching them to the dedicated per-player shield palette entry.
 
 **Pixel drawing callback** (activation, at file 0x38649): Gets current pixel via `fg_getpixel(x,y)`; skips pixels in VGA 0x50-0x68 (80-104 = sky range); otherwise sets pixel to `DS:EC80` (player*8+5). Shield pixels marked with 0xFF check and terrain boundary at 0x69 (105) handled separately.
@@ -3215,7 +3253,7 @@ All located in `disasm/` directory:
 - [x] Trace sky type enum mapping: **VERIFIED**. Name table init at file 0x3AEA0 copies 8 far ptrs to DS:0x621C: 0=Plain (DS:0x2DE8), 1=Shaded (DS:0x2DEE), 2=Stars (DS:0x2DF5), 3=Storm (DS:0x2DFB), 4=Sunset (DS:0x2E01), 5=Cavern (DS:0x31ED), 6=Black (DS:0x2E08), 7=Random (DS:0x2787). Config key `SKY\0` at DS:0x0454, format `SKY=%s\n` at DS:0x08F8. Random resolution (file 0x3978E): `random(6)` → 0-5, re-rolls if 5 (Cavern) and no .mtn files (DS:0x621A==0). Black (6) never in Random pool. Web port was correct for indices 0-6 but missing Random (7); added Random to menu.js with runtime resolution to 0-6 (including Black, unlike EXE 0-5). See "Sky Type Enum" subsection in Sky/Landscape Mode System section.
 - [x] Trace play order enum: **VERIFIED**. Config variable DS:0x519C, 5 options via name table at DS:0x62E4 (init at 0x3DA90). Enum: 0=Random (DS:0x2787), 1=Losers-First (DS:0x2CFA), 2=Winners-First (DS:0x2D07), 3=Round-Robin (DS:0x2D15), 4=Sequential (DS:0x2803). Config key `PLAY_ORDER\0` at DS:0x0541, format `PLAY_ORDER=%s\n` at DS:0x0A03. Dispatch at file 0x2AE64: cases 0-3 via jump table, case 4 skips to common code. Case 0: Fisher-Yates shuffle + random(2) start. Case 1: shuffle + rotate start via DS:0x51A4 (player_id tracking). Case 2: sort by score, reverse fill (winners first). Case 3: sort by score, forward fill (lowest first). Case 4: no modification (existing order). Web port fixed: enum corrected 0→Random etc., Round-Robin (3) added, Sequential (4) added, config comment fixed (was conflating with PLAY_MODE), default remains 0 (Random, matching SCORCH.CFG). See "Play Order System" section.
 - [x] Trace shield color rendering formula: **RESOLVED**. `update_shield_color` at file 0x389DA. Formula: `R = shieldEnergy × configR / maxEnergy`, `G = shieldEnergy × configG / maxEnergy`, `B = shieldEnergy × configB / maxEnergy` — continuous fade, NOT quantized. Two palette indices: activation uses `player*8+5` (shared player entry, 50-frame fade-in), ongoing uses `player+200` (dedicated per-player shield entry, RGB updated on damage). Key init: struct[+0x1A] = player_number×8 (file 0x30F32), struct[+0xA0] = player_number (file 0x30E96). DS globals: EC80/EC84=pixel value, EC82=tank Y, EC86=replacement value. Web port fixed: replaced quantized 4-step slot system (`player.index*8+slot`) with continuous formula using dedicated palette entries (210+playerIndex), added `setPaletteRgb()` to palette.js. See "Visual Feedback — Shield Color Rendering" subsection.
-- [ ] Trace shield break animation sequence: EXE has 50-frame accelerating fade + final white flash. Web port triggers white flash on frame 0 (first frame, not last). Verify frame ordering.
+- [x] Trace shield break animation sequence: **RESOLVED — No white flash**. `shield_absorb_damage` at file 0x38344, break path at 0x38421. Break animation: (1) set palette to full config color, (2) 51-frame fade (di=0..50): `R = configR × (60-di)/60` with constant 20-tick delay and descending tone 6000→1100 Hz, (3) final beep sound(10, 1000), (4) erase shield pixels via callback 0x3FC11 (restores terrain), (5) zero energy. NO white flash — EXE smoothly fades from full config color to ~17% brightness. NO accelerating delay (unlike activation which uses delay=2×i). NO ring expansion — all shield pixels change via VGA palette register. Web port fixed: removed spurious frame-0 white flash, replaced expanding ring with in-place palette fade using shield config colors, 51 frames. See "Break animation" in Visual Feedback section.
 - [ ] Trace Flicker Shield implementation: EXE has no config table entry for Flicker Shield (type 4 in switch). Web port invents SHIELD_CONFIG[6] with energy=80, radius=14, rgb=(50,50,63), flags=8. Disassemble flicker shield switch case to find actual values.
 - [ ] Trace terrain bitmap shading direction: RE doc line 2153 says "DAC 149 = surface, DAC 120 = deepest underground" but the formula at line 2155 gives surface=120. Web port assigns surface=120 (darkest). Verify which direction is correct.
 - [ ] Trace Type 4 (Desert/Lava) terrain palette: EXE uses 3-segment FPU interpolation (10+10+9 entries). Web port uses single linear lerp. VGA 120 B channel: EXE=0, web=2. VGA 131-149 colors completely wrong in web. Need exact per-entry RGB from disassembly.
