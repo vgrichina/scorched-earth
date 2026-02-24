@@ -520,11 +520,19 @@ export function drawMainMenu() {
   const regStr = 'Registered Version';
   drawText(centerXRight(regStr), isSmallMode() ? 52 : 71, regStr, UI_DARK_TEXT);
 
-  // 7. Copyright at bottom of right panel (EXE: split across 2 lines in small mode)
-  const copy1 = 'Copyright (c) 1991-1995';
-  const copy2 = 'Wendell Hicken';
-  drawText(centerXRight(copy1), getScreenH() - 33, copy1, UI_DARK_TEXT);
-  drawText(centerXRight(copy2), getScreenH() - 20, copy2, UI_DARK_TEXT);
+  // 7. Copyright at bottom of right panel
+  // EXE: sprintf produces "1.50 Copyright (c) 1991-1995 Wendell Hicken",
+  // split to two lines only if text_measure says it's too wide for the panel
+  const copyFull = '1.50 Copyright (c) 1991-1995 Wendell Hicken';
+  const panelW = getScreenW() - 6 - getRightX();
+  if (measureText(copyFull) <= panelW) {
+    drawText(centerXRight(copyFull), getScreenH() - 33, copyFull, UI_DARK_TEXT);
+  } else {
+    const copy1 = '1.50 Copyright (c) 1991-1995';
+    const copy2 = 'Wendell Hicken';
+    drawText(centerXRight(copy1), getScreenH() - 33, copy1, UI_DARK_TEXT);
+    drawText(centerXRight(copy2), getScreenH() - 20, copy2, UI_DARK_TEXT);
+  }
 
   // 8. Save feedback
   if (menu.saveFlash > 0) {
