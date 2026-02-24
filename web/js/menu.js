@@ -86,7 +86,7 @@ const SUBMENUS = {
     title: 'Economics',
     items: [
       { label: '~Interest Rate:', key: 'interest', min: 0, max: 50, step: 5, suffix: '%' },
-      { label: '~Cash at Start:', key: 'startCash', min: 0, max: 100000, step: 5000 },
+      { label: '~Cash at Start:', key: 'startCash', min: 0, max: 10000000, step: 50000 },
       { label: 'Computers ~Buy:', key: 'computersBuy', min: 0, max: 3, step: 1,
         names: ['Basic', 'Greedy', 'Erratic', 'Random'] },
       { label: '~Free Market:', key: 'freeMarket', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
