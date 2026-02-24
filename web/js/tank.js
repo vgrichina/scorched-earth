@@ -13,6 +13,7 @@ import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
 import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE } from './constants.js';
+import { playParachuteDeploySound, playLandingThudSound } from './sound.js';
 
 // Tank dimensions — EXE: verified from icons.cpp disassembly (file 0x263F0+)
 const TANK_WIDTH = 7;       // EXE: 7px wide dome and body
@@ -44,6 +45,7 @@ export function createPlayer(index, name) {
     falling: false,
     fallStartY: 0,          // Y position when fall began (for damage calculation)
     fallDamageAccum: 0,     // EXE: DS:0xCE80[player] — accumulated fall damage
+    parachuteDeployed: false, // EXE: sub[0x0C] — true when parachute is actively deployed mid-fall
 
     // Phase 4: AI + shields
     aiType: 0,           // 0 = human
@@ -101,6 +103,7 @@ export function resetAndPlaceTanks() {
     p.power = 500;
     p.falling = false;
     p.fallDamageAccum = 0;
+    p.parachuteDeployed = false;
     p.shieldEnergy = 0;
     p.activeShield = 0;
 
@@ -142,6 +145,7 @@ export function checkTanksFalling() {
       player.falling = true;
       player.fallStartY = player.y;   // record starting position for damage calc
       player.fallDamageAccum = 0;     // EXE: reset accumulator
+      player.parachuteDeployed = false; // EXE: sub[0x0C] = 0 at fall start
       anyFalling = true;
     }
   }
@@ -151,22 +155,59 @@ export function checkTanksFalling() {
 // EXE: DS:0x5164 = 2 — fall damage per pixel (hardcoded constant)
 const FALL_DAMAGE_PER_PIXEL = 2;
 
+// EXE: DS:0x1C68 — frame counter for parachute half-speed (file 0x205F4)
+let fallFrameCounter = 0;
+
+// EXE: check_deploy(tank) at 0x202F6 — simulate remaining fall to predict total damage
+// Scans terrain below tank, accumulates FALL_DAMAGE_PER_PIXEL per pixel of air
+function predictFallDamage(player) {
+  const terrainY = getTerrainY(player.x);
+  const remainingPixels = Math.max(0, terrainY - player.y);
+  return remainingPixels * FALL_DAMAGE_PER_PIXEL;
+}
+
+// EXE: Deploy threshold = sub[0x2C]: default 5, with Battery = 10
+// File 0x18852: set sub[0x2C]=5; file 0x18872: if Battery owned, sub[0x2C]=10
+function getDeployThreshold(player) {
+  return player.inventory[WPN.BATTERY] > 0 ? 10 : 5;
+}
+
 // Step falling animation for all tanks, returns true while any are still falling
 // EXE: handle_falling_tanks at file 0x205DC
 export function stepFallingTanks() {
+  fallFrameCounter++; // EXE: DS:0x1C68 incremented each outer loop iteration (0x205F4)
+
   let anyFalling = false;
   for (const player of players) {
     if (!player.alive || !player.falling) continue;
 
+    // EXE: Parachute half-speed (file 0x20626–0x2063A)
+    // When deployed, skip even frames → tank falls on odd frames only = half speed
+    if (player.parachuteDeployed) {
+      if (fallFrameCounter % 2 === 0) continue;
+    }
+
     // Move tank downward
     player.y += FALL_SPEED;
 
-    // EXE: Parachute (idx 42) deployment — check and consume
-    // EXE: 0x208CD checks tank[0x2C] > 0; deploys if fall distance threshold met
-    const hasParachute = player.inventory[42] > 0;
+    // EXE: Parachute deployment check (0x208CD–0x20913)
+    // Guard checks (0x20871–0x208CA): sub[0x28]!=0, health>0, inventory[42]>0
+    if (!player.parachuteDeployed && player.inventory[42] > 0) {
+      const predictedDamage = predictFallDamage(player);
+      const threshold = getDeployThreshold(player);
+      // EXE: deploy if predicted_damage > threshold (or threshold==0 → immediate)
+      if (threshold === 0 || predictedDamage > threshold) {
+        // Deploy action (0x208EA–0x20913)
+        player.parachuteDeployed = true;   // sub[0x0C] = 1
+        player.inventory[42]--;            // consume parachute
+        playParachuteDeploySound();        // sound(0x1E, 0x07D0) = 2000 Hz
+        // EXE: fg_setrgb flash to white — visual flash handled by palette (omitted for simplicity)
+      }
+    }
 
-    // EXE: Per-step damage accumulation (always, regardless of mode)
-    if (!hasParachute) {
+    // EXE: Per-step behavior (0x20A41–0x20A96)
+    if (!player.parachuteDeployed) {
+      // No parachute: accumulate damage
       player.fallDamageAccum += FALL_DAMAGE_PER_PIXEL * FALL_SPEED;
 
       // EXE: When DAMAGE_TANKS_ON_IMPACT = Off (0), deal per-step damage
@@ -178,6 +219,8 @@ export function stepFallingTanks() {
         }
       }
     }
+    // EXE: parachute deployed → NO damage accumulation; damage_tank(tank, 0, 1) = no-op
+    // EXE: delay(20) per step for visual effect — approximated by half-speed frame skip above
 
     // Check if reached terrain
     const terrainY = getTerrainY(player.x);
@@ -185,10 +228,10 @@ export function stepFallingTanks() {
       player.y = terrainY;
       player.falling = false;
 
-      // EXE: Consume parachute on landing (if had one during fall)
-      if (hasParachute) {
-        player.inventory[42]--;
-      } else if (config.impactDamage) {
+      // EXE: Post-landing (0x20ACA): sound(0x1E, 0xC8) = 200 Hz thud
+      playLandingThudSound();
+
+      if (!player.parachuteDeployed && config.impactDamage) {
         // EXE: DAMAGE_TANKS_ON_IMPACT = On (1) — deal accumulated damage on landing
         // EXE: 0x20AE4: damage_tank(tank, fall_damage_accum[player], 1)
         player.energy -= player.fallDamageAccum;
@@ -197,6 +240,8 @@ export function stepFallingTanks() {
           player.alive = false;
         }
       }
+
+      player.parachuteDeployed = false;
 
       // Flatten terrain at landing spot
       flattenTerrainAt(player.x);

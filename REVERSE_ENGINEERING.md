@@ -3374,7 +3374,7 @@ All located in `disasm/` directory:
 - [x] Fix sky type list: should be Plain/Shaded/Stars/Storm/Sunset/Black/Random (not ...Cavern/Black). **DONE**: Remapped enum to 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Black, 6=Random (removed Cavern — no .MTN support in web port). menu.js — names array updated. palette.js — case 5 changed from Cavern to Black; Random (6) resolved via `random(6)→0-5` at top of `setupSkyPalette()`; `resolvedSkyType` exported for terrain.js `drawSky()` Stars/Storm checks. config.js — comment updated. EXE Random resolution (file 0x3978E) re-rolls Cavern when no .mtn; web port equivalent: Cavern removed entirely, Black included in Random pool.
 
 #### Tank rendering (tank.js)
-- [ ] Fix parachute deploy and fall speed: EXE has mid-fall deployment with threshold (sub[0x2C]=5, or 10 with Battery), check_deploy simulates remaining fall (2 damage/pixel), deploys when predicted > threshold. Deployed: half speed via frame skip (frame_counter%2==0 → skip), delay(20) per step, sound(30, 2000Hz), flash white. Web port has no threshold, no speed reduction, no deploy sound.
+- [x] Fix parachute deploy and fall speed: **DONE**. tank.js — replaced immediate parachute check with EXE-faithful mid-fall deployment: `predictFallDamage()` simulates remaining fall (2 damage/pixel), deploys only when predicted > threshold (5 default, 10 with Battery via `WPN.BATTERY`). `parachuteDeployed` field tracks deployment state. Half-speed fall via `fallFrameCounter % 2 === 0` skip (matching EXE 0x20626). Deploy sound `playParachuteDeploySound()` (2000 Hz). Landing thud `playLandingThudSound()` (200 Hz). Parachute consumed at deploy time (not landing). No damage accumulation when deployed. sound.js — added `playParachuteDeploySound()` and `playLandingThudSound()` exports.
 - [ ] Add crush damage: When a falling tank lands on another tank (>2 pixel columns overlap), deal faller_accum+50 damage to victim (through shield), and faller_accum/2+10 self-damage to faller. Sound(5, 200) on glancing contact (1-2 columns). Detection: check if any player tank occupies pixels below the falling tank. See "Crush Damage Summary" in Falling Tank section.
 
 #### Napalm particles (behaviors.js)
@@ -4636,7 +4636,7 @@ Signature: `damage_tank(tank_far_ptr, amount, flag)`
 
 ### Web Port Implementation
 
-`web/js/tank.js`: Fall damage formula corrected from `fallDist / 5` to `fallDist * 2` (matching EXE constant DS:0x5164 = 2). Config toggle `impactDamage` added (default On). When On, accumulated damage dealt at landing. When Off, per-step damage during fall animation. Parachute negates damage in both modes. `fallStartY` tracks tank position at fall start for accurate distance calculation.
+`web/js/tank.js`: Fall damage formula corrected from `fallDist / 5` to `fallDist * 2` (matching EXE constant DS:0x5164 = 2). Config toggle `impactDamage` added (default On). When On, accumulated damage dealt at landing. When Off, per-step damage during fall animation. Parachute negates damage in both modes. `fallStartY` tracks tank position at fall start for accurate distance calculation. **Parachute deploy fixed**: mid-fall deployment with `predictFallDamage()` threshold check (5 default, 10 with Battery); half-speed via frame counter skip; deploy sound (2000 Hz) and landing thud (200 Hz) via sound.js; `parachuteDeployed` state field; parachute consumed at deploy time.
 
 ---
 

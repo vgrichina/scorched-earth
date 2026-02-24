@@ -129,6 +129,20 @@ export function playBeep() {
   source.start(audioCtx.currentTime);
 }
 
+// EXE: parachute deploy — sound(0x1E, 0x07D0) = 2000 Hz tone, duration 30 ticks
+// File 0x208EA: deployment action sound
+export function playParachuteDeploySound() {
+  // 30 PIT ticks ≈ 30/18.2 ≈ 1.65s — but that's a frame count, not real seconds
+  // In practice this is a short deployment "ping" at 2000 Hz
+  playTone(2000, 2000, 0.15, 'square', 0.12);
+}
+
+// EXE: landing thud — sound(0x1E, 0xC8) = 200 Hz tone, duration 30 ticks
+// File 0x20ACA: post-landing impact sound
+export function playLandingThudSound() {
+  playTone(200, 200, 0.15, 'square', 0.12);
+}
+
 // Lightning strike — high-freq crack (2000→200Hz, 0.1s)
 export function playLightningSound() {
   playTone(2000, 200, 0.1, 'square', 0.15);
