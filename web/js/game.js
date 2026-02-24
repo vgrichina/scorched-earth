@@ -13,7 +13,7 @@ import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles, applyMagDamping,
          WALL, setResolvedWallType } from './physics.js';
-import { getPixel } from './framebuffer.js';
+import { getPixel, setPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
@@ -21,8 +21,8 @@ import { isKeyDown, consumeKey, consumeClick, getMouseDelta, mouse } from './inp
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
-import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
-import { checkShieldDeflection } from './shields.js';
+import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
+import { checkShieldDeflection, applyShieldDamage } from './shields.js';
 import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
@@ -573,18 +573,49 @@ export function gameTick() {
           const proj = projectiles[i];
           if (!proj.active) continue;
 
-          // Napalm particle special handling
+          // Napalm pixel-walking cellular automaton (EXE: 0x2DA00)
           if (proj.isNapalmParticle) {
-            const napResult = napalmParticleStep(proj);
+            const napResult = napalmParticleStep(proj, game.wind);
             if (napResult.remove) {
-              if (napResult.burnRadius) {
-                const cx = Math.round(proj.x);
-                const cy = Math.round(proj.y);
-                applyExplosionDamage(cx, cy, napResult.burnRadius, proj.attackerIdx);
-                createCrater(cx, cy, napResult.burnRadius);
+              // Phase 2: damage at explosion points (EXE: 0x2DD41–0x2DEF4)
+              if (napResult.napalmDamage) {
+                const weapon = WEAPONS[proj.weaponIdx];
+                const isHot = weapon && weapon.param > 15;
+                const maxDmg = isHot ? 50 : 30;   // DS:0x5686 / DS:0x568E
+                const maxRange = isHot ? 40 : 25;  // DS:0x5682 / DS:0x568A
+                for (const pt of napResult.napalmDamage) {
+                  for (const player of players) {
+                    if (!player.alive) continue;
+                    const dx = player.x - pt.x;
+                    const dy = (player.y - 6) - pt.y;  // tank center offset
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < maxRange) {
+                      let damage = Math.floor(maxDmg - dist);
+                      if (damage > 0) {
+                        // EXE: damage_tank(1, ...) goes through shield
+                        damage = applyShieldDamage(player, damage);
+                        if (damage > 0) {
+                          const attacker = players[proj.attackerIdx];
+                          if (attacker) scoreOnDamage(attacker, player, damage, false);
+                          player.energy -= damage;
+                          if (player.energy <= 0) {
+                            player.energy = 0;
+                            player.alive = false;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
-              if (napResult.addDirt) {
-                addDirt(Math.round(proj.x), Math.round(proj.y), 3);
+              // Phase 3: erase fire pixels (EXE: 50-frame fade, simplified to instant)
+              if (napResult.napalmFirePixels) {
+                for (const fp of napResult.napalmFirePixels) {
+                  const cur = getPixel(fp.x, fp.y);
+                  if (cur === 254 || cur === 130) {  // fire or dirt napalm color
+                    setPixel(fp.x, fp.y, napResult.isDirt ? 130 : 0);  // dirt stays, fire erased to sky
+                  }
+                }
               }
               proj.active = false;
               continue;

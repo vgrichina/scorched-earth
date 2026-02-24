@@ -3379,7 +3379,7 @@ All located in `disasm/` directory:
 
 #### Napalm particles (behaviors.js)
 - [x] Fix napalm particle pool cap: EXE allows 99 particles; web caps at 20. **DONE**: behaviors.js `bhvNapalm()` — changed `Math.min(Math.abs(weapon.param), 20)` to `Math.min(Math.abs(weapon.param), 99)`, matching EXE's 99-slot particle pool at DS:0xE754 (pool_avail=99 at DS:0xE9B2). Current weapons (Napalm=15, Hot Napalm=20, Ton of Dirt=20) are unaffected since params ≤ 20, but cap now correctly reflects EXE pool capacity.
-- [ ] Fix napalm speed threshold: EXE uses DS:1D68=0.001 per-step; web uses speedSq<25 (different units/magnitude)
+- [x] Fix napalm speed threshold: **DONE**. Fully rewritten — old velocity-based model (0.7× damping, speedSq<25 threshold) replaced with EXE-faithful pixel-walking cellular automaton (behaviors.js `napalmParticleStep`). game.js napalm result handler updated: passes `game.wind` for lateral spread direction, applies EXE damage formula per explosion point (Hot Napalm: maxDmg=50, range=40 DS:0x5686/0x5682; Regular: maxDmg=30, range=25 DS:0x568E/0x568A; damage = floor(maxDmg - dist) through shield via `applyShieldDamage`), erases fire pixels on completion. No velocity vectors or damping — particles walk 1 pixel/step via `checkNapalmDirection()`.
 
 ---
 
