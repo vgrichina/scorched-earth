@@ -888,7 +888,7 @@ export function drawShop(player) {
 
       // Up arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, sbTop, SB_W, btnH, UI_BACKGROUND,
-        UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
       // Up triangle (▲)
       const arrowMidX = sbX + Math.floor(SB_W / 2);
       for (let row = 0; row < 3; row++) {
@@ -899,7 +899,7 @@ export function drawShop(player) {
 
       // Down arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, trkBot, SB_W, btnH, UI_BACKGROUND,
-        UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
       // Down triangle (▼)
       for (let row = 0; row < 3; row++) {
         for (let col = -(2 - row); col <= (2 - row); col++) {
@@ -921,7 +921,7 @@ export function drawShop(player) {
           ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll)
           : 0);
         drawBox3DRaised(sbX + 1, thumbY, SB_W - 2, thumbH, UI_BACKGROUND,
-          UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
       }
     }
 
