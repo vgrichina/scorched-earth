@@ -102,7 +102,7 @@ const SUBMENUS = {
       { label: 'Effect of Walls:', key: 'wallType', min: 0, max: 7, step: 1,
         names: ['None', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete', 'Random', 'Erratic'] },
       { label: 'Sky:', key: 'skyType', min: 0, max: 6, step: 1,
-        names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black'] },
+        names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Black', 'Random'] },
       { label: 'Max. Wind:', key: 'wind', min: 0, max: 20, step: 1 },
       { label: 'Changing Wind', key: 'changeWind', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
     ],

@@ -33,7 +33,7 @@ export const config = {
 
   // Terrain — EXE: ranges.cpp generation params
   landType: 2,         // EXE: LAND_TYPE=Rolling (0=Flat,1=Slope,2=Rolling,3=MTN,4=V,5=Castle,6=Cavern)
-  skyType: 0,          // EXE: SKY=Plain (0=Plain,1=Shaded,2=Stars,3=Storm,4=Sunset,5=Cavern,6=Black)
+  skyType: 0,          // EXE: SKY=Plain (0=Plain,1=Shaded,2=Stars,3=Storm,4=Sunset,5=Black,6=Random)
   land1: 20,           // EXE: LAND1=20 (bumpiness/flat chance %)
   land2: 20,           // EXE: LAND2=20 (terrain slope/frequency)
   numPeaks: 20,        // EXE: NUM_PEAKS=20

@@ -10,6 +10,7 @@ import { random, clamp } from './utils.js';
 import { config } from './config.js';
 import { setPixel, setBackground, clearToBackground } from './framebuffer.js';
 import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT } from './constants.js';
+import { resolvedSkyType } from './palette.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
 // NOTE: This is a DERIVED index for collision lookups only. The authoritative
@@ -288,8 +289,8 @@ export function drawSky() {
   // Base gradient fill from precomputed background table (single memcpy)
   clearToBackground();
 
-  // Stars: scatter white pixels
-  if (config.skyType === 2) {
+  // Stars: scatter white pixels (use resolvedSkyType for Random support)
+  if (resolvedSkyType === 2) {
     for (let i = 0; i < 80; i++) {
       const sx = random(width);
       const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
@@ -299,8 +300,8 @@ export function drawSky() {
     }
   }
 
-  // Storm: occasional bright lightning pixels
-  if (config.skyType === 3) {
+  // Storm: occasional bright lightning pixels (use resolvedSkyType for Random support)
+  if (resolvedSkyType === 3) {
     for (let i = 0; i < 15; i++) {
       const sx = random(width);
       const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;

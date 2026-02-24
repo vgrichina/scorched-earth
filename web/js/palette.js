@@ -18,6 +18,9 @@ import { vga6to8, random } from './utils.js';
 // Palette buffer: 256 entries × 3 channels (R, G, B) in 6-bit VGA space
 export const palette6 = new Uint8Array(256 * 3);
 
+// Resolved sky type after Random (6) resolution — used by terrain.js drawSky()
+export let resolvedSkyType = 0;
+
 // Pre-computed 32-bit RGBA lookup for fast blit (updated when palette changes)
 export const palette32 = new Uint32Array(256);
 
@@ -98,8 +101,12 @@ export function setupPlayerPalette() {
 }
 
 // --- Sky palette (VGA 80-104, 25 entries) ---
-// 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
+// 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Black, 6=Random
+// EXE Random resolution (file 0x3978E): random(6)→0-5, re-rolls Cavern if no .mtn
 export function setupSkyPalette(skyType) {
+  // Resolve Random (6) to a concrete type (0-5)
+  if (skyType === 6) skyType = random(6);
+  resolvedSkyType = skyType;
   switch (skyType) {
     case 1: // Shaded — gentle variation on plain
       for (let i = 0; i < 25; i++) {
@@ -131,13 +138,7 @@ export function setupSkyPalette(skyType) {
         setEntry(80 + i, r, g, b);
       }
       break;
-    case 5: // Cavern — dark brownish
-      for (let i = 0; i < 25; i++) {
-        const t = i / 24;
-        setEntry(80 + i, Math.floor(5 + t * 8), Math.floor(3 + t * 5), Math.floor(2 + t * 3));
-      }
-      break;
-    case 6: // Black — solid black
+    case 5: // Black — solid black
       for (let i = 0; i < 25; i++) {
         setEntry(80 + i, 0, 0, 0);
       }
