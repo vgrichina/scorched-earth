@@ -2622,7 +2622,7 @@ palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 | 1 | **Snow/Ice** | Loop: `R=29-di, G=29-di, B=63` | White-blue (29,29,63) → pure blue (0,0,63) |
 | 2 | **Rock/Gray** | Loop: `R=G=B=di*2+7` + random scatter | Dark gray (7,7,7) → white (63,63,63) |
 | 3 | **Night** | Two-part: blue core + gray surface | Dark blue (0,0,30) → black → gray (38,38,38) |
-| 4 | **Desert/Lava** | FP gradient from (63,63,0) | Yellow (63,59,2) → red-brown (63,20,20) |
+| 4 | **Desert/Lava** | 3-segment FPU gradient from (63,63,0) | Yellow (63,58,2) → red (63,20,20) → blue (29,29,63) → indigo (11,11,34) |
 | 5 | **Varied** | Random base from 6-entry table | See base color table below |
 | 6 | **Scanned MTN** | Palette from .MTN file | 8-bit→6-bit: `VGA = val >> 2` |
 
@@ -2639,19 +2639,47 @@ palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 | 4 | (9, 35, 9) | #248E24 | Dark green (forest) |
 | 5 | (36, 54, 28) | #92DB71 | Yellow-green (savanna) |
 
-### Desert/Lava Gradient Detail (Type 4)
+### Desert/Lava Gradient Detail (Type 4 / Sunset)
 
-Two FP interpolation loops over 30 DAC entries:
+VGA 120 set separately: `set_sky_palette_entry(120, 63, 63, 0, 1)` → **(63, 63, 0)** bright yellow.
+
+Three FPU-interpolated loops over VGA 121–149 (29 entries, 10+10+9):
 
 ```
-Loop 1 (di=0..9): underground to mid-depth
-  t1 = (9-di)/10, t2 = (1+di)/10
-  R = round(t1*63 + t2*63)  ≈ 63 (constant)
-  G = round(t1*63 + t2*20)  = 59→20 (yellow→orange)
-  B = round(t2*20)           = 2→20 (black→red)
+t2 = (9-di)/10, t1 = 1-t2 = (1+di)/10, _ftol = truncate toward zero
 
-Result: yellow (63,59,2) through orange to red-brown (63,20,20)
+Loop 1 (di=0..9): VGA 121–130, warm gold → red-brown
+  R = ftol(t2*63 + t1*63) = 63 constant
+  G = ftol(t2*63 + t1*20) = 58→20
+  B = ftol(t1*20)          = 2→20
+
+Loop 2 (di=0..9): VGA 131–140, red → blue-purple
+  R = ftol(t2*63 + t1*29) = 59→29
+  G = ftol(t2*20 + t1*29) = 20→29
+  B = ftol(t2*20 + t1*63) = 24→63
+
+Loop 3 (di=0..8): VGA 141–149, blue-purple → dark indigo
+  R = G = ftol(t2*29 + t1*9)  = 27→11
+  B     = ftol(t2*63 + t1*31) = 59→34
 ```
+
+Full table (exact values via rational arithmetic matching x87 _ftol truncation):
+
+| VGA | R  | G  | B  | VGA | R  | G  | B  | VGA | R  | G  | B  |
+|-----|----|----|-----|-----|----|----|-----|-----|----|----|----|
+| 120 | 63 | 63 |  0 | 131 | 59 | 20 | 24 | 141 | 27 | 27 | 59 |
+| 121 | 63 | 58 |  2 | 132 | 56 | 21 | 28 | 142 | 25 | 25 | 56 |
+| 122 | 63 | 54 |  4 | 133 | 52 | 22 | 32 | 143 | 23 | 23 | 53 |
+| 123 | 63 | 50 |  6 | 134 | 49 | 23 | 37 | 144 | 21 | 21 | 50 |
+| 124 | 63 | 45 |  8 | 135 | 46 | 24 | 41 | 145 | 19 | 19 | 47 |
+| 125 | 63 | 41 | 10 | 136 | 42 | 25 | 45 | 146 | 17 | 17 | 43 |
+| 126 | 63 | 37 | 12 | 137 | 39 | 26 | 50 | 147 | 15 | 15 | 40 |
+| 127 | 63 | 32 | 14 | 138 | 35 | 27 | 54 | 148 | 13 | 13 | 37 |
+| 128 | 63 | 28 | 16 | 139 | 32 | 28 | 58 | 149 | 11 | 11 | 34 |
+| 129 | 63 | 24 | 18 | 140 | 29 | 29 | 63 |     |    |    |    |
+| 130 | 63 | 20 | 20 |     |    |    |    |     |    |    |    |
+
+After loops: `fg_setdacs(121, 29)` uploads palette buffer to VGA DAC 121–149.
 
 ### Fastgraph Palette Functions
 
@@ -2775,17 +2803,19 @@ Three FPU-interpolated gradient segments of 10 entries each, using float32 const
 | DS:0x625C | 10.0 | loop count (10 entries per segment) |
 | DS:0x6260 | 20.0 | G/B base offset |
 | DS:0x6264 | 63.0 | max component value |
-| DS:0x6268 | 29.0 | segment 2 R scaling |
-| DS:0x626C | 31.0 | segment 2 G scaling |
-| DS:0x6270 | 45.0 | segment 2 B scaling |
+| DS:0x6268 | 29.0 | loop 2 R/G end, loop 3 R/G source |
+| DS:0x626C | 31.0 | loop 3 B end |
+| DS:0x6270 | 45.0 | unused in palette loops |
 
 Computed palette (VGA 121–149, 29 entries mapped to sky rows bottom→top):
 
 | VGA Range | Gradient | RGB Start → End |
 |-----------|----------|-----------------|
-| 121–130 | Warm gold → warm red | (63,58,2) → (63,20,20) |
-| 131–140 | Blue-purple → orange-red | (24,20,59) → (63,29,29) |
-| 141–149 | Blue-purple → dark indigo | (27,27,59) → (9,9,31) |
+| 121–130 | Warm gold → red-brown | (63,58,2) → (63,20,20) |
+| 131–140 | Red → blue-purple | (59,20,24) → (29,29,63) |
+| 141–149 | Blue-purple → dark indigo | (27,27,59) → (11,11,34) |
+
+See "Desert/Lava Gradient Detail (Type 4 / Sunset)" above for full per-entry table.
 
 **Sky row mapping**: `color[row] = (bottom - row) * 28 / height + 121` — row 0 (bottom) = VGA 149 (dark indigo), row max (top) = VGA 121 (warm gold). Wait — actually bottom=warm, top=cool: the formula maps bottom rows to higher VGA indices (warm colors) and top rows to lower VGA indices (cool/dark). This matches the verified sunset gradient direction (cool top → warm bottom).
 
@@ -3280,7 +3310,7 @@ All located in `disasm/` directory:
 - [x] Trace shield break animation sequence: **RESOLVED — No white flash**. `shield_absorb_damage` at file 0x38344, break path at 0x38421. Break animation: (1) set palette to full config color, (2) 51-frame fade (di=0..50): `R = configR × (60-di)/60` with constant 20-tick delay and descending tone 6000→1100 Hz, (3) final beep sound(10, 1000), (4) erase shield pixels via callback 0x3FC11 (restores terrain), (5) zero energy. NO white flash — EXE smoothly fades from full config color to ~17% brightness. NO accelerating delay (unlike activation which uses delay=2×i). NO ring expansion — all shield pixels change via VGA palette register. Web port fixed: removed spurious frame-0 white flash, replaced expanding ring with in-place palette fade using shield config colors, 51 frames. See "Break animation" in Visual Feedback section.
 - [x] Trace Flicker Shield implementation: **RESOLVED — plain absorption shield**. Flicker Shield = config entry 5 (weapon 49) with energy=200, radius=16, RGB=(63,53,33) orange, dispatch_type=1 (same as all shields). NO probabilistic on/off cycling, NO flickering visual effect, NO special handler. The name is misleading — behavior is identical to all other shields. Web port fixed: removed invented SHIELD_CONFIG[6] (energy=80, radius=14, rgb=50/50/63), removed fabricated 50% damage bypass and random pixel skipping, removed inner ring rendering, renamed SHIELD_TYPE enum to match EXE config indices (MAG_DEFLECTOR=1, SHIELD=2, WARP=3, TELEPORT=4, FLICKER=5), stubbed checkShieldDeflection (Force/Heavy not in EXE config table). See "Shield Type Configuration Table" section.
 - [x] Trace terrain bitmap shading direction: **VERIFIED — RE doc and web port are both correct**. Traced height_array population loop at file 0x3999A: `height_array[y] = (terrain_bottom - y) × 29 / terrain_height + 120`. At surface (small y, top of terrain): index approaches **149**. At deepest underground (y = terrain_bottom): index = **120**. Web port formula at terrain.js:324 is identical: `120 + floor((bottom - y) × 29 / globalRange)`. Palette color directions confirmed per-type: type 1 (Snow/Ice) VGA 120=(29,29,63) bright → 149=(0,0,63) dark; type 2 (Rock/Gray) VGA 121=(7,7,7) dark → 149=(63,63,63) bright; type 5 (Varied) VGA 120=dark → 149=bright. Direction is type-dependent via palette setup, but index mapping (surface→149, underground→120) is consistent. No fix needed.
-- [ ] Trace Type 4 (Desert/Lava) terrain palette: EXE uses 3-segment FPU interpolation (10+10+9 entries). Web port uses single linear lerp. VGA 120 B channel: EXE=0, web=2. VGA 131-149 colors completely wrong in web. Need exact per-entry RGB from disassembly.
+- [x] Trace Type 4 (Desert/Lava) terrain palette: **RESOLVED**. 3-segment FPU interpolation (10+10+9 entries) at file 0x39C31 using float32 constants DS:0x6258-0x626C. VGA 120=(63,63,0) set by set_sky_palette_entry. Loop 1 (VGA 121-130): R=63, G=58→20, B=2→20 (warm gold→red-brown). Loop 2 (VGA 131-140): R=59→29, G=20→29, B=24→63 (red→blue-purple). Loop 3 (VGA 141-149): R=G=27→11, B=59→34 (blue→dark indigo). Previous doc had Loop 2 RGB values swapped (said (24,20,59) start, correct is (59,20,24)) and Loop 3 end wrong (said (9,9,31), correct is (11,11,34)). DS:0x626C=31.0 (not 31.5). DS:0x6270=45.0 is unused by these loops. Full 30-entry table with exact integer values added to "Desert/Lava Gradient Detail" section. Web port palette.js case 4 uses single linear lerp — needs 3-segment replacement.
 - [ ] Trace Type 3 (Night/MTN) terrain palette: EXE uses (i, i+30, i, i) for VGA 120-129 (greenish tint) per RE doc. Web port uses black→dark-blue smooth ramp. Also EXE has separate depth palette at VGA 130-150 not implemented in web.
 - [ ] Trace parachute deploy mechanics: EXE deploys mid-fall at threshold, sets flag, halves fall speed by skipping every other frame. Web port only consumes parachute at landing with no speed reduction.
 - [ ] Trace landing crater explosion: EXE always fires explosion(player, accum+50, 1) when tank lands. Web port has no landing crater at all.
@@ -3317,6 +3347,7 @@ All located in `disasm/` directory:
 
 #### Terrain/palette (terrain.js, palette.js)
 - [ ] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103)
+- [ ] Fix terrain palette type 4 (Sunset/Desert) to use 3-segment FPU gradient: VGA 120=(63,63,0), Loop 1 (121-130) gold→red, Loop 2 (131-140) red→blue, Loop 3 (141-149) blue→indigo (see "Desert/Lava Gradient Detail" section for full table)
 - [ ] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table
 - [x] Fix terrain bitmap shading direction once RE investigation confirms correct mapping (surface=120 or surface=149): **No fix needed** — web port already has correct direction (surface=149, underground=120), matching EXE. See RE investigation task above.
 

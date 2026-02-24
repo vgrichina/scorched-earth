@@ -74,6 +74,19 @@ DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
 0x39969,terrain_type1_palette: loop di=0..29: fg_setcolor(di, 29-di, 29-di, 63); flush to VGA 120-149
 0x3999A,fill_height_array_palIdx: height_array[y]=(bottom-y)*29/height+120; surface→149 underground→120
 0x399D7,terrain_type2_palette: setTerrainPalette(120,5,5,10) base; then loop di=0..28: R=G=B=di*2+7 scatter
+0x39B40,terrain_type4_vshape: fg_setdacs(120,30); depth_divisor=2or3; height_array 9-level; bitmap+LandGenerator; jmp cleanup
+0x39C31,terrain_type5_sunset_castle: if !scanned_mtn_flag → fallback type0; else 3-band FPU palette + castle terrain
+0x39C45,sunset_palette_setup: set_sky_palette_entry(120,63,63,0,1); loop1(0-9) loop2(10-19) loop3(20-28) FPU gradient
+0x39CCE,sunset_loop2: di=0..9 → VGA 131-140: R=t2*63+t1*29 G=t2*20+t1*29 B=t2*20+t1*63 (red→blue)
+0x39D57,sunset_loop3: di=0..8 → VGA 141-149: R=G=t2*29+t1*9 B=t2*63+t1*31 (blue→dark indigo)
+0x39DE0,sunset_flush_dacs: fg_setdacs(121,29); flush VGA 121-149; then height_array loop (28-level gradient +121)
+0x3A046,set_sky_palette_entry: stores RGB at DS:DD5E+idx*3; if immediate_flag calls fg_setrgb(idx,r,g,b)
+DS:0x6258,SUNSET_C9: 9.0f — interpolation numerator (9-di)
+DS:0x625C,SUNSET_C10: 10.0f — interpolation divisor
+DS:0x6260,SUNSET_C20: 20.0f — G/B warm target for loop1; G/B base for loop2
+DS:0x6264,SUNSET_C63: 63.0f — max component value
+DS:0x6268,SUNSET_C29: 29.0f — R/G end for loop2; R/G source for loop3
+DS:0x626C,SUNSET_C31: 31.0f — B end for loop3
 0x3AB39,setTerrainPixel: 7-way switch on TERRAIN_TYPE; jump table at CS:0x16E5 (reloc-corrupted)
 0x29720,drawColumn: per-column renderer; type0=vline(120); else per-pixel via setTerrainPixel loop
 0x29808,height_random_walk: momentum-based random walk kernel; flat_chance/bump_chance params
