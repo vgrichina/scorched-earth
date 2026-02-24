@@ -190,12 +190,20 @@ DS:0x575C,pcx_filename
 0x2FB6B,play_loop_switch_table
 
 # ---- Falling tank / impact damage system ----
+0x202F6,check_deploy
 0x205DC,handle_falling_tanks
+DS:0x1C68,fall_frame_counter
+0x20626,parachute_half_speed_check
 0x208CD,parachute_deploy_check
+0x208EA,parachute_deploy_action
 0x20913,parachute_set_deployed
 0x20A41,fall_damage_per_step
+0x20A8F,parachute_fall_delay
 0x20AE4,fall_damage_on_impact
 0x20B4C,landing_crater_explosion
+0x18852,turn_set_deploy_threshold_default
+0x18872,turn_set_deploy_threshold_battery
+0x30F0E,init_deploy_threshold
 0x31B48,damage_tank
 DS:0x5114,DAMAGE_TANKS_ON_IMPACT
 DS:0x5116,FALLING_DELAY

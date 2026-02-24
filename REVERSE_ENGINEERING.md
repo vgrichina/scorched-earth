@@ -3312,7 +3312,7 @@ All located in `disasm/` directory:
 - [x] Trace terrain bitmap shading direction: **VERIFIED — RE doc and web port are both correct**. Traced height_array population loop at file 0x3999A: `height_array[y] = (terrain_bottom - y) × 29 / terrain_height + 120`. At surface (small y, top of terrain): index approaches **149**. At deepest underground (y = terrain_bottom): index = **120**. Web port formula at terrain.js:324 is identical: `120 + floor((bottom - y) × 29 / globalRange)`. Palette color directions confirmed per-type: type 1 (Snow/Ice) VGA 120=(29,29,63) bright → 149=(0,0,63) dark; type 2 (Rock/Gray) VGA 121=(7,7,7) dark → 149=(63,63,63) bright; type 5 (Varied) VGA 120=dark → 149=bright. Direction is type-dependent via palette setup, but index mapping (surface→149, underground→120) is consistent. No fix needed.
 - [x] Trace Type 4 (Desert/Lava) terrain palette: **RESOLVED**. 3-segment FPU interpolation (10+10+9 entries) at file 0x39C31 using float32 constants DS:0x6258-0x626C. VGA 120=(63,63,0) set by set_sky_palette_entry. Loop 1 (VGA 121-130): R=63, G=58→20, B=2→20 (warm gold→red-brown). Loop 2 (VGA 131-140): R=59→29, G=20→29, B=24→63 (red→blue-purple). Loop 3 (VGA 141-149): R=G=27→11, B=59→34 (blue→dark indigo). Previous doc had Loop 2 RGB values swapped (said (24,20,59) start, correct is (59,20,24)) and Loop 3 end wrong (said (9,9,31), correct is (11,11,34)). DS:0x626C=31.0 (not 31.5). DS:0x6270=45.0 is unused by these loops. Full 30-entry table with exact integer values added to "Desert/Lava Gradient Detail" section. Web port palette.js case 4 uses single linear lerp — needs 3-segment replacement.
 - [x] Trace Type 3 (Night/MTN) terrain palette: **RESOLVED — blue tint, not greenish**. Two palette loops at file 0x39AEF: Loop 1 (di=0..9, VGA 120–129): `fg_setrgb(di, di, di, di+30)` — R=G=i, B=i+30, creating dark **blue** gradient (not green as doc previously stated). Loop 2 (di=10..29, VGA 130–149): `fg_setrgb(di, (di-10)*2, (di-10)*2, (di-10)*2)` — gray depth gradient (0,0,0)→(38,38,38). Previous doc notation "(i, i+30, i, i)" had +30 on wrong channel (R instead of B). Type 3 falls through to Type 4's shared code (fg_setdacs upload, 9-level height_array, bitmap fill, LandGenerator). setTerrainPixel case 3: bitmap clear → height_array[y] (VGA 120–128 blue); bitmap set → depth+130 (VGA 130–150 gray depth). Web port had 15/15 split with pure-blue ramp; EXE has 10/20 split with blue-gray terrain + gray depth. See "Night/MTN Palette Detail" table.
-- [ ] Trace parachute deploy mechanics: EXE deploys mid-fall at threshold, sets flag, halves fall speed by skipping every other frame. Web port only consumes parachute at landing with no speed reduction.
+- [x] Trace parachute deploy mechanics: **RESOLVED**. Sub struct field `sub[0x2C]` is a deploy damage threshold (NOT inventory count): default=5, with Battery item=10 (0x18852/0x18872). `check_deploy` (0x202F6) simulates remaining fall returning predicted damage (2/pixel). Deploy when predicted_damage > threshold. Deploy action: sound(30, 2000Hz), flash white (63,63,63), set `sub[0x0C]=1`. Half-speed: `DS:0x1C68` frame counter % 2 == 0 → skip iteration (0x20626). Per-step delay(20) for visual effect (0x20A8F). Parachuted tanks accumulate zero damage. Web port gaps: no mid-fall threshold check, no frame-skipping half-speed, no deploy sound/flash, no Battery interaction. See "Parachute Deploy Mechanics" subsection in Falling Tank section.
 - [ ] Trace landing crater explosion: EXE always fires explosion(player, accum+50, 1) when tank lands. Web port has no landing crater at all.
 - [ ] Trace dome direction-dependent rendering: EXE has two asymmetric dome shapes (dir1 base at Y+5 with 4px rise, dir2 base at Y+7 with 3px rise) using separate color globals. Web port draws single direction-independent dome.
 
@@ -3370,7 +3370,7 @@ All located in `disasm/` directory:
 - [ ] Fix sky type list: should be Plain/Shaded/Stars/Storm/Sunset/Black/Random (not ...Cavern/Black)
 
 #### Tank rendering (tank.js)
-- [ ] Fix parachute fall speed: EXE halves fall speed by skipping every other frame; web port applies no speed reduction
+- [ ] Fix parachute deploy and fall speed: EXE has mid-fall deployment with threshold (sub[0x2C]=5, or 10 with Battery), check_deploy simulates remaining fall (2 damage/pixel), deploys when predicted > threshold. Deployed: half speed via frame skip (frame_counter%2==0 → skip), delay(20) per step, sound(30, 2000Hz), flash white. Web port has no threshold, no speed reduction, no deploy sound.
 - [ ] Add landing crater: EXE fires explosion(player, fallDamageAccum+50, 1) on every landing
 
 #### Napalm particles (behaviors.js)
@@ -4511,12 +4511,45 @@ The **total fall damage is identical** in both modes (2 × fall_distance). The s
 | Off (0) | 2 damage/pixel (continuous) | None | Health decreases gradually |
 | On (1, default) | None (accumulate only) | 2 × total_pixels | Single big hit on impact |
 
-### Parachute Interaction
+### Parachute Deploy Mechanics (VERIFIED from disassembly)
 
-- Parachute deployment checked at 0x208CD: if `tank[0x2C] > 0` (inventory count)
-- When deployed: `tank[0x0C] = 1`, fall speed halved (skip every other frame), sound (0x1E, 2000 Hz)
-- Parachute negates ALL fall damage in both modes
-- Parachute consumed on deployment (inventory decremented)
+**Sub struct field `sub[0x2C]`** = deploy damage threshold (NOT inventory count as previously documented):
+- Default = **5** (set at init 0x30F0E and per-turn 0x18852)
+- With **Battery** item (inventory[DS:D556] > 0): **10** (set at 0x18872)
+- Meaning: parachute only deploys if predicted fall damage **exceeds** this threshold
+
+**Guard checks** before deploy (0x20871–0x208CA):
+1. `sub[0x28] != 0` — parachute check enabled flag (cleared at 0x208C2 when inventory empty)
+2. Health > 0 — `sub[0xA4]:sub[0xA2]` 32-bit check (skip if dead)
+3. `inventory[42] > 0` — has parachutes (accessed via `sub[0xB2]` far ptr + DS:D554×2)
+4. If inventory ≤ 0: set `inventory[42] = 0`, set `sub[0x28] = 0`, skip
+
+**Deploy condition** (0x208CD–0x208E8):
+- `check_deploy(tank)` at 0x202F6 simulates remaining fall: scans terrain below tank column-by-column, steps downward accumulating `DS:0x5164` (=2) per pixel, returns predicted total damage
+- If `sub[0x2C] == 0`: deploy immediately (dead code in practice — always 5 or 10)
+- If predicted_damage > `sub[0x2C]`: deploy
+- If predicted_damage ≤ `sub[0x2C]`: don't deploy (fall is too short to warrant parachute)
+
+**Deploy action** (0x208EA–0x20913):
+- `sound(30, 2000)` — deployment tone (0x1E duration, 0x07D0 Hz)
+- `fg_setrgb(sub[0x1A]+6, 63, 63, 63)` — flash palette entry to white
+- `sub[0x0C] = 1` — mark parachute as deployed
+
+**Half-speed fall** (0x20626–0x2063A):
+- Frame counter `DS:0x1C68` incremented each outer loop iteration (0x205F4)
+- When `sub[0x0C] == 1`: check `frame_counter % 2`; skip iteration if even (remainder == 0)
+- Result: parachuted tank falls on odd frames only = **half speed**
+
+**Per-step behavior** (0x20A41–0x20A96):
+- No parachute (`sub[0x0C] == 0`): accumulate `FALL_DAMAGE_PER_PIXEL` (2) into DS:CE80[player]; optionally deal per-step damage (DAMAGE_ON_IMPACT=Off)
+- Parachute deployed (`sub[0x0C] == 1`): NO damage accumulation; `damage_tank(tank, 0, 1)` = no-op; `delay(20)` for visual effect
+
+**Key differences from web port**:
+- Web port checks inventory at loop start and applies immediately — EXE deploys mid-fall after threshold check
+- Web port has no speed reduction — EXE halves fall speed (frame skipping) + delay(20)
+- Web port has no deploy threshold — EXE requires predicted damage > 5 (or 10 with Battery)
+- Web port has no deploy sound/flash — EXE plays tone and flashes white
+- Web port decrements inventory on landing — EXE deployment code does not visibly decrement inventory (consumption may occur in post-round cleanup)
 
 ### damage_tank Function (0x2A16:0x0FE8, file 0x31B48)
 
@@ -4533,14 +4566,21 @@ Signature: `damage_tank(tank_far_ptr, amount, flag)`
 
 | Address | Description |
 |---------|-------------|
+| 0x18852 | Per-turn: set `sub[0x2C] = 5` (deploy threshold default) |
+| 0x18872 | Per-turn: set `sub[0x2C] = 10` (if Battery owned) |
+| 0x202F6 | `check_deploy(tank)` — simulate fall, return predicted damage |
 | 0x205DC | `handle_falling_tanks` entry (enter 0x007A) |
-| 0x208CD | Parachute deployment check |
+| 0x20626 | Parachute half-speed check (frame_counter % 2) |
+| 0x208CD | Parachute deployment threshold check (`sub[0x2C]`) |
+| 0x208EA | Deploy action: sound + flash + set flag |
 | 0x20913 | Set tank[0x0C]=1 (parachute deployed) |
 | 0x20937 | Wind-based horizontal slide during fall |
 | 0x20A41 | Per-step damage branch (parachute check) |
 | 0x20A59 | DAMAGE_TANKS_ON_IMPACT check (per-step) |
+| 0x20A8F | Parachute delay(20) per step |
 | 0x20AE4 | DAMAGE_TANKS_ON_IMPACT check (post-landing) |
 | 0x20B4C | Landing crater explosion call |
+| 0x30F0E | Init: set `sub[0x2C] = 5` (default deploy threshold) |
 | 0x31B48 | damage_tank function entry |
 
 ### Web Port Implementation
