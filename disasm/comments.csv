@@ -104,7 +104,16 @@ DS:0x624A,scanned_mtn_flag: 1=.MTN scanned mountain data loaded; 0/-1=use proced
 DS:0x624C,terrain_cached_flag: 1=reuse cached terrain from previous round; 0=regenerate
 DS:0x624E,cached_terrain_type: last terrain_type used; compared to skip redundant regeneration
 DS:0x513C,HOSTILE_ENVIRONMENT: config flag (0=Off 1=On); enables lightning/meteor random events and hit damage
-DS:0x50D8,is_castle_terrain: 1 when terrain_type==5 (Castle); 0 otherwise
+DS:0x50D8,is_castle_terrain: 1 when terrain_type==3(MTN) or 5(Castle); 0 otherwise. AI shop skips guidance when set
+
+# ---- Shop AI system (equip.cpp) ----
+0x1DBB5,shop_screen: main shop entry; AI players dispatch via 12-case jump table at 0x1DF4D
+0x1DCA4,ai_shop_random_action: random(0x0B) → action 0-10; if is_castle_terrain && action==8: re-roll
+0x1DF4D,ai_shop_jump_table: 12 cases: 0-3=buy weapon(+extras) 4=money 5=shields 6=defense 7=summary 8=guidance 9=mountain 10=sell 11=inventory
+0x1DF65,ai_shop_thinking_anim: ascending beep 1000→4000Hz (40 iterations +200Hz), plays while AI "browses"
+0x1E0F3,ai_buy_shields: sine wave scroll animation selecting random shield; calls buy via 0x3C70:0x0590
+0x1E3CB,ai_sell_dialog: sell random inventory item; refund = floor(qty×price×factor/bundle)
+0x43D3A,ai_buy_item_scroll: scroll-and-buy animation; loops through items with sound, calls 0x3C70:0x0590 for actual purchase
 
 # ---- Talk system (comments.cpp) ----
 0x17E49,alloc_talk_struct: malloc(6); zeroes count field

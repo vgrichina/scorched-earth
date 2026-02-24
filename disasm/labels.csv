@@ -34,6 +34,13 @@
 0x3CFBC,btn_save_changes_alt
 0x2120A,weapon_fire_dispatch
 0x1D5D4,equip_init
+0x1DBB5,shop_screen
+0x1DCA4,ai_shop_random_action
+0x1DF4D,ai_shop_jump_table
+0x1DF65,ai_shop_thinking_anim
+0x1E0F3,ai_buy_shields
+0x1E3CB,ai_sell_dialog
+0x43D3A,ai_buy_item_scroll
 0x25B30,apogee_detect
 0x2C759,sub_warhead_damage
 0x2CB6B,sub_warhead_spawn

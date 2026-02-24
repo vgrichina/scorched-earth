@@ -247,36 +247,159 @@ function updateItemList() {
 
 // AI auto-purchase
 // EXE: shopScreen() at file 0x1DBB5 — 12-case jump table for AI buy decisions
-// EXE: uses random(11) action selection for variety
+// EXE: random(0x0B) selects action 0-10; case 11 = display inventory (fall-through)
+// EXE: if DS:0x50D8 (castle terrain) && action==8, re-roll (skip guidance in mountain mode)
+// EXE jump table at file 0x1DF4D:
+//   0: buy weapon + sell back       4: display money (no-op)    8: buy guidance
+//   1: buy weapon + guidance         5: buy shields              9: buy mountain gear
+//   2: buy weapon + item + guidance  6: buy defense items       10: sell equipment
+//   3: buy weapon + item + accessory 7: show equipment (no-op)  11: display inventory (no-op)
 export function aiAutoPurchase(player) {
-  const budget = player.cash;
+  // EXE: random(0x0B) at file 0x1DCA4
+  let action = random(11);
+  // EXE: re-roll if castle terrain and action==8 (guidance) — file 0x1DCAF..0x1DCBA
+  if ((config.landType === 3 || config.landType === 5) && action === 8) {
+    action = random(11);
+  }
 
-  const missilePrice = getWeaponPrice(WPN.MISSILE);
-  if (budget >= missilePrice * 5 && player.inventory[WPN.MISSILE] < 10) {
-    const cost = missilePrice * 5;
-    if (player.cash >= cost) {
-      player.cash -= cost;
-      player.inventory[WPN.MISSILE] += 5;
-      trackPurchase(WPN.MISSILE);
+  switch (action) {
+    case 0: // Buy weapon category + sell back
+      aiBuyRandomWeapon(player);
+      break;
+    case 1: // Buy weapon + guidance
+      aiBuyRandomWeapon(player);
+      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
+      break;
+    case 2: // Buy weapon + specific item + guidance
+      aiBuyRandomWeapon(player);
+      aiBuyRandomFromCategory(player, CATEGORY.ACCESSORY);
+      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
+      break;
+    case 3: // Buy weapon + specific item + accessory
+      aiBuyRandomWeapon(player);
+      aiBuyRandomFromCategory(player, CATEGORY.ACCESSORY);
+      aiBuyRandomFromCategory(player, CATEGORY.DEFENSE);
+      break;
+    case 4: // Display money — no purchase (EXE: file 0x1DD95)
+      break;
+    case 5: // Buy shields (EXE: file 0x1DDB0, near call 0x1E0F3)
+      aiBuyRandomShield(player);
+      break;
+    case 6: // Buy defense items (EXE: file 0x1DDC9)
+      aiBuyRandomFromCategory(player, CATEGORY.DEFENSE);
+      break;
+    case 7: // Show equipment summary — no purchase (EXE: file 0x1DDEE)
+      break;
+    case 8: // Buy guidance (EXE: file 0x1DE12)
+      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
+      break;
+    case 9: // Buy mountain gear — fuel/battery (EXE: file 0x1DE20)
+      aiBuyRandomMountainGear(player);
+      break;
+    case 10: // Sell equipment (EXE: file 0x1DE29, near call 0x1E3CB)
+      aiSellRandom(player);
+      break;
+    default:
+      break;
+  }
+}
+
+// Helper: buy 1 bundle of a random affordable weapon (idx 2..LAST_WEAPON)
+// EXE: buy_weapon_scroll animation at 0x1DF65 selects random weapon via UI scroll
+function aiBuyRandomWeapon(player) {
+  const available = [];
+  for (let i = 2; i <= WPN.LAST_WEAPON; i++) {
+    const w = WEAPONS[i];
+    if (w.arms <= config.armsLevel && w.price > 0) {
+      const price = getWeaponPrice(i);
+      if (player.cash >= price) {
+        available.push(i);
+      }
     }
   }
+  if (available.length === 0) return;
+  const idx = available[random(available.length)];
+  const price = getWeaponPrice(idx);
+  player.cash -= price;
+  player.inventory[idx] += WEAPONS[idx].bundle;
+  trackPurchase(idx);
+}
 
-  const nukePrice = getWeaponPrice(WPN.BABY_NUKE);
-  if (budget >= nukePrice * 3 && player.inventory[WPN.BABY_NUKE] < 3) {
-    const cost = nukePrice * 3;
-    if (player.cash >= cost) {
-      player.cash -= cost;
-      player.inventory[WPN.BABY_NUKE] += 3;
-      trackPurchase(WPN.BABY_NUKE);
+// Helper: buy 1 bundle of a random affordable item from a category
+// EXE: cases 1-3, 6, 8 call buy_specific_item via 0x3D1E:0x015A
+function aiBuyRandomFromCategory(player, category) {
+  const available = [];
+  for (let i = WPN.FIRST_ACCESSORY; i < WEAPONS.length; i++) {
+    const w = WEAPONS[i];
+    if (w.category === category && w.arms <= config.armsLevel && w.price > 0) {
+      const price = getWeaponPrice(i);
+      if (player.cash >= price) {
+        available.push(i);
+      }
     }
   }
+  if (available.length === 0) return;
+  const idx = available[random(available.length)];
+  const price = getWeaponPrice(idx);
+  player.cash -= price;
+  player.inventory[idx] += WEAPONS[idx].bundle;
+  trackPurchase(idx);
+}
 
-  const shieldPrice = getWeaponPrice(46);
-  if (WEAPONS[46].arms <= config.armsLevel && player.cash >= shieldPrice && player.inventory[46] < 2) {
-    player.cash -= shieldPrice;
-    player.inventory[46] += 1;
-    trackPurchase(46);
+// Helper: buy 1 bundle of a random affordable shield (idx 46-52)
+// EXE: buy_shields at near call 0x1E0F3 — scrolls through shield list with sine wave anim
+function aiBuyRandomShield(player) {
+  const available = [];
+  for (let i = 46; i <= 52; i++) {
+    const w = WEAPONS[i];
+    if (w.arms <= config.armsLevel && w.price > 0) {
+      const price = getWeaponPrice(i);
+      if (player.cash >= price) {
+        available.push(i);
+      }
+    }
   }
+  if (available.length === 0) return;
+  const idx = available[random(available.length)];
+  const price = getWeaponPrice(idx);
+  player.cash -= price;
+  player.inventory[idx] += WEAPONS[idx].bundle;
+  trackPurchase(idx);
+}
+
+// Helper: buy mountain gear — fuel tank (55) or battery (43)
+// EXE: case 9 at 0x1DE20, call far 0x3451:0x016F
+function aiBuyRandomMountainGear(player) {
+  const candidates = [55, 43]; // Fuel Tank, Battery
+  const available = candidates.filter(i => {
+    const w = WEAPONS[i];
+    return w.arms <= config.armsLevel && w.price > 0 && player.cash >= getWeaponPrice(i);
+  });
+  if (available.length === 0) return;
+  const idx = available[random(available.length)];
+  const price = getWeaponPrice(idx);
+  player.cash -= price;
+  player.inventory[idx] += WEAPONS[idx].bundle;
+  trackPurchase(idx);
+}
+
+// Helper: sell a random inventory item
+// EXE: case 10 at 0x1DE29, sell_dialog at near call 0x1E3CB
+// EXE refund: floor(qty × price × factor / bundle), factor = 0.8 (or 0.65 free market)
+function aiSellRandom(player) {
+  const owned = [];
+  for (let i = 2; i < WEAPONS.length; i++) {
+    if (player.inventory[i] > 0 && i !== WPN.BABY_MISSILE) {
+      owned.push(i);
+    }
+  }
+  if (owned.length === 0) return;
+  const idx = owned[random(owned.length)];
+  const qty = Math.min(player.inventory[idx], WEAPONS[idx].bundle);
+  const factor = config.freeMarket ? 0.65 : 0.8;
+  const refund = Math.floor(qty * getWeaponPrice(idx) * factor / WEAPONS[idx].bundle);
+  player.inventory[idx] -= qty;
+  player.cash += refund;
 }
 
 // Handle shop input, returns true when shop is done
