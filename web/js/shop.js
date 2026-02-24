@@ -812,20 +812,25 @@ export function drawShop(player) {
 
   // Panel content — either Score tab or item list
   if (shop.category === TAB_SCORE) {
-    // EXE: Score tab shows player ranking: name, score, cash
-    // EXE: "Score" DS:0x2C3B — implemented as plain view with no purchases possible
-    const rowH   = getRowH();
-    const listY  = PANEL_Y + 16;
+    // EXE: Score tab shows "Player Rankings" title (DS:0x6042), centered above list
+    // EXE: per-row format: "#N" rank (DS:0x6052="#%d") + player name + score (DS:0x6056="%d")
+    // EXE: row spacing: 11px if screenH < 220, 13px if >= 220 (file 0x341F5, DS:0xEF3A vs 0xDC)
+    const scoreRowH = config.screenHeight >= 220 ? 13 : 11;
     const board  = getLeaderboard();
     const scoreX = PANEL_X + panelW - 90;
-    drawText(PANEL_X + 3, hdrY, 'Player', UI_DARK_TEXT);
-    drawText(scoreX,       hdrY, 'Score',  UI_DARK_TEXT);
+    // EXE: "Player Rankings" title centered in panel (DS:0x6042)
+    const titleStr = 'Player Rankings';
+    const titleX = PANEL_X + Math.floor((panelW - measureText(titleStr)) / 2);
+    drawText(titleX, hdrY, titleStr, UI_HIGHLIGHT);
     hline(PANEL_X + 2, PANEL_X + panelW - 3, PANEL_Y + 13, UI_MED_BORDER);
+    const listY  = PANEL_Y + 16;
     for (let i = 0; i < board.length; i++) {
       const p   = board[i];
-      const y   = listY + i * rowH;
+      const y   = listY + i * scoreRowH;
       const col = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-      drawText(PANEL_X + 3, y, p.name,            col);
+      // EXE: "#N" rank number prefix (DS:0x6052="#%d")
+      drawText(PANEL_X + 3, y, '#' + (i + 1),     UI_DARK_TEXT);
+      drawText(PANEL_X + 23, y, p.name,            col);
       drawText(scoreX,       y, String(p.score),   UI_DARK_TEXT);
     }
   } else {
