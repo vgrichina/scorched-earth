@@ -1236,54 +1236,102 @@ a direct hit transfers full velocity, while a glancing angle transfers less.
 
 ## MTN Terrain File Format
 
-### File List (from binary at 0x05BCDA)
+**VERIFIED by decode_mtn.py / render_mtn.py (9 of 10 files decode cleanly).**
 
-| File | Offset | Size | Theme |
-|------|--------|------|-------|
-| ice001.mtn | 0x05BCDA | 45,972 | Ice/glacier |
-| ice002.mtn | 0x05BCE5 | 54,281 | Ice/glacier |
-| ice003.mtn | 0x05BCF0 | 139,961 | Ice/glacier |
-| rock001.mtn | 0x05BCFB | 63,114 | Rocky terrain |
-| rock002.mtn | 0x05BD07 | 73,730 | Rocky terrain |
-| rock003.mtn | 0x05BD13 | 136,992 | Rocky terrain |
-| rock004.mtn | 0x05BD1F | 69,068 | Rocky terrain |
-| rock005.mtn | 0x05BD2B | 41,767 | Rocky terrain |
-| rock006.mtn | 0x05BD37 | 33,738 | Rocky terrain |
-| snow001.mtn | 0x05BD43 | 67,134 | Snowy mountains |
+### File List (from binary at DS:0x5F04 descriptor table)
 
-### Header Structure (16 bytes)
+The descriptor table starts at DS:0x5F04 (file 0x5BC84); each entry is 8 bytes:
+`filename_far_ptr (4 bytes) + file_size_32bit (4 bytes)`. Filenames at DS:0x5F5A+.
+
+| File | Filename DS: | Size | Theme |
+|------|-----------|------|-------|
+| ice001.mtn | DS:0x5F5A | 45,972 | Ice/glacier |
+| ice002.mtn | DS:0x5F65 | 54,281 | Ice/glacier |
+| ice003.mtn | DS:0x5F70 | 139,961 | Ice/glacier |
+| rock001.mtn | DS:0x5F7B | 63,114 | Rocky terrain |
+| rock002.mtn | DS:0x5F87 | 73,730 | Rocky terrain |
+| rock003.mtn | DS:0x5F93 | 136,992 | Rocky terrain |
+| rock004.mtn | DS:0x5F9F | 69,068 | Rocky terrain |
+| rock005.mtn | DS:0x5FB7 | 41,767 | Rocky terrain |
+| rock006.mtn | DS:0x5FC3 | 33,738 | Rocky terrain |
+| snow001.mtn | DS:0x5FCF | 67,134 | Snowy mountains |
+
+### Header Structure (72 bytes total)
 
 | Offset | Size | Field | Value |
 |--------|------|-------|-------|
-| 0x00 | 2 | Magic | `"MT"` (0x4D54) |
-| 0x02 | 2 | Magic2 | `0xBEEF` |
-| 0x04 | 2 | Version | Always 256 (0x0100) |
-| 0x06 | 2 | Height/rows | Varies (419-1483) |
-| 0x08 | 2 | Y-offset or param | Varies (0-104) |
-| 0x0A | 2 | Width or param | Varies (174-294) |
-| 0x0C | 2 | Color count | Always 16 (0x0010) |
-| 0x0E | 2 | Data offset/size | Varies |
+| 0x00 | 2 | Magic `"MT"` | 0x4D54 |
+| 0x02 | 2 | Magic2 | 0xBEEF |
+| 0x04 | 2 | Version | Always 0x0100 (1.0) |
+| 0x06 | 2 | `h` — rows per column | 419–1483 |
+| 0x08 | 2 | `x_start` — first encoded column | 0–104 |
+| 0x0A | 2 | `x_end` — last encoded column + 1 | 174–294 |
+| 0x0C | 2 | `n_colors` | Always 16 (0x0010) |
+| 0x0E | 2 | `data_size` — `file_size - 24` (palette+pixels) | varies |
+| 0x10 | 2 | Unknown (always 0x0000) | 0 |
+| 0x12 | 2 | Unknown (varies) | varies |
+| 0x14 | 4 | Unknown (often 0x38FC_29FB or 0x1F31_29FC) | varies |
+| 0x18 | 48 | Palette: 16 × RGB888 (8-bit per channel) | see below |
 
-### Palette (48 bytes after header)
+**Note:** `data_size` field equals `file_size - 24` for small files (rock001/ice001/ice002/rock005/rock006); for large files the field stores a different (smaller) value — interpretation unknown. Always skip this field; use `file_size - HEADER_SIZE` directly.
 
-- 16 colors, stored as RGB triplets (3 bytes each)
-- 8-bit values (0-255) per channel
-- First color typically `FF FF FF` (white/sky)
+### Palette (at byte offset 0x18 = 24, 48 bytes)
 
-### Pixel Data
+- 16 colors × 3 bytes (R, G, B), values 0–255 (NOT VGA 6-bit)
+- **Index 0 = (255,255,255) white = sky / transparent** (consistent across all 10 files)
+- **Index 15 = (0,0,0) black** (consistent across all 10 files)
+- Indices 1–14: terrain colors (rock/ice/snow shades, file-specific)
+- Example ROCK001 palette: index 14=(49,41,33) dark brown, index 13=(66,57,49) very dark brown, index 1=(165,156,140) light tan
 
-- **4-bit packed** (2 pixels per byte, 16 colors max)
-- **Column-major** ordering (vertical strips)
-- Uses RLE-like compression
-- Reference parser: https://github.com/zsennenga/scorched-earth-mountain
+### Pixel Data (at byte offset 0x48 = 72)
 
-### Terrain Class Names
+**Encoding:** PCX-RLE applied to nibble-packed (4bpp) bytes, column-major ordering.
 
-| Name | Offset | Purpose |
-|------|--------|---------|
-| ScannedMountain | 0x029AAE | MTN-loaded terrain |
+- **4-bit pixels**: each byte encodes TWO pixels — high nibble = pixel 0, low nibble = pixel 1
+- Each byte ≥ 0xC0 is a PCX-RLE run header: `count = byte & 0x3F` copies of next byte
+- Each byte < 0xC0 is a literal packed byte (2 pixels)
+- Columns encoded from `x_start` to `x_end - 1`, each column `h` pixels tall
+- Bytes per column (uncompressed): `ceil(h / 2)` packed bytes = `h` pixels
+- Column scan direction: row 0 = TOP of image (sky at top, terrain below)
+
+**Sky/terrain boundary**: for each column `x`, scan from row 0 downward. First non-zero (non-sky) pixel = terrain ceiling row. `terrain_height_fraction = first_terrain_row / h`. Terrain fills from that row to the bottom; sky is above.
+
+**Two data blocks**: each file contains TWO consecutive PCX-RLE blocks of column data (same format, same bytes_per_col). Block 1 covers columns `x_start..x_end-1`. Block 2 covers additional columns (count varies). Purpose of block 2 unknown (background layer? shadow? cached rotated view?). The game's ScannedMountain loader reads from file offset 72 onward.
+
+### Terrain Height Extraction (for web port)
+
+```
+for x in range(x_start, x_end):
+    col = decode_column(pixel_data, x)   # h pixels, nibble-unpacked from PCX-RLE
+    for row in range(h):
+        if col[row] != 0:                # first non-sky pixel from top
+            terrain_y_frac[x] = row / h  # 0=top, 1=bottom
+            break
+    else:
+        terrain_y_frac[x] = 1.0          # entirely sky column
+
+# Map x_start..x_end-1 → playfield 0..319
+# Map terrain_y_frac → playfield y 0..199
+```
+
+### MTN_PERCENT Control
+
+`MTN_PERCENT` (DS:0x??? — exact offset TBD) defaults to 20.0 (config file). It is a **selection probability** (not a visual blend): when terrain generation runs, if `rand() < MTN_PERCENT/100`, the `ScannedMountain` class is used to load a random .MTN file; otherwise, procedural terrain (`DefaultLand` / `LandGenerator`) is used. This is a binary switch, not a texture blend.
+
+### Terrain Class Names (from debug strings)
+
+| Name | File Offset | Purpose |
+|------|-------------|---------|
+| ScannedMountain | 0x029AAE | MTN-loaded terrain class |
 | LandGenerator | 0x029AEC | Procedural terrain base class |
 | DefaultLand | 0x029B4E | Default procedural generator |
+
+### Reference Tools
+
+- `disasm/decode_mtn.py` — Full decoder (nibble-packed PCX-RLE from offset 72), verifies 9/10 files
+- `disasm/render_mtn.py` — ASCII silhouette renderer to visualize column data
+- `disasm/inspect_mtn_header.py` — Dumps raw header fields for all .MTN files
+- Reference parser (Python): https://github.com/zsennenga/scorched-earth-mountain
 
 ---
 
@@ -2367,7 +2415,7 @@ All located in `disasm/` directory:
 ### RE Investigation
 
 - [x] Trace sky palette init for all 6 sky types: investigated code at 0x285A7, 0x3A0A9, 0x3A182, ranges.cpp fg_setdacs calls. **Key finding**: the handler addresses (0x3E700, 0x4758B, etc.) are menu dialog renderers (segment 0x34ED), NOT palette init functions. Sky gradient base = DS:0x6E2A = 80 (VGA 80). Sky gradient VGA 80–104 (25 entries). Player colors VGA 0–79 set by icons.cpp:0x28592. Black sky ceiling init at 0x3A0A9 (sets VGA 0–104 and 110–149 all black). Exact per-entry RGB for all types not recoverable from static analysis (runtime-computed). **Sunset gradient direction confirmed reversed in web port**: EXE goes cool-blue/indigo at top → warm-orange at bottom; web port was reversed. Fixed in web/js/palette.js: r=28+t×35, g=5+t×15, b=50-t×40 (i=0=top=cool, i=23=bottom=warm). See "Sky Palette Architecture" subsection in Sky/Landscape Mode System section.
-- [ ] Decode .MTN mountain bitmap format and terrain compositing: ROCK001-6.MTN, ICE001-3.MTN, SNOW001.MTN all start with magic `4D 54 BE EF` ("MT" + marker); files range 33–140KB; MTN_PERCENT=20 in default config means mountain bitmaps are composited into terrain even for non-Cavern sky types; trace the .MTN loader code (called from terrain generation at file 0x3971F and ranges.cpp), document the binary format (header fields, bitmap layout, width/height, pixel encoding), and how MTN_PERCENT controls the blend; this explains why the v86 terrain preview shows distinct bitmap-quality mountain silhouettes rather than fully procedural terrain
+- [x] Decode .MTN mountain bitmap format and terrain compositing: **RESOLVED**. Format fully decoded by `disasm/decode_mtn.py` (9/10 files verified). 72-byte header (16b core + 8b unknown + 48b palette). Fields: magic=`MT\xBE\xEF`, version=0x0100, h=rows_per_column (419–1483), x_start/x_end=encoded column range, n_colors=16, palette=16×RGB888 at byte 24. Pixel data at byte 72: **PCX-RLE nibble-packed 4bpp, column-major**. Index 0=(255,255,255)=sky, indices 1–15=terrain. Terrain height at column x = first non-zero pixel row from the top (row 0=top of image). Files contain TWO consecutive PCX-RLE blocks (block2 purpose unknown, possibly background layer). MTN_PERCENT is a **selection probability** (binary choice: scanned vs. procedural), not a visual blend. Sky type jump table at file 0x39198 (CS:0x0A18 in seg 0x31D8) dispatches terrain handlers per sky type; type 5 (Cavern) handler at file 0x3F146. Descriptor table at DS:0x5F04 (8 bytes/entry: 4-byte far ptr to filename + 4-byte file_size). Reference parser: https://github.com/zsennenga/scorched-earth-mountain. See "MTN Terrain File Format" section for full spec.
 - [ ] Trace sun/planet rendering: v86 screenshot shows a large bright circle (sun) at the bottom-center of the right-panel terrain preview during Sunset sky type; find the draw call in the Sunset handler (file 0x3F587) or terrain generation (file 0x3971F); document position formula (horizontal: center of playfield?, vertical: near bottom?), radius, color palette index; add a new "Sun/Planet Rendering" subsection to the Sky/Landscape Mode System section
 - [ ] Decode SCORCH.MKT binary format: file is 1060 bytes, opened read-only (`fopen("scorch.mkt","rb")`), read in icons.cpp at file 0x2B873 (DS:0x5270 = filename); first word = 2 (magic/version), second word = 48 (0x30) — likely 48 weapon records × 22 bytes = 1056 + 4 header = 1060 bytes exact; decode the remaining fields per record (probably price, initial quantity, market flags — "MKT" = market); determine whether this is economy init data, registration data, or something else; document full binary format spec and add a "SCORCH.MKT Format" section; check if this data needs to be used in the web port
 - [ ] Trace SCORCH.PCX loading context: referenced at DS:0x575C, loaded in play.cpp at file 0x2FAD1–0x2FAF8 (conditional on DS:0x5188 != 0); Fastgraph calls are 0x480a:0x9 (open/load PCX) and 0x4847:0x2 (display); SCORCH.PCX is NOT present in the earth/ directory — determine (a) when this code runs (which game state), (b) what DS:0x5188 represents, (c) what visual content SCORCH.PCX contains (a full-screen image?), (d) whether the file should be included in v86/images/game.img; document in a new "SCORCH.PCX" section
