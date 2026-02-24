@@ -1,38 +1,39 @@
 // Scorched Earth - Shield System
 // EXE source: shields.cpp (seg 0x31D8, file base 0x38780)
-// EXE: shield config table at DS:0x616C, 7 entries × 16 bytes
+// EXE: shield config table at DS:0x616C, 6 entries × 16 bytes (None + 5 shields)
 // EXE: flat 1:1 HP absorption model — shield absorbs damage point-for-point
-// EXE: shield energy values: Shield=55, Warp/Teleport=100, Flicker=80, Force=150, Heavy=200
-// EXE: special effects — Warp/Teleport shields trigger tank repositioning on hit
-// EXE: Flicker shield has 50% chance of being "off" each hit
-// EXE: Force/Heavy shields deflect projectiles
+// EXE: shield energy values: MagDeflector=55, Shield=100, Warp=100, Teleport=150, Flicker=200
+// EXE: Warp/Teleport shields trigger tank repositioning on hit
+// EXE: ALL shields use dispatch_type=1 (same handler) — no per-type special behavior
+// EXE: Flicker Shield is a plain absorption shield despite its name (200 HP, orange)
+// EXE: Force/Heavy/SuperMag weapons are OUTSIDE config range (corrupted data, not functional shields)
 
 import { config } from './config.js';
 import { setPixel } from './framebuffer.js';
 import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
 
-// Shield type constants
+// Shield type constants (matches EXE config entry indices)
+// EXE config mapping: weapon_index - DS:D558(=45) + 1
+// Weapons 50-52 (Force/Heavy/SuperMag) are outside config range, not functional shields
 export const SHIELD_TYPE = {
   NONE:     0,
-  SHIELD:   1,
-  WARP:     2,
-  TELEPORT: 3,
-  FORCE:    4,
-  HEAVY:    5,
-  FLICKER:  6,
+  MAG_DEFLECTOR: 1,  // weapon 45, config 1
+  SHIELD:   2,       // weapon 46, config 2
+  WARP:     3,       // weapon 47, config 3
+  TELEPORT: 4,       // weapon 48, config 4
+  FLICKER:  5,       // weapon 49, config 5 — plain absorption, no flicker behavior
 };
 
 // EXE: shield config table at DS:0x616C, 16 bytes per entry
-// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), flags
+// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), +0x0C (dialog nav), +0x0E (dispatch-1)
 export const SHIELD_CONFIG = [
-  { name: 'None',            energy: 0,   radius: 0,  r: 0,  g: 0,  b: 0,  flags: 0 },
-  { name: 'Shield',          energy: 55,  radius: 16, r: 63, g: 63, b: 23, flags: 2 },
-  { name: 'Warp Shield',     energy: 100, radius: 15, r: 63, g: 63, b: 63, flags: 0 },
-  { name: 'Teleport Shield', energy: 100, radius: 15, r: 63, g: 23, b: 63, flags: 1 },
-  { name: 'Force Shield',    energy: 150, radius: 16, r: 63, g: 63, b: 63, flags: 0 },
-  { name: 'Heavy Shield',    energy: 200, radius: 16, r: 63, g: 53, b: 33, flags: 4 },
-  { name: 'Flicker Shield',  energy: 80,  radius: 14, r: 50, g: 50, b: 63, flags: 8 },
+  { name: 'None',            energy: 0,   radius: 0,  r: 0,  g: 0,  b: 0  },  // config 0
+  { name: 'Mag Deflector',   energy: 55,  radius: 16, r: 63, g: 63, b: 23 },  // config 1, weapon 45
+  { name: 'Shield',          energy: 100, radius: 15, r: 63, g: 63, b: 63 },  // config 2, weapon 46
+  { name: 'Warp Shield',     energy: 100, radius: 15, r: 63, g: 23, b: 63 },  // config 3, weapon 47
+  { name: 'Teleport Shield', energy: 150, radius: 16, r: 63, g: 63, b: 63 },  // config 4, weapon 48
+  { name: 'Flicker Shield',  energy: 200, radius: 16, r: 63, g: 53, b: 33 },  // config 5, weapon 49
 ];
 
 // Shield break animation state — exported for main.js to render
@@ -57,14 +58,7 @@ export function applyShieldDamage(player, damage) {
     return damage;
   }
 
-  // EXE: Flicker shield — 50% chance per hit of being "off" (full damage passes through)
-  if (player.activeShield === SHIELD_TYPE.FLICKER) {
-    if (random(2) === 0) {
-      return damage;  // shield was "off" this hit
-    }
-  }
-
-  // Flat 1:1 absorption (from RE)
+  // Flat 1:1 absorption — all shield types use the same model (EXE verified)
   if (player.shieldEnergy >= damage) {
     player.shieldEnergy -= damage;
     return 0;  // fully absorbed
@@ -87,40 +81,11 @@ export function applyShieldDamage(player, damage) {
   }
 }
 
-// Check if Force/Heavy shield should deflect a projectile
-// Returns true if projectile was deflected (caller should skip normal explosion)
+// EXE: Mag Deflector deflection is handled in physics.js (in-flight magnetic field),
+// NOT via a per-hit shield check. Force/Heavy shields are not in the EXE config table.
+// This function is a stub — Mag Deflector deflection uses a separate code path.
 export function checkShieldDeflection(player, proj) {
-  if (!player || !player.alive) return false;
-  if (player.activeShield !== SHIELD_TYPE.FORCE && player.activeShield !== SHIELD_TYPE.HEAVY) return false;
-  if (player.shieldEnergy <= 0) return false;
-
-  // Absorb partial damage to shield
-  const shieldDmg = Math.min(10, player.shieldEnergy);
-  player.shieldEnergy -= shieldDmg;
-  if (player.shieldEnergy <= 0) {
-    const cfg = SHIELD_CONFIG[player.activeShield];
-    if (cfg) {
-      shieldBreak.active = true;
-      shieldBreak.x = player.x;
-      shieldBreak.y = player.y - 6;
-      shieldBreak.radius = cfg.radius;
-      shieldBreak.frame = 0;
-      shieldBreak.playerIdx = player.index;
-      shieldBreak.shieldType = player.activeShield;
-    }
-    player.activeShield = SHIELD_TYPE.NONE;
-  }
-
-  // Deflect: reverse and scatter projectile velocity
-  proj.vx = -proj.vx * (0.6 + Math.random() * 0.4);
-  proj.vy = -proj.vy * (0.6 + Math.random() * 0.4);
-  proj.vx += (Math.random() - 0.5) * 100;
-  proj.vy += (Math.random() - 0.5) * 50;
-  // Move projectile away from shield
-  proj.x += Math.sign(proj.vx) * 5;
-  proj.y += Math.sign(proj.vy) * 5;
-
-  return true;  // deflected
+  return false;
 }
 
 // Handle special shield effects on hit
@@ -176,23 +141,13 @@ export function drawShield(player) {
   setPaletteRgb(paletteIdx, r, g, b);
 
   // Draw shield as circle outline using dedicated palette entry
+  // EXE: all shield types render identically (no per-type visual effects)
   for (let angle = 0; angle < 360; angle += 4) {
-    // EXE: Flicker shield randomly skips pixels for visual flicker
-    if (player.activeShield === SHIELD_TYPE.FLICKER && random(3) === 0) continue;
-
     const rad = angle * Math.PI / 180;
     const px = Math.round(cx + Math.cos(rad) * radius);
     const py = Math.round(cy + Math.sin(rad) * radius);
     if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
       setPixel(px, py, paletteIdx);
-    }
-    // Inner ring for heavy shields
-    if (cfg.flags === 4 && radius > 2) {
-      const px2 = Math.round(cx + Math.cos(rad) * (radius - 1));
-      const py2 = Math.round(cy + Math.sin(rad) * (radius - 1));
-      if (px2 >= 0 && px2 < config.screenWidth && py2 >= 0 && py2 < config.screenHeight) {
-        setPixel(px2, py2, paletteIdx);
-      }
     }
   }
 }
