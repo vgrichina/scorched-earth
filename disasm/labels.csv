@@ -294,3 +294,8 @@ DS:0x026A,SHIELD_DISPATCH_TABLE
 DS:0xEC88,SHIELD_FLICKER_TOGGLE
 0x38765,shield_activate_wrapper
 0x3E9B5,shield_equip_dialog_handler
+0x2251A,mag_deflector_collision_check
+0x2253A,mag_deflector_apply_damping
+DS:0x1D54,MAG_DAMP_COEFF
+DS:0x1D58,MAG_ABSORB_THRESHOLD
+DS:0x1C7E,MAG_DAMPING_APPLIED_FLAG

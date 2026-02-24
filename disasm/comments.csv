@@ -227,3 +227,8 @@ DS:0xEC86,shield replacement value = player+200 (ongoing rendering)
 0x3FC46,shield draw callback: if getpixel>=0x69 (terrain), draw with shield palette entry
 DS:0xEE48,shield palette entry for current draw/erase operation
 DS:0x57E2,player color RGB table: 10 players * 6 bytes (R,G,B words, VGA 6-bit)
+0x2251A,mag_deflector_collision_check: cmp DS:1C76 (super_mag flag) — if set skip damping
+0x2253A,mag_deflector_apply_damping: vx/vy *= DS:1D54 (0.75); absorb if speed² < DS:1D58 (2000.0)
+DS:0x1D54,MAG_DAMP_COEFF = 0.75 (f32): Mag Deflector collision velocity damping factor
+DS:0x1D58,MAG_ABSORB_THRESHOLD = 2000.0 (f32): speed² below this → projectile absorbed
+DS:0x1C7E,MAG_DAMPING_APPLIED_FLAG: set to 1 when Mag Deflector collision damping is applied

@@ -1397,7 +1397,7 @@ Three functions implement the core damage logic (all in extras.cpp segment):
 //   DS:1C7A (u16) = "damage applied" flag
 //   DS:CE9A (u16) = state counter (set to 3)
 //   DS:1D5C (f32) = 2.0    DS:1CC8 (f32) = 100.0
-//   DS:1D60 (f64) = 0.7 (velocity falloff per hit)
+//   DS:1D60 (f64) = 0.7 (explosion damage falloff between successive player hits)
 
 int apply_damage_to_player(player_t far *player, int expl_x, int expl_y) {
     DS:CE9A = 3;
@@ -2181,12 +2181,16 @@ skip_deflection:
 
 **Note**: The deflection scales as `1/normDist * dt` — NO additional multiplier. Web implementation previously had an erroneous `×30` factor that caused projectiles to reverse direction when multiple players had Mag Deflectors (e.g., after MAYHEM cheat).
 
-#### Collision Damping (file 0x235B6)
+#### Collision Damping (file 0x2253A)
 
-On impact near a Mag Deflector player, velocity attenuated by 0.7× (same factor as multi-hit damage falloff):
+On impact near a Mag Deflector player, velocity attenuated by **0.75×** (DS:0x1D54 = 0.75 f32). Absorption if speed² < 2000.0 (DS:0x1D58). **Correction**: previously documented as 0.7× (DS:1D60) — that is the explosion damage falloff coefficient, NOT the Mag Deflector collision damping. Verified by disassembly at 0x22540: `fld dword [0x1D54]; fmul qword [0xE4DC]; fstp qword [0xE4DC]` (same for E4E4/vy).
 ```c
-DS:E4DC *= 0.7;    // DS:1D60 = 0.7
-DS:E4E4 *= 0.7;
+// file 0x2253A: check super_mag first (DS:1C76)
+if (DS:1C76 != 0) goto explosion;   // Super Mag bypasses damping
+DS:1C7E = 1;                         // damping-applied flag
+DS:E4DC *= DS:1D54;   // vx *= 0.75
+DS:E4E4 *= DS:1D54;   // vy *= 0.75
+if (vx² + vy² < DS:1D58) goto absorbed;  // speed² < 2000.0 → no damage
 ```
 
 #### Super Mag (DS:0x1C76)
@@ -3336,7 +3340,7 @@ All located in `disasm/` directory:
 - [x] Fix endOfRoundScoring teams-enabled branch: missing pool formula (round×500+5000+maxPower×30+shieldEnergy×2). **DONE**: score.js — `endOfRoundScoring()` now has two branches matching EXE (file 0x37381): teams-enabled pool = `round×500 + 5000 + Σ(alive: 100×30 + shieldEnergy×2)`, teams-disabled pool = `numPlayers×1000 + round×4000`. Both distribute `floor(pool/round)` to each alive player. MAX_POWER = 100 (DS:0x50E4, player starting energy at sub-struct +0xA2, confirmed from init at file 0x30DC9). Previously only had teams-disabled formula.
 
 #### Shield system (shields.js)
-- [ ] Fix Mag Deflector collision damping: EXE uses fixed 0.7× factor; web port uses random 0.6-1.0× plus additive scatter ±100/±50 not in EXE
+- [x] Fix Mag Deflector collision damping: **VERIFIED — web port already correct**. Disassembly at file 0x2253A confirms: coefficient = DS:0x1D54 = **0.75** (f32), NOT 0.7 (DS:1D60 is explosion damage falloff, different system). Absorption threshold = DS:0x1D58 = 2000.0 (speed²). physics.js `MAG_DAMP_COEFF=0.75` and `MAG_ABSORB_THRESHOLD=2000.0` both match EXE. No random scatter or additive ±100/±50 in current code. Corrected RE doc "Collision Damping" section (was citing wrong DS offset/value).
 - [ ] Add shield pixel marker 0xFF and terrain boundary 0x69 detection (EXE uses these for shield-vs-terrain pixel discrimination)
 
 #### Talk system (talk.js)
