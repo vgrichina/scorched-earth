@@ -99,6 +99,24 @@ DS:0x50D4,NUM_PLAYERS
 DS:0x1BB6,WEAPON_COUNT
 DS:0x5270,mkt_filename
 
+# ---- Terrain generation (ranges.cpp) ----
+0x3971F,terrain_gen_main
+0x3AB39,setTerrainPixel
+0x29720,drawColumn
+0x29808,height_random_walk
+DS:0x5110,TERRAIN_TYPE
+DS:0xECB8,screen_height
+DS:0xECBA,bitmap_col_bytes
+DS:0xECBE,depth_divisor
+DS:0x6242,height_array_ptr
+DS:0x6246,bitmap_array_ptr
+DS:0x623E,aux_array_ptr
+DS:0x624A,scanned_mtn_flag
+DS:0x624C,terrain_cached_flag
+DS:0x624E,cached_terrain_type
+DS:0x513C,HOSTILE_ENVIRONMENT
+DS:0x50D8,is_castle_terrain
+
 # ---- SCORCH.PCX background image ----
 DS:0x575C,pcx_filename
 0x2FAE0,pcx_display

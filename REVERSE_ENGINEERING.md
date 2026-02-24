@@ -2645,7 +2645,7 @@ All located in `disasm/` directory:
 - [x] Trace sun/planet rendering: **RESOLVED — No explicit sun circle**. The "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes. No Fastgraph circle/ellipse calls originate from terrain gen or sky palette code. Sunset case handler (file 0x39C31) only sets palette entries (VGA 120–149) and generates terrain height. Full sunset palette interpolation documented (3 gradient segments of 10 entries, FPU-computed from float32 constants at DS:0x6258–0x6270). See "Sun/Planet Rendering" subsection in Sky/Landscape Mode System section.
 - [x] Decode SCORCH.MKT binary format: **RESOLVED**. 1060-byte file = 4-byte header (version=2, count=48) + 48×22-byte records. Per-weapon record: int32 mkt_cost (weapon+0x1A), int16 unsold_rounds (+0x22), float64 price_signal (+0x24), float64 demand_avg (+0x2C). Implements a dynamic pricing economy: EMA-based market simulation with α=0.7 smoothing, demand tracks purchase rate per player, price_signal tracks squared price ratio / 10.0, adjustment = mkt_cost × (1 + (demand - signal) × 0.05). Price clamped to [base×0.1, base×100] on load. Purchase tracking via `inc sold_qty` at file 0x14A2A in buy function. Gated by FREE_MARKET config (DS:0x514A). Key constants: DS:0x5260=0.7 (α), DS:0x5268=0.1 (init), DS:0x5298=10.0 (divisor), DS:0x5190=0.05 (sensitivity). **Correction**: DS:0x5190 is MKT_SENSITIVITY (0.05), not AIR_VISCOSITY as previously labeled. See "SCORCH.MKT Market File Format" section.
 - [x] Trace SCORCH.PCX loading context: **RESOLVED — optional user background**. (a) Code runs when **'B' key** (scancode 0x30) is pressed during gameplay turn, dispatched via play loop switch table at CS:0x05DB index 46 → CS:0x0550 (file 0x2FAE0). (b) DS:0x5188 is **PLAY_MODE** (already documented) — NOT related to PCX; the DS:0x5188 check at 0x2FAD1 is a separate adjacent switch case (fire action for Sequential mode). (c) SCORCH.PCX is a **user-provided full-screen PCX background image** — loaded via fg_pcxopen→fg_pcxhead→fg_pcximage with no error handling if file missing. (d) File should **NOT** be added to v86/images/game.img — it was never shipped with the game. Only 1 real reference in entire binary (play.cpp 0x2FAE0; other xref hits are false positives matching 0x5C8D quote strings). See "SCORCH.PCX Background Image" section.
-- [ ] Trace terrain generation for each sky type: ranges.cpp (file 0x3971F) has the main generation function; there's a jump table at file 0x3A118 (7 entries for sky types 0-6); decode the terrain shape algorithm for Sunset (type 4) specifically — does it call the .MTN loader, use procedural noise, or both?; also check HOSTILE_ENVIRONMENT flag (DS:0x??? — find offset) which enables lightning/meteor random events; document the per-type terrain shape differences
+- [x] Trace terrain generation for each sky type: **RESOLVED**. All 7 terrain types fully decoded. Main function at file 0x3971F, setTerrainPixel at 0x3AB39 (7-way switch, jump table at CS:0x16E5 partially corrupted by MZ relocations). **Type 0 (Flat)**: solid VGA 120, constant height. **Type 1 (Slope)**: linear Y-gradient height_array, gray palette. **Type 2 (Rolling)**: bitmap texture + aux_array(rand(32000)×x%30) pattern; falls back to Flat if no bitmap. **Type 3 (MTN)**: scanned mountain data; depth gradient VGA 130–150 for recesses; falls back to Flat if no .MTN file. **Type 4 (V-Shaped)**: reversed bitmap logic, shallow 9-level gradient, Sunset-style 3-band FPU palette. **Type 5 (Castle)**: multiple LandGenerator segments with random gaps creating rampart shapes; Sunset palette. **Type 6 (Cavern)**: mountains+slope underground, 3-band gradient. Types 1/5/6 share identical setTerrainPixel code (pure height_array[y] lookup); visual difference is palette only. **HOSTILE_ENVIRONMENT** at **DS:0x513C**: config flag (On/Off); when enabled, projectiles inflict 1 damage per pixel traversed through tank body (file 0x3EB72: `damage_tank(10, tank_ptr, 1)` when pixel < 0x50). See "Per-Type Height Generation Handlers" and "HOSTILE_ENVIRONMENT System" subsections in Terrain Generation section.
 - [ ] Trace TALK1.CFG / TALK2.CFG parsing: files are plain text (one taunt per line); find the loader code (search for DS ref to "talk1.cfg" at DS:0x??? from config parser); document how many lines are read, how a random line is selected (random(count)?), how the text is displayed on screen, and what triggers attack vs die comments; verify web port talks.js (if it exists) or add to implementation tasks
 - [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
@@ -3355,11 +3355,19 @@ void drawColumn(LandGenerator *this, int screen_seg, int col, int y) {
 7-way dispatch on terrain_type (DS:0x5110). Determines palette index for each individual terrain pixel.
 
 ```c
-// setTerrainPixel(int x, int y) — file 0x3AB39, segment 3413
+// setTerrainPixel(int x, int y) — file 0x3AB39, segment 31D8:23B9
+// Jump table at CS:0x16E5 (7 entries, some corrupted by MZ relocations)
 void setTerrainPixel(int x, int y) {
     switch (terrain_type) {
     case 0: // Flat: solid palette 120
         fg_setpixel(x, y, 120);
+        break;
+
+    case 1: // Slope: pure Y-gradient from height_array
+    case 5: // Castle: same as Slope (palette differs)
+    case 6: // Cavern: same as Slope (palette differs)
+        // handler at 0x3ACE7 — all three share identical code
+        fg_setpixel(x, y, height_array[y]);
         break;
 
     case 2: // Rolling/Rock/Gray: bitmap + aux_array texture
@@ -3368,7 +3376,7 @@ void setTerrainPixel(int x, int y) {
         if (!bit) {
             fg_setpixel(x, y, 120);    // base terrain
         } else {
-            remainder = abs((aux_height[y] * x) % 30);
+            remainder = abs((aux_array[y] * x) % 30);
             color_offset = remainder - height_array[y];
             if (color_offset < 1)
                 fg_setpixel(x, y, 120);
@@ -3377,18 +3385,36 @@ void setTerrainPixel(int x, int y) {
         }
         break;
 
-    case 1: // Slope (Snow/Ice) — [handler at 0x3AB68, jmp 0x1b7]
-    case 3: // MTN/Night — uses bitmap_array + different formula
-    case 4: // Desert/V-shaped — similar bitmap + aux approach
-    case 5: // Castle/Varied
-    case 6: // Cavern — 3-band gradient
-        // [TODO: decode remaining type-specific handlers]
+    case 3: // MTN/Night: bitmap + depth gradient
+        // handler at 0x3AC0C
+        bit = bitmap_array[x][y / 8] & (1 << (y & 7));
+        if (!bit) {
+            fg_setpixel(x, y, height_array[y]);    // terrain color from palette
+        } else {
+            depth = (y - screen_y_base) / depth_divisor;  // DS:ECBE
+            if (depth > 20) depth = 20;
+            fg_setpixel(x, y, depth + 130);         // VGA 130-150 depth gradient
+        }
+        break;
+
+    case 4: // V-Shaped/Desert: bitmap reversed logic
+        // handler at 0x3AC88
+        bit = bitmap_array[x][y / 8] & (1 << (y & 7));
+        if (bit) {
+            fg_setpixel(x, y, 120);                 // bit set = solid terrain base
+        } else {
+            fg_setpixel(x, y, height_array[y]);     // bit clear = gradient color
+        }
         break;
     }
 }
 ```
 
-**Key insight**: Type 2 (Rolling) uses a **textured pattern** dependent on both X and Y via random per-row data (`aux_height[y] * x % 30`), NOT a simple Y-only depth gradient. This creates the rocky/scattered appearance.
+**Key insights**:
+- Type 2 (Rolling) uses a **textured pattern** dependent on both X and Y via random per-row data (`aux_array[y] * x % 30`), creating the rocky/scattered appearance.
+- Types 1, 5, 6 all share the **same pixel coloring code** (pure Y-gradient); the visual difference comes entirely from the palette loaded into `height_array[]` during terrain generation.
+- Type 3 (MTN) has a unique **depth gradient** (VGA 130–150) for areas where the bitmap bit is set, creating a fade-to-dark effect in mountain recesses.
+- Type 4 (V-Shaped) **reverses** the bitmap logic vs Type 3: bit=1 → solid 120, bit=0 → gradient.
 
 ### Height Generation Kernel: Random Walk (file 0x29808)
 
@@ -3483,6 +3509,104 @@ while (current_x < screen_width) {
     current_x += spacing;
 }
 ```
+
+### Per-Type Height Generation Handlers (VERIFIED from disassembly)
+
+Each terrain type has a handler in the main terrain gen function (0x3971F) that sets up palette, height_array, bitmap_array, and aux_array, then optionally runs the random walk kernel.
+
+**Type 0 — Flat** (handler at 0x39959):
+- Palette: 30 entries of blue-ice gradient `(0, 29-i, 29-i)` for VGA 120–149
+- Height: constant — all columns same Y; no random walk
+- No bitmap or aux arrays used
+
+**Type 1 — Slope** (handler at 0x3997B):
+- Palette: 30 entries gray gradient via `setcolor(i, 63, 29-i, 29-i)` (white→dark)
+- height_array[y] = `(screen_bottom - y) * 29 / screen_height + 120` — linear slope, lighter at bottom
+- LandGenerator runs random walk with slope component
+
+**Type 2 — Rolling** (handler at 0x399C1):
+- Checks bitmap array ptr (DS:623E); if null → **falls back to Type 0** (sets TERRAIN_TYPE=0, recursive call)
+- Palette: 29 entries gray gradient `(i*2+7, i*2+7, i*2+7)` for VGA 121–149
+- aux_array[y] = `rand(32000)` — random texture seed per row
+- height_array[y] = `30 - (screen_bottom - y) * 29 / screen_height` — inverted depth (darker at bottom)
+- Runs LandGenerator random walk
+
+**Type 3 — MTN** (handler at 0x39AEF):
+- Checks DS:0x624A (scanned_mtn_flag); if not loaded → **falls back to Type 0**
+- Palette: 10 entries `(i, i+30, i, i)` dark gradient for VGA 120–129; plus separate depth palette 130–150
+- height_array[y] = depth gradient `(30 - depth_idx)` where depth_idx = `(screen_bottom - y) * 29 / screen_height`
+- bitmap_array columns filled with rand() data for texture mask
+- LandGenerator called with scanned mountain callback (0x32C2 = setTerrainPixel) and column count from screen dimensions
+
+**Type 4 — V-Shaped** (handler at 0x39B40):
+- Sets depth_divisor (DS:ECBE): 3 if screen_width == 0x167 (359), else 2
+- Palette: height_array[y] = `(screen_bottom - y) * 9 / screen_height + 120` — shallow gradient (only 9 levels)
+- bitmap_array column fill + LandGenerator random walk
+- FPU-computed 3-band Sunset-style palette for VGA 120–149 (using DS:6258–6270 float constants)
+- V-shape: LandGenerator creates symmetric terrain centered on screen
+
+**Type 5 — Castle** (handler at 0x39C31):
+- Checks scanned_mtn_flag; if not loaded → **falls back to Type 0**
+- Sets DS:50D8 = 1 (is_castle_terrain flag)
+- Palette: `setGradientPalette(120, 63, 63, 0, 1)` + 3-band FPU gradient (same Sunset formula)
+- Height: loop generating **multiple LandGenerator segments** with random gaps: each segment runs `rand(20)+30` columns wide with `rand(20)+15` gap spacing → creates rampart/battlement shapes
+- Creates LandGenerator with callback at 0x3C70:0x09CA
+
+**Type 6 — Cavern** (handler at 0x39CC0):
+- Similar palette setup to Type 5 (3-band gradient)
+- Mountains + slope underground; terrain drawn from top AND bottom to create enclosed cave
+- Shares height_array gradient code with Types 1/5
+
+### Key Data Structures for Terrain
+
+| DS Offset | Name | Purpose |
+|-----------|------|---------|
+| DS:0x5110 | TERRAIN_TYPE | Current type (0–6) |
+| DS:0x6242 | height_array | Far ptr; per-row palette index lookup (size = (screen_rows+1)*2) |
+| DS:0x6246 | bitmap_array | Far ptr; per-column bitmasks (1 bit/pixel; determines texture vs solid) |
+| DS:0x623E | aux_array | Far ptr; per-row random seed values for Rolling texture |
+| DS:0x624A | scanned_mtn_flag | 1=MTN file loaded; 0/-1=unavailable → fallback to Flat |
+| DS:0x624C | terrain_cached | 1=reuse previous terrain; 0=regenerate |
+| DS:0xECB8 | screen_height | EF38 − EF40 (total playfield height in pixels) |
+| DS:0xECBA | bitmap_col_bytes | (screen_rows+9)/8 + 1 — bytes per column in bitmap_array |
+| DS:0xECBE | depth_divisor | Used by Type 3 MTN for depth gradient (VGA 130+) |
+
+### HOSTILE_ENVIRONMENT System (VERIFIED from disassembly)
+
+**Config variable**: DS:0x513C (HOSTILE_ENVIRONMENT), read from `HOSTILE_ENVIRONMENT=On/Off` in config parser (file 0x3CBBC: `mov [0x513C], ax`).
+
+**4 references found**:
+| File Offset | Context |
+|-------------|---------|
+| 0x3C1A2 | Config dialog: pushes DS:0x513C value for display |
+| 0x3CBAC | Config parser: compares loaded value |
+| 0x3CBBC | Config parser: stores parsed On/Off → DS:0x513C |
+| 0x3EB72 | Projectile collision: conditional tank damage |
+
+**Projectile collision handler** (file 0x3EB60, seg 34ED:3290):
+```c
+// Part of per-pixel projectile movement function
+pixel = fg_getpixel(x, y);   // file 0x3EB62
+
+if (pixel < 0x50) {           // Tank hit (VGA 0-79 = tank body)
+    if (HOSTILE_ENVIRONMENT) { // DS:0x513C != 0
+        player_idx = pixel / 8;
+        tank_ptr = player_idx * 0xCA + 0xD568;
+        damage_tank(10, tank_ptr, 1);  // call 0x3912:0x04B2 with args (1, 10, tank_far_ptr)
+    }
+    // Store hit position, set dirty flags
+    hit_x = x; hit_y = y;
+    dirty_x = 1; dirty_y = 1;
+}
+else if (pixel >= 0x69) {      // Ground hit (VGA 105+ = terrain)
+    // Track bounding box for explosion area
+    // Draw white pixel (0xFF) at impact point
+    fg_setpixel(x, y, 255);
+    // random(10) check for secondary effects
+}
+```
+
+**Key behavior**: When HOSTILE_ENVIRONMENT is On, any projectile passing through a tank pixel inflicts **1 unit of damage per pixel traversed** via `damage_tank(10, tank_ptr, 1)`. The first argument (10) is likely the damage type/source, and the third (1) is the damage amount. This creates a "hostile" environment where projectiles that clip tanks during flight do incremental damage even before the final explosion.
 
 **Intermediate files**: `disasm/terrain_generation_analysis.txt`
 

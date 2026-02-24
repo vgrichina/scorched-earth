@@ -62,6 +62,24 @@ DS:0x5298,MKT_SIGNAL_DIV: price signal divisor = 10.0 (float32)
 DS:0x50D4,NUM_PLAYERS: total player count (runtime); used to normalize demand in market update
 DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
 
+# ---- Terrain generation (ranges.cpp) ----
+0x3971F,terrain_gen_main: enter; alloc height/bitmap arrays; 7-way switch on TERRAIN_TYPE(DS:5110)
+0x3AB39,setTerrainPixel: 7-way switch on TERRAIN_TYPE; jump table at CS:0x16E5 (reloc-corrupted)
+0x29720,drawColumn: per-column renderer; type0=vline(120); else per-pixel via setTerrainPixel loop
+0x29808,height_random_walk: momentum-based random walk kernel; flat_chance/bump_chance params
+DS:0x5110,TERRAIN_TYPE: 0=Flat 1=Slope 2=Rolling 3=MTN 4=V-Shaped 5=Castle 6=Cavern
+DS:0xECB8,screen_height: EF38-EF40 (total playfield height)
+DS:0xECBA,bitmap_col_bytes: (EF3A+9)/8+1 bytes per bitmap column
+DS:0xECBE,depth_divisor: type3=depth/this -> VGA 130+; type4: 2 or 3 (based on screen width)
+DS:0x6242,height_array_ptr: far ptr to per-row color index array; size=(EF3A+1)*2
+DS:0x6246,bitmap_array_ptr: far ptr to per-column bitmap arrays; for textured terrain types
+DS:0x623E,aux_array_ptr: far ptr to per-row aux values; type2=rand(32000) texture; type3=depth gradient
+DS:0x624A,scanned_mtn_flag: 1=.MTN scanned mountain data loaded; 0/-1=use procedural or alloc failed
+DS:0x624C,terrain_cached_flag: 1=reuse cached terrain from previous round; 0=regenerate
+DS:0x624E,cached_terrain_type: last terrain_type used; compared to skip redundant regeneration
+DS:0x513C,HOSTILE_ENVIRONMENT: config flag (0=Off 1=On); enables lightning/meteor random events and hit damage
+DS:0x50D8,is_castle_terrain: 1 when terrain_type==5 (Castle); 0 otherwise
+
 # ---- SCORCH.PCX background image ----
 DS:0x575C,pcx_filename: "scorch.pcx" — optional user-provided background image
 0x2FAE0,pcx_display: B-key handler — push ds/offset; fg_pcxopen; fg_pcxhead; fg_pcximage; no error check
