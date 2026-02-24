@@ -226,6 +226,17 @@ export function isShopActive() {
   return shop.active;
 }
 
+// EXE Miscellaneous sub-category groups (DS:0x2E5B, 0x2E67, 0x2E71, 0x2EFE, 0x2EEF)
+// Each group has a header string and set of weapon indices.
+// Items are displayed grouped by sub-category with non-selectable header rows.
+const MISC_GROUPS = [
+  { header: '~Guidance',   indices: [37, 38, 39, 40] },                   // Heat, Bal, Horz, Vert Guidance
+  { header: '~Parachutes', indices: [41, 42] },                           // Lazy Boy, Parachute
+  { header: '~Triggers',   indices: [56] },                               // Contact Trigger
+  { header: 'Shields',     indices: [46, 47, 48, 49, 50, 51, 52] },      // Shield through Super Mag
+  { header: '~Inventory',  indices: [35, 36, 43, 44, 45, 53, 54, 55] },  // Laser, Battery, Fuel Tank, etc.
+];
+
 // Update filtered item list based on current tab
 // EXE: Score tab = view-only (no items); Weapons tab = CATEGORY.WEAPON only;
 //      Miscellaneous = Guidance + Defense + Accessories (everything else)
@@ -234,15 +245,48 @@ export function isShopActive() {
 function updateItemList() {
   shop.items = [];
   if (shop.category === TAB_SCORE) return; // Score tab is view-only
-  for (let i = 2; i < WEAPONS.length; i++) {
-    const w = WEAPONS[i];
-    if (shop.category === TAB_WEAPONS && w.category !== CATEGORY.WEAPON) continue;
-    if (shop.category === TAB_MISC    && w.category === CATEGORY.WEAPON) continue;
-    if (w.arms <= config.armsLevel) {
-      shop.items.push({ idx: i, weapon: w });
+
+  if (shop.category === TAB_MISC) {
+    // EXE: Misc tab groups items under 5 sub-category headers with hline separators
+    for (const group of MISC_GROUPS) {
+      const groupItems = [];
+      for (const idx of group.indices) {
+        const w = WEAPONS[idx];
+        if (w && w.arms <= config.armsLevel) {
+          groupItems.push({ idx, weapon: w });
+        }
+      }
+      if (groupItems.length > 0) {
+        shop.items.push({ isHeader: true, header: group.header });
+        for (const item of groupItems) {
+          shop.items.push(item);
+        }
+      }
+    }
+  } else {
+    // Weapons tab: only CATEGORY.WEAPON items
+    for (let i = 2; i < WEAPONS.length; i++) {
+      const w = WEAPONS[i];
+      if (w.category !== CATEGORY.WEAPON) continue;
+      if (w.arms <= config.armsLevel) {
+        shop.items.push({ idx: i, weapon: w });
+      }
     }
   }
+  // Ensure selectedItem lands on a selectable row (skip headers)
   shop.selectedItem = Math.min(shop.selectedItem, Math.max(0, shop.items.length - 1));
+  adjustSelectionPastHeader(1);
+}
+
+// Skip header rows when navigating: move selectedItem in the given direction until it lands on a non-header
+function adjustSelectionPastHeader(dir) {
+  while (shop.selectedItem >= 0 && shop.selectedItem < shop.items.length &&
+         shop.items[shop.selectedItem] && shop.items[shop.selectedItem].isHeader) {
+    shop.selectedItem += dir;
+  }
+  if (shop.selectedItem < 0) shop.selectedItem = 0;
+  if (shop.selectedItem >= shop.items.length) shop.selectedItem = Math.max(0, shop.items.length - 1);
+  // If still on header (edge case: all items are headers), do nothing
 }
 
 // AI auto-purchase
@@ -503,13 +547,15 @@ export function shopTick(player) {
     updateItemList();
   }
 
-  // Item selection
+  // Item selection (skip header rows)
   if (consumeKey('ArrowUp')) {
     shop.selectedItem = Math.max(0, shop.selectedItem - 1);
+    adjustSelectionPastHeader(-1);
     if (shop.selectedItem < shop.scrollOffset) shop.scrollOffset = shop.selectedItem;
   }
   if (consumeKey('ArrowDown')) {
     shop.selectedItem = Math.min(shop.items.length - 1, shop.selectedItem + 1);
+    adjustSelectionPastHeader(1);
     if (shop.selectedItem >= shop.scrollOffset + perPage) {
       shop.scrollOffset = shop.selectedItem - perPage + 1;
     }
@@ -518,7 +564,7 @@ export function shopTick(player) {
   // Buy (EXE: item_click_handler at file 0x1503B — calls dialog_select_item 0x3F19:0x5260)
   if (consumeKey('Enter') || consumeKey('Space')) {
     const item = shop.items[shop.selectedItem];
-    if (item) {
+    if (item && !item.isHeader) {
       const price = getWeaponPrice(item.idx);
       if (player.cash >= price) {
         player.cash -= price;
@@ -531,7 +577,7 @@ export function shopTick(player) {
   // Sell — EXE: opens "Sell Equipment" sub-dialog (DS:0x234C) on Backspace
   if (consumeKey('Backspace') || consumeKey('Delete')) {
     const item = shop.items[shop.selectedItem];
-    if (item && player.inventory[item.idx] > 0) {
+    if (item && !item.isHeader && player.inventory[item.idx] > 0) {
       shop.selling = true;
       shop.sellQty = 1;
     }
@@ -571,15 +617,18 @@ export function shopTick(player) {
         }
       }
     }
-    // Item list — click to select; click selected again to buy
+    // Item list — click to select; click selected again to buy (skip header rows)
     else if (shop.category !== TAB_SCORE &&
              mx >= PANEL_X + 2 && mx < PANEL_X + panelW - 2 && my >= listY) {
       const clickedRow = Math.floor((my - listY) / rowH) + shop.scrollOffset;
       if (clickedRow >= 0 && clickedRow < shop.items.length) {
-        if (clickedRow === shop.selectedItem) {
+        const clickedItem = shop.items[clickedRow];
+        if (clickedItem && clickedItem.isHeader) {
+          // Ignore clicks on header rows
+        } else if (clickedRow === shop.selectedItem) {
           // Second click on already-selected item = buy
           const item = shop.items[shop.selectedItem];
-          if (item) {
+          if (item && !item.isHeader) {
             const price = getWeaponPrice(item.idx);
             if (player.cash >= price) {
               player.cash -= price;
@@ -692,6 +741,14 @@ export function drawShop(player) {
     for (let i = shop.scrollOffset; i < endIdx; i++) {
       const item      = shop.items[i];
       const y         = listY + (i - shop.scrollOffset) * rowH;
+
+      // EXE: Misc tab sub-category headers — non-selectable rows with hline separator
+      if (item.isHeader) {
+        hline(PANEL_X + 2, PANEL_X + panelW - 3, y + 1, UI_MED_BORDER);
+        drawText(PANEL_X + 3, y + 3, item.header, UI_HIGHLIGHT);
+        continue;
+      }
+
       const selected  = i === shop.selectedItem;
       const itemPrice = getWeaponPrice(item.idx);
       const canAfford = player.cash >= itemPrice;
@@ -728,7 +785,7 @@ export function drawShop(player) {
     // Right info panel (item details + controls help) — only if screen wide enough
     if (rightX < SW - 10) {
       const sel = shop.items[shop.selectedItem];
-      if (sel) {
+      if (sel && !sel.isHeader) {
         drawText(rightX, PANEL_Y + 2,  sel.weapon.name,               baseColor);
         drawText(rightX, PANEL_Y + 14, `Price:  $${getWeaponPrice(sel.idx)}`, UI_DARK_TEXT);
         drawText(rightX, PANEL_Y + 25, `Bundle: x${sel.weapon.bundle}`, UI_DARK_TEXT);
