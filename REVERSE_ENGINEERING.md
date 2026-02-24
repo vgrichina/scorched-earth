@@ -2627,7 +2627,7 @@ palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 | 2 | **Rock/Gray** | Loop: `R=G=B=di*2+7` + random scatter | Dark gray (7,7,7) → white (63,63,63) |
 | 3 | **Night** | Two-part: blue core + gray surface | Dark blue (0,0,30) → black → gray (38,38,38) |
 | 4 | **Desert/Lava** | 3-segment FPU gradient from (63,63,0) | Yellow (63,58,2) → red (63,20,20) → blue (29,29,63) → indigo (11,11,34) |
-| 5 | **Varied** | Random base from 6-entry table | See base color table below |
+| 5 | **Castle** | Same 3-band FPU gradient as Type 4 | Yellow → red → blue → indigo (shares 0x39C31 handler) |
 | 6 | **Scanned MTN** | Palette from .MTN file | 8-bit→6-bit: `VGA = val >> 2` |
 
 ### Base Color Table (Type 5) — DS:0x5036 (file 0x05ADB6)
@@ -3352,7 +3352,7 @@ All located in `disasm/` directory:
 #### Terrain/palette (terrain.js, palette.js)
 - [x] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103): **DONE**. palette.js — all 7 sky type loops changed from 24 to 25 entries (i<25, t=i/24), writing VGA 80-104. BLACK constant moved from 104→252 (unused palette space) to avoid conflict with 25th sky entry. constants.js SKY_PAL_COUNT changed 24→25. Comments updated in terrain.js, framebuffer.js, palette.js.
 - [x] Fix terrain palette type 4 (Sunset/Desert) to use 3-segment FPU gradient: **DONE**. palette.js case 4 replaced single linear ramp with EXE-faithful 3-segment interpolation: VGA 120=(63,63,0) bright yellow, Loop 1 (121-130) gold→red-brown using t2=(9-di)/10, Loop 2 (131-140) red→blue-purple, Loop 3 (141-149) blue-purple→dark indigo (9 entries, same t formula). All 30 entries verified against "Desert/Lava Gradient Detail" table. Uses Math.trunc matching x87 _ftol truncation.
-- [ ] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table
+- [x] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table: **DONE**. palette.js — case 5 now falls through to case 4 (same 3-band FPU gradient: VGA 120=(63,63,0) yellow, Loop 1 gold→red-brown, Loop 2 red→blue-purple, Loop 3 blue→dark indigo). Removed unused VARIED_COLORS base color table. EXE handler 0x39C31 is shared between Type 4 and Type 5.
 - [ ] Fix terrain palette type 3 (Night/MTN) to use EXE's 10/20 split: Loop 1 (VGA 120–129): R=G=i, B=i+30 (10 entries, blue-gray gradient). Loop 2 (VGA 130–149): R=G=B=(i-10)*2 (20 entries, gray depth gradient). Web port incorrectly uses 15/15 split with pure-blue ramp. See "Night/MTN Palette Detail" table.
 - [x] Fix terrain bitmap shading direction once RE investigation confirms correct mapping (surface=120 or surface=149): **No fix needed** — web port already has correct direction (surface=149, underground=120), matching EXE. See RE investigation task above.
 

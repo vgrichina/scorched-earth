@@ -35,15 +35,6 @@ const PLAYER_COLORS = [
   [ 0,  0, 63],  // 9: Blue
 ];
 
-// EXE: Type 5 (Varied) base color table from DS:0x5036 (file 0x0BDB6)
-const VARIED_COLORS = [
-  [38, 25, 17],  // Warm brown
-  [54, 36, 28],  // Light tan
-  [53, 53, 47],  // Silver gray
-  [20, 62, 20],  // Bright green
-  [ 9, 35,  9],  // Dark green
-  [36, 54, 28],  // Yellow-green
-];
 
 function setEntry(index, r, g, b) {
   const i = index * 3;
@@ -199,7 +190,8 @@ export function setupTerrainPalette(terrainType) {
       }
       break;
 
-    case 4: { // Desert/Lava: 3-segment FPU gradient matching EXE (file 0x39C31)
+    case 5: // Castle: same 3-band Sunset-style FPU gradient as Type 4 (EXE 0x39C31)
+    case 4: { // Desert/Lava + Castle: 3-segment FPU gradient matching EXE (file 0x39C31)
       // VGA 120: bright yellow (set separately in EXE via set_sky_palette_entry)
       setEntry(120, 63, 63, 0);
       // Loop 1 (VGA 121-130): warm gold → red-brown
@@ -227,19 +219,6 @@ export function setupTerrainPalette(terrainType) {
           Math.trunc(t2 * 29 + t1 * 9),   // R=G: 27→11
           Math.trunc(t2 * 29 + t1 * 9),
           Math.trunc(t2 * 63 + t1 * 31)   // B: 59→34
-        );
-      }
-      break;
-    }
-
-    case 5: { // Varied: random from 6-entry table
-      const cidx = random(6);
-      const [cr, cg, cb] = VARIED_COLORS[cidx];
-      for (let di = 0; di < 30; di++) {
-        setEntry(120 + di,
-          Math.floor(cr * (di + 8) / 45),
-          Math.floor(cg * (di + 8) / 45),
-          Math.floor(cb * (di + 8) / 45)
         );
       }
       break;
