@@ -51,24 +51,76 @@ import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
 
-// Player icon bitmap (icon 0 from EXE: DS:0x3826, 4×7px, type=2)
-// Column-major: pixel_data[col * height + row], 0=transparent, nonzero=foreground
-// EXE: draw_icon_alive (0x261D7) renders filled; draw_icon_dead (0x26245) renders outline
-const PLAYER_ICON_W = 4, PLAYER_ICON_H = 7;
-const PLAYER_ICON = [
-  1, 1, 1, 0, 0, 0, 0,   // col 0
-  0, 1, 1, 1, 1, 1, 1,   // col 1
-  1, 1, 1, 0, 0, 0, 0,   // col 2
-  1, 0, 0, 0, 0, 0, 0,   // col 3
+// Icon bitmap table — all 48 icons from EXE DS:0x3826 (stride 125 bytes)
+// Per icon: {t:pattern_type, w:width, h:height, px:[column-major pixels]}
+// EXE draw_icon_alive (0x261D7): validates idx 0-47, calls internal renderer
+// px[col * h + row] = 0 (transparent) or 1 (filled in caller-supplied color)
+// Icons: 0=player tank, 1-34=weapons, 35-40=accessories, 41-44=blank, 45-47=misc
+const ICONS = [
+  {t:2,w:4,h:7,px:[1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,0,0]},
+  {t:0,w:3,h:10,px:[1,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1]},
+  {t:1,w:3,h:8,px:[1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {t:0,w:3,h:10,px:[1,1,1,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1]},
+  {t:0,w:2,h:11,px:[1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0]},
+  {t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},
+  {t:2,w:1,h:7,px:[0,1,1,1,1,1,0]},
+  {t:3,w:2,h:6,px:[0,0,1,0,0,0,0,0,0,1,0,0]},
+  {t:1,w:1,h:10,px:[0,0,0,1,1,0,0,0,0,0]},
+  {t:5,w:5,h:1,px:[1,1,0,0,0]},
+  {t:4,w:4,h:3,px:[0,1,0,1,1,1,0,1,0,1,0,0]},
+  {t:3,w:3,h:5,px:[0,1,1,0,0,1,0,0,1,0,1,0,1,1,0]},
+  {t:3,w:1,h:6,px:[1,1,1,1,0,0]},
+  {t:1,w:1,h:9,px:[0,0,1,1,1,1,0,0,0]},
+  {t:3,w:1,h:5,px:[0,0,0,0,1]},
+  {t:2,w:0,h:7,px:[]},
+  {t:3,w:3,h:7,px:[0,0,1,0,1,0,0,0,1,0,1,1,1,0,1,1,1,1,0,1,1]},
+  {t:2,w:2,h:9,px:[0,0,0,1,1,1,0,0,0,0,0,1,1,0,0,1,0,0]},
+  {t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},
+  {t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},
+  {t:3,w:3,h:4,px:[0,1,1,0,1,1,1,1,1,1,1,1]},
+  {t:3,w:3,h:5,px:[0,1,1,1,0,1,1,1,1,1,1,1,1,1,1]},
+  {t:0,w:3,h:11,px:[0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0]},
+  {t:4,w:3,h:4,px:[0,1,0,0,0,1,1,0,1,1,1,1]},
+  {t:0,w:1,h:11,px:[1,1,0,1,1,1,0,1,0,1,1]},
+  {t:3,w:1,h:5,px:[0,0,1,0,0]},
+  {t:0,w:0,h:11,px:[]},
+  {t:1,w:3,h:9,px:[0,0,0,0,1,0,0,1,1,0,1,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1,1]},
+  {t:0,w:1,h:11,px:[1,0,0,0,0,0,0,0,0,0,0]},
+  {t:0,w:1,h:11,px:[0,0,0,0,1,1,0,0,0,0,0]},
+  {t:0,w:3,h:11,px:[0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1]},
+  {t:3,w:0,h:5,px:[]},
+  {t:0,w:2,h:11,px:[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0]},
+  {t:0,w:2,h:11,px:[0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,0]},
+  {t:0,w:2,h:11,px:[0,1,1,0,0,0,0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1]},
+  {t:0,w:3,h:11,px:[0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0]},
+  {t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},
+  {t:0,w:0,h:11,px:[]},{t:0,w:0,h:11,px:[]},
+  {t:0,w:1,h:11,px:[0,0,1,1,1,1,1,1,1,0,0]},
+  {t:2,w:1,h:7,px:[0,1,1,1,1,1,0]},
+  {t:2,w:4,h:7,px:[0,0,1,1,1,0,0,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0]},
 ];
 
-// Draw an icon bitmap at (x, y) in given color (column-major pixel data)
+// Draw icon bitmap at (x, y) in given color — column-major pixel data
+// EXE: internal renderer at 0x26110, called by draw_icon_alive/dead/blank wrappers
 function drawIconBitmap(x, y, pixels, width, height, color) {
   for (let col = 0; col < width; col++) {
     for (let row = 0; row < height; row++) {
       if (pixels[col * height + row]) setPixel(x + col, y + row, color);
     }
   }
+}
+
+// Draw icon by index from ICONS table
+// EXE: draw_icon_alive (0x261D7) — validates idx 0-47, extracts type/w/h/px, calls renderer
+// Vertically centers small icons within the 12px row height
+function drawIcon(x, y, iconIdx, color) {
+  if (iconIdx < 0 || iconIdx >= ICONS.length) return;
+  const icon = ICONS[iconIdx];
+  if (icon.w === 0) return; // blank icon — nothing to draw
+  // EXE: type 0 = full height (11px), type 2 = short (7px), others = variable
+  // Center vertically within BAR_H (12px row). Full height icons start at y.
+  const yOff = icon.h >= 10 ? 0 : Math.floor((BAR_H - icon.h) / 2);
+  drawIconBitmap(x, y + yOff, icon.px, icon.w, icon.h, color);
 }
 
 // HUD layout constants
@@ -159,9 +211,9 @@ export function drawHud(player, wind, round, opts) {
       const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
       // EXE: draw_icon_alive (filled in player color) / draw_icon_dead (outline in palette 0xA9)
       const iconColor = p.alive ? pColor : UI_DARK_TEXT;
-      drawIconBitmap(ix, HUD_Y, PLAYER_ICON, PLAYER_ICON_W, PLAYER_ICON_H, iconColor);
+      drawIcon(ix, HUD_Y, 0, iconColor); // icon 0 = player tank
       if (i === player.index) {
-        setPixel(ix + 2, HUD_Y + PLAYER_ICON_H + 2, pColor);
+        setPixel(ix + 2, HUD_Y + ICONS[0].h + 2, pColor);
       }
     }
   } else {
@@ -187,10 +239,15 @@ export function drawHud(player, wind, round, opts) {
     } else {
       drawText(windX, HUD_Y, 'Wind: ' + wind, baseColor);
     }
-    // EXE: weapon at E9E0 = (E9DC + measureText("MMMMMMMMMMMMMMM") + 2) + 15
-    // Left-aligned at a fixed column after the wind area (not right-aligned to screen edge)
+    // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
+    // EXE: E9E0 = E9DE + 15 → weapon text position
+    const wpnIconX = windX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
+    // EXE: draw_player_icon([E9DE], HUD_Y, wpn_idx) — draws selected weapon's icon
+    if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
+      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon, baseColor);
+    }
+    const wpnX = wpnIconX + 15; // E9E0 = E9DE + 15
     const wpnFull = ammo === -1 ? weaponName : ammo + ': ' + weaponName;
-    const wpnX = windX + measureText('MMMMMMMMMMMMMMM') + 2 + 15;
     drawText(wpnX, HUD_Y, wpnFull, baseColor);
   }
 
@@ -264,12 +321,16 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, ROW2_Y, String(fuelVal).padStart(4), fuelColor);
     x += barWidth; // → E9EC
 
-    // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), indicator (25px) at E9EE
-    // EXE: inventory[D556=43] = battery count; icons.cpp draws indicator icon
+    // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), icon at E9EE
+    // EXE: clears area, formats "%2d" count, calls draw_icon_alive(E9EE, ROW2_Y, D556=43, color)
+    // Icon 43 (battery) has width=0 in EXE — blank icon. Web port adds fill bar for usability.
     const batCount = (player.inventory && player.inventory[43]) || 0;
     const batColor = batCount > 0 ? baseColor : dimColor;
     drawText(x, ROW2_Y, String(batCount).padStart(2), batColor);
     x += countFieldW; // → E9EE
+    // EXE: draw_icon_alive(x, ROW2_Y, 43, color) — icon 43 is blank (w=0)
+    drawIcon(x, ROW2_Y, 43, batColor);
+    // Web port: bar fill for visual feedback (not in EXE, but icon is blank there too)
     drawBarOutline(x, ROW2_Y, 25, batColor);
     drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
     if (batCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, Math.ceil(batCount * 2.5)), batColor);
@@ -282,44 +343,48 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, ROW2_Y, String(paraCount).padStart(2), paraColor);
     x += countFieldW; // → E9F2
 
-    // Widget 3 (0x3DE5E): parachute indicator (25px) at E9F2 — icons.cpp icon
+    // Widget 3 (0x3DE5E): parachute icon at E9F2
+    // EXE: color = struct[0x28] > 0 ? [EF22] : [EF24]
+    // EXE: draw_icon_alive(E9F2, ROW2_Y, D554=42, color) — icon 42 is blank (w=0)
+    drawIcon(x, ROW2_Y, 42, paraColor);
+    // Web port: bar fill for visual feedback
     drawBarOutline(x, ROW2_Y, 25, paraColor);
     drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
     if (paraCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, paraCount * 5), paraColor);
     x += 25; // → E9F4
 
-    // Widget 4 (0x3DB30): current item count at E9F4, bar (20px) at E9F6, % at E9F8
-    // EXE: selected weapon count from weapon_sub_struct; bar = quantity level; % = ammo%
+    // Widget 4 (0x3DB30): item display at E9F4, weapon icon at E9F6, % at E9F8
+    // EXE: clears E9F4 to E9FA-1, shows count text, draws weapon icon, shows percentage
     const itemCount = ammo === -1 ? 0 : Math.max(0, ammo || 0);
     const itemColor = (ammo === -1 || itemCount > 0) ? baseColor : dimColor;
     drawText(x, ROW2_Y, String(Math.min(99, itemCount)), itemColor);
     x += countFieldW; // → E9F6
-    drawBarOutline(x, ROW2_Y, 20, itemColor);
-    drawBarFill(x, ROW2_Y, 20, UI_DEEP_SHADOW);
-    if (ammo === -1) {
-      drawBarFill(x, ROW2_Y, 20, itemColor); // unlimited = full bar
-    } else if (itemCount > 0) {
-      drawBarFill(x, ROW2_Y, Math.min(20, Math.round(itemCount / 5)), itemColor);
+    // EXE: draw_icon_alive(E9F6, ROW2_Y, item_index, color) — draws selected weapon icon
+    if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
+      drawIcon(x, ROW2_Y, player.selectedWeapon, itemColor);
     }
     x += 20; // → E9F8
-    // Item % text (format "%d%%") — EXE draws quantity as percentage of some max
+    // EXE: "%d%%" format at E9F8 — item percentage
     const itemPct = ammo === -1 ? 100 : Math.min(100, itemCount * 10);
     drawText(x, ROW2_Y, itemPct + '%', itemColor);
     x += pctFieldW; // → E9FA
 
-    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), bar (20px) at E9FC
-    // EXE: inventory[activeShield] = shield qty; web: shieldEnergy = HP remaining
+    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), icon/bar at E9FC
+    // EXE: clears E9FA to E9FE-1, shows shield type info + bar
     const shieldCount = player.shieldEnergy || 0;
     const shieldColor = shieldCount > 0 ? baseColor : dimColor;
     drawText(x, ROW2_Y, String(Math.min(99, shieldCount)), shieldColor);
     x += countFieldW; // → E9FC
+    // EXE: draws shield icon or bar (20px area). Web port: bar fill.
     drawBarOutline(x, ROW2_Y, 20, shieldColor);
     drawBarFill(x, ROW2_Y, 20, UI_DEEP_SHADOW);
     if (shieldCount > 0) drawBarFill(x, ROW2_Y, Math.min(20, Math.round(shieldCount / 5)), shieldColor);
     x += 20; // → E9FE
 
-    // Inline (draw_hud_full 0x304A9): [D566] item at E9FE ("%2d" DS:57D4)
-    // EXE: DS:D566 = weapon index (currently 0 at runtime = none); skip if 0
+    // Widget 6 (0x3DD59): [D566] item icon at EA00
+    // EXE: color = struct[0x2A] != 0 ? [EF22] : [EF24]
+    // EXE: draw_icon_alive(EA00, ROW2_Y, D566, color) — typically blank icon
+    // Widget 7 (0x3DD95): conditional display — skipped if screen width <= 320
   }
 
   // Guided missile indicator (gameplay feature, not from EXE HUD)

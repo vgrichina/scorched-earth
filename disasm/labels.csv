@@ -52,6 +52,21 @@
 0x28592,setup_player_palette
 0x3A0A9,setup_sky_ceiling_palette
 0x4569F,store_sky_base_index
+0x261D7,draw_icon_alive
+0x26245,draw_icon_dead
+0x262B3,draw_icon_blank
+0x26110,icon_internal_renderer
+0x318D8,hud_widget1_fuel
+0x3DE9B,hud_widget2_battery
+0x3DE5E,hud_widget3_parachute
+0x3DB30,hud_widget4_item
+0x3DC94,hud_widget5_shield
+0x3DD59,hud_widget6_item2
+0x3DD95,hud_widget7_conditional
+DS:0xD548,HUD_NO_SHIELD_SENTINEL
+DS:0xD554,HUD_PARACHUTE_IDX
+DS:0xD556,HUD_BATTERY_IDX
+DS:0xD566,HUD_ITEM2_IDX
 
 # ---- Data segment variables (DS: prefix) ----
 DS:0x515C,MAX_WIND
