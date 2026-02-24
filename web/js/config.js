@@ -28,6 +28,8 @@ export const config = {
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
   gravity: 0.2,        // EXE: GRAVITY=0.200000 (DS:0x512A, range 0.05-10.0, accel = 2500×G px/sec²)
   viscosity: 0,        // EXE: AIR_VISCOSITY=0 (range 0–20; factor = 1.0 - value/10000 per step; DS:5178)
+  edgesExtend: 75,     // EXE: EDGES_EXTEND=75 (DS:0x5158, border extension pixels beyond screen edges)
+  suspendDirt: 0,      // EXE: SUSPEND_DIRT=0 (DS:0x5166, 0-100% of dirt that floats)
   wind: 0,             // EXE: MAX_WIND=0 (max initial wind magnitude)
   changeWind: 0,       // EXE: CHANGING_WIND=Off (random walk per turn)
 
@@ -92,7 +94,7 @@ export const config = {
 // Keys to persist in localStorage (exclude derived/constant values)
 const PERSIST_KEYS = [
   'graphicsMode',
-  'gravity', 'viscosity', 'wind', 'changeWind',
+  'gravity', 'viscosity', 'edgesExtend', 'suspendDirt', 'wind', 'changeWind',
   'landType', 'skyType', 'wallType',
   'numPlayers', 'rounds', 'armsLevel',
   'scoringMode', 'startCash', 'interest', 'freeTurns', 'freeMarket',

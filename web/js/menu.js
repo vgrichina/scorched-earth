@@ -99,8 +99,10 @@ const SUBMENUS = {
     items: [
       { label: '~Air Viscosity:', key: 'viscosity', min: 0, max: 20, step: 1 },
       { label: '~Gravity:', key: 'gravity', min: 0.05, max: 10, step: 0.05, float: true },
+      { label: '~Borders Extend:', key: 'edgesExtend', min: 0, max: 500, step: 5 },
       { label: '~Effect of Walls:', key: 'wallType', min: 0, max: 7, step: 1,
         names: ['None', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete', 'Random', 'Erratic'] },
+      { label: '~Suspend Dirt:', key: 'suspendDirt', min: 0, max: 100, step: 5, suffix: '%' },
       { label: '~Sky:', key: 'skyType', min: 0, max: 6, step: 1,
         names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Black', 'Random'] },
       { label: '~Max. Wind:', key: 'wind', min: 0, max: 20, step: 1 },
