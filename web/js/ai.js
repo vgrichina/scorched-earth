@@ -30,26 +30,79 @@ export const AI_NAMES = [
 ];
 
 // EXE: noise parameters per AI type — higher = more inaccurate
-// EXE: extracted from shark.cpp data section (file 0x38070+)
-// Format: [angleNoise, powerNoise, weaponNoise]
+// EXE: switch at file 0x29505, each type pushes different param count
+// Lower noise_amplitude = higher freq harmonics = more accurate scanning
 const AI_NOISE = {
   [AI_TYPE.MORON]:     [50, 50, 50],
-  [AI_TYPE.SHOOTER]:   [23, 23, 23],
-  [AI_TYPE.POOLSHARK]: [23, 23, 23],
-  [AI_TYPE.TOSSER]:    [63, 23, 23],
+  [AI_TYPE.SHOOTER]:   [23],
+  [AI_TYPE.POOLSHARK]: [23],
+  [AI_TYPE.TOSSER]:    [63, 23],
   [AI_TYPE.CHOOSER]:   [63, 63, 23],
   [AI_TYPE.SPOILER]:   [63, 63, 63],
 };
 
-// EXE: sinusoidal noise — smoother variance than uniform random
-// Multi-harmonic sine wave produces repeatable, smooth noise
-function sinusoidalNoise(amplitude) {
-  const t = performance.now() * 0.001;
-  return amplitude * (
-    Math.sin(t * 3.7) * 0.5 +
-    Math.sin(t * 7.3) * 0.3 +
-    Math.sin(t * 13.1) * 0.2
-  ) * 0.15;
+// EXE: ai_inject_noise (file 0x25DE9-0x2610F)
+// Budget-driven harmonics with shot-number domain (not wall-clock).
+// DS constants: π=DS:0x322E, 2π=DS:0x3236, 4.0=DS:0x323E, 0.5=DS:0x3242, 2.0=DS:0x3246
+const NOISE_SHOT_RANGE = 90;  // angular range for budget calculation
+const POWER_NOISE_SCALE = 5;  // degrees-to-power-units scaling
+
+function generateHarmonics(noiseAmplitude) {
+  const freq_base = Math.PI / (noiseAmplitude * 2);  // DS:0x322E / (amp*2)
+  const freq_cap = 2 * Math.PI / 10;                 // DS:0x3236 / 10
+  for (let retry = 0; retry < 20; retry++) {
+    let freq_mult = freq_base * 4.0;                  // DS:0x323E
+    let budget = NOISE_SHOT_RANGE - 30;
+    const harmonics = [];
+    while (budget > 10 && harmonics.length < 5) {
+      const amp = Math.random() * budget * 0.5;       // DS:0x3242
+      let freq, attempts = 0;
+      do {
+        freq = Math.random() * freq_mult;
+        attempts++;
+      } while ((freq < freq_base || freq > freq_cap) && attempts < 1000);
+      if (attempts >= 1000) freq = (freq_base + freq_cap) / 2;
+      harmonics.push({ amp, freq, phase: Math.floor(Math.random() * 300) });
+      budget = Math.floor(budget - amp * 2.0);         // DS:0x3246
+      freq_mult *= 4.0;
+    }
+    if (harmonics.length >= 2) return harmonics;       // min 2 harmonics
+  }
+  // Fallback: two minimal harmonics
+  const mid = (freq_base + freq_cap) / 2;
+  return [
+    { amp: 10, freq: mid, phase: Math.floor(Math.random() * 300) },
+    { amp: 5, freq: mid * 2, phase: Math.floor(Math.random() * 300) },
+  ];
+}
+
+function evaluateHarmonics(harmonics, shotNumber) {
+  let sum = 0;
+  for (const h of harmonics) {
+    sum += h.amp * Math.sin(h.freq * (h.phase + shotNumber));
+  }
+  return sum;
+}
+
+// Per-player noise state: harmonics persist for scanning correlation, shot counter increments
+const playerNoiseState = new Map();
+
+function getNoiseState(player, noiseParams) {
+  let state = playerNoiseState.get(player);
+  const key = noiseParams.join(',');
+  if (!state || state.key !== key) {
+    state = {
+      key,
+      generators: noiseParams.map(amp => generateHarmonics(amp)),
+      shotNumber: state ? state.shotNumber : 0,
+    };
+    playerNoiseState.set(player, state);
+  }
+  return state;
+}
+
+export function resetAINoise() {
+  playerNoiseState.clear();
 }
 
 // AI state for current computation
@@ -96,9 +149,23 @@ export function aiComputeShot(player) {
   // Compute ideal angle and power using analytic ballistics
   const solution = solveBallistic(player, target);
 
-  // EXE: sinusoidal noise model — multi-harmonic instead of uniform random
-  const angleNoise = sinusoidalNoise(noise[0]) * 0.15;
-  const powerNoise = sinusoidalNoise(noise[1]) * 3;
+  // EXE: scanning noise — shot-number domain, budget-driven harmonics
+  // Each noise param generates independent harmonic set; param count per AI type
+  // controls which aspects get noise (more params = wider noise)
+  const noiseState = getNoiseState(player, noise);
+  const shotNum = noiseState.shotNumber++;
+
+  // Angle noise: param[0] + param[2] if present (scaled by noise_amplitude)
+  let angleNoise = evaluateHarmonics(noiseState.generators[0], shotNum) * noise[0] / 100;
+  if (noise.length >= 3) {
+    angleNoise += evaluateHarmonics(noiseState.generators[2], shotNum) * noise[2] / 100;
+  }
+
+  // Power noise: param[1] if present (no power noise for 1-param types like Shooter)
+  let powerNoise = 0;
+  if (noise.length >= 2) {
+    powerNoise = evaluateHarmonics(noiseState.generators[1], shotNum) * noise[1] / 100 * POWER_NOISE_SCALE;
+  }
 
   aiState.targetAngle = clamp(Math.round(solution.angle + angleNoise), 0, 180);
   aiState.targetPower = clamp(Math.round(solution.power + powerNoise), 50, 1000);
