@@ -158,7 +158,10 @@ export function triggerAttackSpeech(player) {
     return;
   }
 
+  // EXE play.cpp 0x30661: TALKING_TANKS>1 (All) → always show;
+  // TALKING_TANKS==1 (Computers) → only if player[+0x22] != 0 (AI type)
   if (!config.talkingTanks) return;
+  if (config.talkingTanks === 1 && player.aiType === 0) return;
   if (random(100) >= config.talkProbability) return;
 
   bubble.active = true;
@@ -169,6 +172,8 @@ export function triggerAttackSpeech(player) {
 }
 
 // Trigger death speech when a player is killed
+// EXE show_die_comment (0x18155): no Computers-vs-All guard at caller;
+// display_talk_bubble checks TALKING_TANKS!=0 — death speech shows for all players
 export function triggerDeathSpeech(player) {
   if (!config.talkingTanks) return;
   if (random(100) >= config.talkProbability) return;

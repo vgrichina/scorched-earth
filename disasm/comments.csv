@@ -111,6 +111,7 @@ DS:0x50D8,is_castle_terrain: 1 when terrain_type==5 (Castle); 0 otherwise
 0x17E8D,free_talk_data: frees all strdup'd lines + pointer array; flag bit0 → also free struct
 0x17F09,get_random_line: returns lines[random(count)] or empty string if count==0
 0x17F50,load_talk_file: fopen(filename,"rt"); 2-pass: count lines then strdup each; max 80 chars/line (fgets buf=0x50)
+0x30652,play_fire_talk_guard: if TALKING_TANKS>1 (All) → call show_attack_comment; if <=1 → skip humans (player[+0x22]==0)
 0x18107,load_talk_files: loads attack(DS:ECD8→DS:CC8E) + die(DS:ED18→DS:CC94); sets DS:0x0128=1
 0x18155,show_die_comment: tank death handler; get_random_line(&die_talk) → display_talk_bubble
 0x181A1,show_attack_comment: tank fire handler; 2% random-player taunt; get_random_line(&attack_talk) → display_talk_bubble

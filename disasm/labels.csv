@@ -188,6 +188,7 @@ DS:0x0128,talk_files_loaded
 DS:0x575C,pcx_filename
 0x2FAE0,pcx_display
 0x2FB6B,play_loop_switch_table
+0x30652,play_fire_talk_guard
 
 # ---- Falling tank / impact damage system ----
 0x202F6,check_deploy
