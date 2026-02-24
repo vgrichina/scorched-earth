@@ -25,7 +25,7 @@ import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
 import { checkShieldDeflection } from './shields.js';
 import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
-import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
+import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
 import { generateTerrain } from './terrain.js';
 import { resetMenuState } from './menu.js';
 

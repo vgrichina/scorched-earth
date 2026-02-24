@@ -77,6 +77,88 @@ import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 
+// === Dynamic Market Pricing (EXE: SCORCH.MKT, mkt_update at file 0x2BB5E) ===
+// EXE constants: DS:0x5260=alpha(0.7), DS:0x5190=sensitivity(0.05), DS:0x5298=signal_div(10.0)
+// DS:0x5268=MKT_INIT(0.1) — default EMA value and minimum price ratio
+const MKT_ALPHA        = 0.7;
+const MKT_SENSITIVITY  = 0.05;
+const MKT_SIGNAL_DIV   = 10.0;
+const MKT_INIT         = 0.1;
+
+// Per-weapon market state (mirrors EXE weapon struct fields +0x1A..+0x2C)
+// Indexed by weapon index (same as WEAPONS array)
+const market = [];
+
+// Initialize market state for all weapons (EXE: mkt_init_defaults at file 0x2B80A)
+export function initMarket() {
+  market.length = 0;
+  for (let i = 0; i < WEAPONS.length; i++) {
+    market.push({
+      mktCost: WEAPONS[i].price,        // +0x1A: current market price (starts at base)
+      soldQty: 0,                        // +0x1E: units sold this round
+      unsoldRounds: 0,                   // +0x22: consecutive rounds with zero sales
+      priceSignal: MKT_INIT,             // +0x24: EMA of squared price ratio
+      demandAvg: MKT_INIT,              // +0x2C: EMA of normalized sales rate
+    });
+  }
+}
+
+// Get effective price for a weapon (mkt_cost when free market enabled, base price otherwise)
+export function getWeaponPrice(weaponIdx) {
+  if (config.freeMarket && market[weaponIdx]) {
+    return market[weaponIdx].mktCost;
+  }
+  return WEAPONS[weaponIdx].price;
+}
+
+// Track a purchase (EXE: inc [bx+0x1214] at file 0x14A2A)
+function trackPurchase(weaponIdx) {
+  if (market[weaponIdx]) {
+    market[weaponIdx].soldQty++;
+  }
+}
+
+// Per-round market update (EXE: mkt_update at file 0x2BB5E)
+// Called at end of each round when FREE_MARKET is enabled
+export function mktUpdate() {
+  if (!config.freeMarket) return;
+  const numPlayers = players.length;
+  for (let i = 0; i < WEAPONS.length; i++) {
+    const m = market[i];
+    if (!m || WEAPONS[i].price === 0) continue;  // skip non-purchasable (price=0)
+
+    // Track unsold duration
+    if (m.soldQty === 0) {
+      m.unsoldRounds++;
+    } else {
+      m.unsoldRounds = 0;
+    }
+
+    // Update demand EMA (normalized by player count)
+    m.demandAvg = m.demandAvg * MKT_ALPHA
+      + m.soldQty * (1 - MKT_ALPHA) / numPlayers;
+
+    // Update price signal EMA (tracks squared price ratio)
+    const priceRatio = m.mktCost / WEAPONS[i].price;
+    const signalUpdate = priceRatio * priceRatio * (1 - MKT_ALPHA) / MKT_SIGNAL_DIV;
+    m.priceSignal = m.priceSignal * MKT_ALPHA + signalUpdate;
+
+    // Adjust market price
+    const factor = 1.0 + (m.demandAvg - m.priceSignal) * MKT_SENSITIVITY;
+    m.mktCost = Math.trunc(m.mktCost * factor);
+
+    // Clamp to [base×0.1, base×100] (EXE: validation on load)
+    const basePrice = WEAPONS[i].price;
+    const minPrice = Math.max(1, Math.trunc(basePrice * 0.1));
+    const maxPrice = basePrice * 100;
+    if (m.mktCost < minPrice) m.mktCost = minPrice;
+    if (m.mktCost > maxPrice) m.mktCost = maxPrice;
+
+    // Reset per-round purchase counter
+    m.soldQty = 0;
+  }
+}
+
 // EXE tab indices: "Score" (0), "Weapons" (1), "Miscellaneous" (2)
 // EXE tab strings at DS:0x2C3B/0x2C41/0x2C49 (Score/Weapons/Miscellaneous)
 const TAB_SCORE   = 0;
@@ -169,25 +251,31 @@ function updateItemList() {
 export function aiAutoPurchase(player) {
   const budget = player.cash;
 
-  if (budget >= 1875 * 5 && player.inventory[WPN.MISSILE] < 10) {
-    const cost = 1875 * 5;
+  const missilePrice = getWeaponPrice(WPN.MISSILE);
+  if (budget >= missilePrice * 5 && player.inventory[WPN.MISSILE] < 10) {
+    const cost = missilePrice * 5;
     if (player.cash >= cost) {
       player.cash -= cost;
       player.inventory[WPN.MISSILE] += 5;
+      trackPurchase(WPN.MISSILE);
     }
   }
 
-  if (budget >= 10000 * 3 && player.inventory[WPN.BABY_NUKE] < 3) {
-    const cost = 10000 * 3;
+  const nukePrice = getWeaponPrice(WPN.BABY_NUKE);
+  if (budget >= nukePrice * 3 && player.inventory[WPN.BABY_NUKE] < 3) {
+    const cost = nukePrice * 3;
     if (player.cash >= cost) {
       player.cash -= cost;
       player.inventory[WPN.BABY_NUKE] += 3;
+      trackPurchase(WPN.BABY_NUKE);
     }
   }
 
-  if (WEAPONS[46].arms <= config.armsLevel && player.cash >= WEAPONS[46].price && player.inventory[46] < 2) {
-    player.cash -= WEAPONS[46].price;
+  const shieldPrice = getWeaponPrice(46);
+  if (WEAPONS[46].arms <= config.armsLevel && player.cash >= shieldPrice && player.inventory[46] < 2) {
+    player.cash -= shieldPrice;
     player.inventory[46] += 1;
+    trackPurchase(46);
   }
 }
 
@@ -231,7 +319,7 @@ export function shopTick(player) {
       if (item && maxQty > 0) {
         const qty = Math.min(shop.sellQty, maxQty);
         const sellFactor = config.freeMarket ? 0.65 : 0.8;
-        const refund = Math.floor(qty * item.weapon.price / item.weapon.bundle * sellFactor);
+        const refund = Math.floor(qty * getWeaponPrice(item.idx) / item.weapon.bundle * sellFactor);
         player.cash += refund;
         player.inventory[item.idx] -= qty;
         shop.sellQty = 1;
@@ -260,7 +348,7 @@ export function shopTick(player) {
           if (item && maxQty > 0) {
             const qty = Math.min(shop.sellQty, maxQty);
             const sellFactor = config.freeMarket ? 0.65 : 0.8;
-            player.cash += Math.floor(qty * item.weapon.price / item.weapon.bundle * sellFactor);
+            player.cash += Math.floor(qty * getWeaponPrice(item.idx) / item.weapon.bundle * sellFactor);
             player.inventory[item.idx] -= qty;
             shop.sellQty = 1;
           }
@@ -307,9 +395,13 @@ export function shopTick(player) {
   // Buy (EXE: item_click_handler at file 0x1503B — calls dialog_select_item 0x3F19:0x5260)
   if (consumeKey('Enter') || consumeKey('Space')) {
     const item = shop.items[shop.selectedItem];
-    if (item && player.cash >= item.weapon.price) {
-      player.cash -= item.weapon.price;
-      player.inventory[item.idx] += item.weapon.bundle;
+    if (item) {
+      const price = getWeaponPrice(item.idx);
+      if (player.cash >= price) {
+        player.cash -= price;
+        player.inventory[item.idx] += item.weapon.bundle;
+        trackPurchase(item.idx);
+      }
     }
   }
 
@@ -364,9 +456,13 @@ export function shopTick(player) {
         if (clickedRow === shop.selectedItem) {
           // Second click on already-selected item = buy
           const item = shop.items[shop.selectedItem];
-          if (item && player.cash >= item.weapon.price) {
-            player.cash -= item.weapon.price;
-            player.inventory[item.idx] += item.weapon.bundle;
+          if (item) {
+            const price = getWeaponPrice(item.idx);
+            if (player.cash >= price) {
+              player.cash -= price;
+              player.inventory[item.idx] += item.weapon.bundle;
+              trackPurchase(item.idx);
+            }
           }
         } else {
           shop.selectedItem = clickedRow;
@@ -474,7 +570,8 @@ export function drawShop(player) {
       const item      = shop.items[i];
       const y         = listY + (i - shop.scrollOffset) * rowH;
       const selected  = i === shop.selectedItem;
-      const canAfford = player.cash >= item.weapon.price;
+      const itemPrice = getWeaponPrice(item.idx);
+      const canAfford = player.cash >= itemPrice;
       const owned     = player.inventory[item.idx];
 
       if (selected) {
@@ -487,7 +584,7 @@ export function drawShop(player) {
                      : canAfford ? UI_DARK_TEXT
                      :             UI_MED_BORDER;
       drawText(PANEL_X + 3, y, item.weapon.name, txtColor);
-      drawText(priceX,       y, '$' + item.weapon.price, txtColor);
+      drawText(priceX,       y, '$' + itemPrice, txtColor);
       drawText(ownX,         y, owned > 0 ? String(owned) : '-',
                owned > 0 ? baseColor : txtColor);
     }
@@ -510,7 +607,7 @@ export function drawShop(player) {
       const sel = shop.items[shop.selectedItem];
       if (sel) {
         drawText(rightX, PANEL_Y + 2,  sel.weapon.name,               baseColor);
-        drawText(rightX, PANEL_Y + 14, `Price:  $${sel.weapon.price}`, UI_DARK_TEXT);
+        drawText(rightX, PANEL_Y + 14, `Price:  $${getWeaponPrice(sel.idx)}`, UI_DARK_TEXT);
         drawText(rightX, PANEL_Y + 25, `Bundle: x${sel.weapon.bundle}`, UI_DARK_TEXT);
         const owned = player.inventory[sel.idx];
         drawText(rightX, PANEL_Y + 36, `Owned:  ${owned > 0 ? owned : '-'}`,
@@ -552,7 +649,7 @@ export function drawShop(player) {
       const owned = player.inventory[item.idx];
       // EXE: sell offer = floor(qty × price × factor / bundle); 0.8 normal, 0.65 free market
       const sellFactor = config.freeMarket ? 0.65 : 0.8;
-      const offer = Math.floor(shop.sellQty * item.weapon.price / item.weapon.bundle * sellFactor);
+      const offer = Math.floor(shop.sellQty * getWeaponPrice(item.idx) / item.weapon.bundle * sellFactor);
       const dlgW = Math.min(240, SW - 20);
       const dlgH = 106;
       const dlgX = Math.floor((SW - dlgW) / 2);
