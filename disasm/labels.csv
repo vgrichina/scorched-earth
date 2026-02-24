@@ -19,6 +19,11 @@
 0x2943A,generate_wind
 0x28E99,update_wind
 0x19B54,viscosity_clamp
+0x21064,setup_physics_constants
+0x20F63,get_mips_count
+0x21192,fire_weapon
+0x21603,create_projectile
+0x21A80,sim_step
 0x21C56,apply_viscosity
 0x14391,apply_viscosity2
 0x2A850,call_main_menu

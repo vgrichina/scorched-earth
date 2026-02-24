@@ -2,8 +2,8 @@
 // EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
 // EXE: physics timestep calibrated via MIPS benchmark (adaptive dt, default 0.02)
 // EXE: viscosity factor = 1.0 - config/10000 (multiplicative per step)
-// EXE: gravity = 4.9 px/sec² (from SCORCH.CFG GRAVITY=0.05-10.0, default 1.0)
-// EXE: wind = horizontal only, WIND_SCALE applied per step
+// EXE: gravity_accel = 2500 × GRAVITY_CONFIG px/sec² (DS:512A, default 0.2, range 0.05-10.0)
+// EXE: wind_accel = 1.25 × wind px/sec² (horizontal only)
 // EXE: no explicit speed limit — velocity bounded naturally by viscosity damping
 
 import { config } from './config.js';
@@ -14,10 +14,15 @@ import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
-export const DT = 0.02;           // EXE: default timestep (from disasm/physics_timestep_wind_analysis.txt)
-const MAX_SPEED = 400;             // EXE: pixels/sec at power=1000 (power/1000 * MAX_SPEED)
-const GRAVITY = 4.9;               // EXE: pixels/sec² downward (SCORCH.CFG GRAVITY scaled)
-const WIND_SCALE = 0.15;           // EXE: wind config → pixels/sec² horizontal accel
+export const DT = 0.02;           // EXE: default timestep (DS:0x1CFA = 0.02)
+const MAX_SPEED = 400;             // Web velocity scale: power × (MAX_SPEED/1000)
+
+// EXE-derived gravity/wind constants (from setup_physics_constants at file 0x21064)
+// EXE: gravity_accel = 2500 × GRAVITY_CONFIG px/sec² (DS:1CF2=50.0, gravity_step=50²×G×dt)
+// EXE: wind_accel = 1.25 × wind px/sec² (DS:1CF6=40.0, wind_step=wind×50/(40)×dt)
+// Web scaling: k = MAX_SPEED/1000 = 0.4, k² = 0.16 — preserves trajectory shape & range
+const GRAVITY_FACTOR = 400.0;     // EXE: 2500 × k² = 2500 × 0.16 (config-scaled)
+const WIND_FACTOR = 0.2;          // EXE: 1.25 × k² = 1.25 × 0.16
 
 // Wall types — EXE: ELASTIC config variable DS:0x5154, dispatch at file 0x2220F
 // Enum ordering verified from config parser at 0x29290 and dispatch code
@@ -265,12 +270,12 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     proj.vy *= visc;
   }
 
-  // 4. Gravity (reduce upward velocity)
-  proj.vy -= GRAVITY * DT;
+  // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt, scaled by k²)
+  proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
 
-  // 5. Wind (horizontal only, from RE) — skip for napalm particles
+  // 5. Wind (EXE: vx += 1.25 × wind × dt, scaled by k²) — skip for napalm particles
   if (!proj.isNapalmParticle) {
-    proj.vx += wind * WIND_SCALE * DT;
+    proj.vx += WIND_FACTOR * wind * DT;
   }
 
   // 6. Wall collision

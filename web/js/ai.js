@@ -151,9 +151,10 @@ function solveBallistic(shooter, target) {
   const dy = -(target.y - shooter.y);  // positive = up in world coords
 
   const dt = 0.02;  // must match physics.js DT
-  const gravity = 4.9;  // must match physics.js GRAVITY (per-second²)
-  const windAccel = game_wind() * 0.15;  // must match physics.js WIND_SCALE (per-second²)
-  const maxSpeed = 400;  // must match physics.js MAX_SPEED (per-second)
+  // EXE-derived: gravity = 2500 × G × k² = 400 × config.gravity (k=MAX_SPEED/1000)
+  const gravity = 400.0 * config.gravity;  // must match physics.js GRAVITY_FACTOR
+  const windAccel = game_wind() * 0.2;  // must match physics.js WIND_FACTOR (1.25 × k²)
+  const maxSpeed = 400;  // must match physics.js MAX_SPEED
 
   // Effective horizontal distance accounting for wind
   // Wind pushes projectile, so adjust target position

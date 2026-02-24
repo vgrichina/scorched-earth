@@ -1099,6 +1099,32 @@ if (d > 0) {
 }
 ```
 
+**Constants confirmed from binary**: DS:0x1CF2 = 50.0 (f32, gravity multiplier), DS:0x1CF6 = 40.0 (f32, wind divisor), DS:0x1CFA = 0.02 (f64, fallback dt), DS:0x1CC8 = 100.0 (f32, d computation divisor).
+
+#### Gravity/Wind Pre-Scaling — Derived Formulas
+
+Substituting `dt = 1/(50*d)` yields equivalent per-step formulas independent of `d`:
+
+```
+gravity_step = 50.0 * GRAVITY / d = 50.0 * GRAVITY * 50.0 * dt = 2500.0 * GRAVITY * dt
+wind_step    = wind / (d * 40.0)  = wind * 50.0 * dt / 40.0   = 1.25 * wind * dt
+```
+
+Both branches (d>0 and fallback) produce identical effective accelerations:
+- **Gravity acceleration** = `2500.0 × GRAVITY_CONFIG` px/sec² (downward)
+- **Wind acceleration** = `1.25 × wind` px/sec² (horizontal)
+
+These are applied WITHOUT further dt multiplication in the sim loop — they are pre-scaled.
+
+**Launch velocity**: `vx = (int)(cos(angle_rad) × power)`, `vy = (int)(sin(angle_rad) × power)` (file 0x212C9-0x21318). Power range 0–1000, so max speed = 1000 px/sec. No scaling factor — power maps directly to velocity.
+
+**Web port scaling**: The web port uses `MAX_SPEED=400` (launch speed = power × 0.4). To preserve trajectory shape and range with this velocity scale factor k=0.4, all accelerations must scale by k²=0.16:
+- Web gravity = 2500 × GRAVITY_CONFIG × k² = **400 × config.gravity** px/sec²
+- Web wind = 1.25 × wind × k² = **0.2 × wind** px/sec²
+- Trade-off: trajectories land at correct screen positions but flight time is 2.5× longer. For exact timing fidelity, MAX_SPEED should be 1000.
+
+**Previous web port values** (GRAVITY=4.9 fixed, WIND_SCALE=0.15) were invented constants with no connection to the EXE. At default gravity=0.2: EXE gravity per step = 10.0, old web = 0.098 (102× too weak). Wind at 100: EXE per step = 2.5, old web = 0.3 (8× too weak).
+
 #### Simulation Loop (file 0x21A80-0x21D09)
 
 Per-step, per-projectile. **Note**: viscosity is multiplicative damping, NOT the differential form previously documented.
@@ -1209,16 +1235,21 @@ void update_wind(int *wind, int max_wind_limit) {
 | DS Offset | Type | Purpose |
 |-----------|------|---------|
 | DS:CEAC | f64 | dt (adaptive timestep) |
-| DS:CE9C | f64 | gravity_step (pre-scaled) |
-| DS:CEA4 | f64 | wind_step (pre-scaled) |
+| DS:CE9C | f64 | gravity_step (pre-scaled: 2500×GRAVITY×dt) |
+| DS:CEA4 | f64 | wind_step (pre-scaled: 1.25×wind×dt) |
+| DS:512A | f64 | GRAVITY config value (default 0.2, range 0.05–10.0) |
 | DS:5140 | i16 | FIRE_DELAY (default 100) |
 | DS:5152 | i16 | CHANGING_WIND flag |
+| DS:515A | i16 | current wind (signed int16) |
 | DS:515C | i16 | MAX_WIND (0-200) |
 | DS:5178 | f64 | viscosity factor (= 1.0 − AIR_VISCOSITY/10000) |
 | DS:5180 | i16 | AIR_VISCOSITY integer (0–20), intermediate for DS:5178 computation |
 | DS:0408 | f32 | 20.0 — max AIR_VISCOSITY clamp value |
 | DS:040C | f32 | 10000.0 — viscosity divisor constant |
 | DS:1C86 | u32 | MIPS count |
+| DS:1CC8 | f32 | 100.0 — d computation divisor |
+| DS:1CF2 | f32 | 50.0 — gravity multiplier constant |
+| DS:1CF6 | f32 | 40.0 — wind divisor constant |
 | DS:1CFA | f64 | 0.02 (fallback dt) |
 | DS:1CA2 | f32 | 1.5 (Mag Deflector sound multiplier: sqrt(distSq)*1.5+1000 → sound frequency) |
 
@@ -3134,7 +3165,7 @@ All located in `disasm/` directory:
 - [x] Trace Leap Frog / Bounce explosion radii: **RESOLVED**. Handler at file 0x2A226. Uses damage_type countdown (player+0x54, initial=2, set at 0x21397). Bounce radius table at DS:0x50CA = {20, 25, 30} indexed by damage_type. Sequence: 1st hit radius=30, 2nd=25, 3rd(final)=20, all × EXPLOSION_SCALE (DS:0x50DA). Speed ÷ 1.5 (DS:0x50D0=1.5f) per bounce via sin/cos angle reconstruction. Web port fixed: decreasing radii 30→25→20 × explosionScale, speed ÷ 1.5 (was 0.7/0.9), damage_type countdown (was bounceCount vs param). See "LeapFrog / Bounce" section in Weapon Behavior Dispatch.
 - [x] Trace napalm particle physics: **RESOLVED — NOT velocity-based**. Main handler at file 0x2DA00. Particles use **pixel-walking cellular automaton**: each step checks adjacent pixels via `check_direction(x,y)` (file 0x2DFCC) and moves 1 pixel. Direction: 0=terrain below (drop), -1/+1=move left/right (wind via DS:0x515A determines when both available), 2=erode upward. No velocity vectors, no damping. DS:0x1D60=0.7 is explosion damage falloff (file 0x235B6), NOT particle damping. DS:0x1D68=0.001 is explosion sqrt epsilon (file 0x23638), NOT speed threshold. Damage: Hot Napalm (param>15) max 50 at range 40 (DS:0x5682/0x5686), Regular Napalm max 30 at range 25 (DS:0x568A/0x568E). Max 1000 steps per particle, explosion array stores every 20th position. See "Napalm / Hot Napalm" section in Weapon Behavior Dispatch.
 - [x] Trace heat guidance trigger and correction: **RESOLVED**. Trigger: `ai_select_target` (file 0x24F01) iterates all tanks, computes Euclidean distance, threshold = DS:0x5186 = **40 pixels** (web port had 60). Callback (0x2589C): continuous attraction force `correction = 10000.0 × dt / distSq^(1/4)` applied per step toward stored target, with overshoot detection (sign flip of dx/dy vs initial wind_x/wind_y → removes callback). Wind vectors are **inverted**: wind_x = -sign(target.X - current.X) — used ONLY for overshoot detection, NOT as correction direction. Web port fixed: HEAT_PROXIMITY 60→40, replaced constant GUIDANCE_STRENGTH=2.0 with continuous attraction model (GUIDANCE_K=10000, GUIDANCE_DT=0.02, GUIDANCE_MIN_DISTSQ=0.001), added overshoot detection and callback removal. See "Heat Guidance — Trigger and Correction" subsection.
-- [ ] Trace gravity/wind pre-scaling formula: EXE computes gravity_step=50.0×GRAVITY/d and wind_step=wind/(d×40.0) once before the physics loop. Web port uses GRAVITY=4.9 and WIND_SCALE=0.15 which have no traceable connection to EXE constants. Need to derive correct web-equivalent formulas.
+- [x] Trace gravity/wind pre-scaling formula: **RESOLVED**. `setup_physics_constants` at file 0x21064. Constants: DS:0x1CF2=50.0 (f32, gravity mult), DS:0x1CF6=40.0 (f32, wind div), DS:0x1CFA=0.02 (f64, fallback dt), DS:0x1CC8=100.0 (f32, d divisor). Formulas: gravity_step = 2500 × GRAVITY_CONFIG × dt, wind_step = 1.25 × wind × dt (both pre-scaled, applied without further dt multiply). Launch velocity = power directly (no scaling). GRAVITY_CONFIG at DS:0x512A = 0.2 default (f64), range 0.05–10.0. Effective accelerations: gravity = 2500 × G px/sec², wind = 1.25 × W px/sec². Web port corrected: GRAVITY=4.9 → 400×config.gravity, WIND_SCALE=0.15 → 0.2 (using k²=0.16 scaling for MAX_SPEED=400). Config default gravity fixed 1.0→0.2. See "Gravity/Wind Pre-Scaling — Derived Formulas" subsection.
 - [ ] Trace sky type enum mapping: EXE sky list appears to be Plain/Shaded/Stars/Storm/Sunset/Black/Random (7 types). Web port has Cavern at index 5 and Black at index 6 with no Random. Verify EXE sky type enum from config parsing and sky dispatch table.
 - [ ] Trace play order enum: EXE PLAY_ORDER options are Random/Losers-First/Winners-First/Round-Robin. Web port uses Sequential/Random/Losers First/Winners First. Verify from config string table.
 - [ ] Trace shield color rendering formula: EXE uses continuous fade `shieldEnergy × configColor / maxEnergy` and palette index `playerIndex + 5`. Web port uses quantized 4-step slot system with `playerIndex × 8 + slot`. Disassemble shield draw to confirm.
@@ -3153,7 +3184,7 @@ All located in `disasm/` directory:
 - [ ] Fix config defaults to match EXE: gravity 0.2 (not 1.0), startCash 1000000 (not 25000), interest 30 (not 10), wind 0 (not 5), changeWind 0 (not 1), hostileEnvironment 1 (not 0), talkingTanks 0 (not 1), land2 20 (not 0), armsLevel 4 (not 0), playOrder to match EXE enum, explosionScale 2/Large (not 1), soundEnabled 0 (not 1)
 
 #### Physics (physics.js)
-- [ ] Fix gravity/wind formulas once RE investigation resolves the pre-scaling (see RE task above)
+- [x] Fix gravity/wind formulas once RE investigation resolves the pre-scaling: **RESOLVED**. physics.js: removed hardcoded GRAVITY=4.9 and WIND_SCALE=0.15, replaced with EXE-derived GRAVITY_FACTOR=400 (2500×k², where k=MAX_SPEED/1000=0.4) × config.gravity and WIND_FACTOR=0.2 (1.25×k²) × wind. config.js: gravity default 1.0→0.2. ai.js: solver constants updated to match. Note: for exact flight-time fidelity, MAX_SPEED should be 1000 (currently 400, trajectories land correctly but take 2.5× longer).
 
 #### AI system (ai.js)
 - [ ] Fix AI noise parameter counts: Shooter/Poolshark should have 1 param [23] not 3; Tosser should have 2 [63,23] not 3. Rewrite sinusoidalNoise to use EXE scanning architecture: shot-number domain (not wall-clock), budget-driven random amplitudes, freq_base=π/(2×amp) with 4× multiplier, 2-5 harmonics, random phase 0-299
