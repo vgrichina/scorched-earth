@@ -531,7 +531,6 @@ export function shopTick(player) {
   const perPage = getItemsPerPage();
   const SW = config.screenWidth, SH = config.screenHeight;
   const panelW = Math.min(PANEL_W_MAX, SW - 8);
-  const tabW = Math.floor((SW - 50) / NUM_TABS);
 
   // Tab switching (EXE: Left/Right cycle Score→Weapons→Miscellaneous)
   if (consumeKey('ArrowLeft')) {
@@ -596,17 +595,20 @@ export function shopTick(player) {
     const rowH = getRowH();
 
     // Tab bar / Done button area (bottom strip)
-    if (my >= SH - TAB_H - 1) {
-      // Done button (rightmost)
-      if (mx >= SW - 46) {
+    const hitTabY = SH - TAB_H;
+    if (my >= hitTabY && my < hitTabY + TAB_H - 2) {
+      // Done button (rightmost) — match drawShop layout
+      const hitDoneW = measureText('~Done') + 12;
+      const hitDoneX = SW - hitDoneW - 4;
+      if (mx >= hitDoneX && mx < hitDoneX + hitDoneW) {
         shop.active = false;
         return true;
       }
-      // Tab buttons
+      // Tab buttons — walk same layout as drawShop
+      let hitTabCurX = PANEL_X;
       for (let i = 0; i < NUM_TABS; i++) {
-        const tx = PANEL_X + i * tabW;
-        const tw = measureText(TAB_NAMES[i]) + 6;
-        if (mx >= tx && mx < tx + tw) {
+        const tw = measureText(TAB_NAMES[i]) + 12;
+        if (mx >= hitTabCurX && mx < hitTabCurX + tw) {
           if (shop.category !== i) {
             shop.category = i;
             shop.selectedItem = 0;
@@ -615,6 +617,7 @@ export function shopTick(player) {
           }
           break;
         }
+        hitTabCurX += tw + 3;
       }
     }
     // Item list — click to select; click selected again to buy (skip header rows)
@@ -805,20 +808,32 @@ export function drawShop(player) {
   }
 
   // Bottom tab bar — EXE: Score | Weapons | Miscellaneous | ~Done
-  hline(4, SW - 5, SH - TAB_H - 1, UI_MED_BORDER);
-  const tabY = SH - TAB_H + 4;
-  const tabW = Math.floor((SW - 50) / NUM_TABS);
+  // EXE renders tabs as 3D raised boxes (inactive) or sunken (active) via dialog widget system
+  const tabY    = SH - TAB_H;
+  const tabH    = TAB_H - 2;
+  const tabPad  = 6;   // horizontal padding inside each tab box
+  const tabGap  = 3;   // gap between tab boxes
+  let tabCurX   = PANEL_X;
   for (let i = 0; i < NUM_TABS; i++) {
-    const tx       = PANEL_X + i * tabW;
+    const tw = measureText(TAB_NAMES[i]) + tabPad * 2;
     const isActive = i === shop.category;
-    const color    = isActive ? UI_HIGHLIGHT : UI_DARK_TEXT;
-    drawText(tx, tabY, TAB_NAMES[i], color);
     if (isActive) {
-      hline(tx, tx + measureText(TAB_NAMES[i]), SH - TAB_H, color);
+      drawBox3DSunken(tabCurX, tabY, tw, tabH, UI_BACKGROUND,
+        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
+    } else {
+      drawBox3DRaised(tabCurX, tabY, tw, tabH, UI_BACKGROUND,
+        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
     }
+    const textColor = isActive ? UI_HIGHLIGHT : UI_DARK_TEXT;
+    drawText(tabCurX + tabPad, tabY + Math.floor((tabH - 10) / 2), TAB_NAMES[i], textColor);
+    tabCurX += tw + tabGap;
   }
-  // Done button (EXE: "~Done" DS:0x2C57, hotkey 'D')
-  drawText(SW - 42, tabY, '~Done', UI_MED_BORDER);
+  // Done button (EXE: "~Done" DS:0x2C57, hotkey 'D') — 3D raised box
+  const doneW = measureText('~Done') + tabPad * 2;
+  const doneX = SW - doneW - 4;
+  drawBox3DRaised(doneX, tabY, doneW, tabH, UI_BACKGROUND,
+    UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+  drawText(doneX + tabPad, tabY + Math.floor((tabH - 10) / 2), '~Done', UI_MED_BORDER);
 
   // EXE: "Sell Equipment" sub-dialog (DS:0x234C) — modal overlay when selling
   // Strings: "Sell Equipment", "Description", "Amount in stock",
