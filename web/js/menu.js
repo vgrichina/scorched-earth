@@ -388,7 +388,7 @@ function handlePlayerSetupInput() {
   // AI type spinner (keyboard)
   if (menu.playerSetupField === 1) {
     if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
-    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
+    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
   }
 
   // Name editing — handle typed characters and backspace
@@ -432,7 +432,7 @@ function handlePlayerSetupInput() {
       menu.playerSetupField = 1;
       // Left/right half adjusts AI type
       if (mouse.x > 160) {
-        setup.aiType = Math.min(AI_TYPE.UNKNOWN, setup.aiType + 1);
+        setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
       } else if (mouse.x > 80) {
         setup.aiType = Math.max(0, setup.aiType - 1);
       }

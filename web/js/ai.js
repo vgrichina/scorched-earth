@@ -22,11 +22,12 @@ export const AI_TYPE = {
   SPOILER:   6,
   CYBORG:    7,  // randomizes to 0-5 (EXE: dispatch at 0x292A5)
   UNKNOWN:   8,  // randomizes to 0-5 (EXE: dispatch at 0x292A5)
+  SENTIENT:  9,  // EXE: corrupted vtable (DS:0x0306), crashes DOS; intended as highest difficulty
 };
 
 export const AI_NAMES = [
   'Human', 'Moron', 'Shooter', 'Poolshark',
-  'Tosser', 'Chooser', 'Spoiler', 'Cyborg', 'Unknown',
+  'Tosser', 'Chooser', 'Spoiler', 'Cyborg', 'Unknown', 'Sentient',
 ];
 
 // EXE: noise parameters per AI type — higher = more inaccurate
@@ -39,6 +40,7 @@ const AI_NOISE = {
   [AI_TYPE.TOSSER]:    [63, 23],
   [AI_TYPE.CHOOSER]:   [63, 63, 23],
   [AI_TYPE.SPOILER]:   [63, 63, 63],
+  [AI_TYPE.SENTIENT]:  [],  // EXE: accuracy switch (0x29505) only covers types 0-5; Sentient gets NO noise = perfect accuracy
 };
 
 // EXE: ai_inject_noise (file 0x25DE9-0x2610F)
@@ -153,19 +155,24 @@ export function aiComputeShot(player) {
   // EXE: scanning noise — shot-number domain, budget-driven harmonics
   // Each noise param generates independent harmonic set; param count per AI type
   // controls which aspects get noise (more params = wider noise)
-  const noiseState = getNoiseState(player, noise);
-  const shotNum = noiseState.shotNumber++;
-
-  // Angle noise: param[0] + param[2] if present (scaled by noise_amplitude)
-  let angleNoise = evaluateHarmonics(noiseState.generators[0], shotNum) * noise[0] / 100;
-  if (noise.length >= 3) {
-    angleNoise += evaluateHarmonics(noiseState.generators[2], shotNum) * noise[2] / 100;
-  }
-
-  // Power noise: param[1] if present (no power noise for 1-param types like Shooter)
+  // Sentient: empty noise array = perfect accuracy (no noise injection)
+  let angleNoise = 0;
   let powerNoise = 0;
-  if (noise.length >= 2) {
-    powerNoise = evaluateHarmonics(noiseState.generators[1], shotNum) * noise[1] / 100 * POWER_NOISE_SCALE;
+
+  if (noise.length > 0) {
+    const noiseState = getNoiseState(player, noise);
+    const shotNum = noiseState.shotNumber++;
+
+    // Angle noise: param[0] + param[2] if present (scaled by noise_amplitude)
+    angleNoise = evaluateHarmonics(noiseState.generators[0], shotNum) * noise[0] / 100;
+    if (noise.length >= 3) {
+      angleNoise += evaluateHarmonics(noiseState.generators[2], shotNum) * noise[2] / 100;
+    }
+
+    // Power noise: param[1] if present (no power noise for 1-param types like Shooter)
+    if (noise.length >= 2) {
+      powerNoise = evaluateHarmonics(noiseState.generators[1], shotNum) * noise[1] / 100 * POWER_NOISE_SCALE;
+    }
   }
 
   aiState.targetAngle = clamp(Math.round(solution.angle + angleNoise), 0, 180);
