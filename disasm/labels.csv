@@ -63,10 +63,15 @@
 0x3DC94,hud_widget5_shield
 0x3DD59,hud_widget6_item2
 0x3DD95,hud_widget7_conditional
+0x31D7F,compute_item_percentage
+0x31249,check_heavy_shield_energy
+0x3121E,check_shield_type_active
 DS:0xD548,HUD_NO_SHIELD_SENTINEL
 DS:0xD554,HUD_PARACHUTE_IDX
 DS:0xD556,HUD_BATTERY_IDX
-DS:0xD566,HUD_ITEM2_IDX
+DS:0xD564,HUD_HEAVY_SHIELD_IDX
+DS:0xD566,HUD_SUPER_MAG_IDX
+DS:0x5830,FLOAT32_100
 
 # ---- Data segment variables (DS: prefix) ----
 DS:0x515C,MAX_WIND

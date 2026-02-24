@@ -46,7 +46,7 @@
 import { config } from './config.js';
 import { hline, fillRect, setPixel } from './framebuffer.js';
 import { drawText, measureText } from './font.js';
-import { WEAPONS } from './weapons.js';
+import { WEAPONS, WPN } from './weapons.js';
 import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
@@ -364,8 +364,21 @@ export function drawHud(player, wind, round, opts) {
       drawIcon(x, ROW2_Y, player.selectedWeapon, itemColor);
     }
     x += 20; // → E9F8
-    // EXE: "%d%%" format at E9F8 — item percentage
-    const itemPct = ammo === -1 ? 100 : Math.min(100, itemCount * 10);
+    // EXE: "%d%%" format at E9F8 — percentage = floor(current * 100 / max)
+    // EXE: caps at 99 if not exactly full, min 1 if non-zero (file 0x31D7F)
+    // DS:0x5830 = 100.0f multiplier. Web port: use weapon.bundle as max reference.
+    let itemPct;
+    if (ammo === -1) {
+      itemPct = 100;
+    } else if (itemCount <= 0) {
+      itemPct = 0;
+    } else {
+      const maxAmmo = weapon ? weapon.bundle : 1;
+      itemPct = Math.floor(itemCount * 100 / Math.max(1, maxAmmo));
+      if (itemPct >= 100 && itemCount < maxAmmo) itemPct = 99;
+      if (itemPct <= 0) itemPct = 1;
+      itemPct = Math.min(100, itemPct);
+    }
     drawText(x, ROW2_Y, itemPct + '%', itemColor);
     x += pctFieldW; // → E9FA
 
@@ -381,10 +394,30 @@ export function drawHud(player, wind, round, opts) {
     if (shieldCount > 0) drawBarFill(x, ROW2_Y, Math.min(20, Math.round(shieldCount / 5)), shieldColor);
     x += 20; // → E9FE
 
-    // Widget 6 (0x3DD59): [D566] item icon at EA00
+    // Inline (draw_hud_full 0x303CC): Super Mag count at E9FE, format "%2d" [DS:57D4]
+    // EXE: inventory[D566=52] = Super Mag count
+    const magCount = player.inventory ? (player.inventory[WPN.MAG_DEFLECTOR] || 0) : 0;
+    const magColor = magCount > 0 ? baseColor : dimColor;
+    drawText(x, ROW2_Y, String(magCount).padStart(2), magColor);
+    x += countFieldW; // → EA00
+
+    // Widget 6 (0x3DD59): Super Mag icon at EA00
     // EXE: color = struct[0x2A] != 0 ? [EF22] : [EF24]
-    // EXE: draw_icon_alive(EA00, ROW2_Y, D566, color) — typically blank icon
-    // Widget 7 (0x3DD95): conditional display — skipped if screen width <= 320
+    // EXE: draw_icon_alive(EA00, ROW2_Y, D566=52, color) — icon 52 is blank (w=0)
+    drawIcon(x, ROW2_Y, WPN.SUPER_MAG, magColor);
+    x += 25; // → EA02 (icon area width, matches W2/W3 pattern)
+
+    // Widget 7 (0x3DD95): Heavy Shield energy, conditional on screen width
+    // EXE: check1 (0x31249) = inventory[D564=HeavyShield] * 10 + struct[0xAA]
+    // EXE: check2 (0x3121E) = struct[0] > 1 (shield type active)
+    // EXE: format "%3d" (DS:0x6479), display at [EA02]
+    // EXE: skips if [EA02] == 0 (not enough screen width)
+    if (x + measureText('999') < config.screenWidth - LEFT) {
+      const heavyCount = player.inventory ? (player.inventory[WPN.HEAVY_SHIELD] || 0) : 0;
+      const shieldTotal = heavyCount * 10 + (player.shieldEnergy || 0);
+      const w7Color = shieldTotal > 0 ? baseColor : dimColor;
+      drawText(x, ROW2_Y, String(shieldTotal).padStart(3), w7Color);
+    }
   }
 
   // Guided missile indicator (gameplay feature, not from EXE HUD)

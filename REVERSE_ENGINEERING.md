@@ -2806,7 +2806,7 @@ All located in `disasm/` directory:
 - [x] Implement impact damage system: **DS:0x5114** = DAMAGE_TANKS_ON_IMPACT (0=Off, 1=On, default On). **DS:0x5164** = 2 (hardcoded fall damage per pixel). Two modes: Off = per-step damage during fall; On = accumulated damage on landing. Total damage identical (2 × fall_distance). Parachute negates all damage. Web port: `config.impactDamage` toggle added (config.js, menu.js); `tank.js` fall damage corrected from `fallDist/5` to `2*fallDist`; `fallStartY` tracks fall origin for accurate distance; both damage modes implemented. See "Falling Tank / Impact Damage System" section.
 - [x] Implement shop sell sub-dialog: EXE sell refund formula = `floor(qty × price × factor / bundle)` where factor = **0.8** (normal, DS:0x613C) or **0.65** (free market, DS:0x6144). Web port had 0.5 — fixed to 0.8/0.65 in shop.js; `config.freeMarket` toggle added (config.js, menu.js Economics sub-dialog). Sell dialog UI was already implemented. See "Sell Equipment — Refund Price Formula" subsection.
 - [x] Implement shop palette animation: Full palette tick function traced at file 0x14E34. Three effects: (1) VGA 2 pulsing red/orange triangle wave (100-frame counter, R=tri×63/50, G=tri×10/50), (2) VGA 8-11 accent cycling entries 1-4 only (every 8 frames, si=((counter>>3)&3)+1, 4-step rotation), (3) VGA 14-18 gray gradient cycling (5 levels: 0/15/30/45/60, starting index = (counter/2)%5+14). Web port corrected: was using all 5 entries with 5-step modulo; now uses entries 1-4 with 4-step modulo; added pulsing VGA 2 and gray gradient VGA 14-18. See "Shop Palette Animation" subsection.
-- [ ] Implement Full Row 2 HUD widgets: replace text approximations with actual icon+bar widgets using icon bitmap data from DS:0x3826 (48 icons × 125 bytes); implement all 7 per-player inventory widgets in web/js/hud.js
+- [x] Implement Full Row 2 HUD widgets: All 48 icons extracted from DS:0x3826 into ICONS array (hud.js). All 7 widgets implemented in full mode Row 2: W1 fuel per-mille, W2 battery count+icon(blank w=0)+bar, W3 parachute count+icon(blank)+bar, W4 weapon ammo count+weapon icon+percentage (EXE formula: floor(current×100.0/max) at 0x31D7F, DS:0x5830=100.0f, cap 1-99 unless exactly full), W5 shield count+bar, W6 Super Mag count+icon(DS:D566=52, blank w=0), W7 Heavy Shield energy conditional (EXE: check1 at 0x31249 = inventory[D564=HeavyShield]×10+struct[0xAA], check2 at 0x3121E = shield type active, format "%3d" at DS:0x6479, skip if not enough screen width). Row 1 full mode: weapon icon at E9DE. Row 1 basic: player tank icons with alive/dead colors. WPN constants added: PARACHUTE=42, BATTERY=43, MAG_DEFLECTOR=45, HEAVY_SHIELD=51, SUPER_MAG=52
 
 ### Documentation
 
@@ -4652,19 +4652,31 @@ draw_icon([E9F2], Row2_Y, [D554], color)         ; 4 args
 - If different: show item name (from inventory[struct[0x9A]]) + draw bar
 - If same: draw filled bar icon (10px fill)
 
-**Widget 6** (0x3DD59) — Simple item bar:
+**Widget 4 percentage** (0x31D7F) — Item ammo percentage:
 ```
-color = struct[0x2A] != 0 ? [EF22] : [EF24]
-draw_icon([EA00], Row2_Y, [D566], color)         ; 4 args
+compute_item_percentage(struct):
+  if struct[0x96] == 0: return 0
+  ptr = struct[0xC6:0xC8]     // far ptr to item info
+  pct = floor(struct[0x96] * 100.0 / ptr[0x02])  // DS:0x5830 = 100.0f
+  if pct == 100 && struct[0x96] != ptr[0x02]: pct = 99  // cap at 99 if not exactly full
+  if pct == 0: pct = 1                                    // min 1% if non-zero
+  return pct
 ```
 
-**Widget 7** (0x3DD95) — Conditional display:
+**Widget 6** (0x3DD59) — Super Mag icon (DS:D566=52):
+```
+color = struct[0x2A] != 0 ? [EF22] : [EF24]      // struct[0x2A] = mag deflector state
+draw_icon([EA00], Row2_Y, [D566], color)           // icon 52 has w=0 (blank)
+```
+
+**Widget 7** (0x3DD95) — Heavy Shield energy display:
 - Takes 3 args: (struct_far_ptr, extra_flag=0)
-- Calls 0x2A16:0x6E9 (check function 1) and 0x2A16:0x6BE (check function 2)
-- If both false: color = [EF24]; if check2 true: color = [EF22]
+- **check1** (0x31249): `return inventory[D564=HeavyShield] * 10 + struct[0xAA]` — total shield energy
+- **check2** (0x3121E): `return struct[0] > 1` — 1 if shield type active (not 0=none/1=basic)
+- Color: if check1==0 → dim; elif check2 → player color; else → dim
 - If [EA02] == 0: skip entirely (not enough screen width)
 - If extra_flag != 0: clear area [EA02] to [EA04]-1
-- Formats value via DS:0x6479, displays at [EA02]
+- Formats value as `"%3d"` (DS:0x6479), displays at [EA02]
 
 **Widget format strings:**
 
@@ -4673,17 +4685,19 @@ draw_icon([EA00], Row2_Y, [D566], color)         ; 4 args
 | "%d" | DS:0x646E | 0x5C1EE | Widget 4 (item count) |
 | "%d%%" | DS:0x6471 | 0x5C1F1 | Widget 4 (percentage) |
 | "%d" | DS:0x6476 | 0x5C1F6 | Widget 5 (shield count) |
-| "%2d" | DS:0x647D | 0x5C1FD | Widget 2 (angle count) |
+| "%2d" | DS:0x647D | 0x5C1FD | Widget 2 (battery count) |
+| "%3d" | DS:0x6479 | 0x5C1F9 | Widget 7 (heavy shield energy) |
 | "%4ld" | DS:0x5834 | 0x5B5B4 | Widget 1 (fuel long) |
 
 **Inventory index variables** (set at runtime during game setup):
 
 | DS Offset | Initial | Used By | Purpose |
 |-----------|---------|---------|---------|
-| DS:0xD548 | 0x0000 | Widget 5 (compare) | "No shield" sentinel value |
-| DS:0xD554 | 0x0000 | Widget 3, Row 2 text | Defense item type index |
-| DS:0xD556 | 0x0000 | Widget 2 | Angle/weapon slot index |
-| DS:0xD566 | 0x0000 | Widget 6, Row 2 text | Second item type index |
+| DS:0xD548 | 0x0000 | Widget 5 (compare) | Last free weapon (Earth Disrupter=32); "no shield" sentinel |
+| DS:0xD554 | 0x0000 | Widget 3, Row 2 inline | Parachute weapon index (=42) |
+| DS:0xD556 | 0x0000 | Widget 2 | Battery weapon index (=43) |
+| DS:0xD564 | 0x0000 | Widget 7 (check1) | Heavy Shield weapon index (=51) |
+| DS:0xD566 | 0x0000 | Widget 6, Row 2 inline | Super Mag weapon index (=52) |
 
 #### Icon Data Structure (DS:0x3826)
 

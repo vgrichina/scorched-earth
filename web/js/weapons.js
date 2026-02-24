@@ -212,6 +212,11 @@ export const WPN = {
   EARTH_DISRUPTER: 34,    // EXE: last weapon (DS:D548)
   LASER: 35,              // EXE: first accessory (DS:E4F0), struct at DS:0x18AA
   PLASMA_LASER: 36,       // EXE: struct at DS:0x18DE
+  PARACHUTE: 42,          // EXE: DS:D554
+  BATTERY: 43,            // EXE: DS:D556
+  MAG_DEFLECTOR: 45,      // EXE: DS:D558
+  HEAVY_SHIELD: 51,       // EXE: DS:D564
+  SUPER_MAG: 52,          // EXE: DS:D566
   LAST_WEAPON: 34,        // EXE: DS:D548 boundary
   FIRST_ACCESSORY: 35,    // EXE: DS:E4F0 boundary (set in equipInit at file 0x1D5D4)
 };

@@ -48,6 +48,12 @@ DS:0x52A2,sub_count_table: [MIRV=5 DeathsHead=9] sub-warhead count by param
 0x28592,setup_player_palette: sets VGA 0-79 = player colors (8 per player); slot 5 mod 8 = white(63,63,63); slot 7 mod 8 = grey(30,30,30); if sky==6 all black; then fg_setdacs(0,80)
 0x3A0A9,setup_sky_ceiling_palette: if sky!=6 returns; sets VGA 110-149 from DS:DEA8 table; sets VGA 0-104 from DS:DD5E table (all black for Black sky); arg [bp+6]==0 = all-black variant
 DS:0x6E2A,sky_gradient_base_index: base VGA palette index for sky gradient = 0x50=80; used as color in hline/vline calls for terrain borders
+0x31D7F,compute_item_percentage: returns floor(struct[0x96]*100.0/ptr[0x02]) capped 1-99 unless exactly full=100; DS:0x5830=100.0f
+0x31249,check_heavy_shield_energy: returns inventory[D564=HeavyShield]*10 + struct[0xAA]; total shield energy
+0x3121E,check_shield_type_active: returns 1 if struct[0] > 1 (active shield type); 0 if dead/none
+DS:0xD564,HUD_HEAVY_SHIELD_IDX: Heavy Shield weapon index (set by equipInit); used in Widget 7 energy calc
+DS:0xD566,HUD_SUPER_MAG_IDX: Super Mag weapon index (set by equipInit); used in Widget 6 icon
+DS:0x5830,FLOAT32_100: 100.0f constant used in percentage calculation at 0x31D7F
 
 # ---- Market system (SCORCH.MKT) ----
 0x2B80A,mkt_init_defaults: sets mkt_cost=base_price EMAs=0.1 for all 48 weapons
