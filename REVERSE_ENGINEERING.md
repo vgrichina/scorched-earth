@@ -3367,7 +3367,7 @@ All located in `disasm/` directory:
 - [x] Fix AI auto-purchase to use 12-case jump table (random(11) dispatch) instead of hardcoded 3-condition sequence: **DONE**. shop.js — replaced deterministic 3-buy sequence (missiles/nukes/shield) with EXE-faithful `random(11)` dispatch (file 0x1DCA4). 12 cases matching jump table at file 0x1DF4D: cases 0-3 buy random weapon (+ optional guidance/accessory/defense), case 5 buy random shield (idx 46-52), case 6 buy random defense item, case 8 buy random guidance, case 9 buy mountain gear (fuel/battery), case 10 sell random inventory item (refund at 0.8/0.65 factor), cases 4/7/11 are display-only no-ops. Mountain mode re-roll: if landType is MTN(3) or Castle(5) and action==8, re-roll (matching EXE DS:0x50D8 check at 0x1DCAF). All purchases gated by arms level and affordability, use `getWeaponPrice()` for market pricing support.
 
 #### HUD (hud.js)
-- [ ] Fix Widget 6: should read WPN.SUPER_MAG (52) inventory, not WPN.MAG_DEFLECTOR (45)
+- [x] Fix Widget 6: should read WPN.SUPER_MAG (52) inventory, not WPN.MAG_DEFLECTOR (45). **DONE**: hud.js line 399 — changed `player.inventory[WPN.MAG_DEFLECTOR]` to `player.inventory[WPN.SUPER_MAG]`, matching EXE inventory[D566=52] at draw_hud_full 0x303CC.
 
 #### Menu system (menu.js)
 - [ ] Add missing config sub-dialog options: Computers Buy (Economics), Flatten Peaks / MTN Percent (Landscape), Bomb Icon / Tunneling / Useless Items / Teams / Status Bar (Play Options)

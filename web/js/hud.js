@@ -396,7 +396,7 @@ export function drawHud(player, wind, round, opts) {
 
     // Inline (draw_hud_full 0x303CC): Super Mag count at E9FE, format "%2d" [DS:57D4]
     // EXE: inventory[D566=52] = Super Mag count
-    const magCount = player.inventory ? (player.inventory[WPN.MAG_DEFLECTOR] || 0) : 0;
+    const magCount = player.inventory ? (player.inventory[WPN.SUPER_MAG] || 0) : 0;
     const magColor = magCount > 0 ? baseColor : dimColor;
     drawText(x, ROW2_Y, String(magCount).padStart(2), magColor);
     x += countFieldW; // → EA00
