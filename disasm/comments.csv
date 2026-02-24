@@ -211,7 +211,12 @@ DS:0x62E4,PLAY_ORDER_NAMES: BSS name table (5 far ptrs), init at 0x3DA90
 DS:0x0541,config key "PLAY_ORDER\0"
 DS:0x0A03,config format "PLAY_ORDER=%s\n"
 0x389DA,update_shield_color: sets VGA entry (player+200) RGB = energy*configRGB/maxEnergy
-0x38649,shield_draw_pixel_callback: sets pixel to DS:EC80 (player*8+5); skips sky range 80-104
+0x38649,shield_draw_pixel_callback: sets pixel to DS:EC80 (player*8+5); bounds check (EF42/EF3C/EF40/EF38), tank bbox exclusion (EC7C), skip sky 0x50-0x68 (80-104)
+DS:0xEF42,shield draw clip X min (screen left bound)
+DS:0xEF3C,shield draw clip X max (screen right bound)
+DS:0xEF40,shield draw clip Y min (screen top bound)
+DS:0xEF38,shield draw clip Y max (screen bottom bound)
+DS:0xEC7C,far ptr to tank bounding box rect {x_min,y_min,x_max,y_max} for shield draw exclusion
 0x3899C,shield_replace_pixel_callback: replaces pixels matching DS:EC84 with DS:EC86
 0x30F32,struct[+0x1A] = player_number * 8 (palette base)
 0x30E96,struct[+0xA0] = player_number (0-9)

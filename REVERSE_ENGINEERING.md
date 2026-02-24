@@ -2104,7 +2104,7 @@ redraw_area(config.radius, player.x);
 
 **Pixel replacement** (callback at file 0x3899C): After activation, `update_shield_color` redraws the shield shape using a callback that replaces pixels of value `player*8+5` with `player+200`, switching them to the dedicated per-player shield palette entry.
 
-**Pixel drawing callback** (activation, at file 0x38649): Gets current pixel via `fg_getpixel(x,y)`; skips pixels in VGA 0x50-0x68 (80-104 = sky range); otherwise sets pixel to `DS:EC80` (player*8+5). Shield pixels marked with 0xFF check and terrain boundary at 0x69 (105) handled separately.
+**Pixel drawing callback** (activation, at file 0x38649): Gets current pixel via `fg_getpixel(x,y)`; first checks bounds (DS:EF42/EF3C/EF40/EF38 screen rect), then checks tank bounding box (DS:EC7C far ptr to rect — excludes own tank body), then skips pixels in VGA 0x50-0x68 (80-104 = sky range); otherwise sets pixel to `DS:EC80` (player*8+5). Shield pixels are only drawn over terrain (>= 0x69) and tank pixels (< 0x50), never over sky. The 0xFF white impact marker (set by projectile terrain collision at 0x3EBD7) is >= 0x69, so shields can be drawn over impact points.
 
 **Key DS globals**:
 - DS:EC80 = shield pixel value = player*8+5 (set at 0x387D3)
@@ -3341,7 +3341,7 @@ All located in `disasm/` directory:
 
 #### Shield system (shields.js)
 - [x] Fix Mag Deflector collision damping: **VERIFIED — web port already correct**. Disassembly at file 0x2253A confirms: coefficient = DS:0x1D54 = **0.75** (f32), NOT 0.7 (DS:1D60 is explosion damage falloff, different system). Absorption threshold = DS:0x1D58 = 2000.0 (speed²). physics.js `MAG_DAMP_COEFF=0.75` and `MAG_ABSORB_THRESHOLD=2000.0` both match EXE. No random scatter or additive ±100/±50 in current code. Corrected RE doc "Collision Damping" section (was citing wrong DS offset/value).
-- [ ] Add shield pixel marker 0xFF and terrain boundary 0x69 detection (EXE uses these for shield-vs-terrain pixel discrimination)
+- [x] Add shield pixel marker 0xFF and terrain boundary 0x69 detection: **DONE**. EXE shield callbacks use pixel-based discrimination: shield_draw_pixel_callback (0x38649) skips sky range 0x50-0x68 (VGA 80-104) — shields only drawn over terrain/tanks, NOT sky. shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (105 = terrain). White 0xFF marker is the terrain impact pixel (0x3EBD7) which >= 0x69 so shields can be drawn over it. Web port shields.js: `drawShield()` and `drawShieldBreak()` now call `getPixel()` before each shield pixel — skip if existing pixel is in sky range (80-104). Shields now only appear where they overlap terrain, matching EXE visual behavior
 
 #### Talk system (talk.js)
 - [ ] Fix talk bubble Y offset: EXE uses tank.y-19, web uses player.y-20

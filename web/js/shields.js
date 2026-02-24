@@ -9,9 +9,15 @@
 // EXE: Force/Heavy/SuperMag weapons are OUTSIDE config range (corrupted data, not functional shields)
 
 import { config } from './config.js';
-import { setPixel } from './framebuffer.js';
+import { setPixel, getPixel } from './framebuffer.js';
 import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
+
+// EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-104 = 0x50-0x68)
+// EXE: shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (terrain)
+// Both prevent shield pixels from being drawn over sky background
+const SKY_RANGE_START = 80;   // VGA 0x50
+const SKY_RANGE_END = 104;    // VGA 0x68
 
 // Shield type constants (matches EXE config entry indices)
 // EXE config mapping: weapon_index - DS:D558(=45) + 1
@@ -142,11 +148,15 @@ export function drawShield(player) {
 
   // Draw shield as circle outline using dedicated palette entry
   // EXE: all shield types render identically (no per-type visual effects)
+  // EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-104)
   for (let angle = 0; angle < 360; angle += 4) {
     const rad = angle * Math.PI / 180;
     const px = Math.round(cx + Math.cos(rad) * radius);
     const py = Math.round(cy + Math.sin(rad) * radius);
     if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
+      const existing = getPixel(px, py);
+      // EXE: skip sky range 0x50-0x68 (VGA 80-104) — shield not drawn over sky
+      if (existing >= SKY_RANGE_START && existing <= SKY_RANGE_END) continue;
       setPixel(px, py, paletteIdx);
     }
   }
@@ -171,11 +181,14 @@ export function drawShieldBreak() {
   setPaletteRgb(paletteIdx, Math.max(0, r), Math.max(0, g), Math.max(0, b));
 
   // Draw shield circle at original position using the fading palette entry
+  // EXE: shield pixels only exist over terrain, not sky — fade happens in-place
   for (let angle = 0; angle < 360; angle += 4) {
     const rad = angle * Math.PI / 180;
     const px = Math.round(shieldBreak.x + Math.cos(rad) * shieldBreak.radius);
     const py = Math.round(shieldBreak.y + Math.sin(rad) * shieldBreak.radius);
     if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
+      const existing = getPixel(px, py);
+      if (existing >= SKY_RANGE_START && existing <= SKY_RANGE_END) continue;
       setPixel(px, py, paletteIdx);
     }
   }
