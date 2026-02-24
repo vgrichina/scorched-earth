@@ -2810,7 +2810,7 @@ All located in `disasm/` directory:
 
 ### Documentation
 
-- [ ] Draw ASCII architecture diagrams: create `docs/architecture_exe.md` with call graph, module layout, memory map, and data flow for the EXE (code segments → functions → shared DS); create `docs/architecture_web.md` with equivalent diagram for the web port (JS module graph, render loop, event flow, shared state)
+- [x] Draw ASCII architecture diagrams: created `docs/architecture_exe.md` (binary layout, module call graph, per-turn execution flow, shared DS data layout with writer/reader annotations, weapon handler dispatch, shield dispatch, AI solver architecture, font system) and `docs/architecture_web.md` (23-module dependency graph, state machine diagram, game loop per-frame flow, shared state objects, VGA-style rendering pipeline, event flow, EXE-to-web module mapping table)
 - [ ] Full fidelity audit: read every section of REVERSE_ENGINEERING.md against every web/js/*.js file, compare documented EXE values/formulas/behaviors against the implementation, and add new `- [ ]` tasks here for every gap found; mark this task done only after the task list is fully refreshed
 
 ---
