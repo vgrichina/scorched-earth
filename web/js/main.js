@@ -13,7 +13,7 @@ import { initInput } from './input.js';
 import { drawHud, drawWindIndicator } from './hud.js';
 import { drawText, drawTextShadow } from './font.js';
 import { projectiles } from './physics.js';
-import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound } from './game.js';
+import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
 import { getLeaderboard } from './score.js';
@@ -242,10 +242,11 @@ function drawLaserSight(player) {
 function drawRoundOver() {
   const alive = players.filter(p => p.alive);
 
+  // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead
   if (alive.length === 1) {
     drawTextShadow(104, 60, alive[0].name + ' wins!', alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
   } else {
-    drawTextShadow(136, 60, 'Draw!', COLOR_HUD_TEXT, 0);
+    drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
   }
 
   // Show scores
@@ -268,8 +269,16 @@ function drawRoundOver() {
     }
   }
 
-  drawTextShadow(60, 170, `Round ${game.round}/${config.rounds}`, COLOR_HUD_TEXT, 0);
-  drawTextShadow(60, 182, 'Press SPACE to continue', COLOR_HUD_TEXT, 0);
+  // EXE: "%d of %d rounds fought." (DS:0x3002) + "%s rounds remain"/"1 round remains" (DS:0x2C1A/0x2C2B)
+  const remaining = config.rounds - game.round;
+  drawTextShadow(60, 170, `${game.round} of ${config.rounds} rounds fought.`, COLOR_HUD_TEXT, 0);
+  if (remaining === 1) {
+    drawTextShadow(60, 182, '1 round remains', COLOR_HUD_TEXT, 0);
+  } else if (remaining > 1) {
+    drawTextShadow(60, 182, `${remaining} rounds remain`, COLOR_HUD_TEXT, 0);
+  }
+  // EXE: "<<Press any key>>" (DS:0x5212)
+  drawTextShadow(60, 194, '<<Press any key>>', COLOR_HUD_TEXT, 0);
 }
 
 function drawGameOver() {
@@ -366,22 +375,26 @@ function gameLoop() {
     return;
   }
 
-  // EXE: System menu (F9)
+  // EXE: System menu (F9) — EXE title "System Menu" (DS:0x2B22)
+  // EXE items: ~Clear Screen, ~Mass Kill, ~Quit Game, Reassign ~Players,
+  //   Reassign ~Teams, Save ~Game, ~Restore Game, ~New Game
   if (game.state === STATE.SYSTEM_MENU) {
     gameTick();
     // Draw overlay on top of current world
     redrawWorld();
-    fillRect(80, 60, 240, 130, 0);
-    fillRect(82, 62, 238, 128, 1);
-    drawTextShadow(100, 68, 'SYSTEM MENU', COLOR_HUD_HIGHLIGHT, 0);
-    const options = ['Mass Kill', 'New Game'];
-    for (let i = 0; i < options.length; i++) {
+    const smOptions = SYSTEM_MENU_OPTIONS;
+    const smH = 68 + smOptions.length * 14 + 18;
+    fillRect(80, 60, 240, 60 + smH, 0);
+    fillRect(82, 62, 238, 58 + smH, 1);
+    drawTextShadow(100, 68, 'System Menu', COLOR_HUD_HIGHLIGHT, 0);
+    for (let i = 0; i < smOptions.length; i++) {
       const y = 88 + i * 14;
-      const color = i === game.systemMenuOption ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT;
+      const opt = smOptions[i];
+      const color = opt.disabled ? 8 : (i === game.systemMenuOption ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT);
       if (i === game.systemMenuOption) fillRect(84, y - 1, 236, y + 9, 0);
-      drawText(100, y, options[i], color);
+      drawText(100, y, opt.label, color);
     }
-    drawText(88, 116, 'ESC: Cancel', COLOR_HUD_TEXT);
+    drawText(88, 88 + smOptions.length * 14 + 4, 'ESC: Cancel', COLOR_HUD_TEXT);
     blit();
     requestAnimationFrame(gameLoop);
     return;

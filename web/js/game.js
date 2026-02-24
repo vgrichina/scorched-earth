@@ -29,6 +29,18 @@ import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktU
 import { generateTerrain } from './terrain.js';
 import { resetMenuState } from './menu.js';
 
+// EXE System Menu items (DS:0x2B22 pointer table at DS:0x2224)
+export const SYSTEM_MENU_OPTIONS = [
+  { label: '~Clear Screen', action: 'clear' },
+  { label: '~Mass Kill', action: 'mass_kill' },
+  { label: '~Quit Game', action: 'quit' },
+  { label: 'Reassign ~Players', action: null, disabled: true },
+  { label: 'Reassign ~Teams', action: null, disabled: true },
+  { label: 'Save ~Game', action: null, disabled: true },
+  { label: '~Restore Game', action: null, disabled: true },
+  { label: '~New Game', action: 'new_game' },
+];
+
 // War quotes — EXE: 15 strings extracted from binary at 0x05B580-0x05BC5E
 // See disasm/war_quotes.txt for full extraction with offsets
 // Note: preserves original typos ("throughly", "Macchiavelli", "Jonathon")
@@ -94,6 +106,7 @@ export const game = {
   screenHideTarget: -1,
   // System menu
   systemMenuOption: 0,
+  systemMenuActions: [],  // populated from SYSTEM_MENU_OPTIONS at F9 open
   // Guided missile steering
   guidedActive: false,
   // Simultaneous mode timer
@@ -516,6 +529,7 @@ export function gameTick() {
         // EXE: F9 opens system menu during aim phase
         if (consumeKey('F9')) {
           game.systemMenuOption = 0;
+          game.systemMenuActions = SYSTEM_MENU_OPTIONS;
           game.state = STATE.SYSTEM_MENU;
           break;
         }
@@ -955,25 +969,49 @@ export function gameTick() {
     }
 
     case STATE.SYSTEM_MENU: {
-      // F9 system menu
+      // EXE: F9 system menu — 8 items from DS:0x2224 pointer table
+      // Navigate: skip disabled items
       if (consumeKey('ArrowUp')) {
-        game.systemMenuOption = Math.max(0, game.systemMenuOption - 1);
+        let n = game.systemMenuOption - 1;
+        while (n >= 0 && game.systemMenuActions[n].disabled) n--;
+        if (n >= 0) game.systemMenuOption = n;
       }
       if (consumeKey('ArrowDown')) {
-        game.systemMenuOption = Math.min(1, game.systemMenuOption + 1);
+        const max = game.systemMenuActions.length - 1;
+        let n = game.systemMenuOption + 1;
+        while (n <= max && game.systemMenuActions[n].disabled) n++;
+        if (n <= max) game.systemMenuOption = n;
       }
       if (consumeKey('Enter') || consumeKey('Space')) {
-        if (game.systemMenuOption === 0) {
-          // Mass Kill — end round immediately
-          for (const p of players) p.alive = false;
-          endOfRoundScoring(game.round);
-          game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
-          game.roundOverTimer = 0;
-          game.state = STATE.ROUND_OVER;
-        } else {
-          // New Game — back to main menu
-          resetMenuState();
-          game.state = STATE.CONFIG;
+        const opt = game.systemMenuActions[game.systemMenuOption];
+        if (opt && !opt.disabled) {
+          switch (opt.action) {
+            case 'clear':
+              // EXE: ~Clear Screen — redraw playfield (clear craters/debris)
+              game.state = STATE.AIM;
+              break;
+            case 'mass_kill':
+              // EXE: ~Mass Kill — "Mass kill everyone?" (DS:0x2C06), kills all players
+              for (const p of players) p.alive = false;
+              endOfRoundScoring(game.round);
+              game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+              game.roundOverTimer = 0;
+              game.state = STATE.ROUND_OVER;
+              break;
+            case 'quit':
+              // EXE: ~Quit Game — "Do you want to quit?" (DS:0x2BC9)
+              resetMenuState();
+              game.state = STATE.CONFIG;
+              break;
+            case 'new_game':
+              // EXE: ~New Game — "Do you really want to restart the game?" (DS:0x2BDE)
+              resetMenuState();
+              game.state = STATE.CONFIG;
+              break;
+            default:
+              game.state = STATE.AIM;
+              break;
+          }
         }
       }
       if (consumeKey('Escape')) {
