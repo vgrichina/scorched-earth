@@ -284,22 +284,22 @@ function drawRoundOver() {
 function drawGameOver() {
   fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
 
-  drawTextShadow(96, 20, 'GAME OVER', COLOR_HUD_HIGHLIGHT, 0);
+  // EXE: "Final Scoring" (DS:0x2A9F) — displayed after last round
+  drawTextShadow(96, 20, 'Final Scoring', COLOR_HUD_HIGHLIGHT, 0);
 
   // Final leaderboard
-  drawTextShadow(32, 40, 'Final Scores', COLOR_HUD_TEXT, 0);
-
   const board = getLeaderboard();
   for (let i = 0; i < board.length; i++) {
     const p = board[i];
     const color = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
     const medal = i === 0 ? '* ' : '  ';
-    drawTextShadow(24, 60 + i * 14, `${medal}${p.name}`, color, 0);
-    drawText(200, 60 + i * 14, `${p.score} pts`, COLOR_HUD_TEXT);
-    drawText(270, 60 + i * 14, `${p.wins}W`, COLOR_HUD_TEXT);
+    drawTextShadow(24, 50 + i * 14, `${medal}${p.name}`, color, 0);
+    drawText(200, 50 + i * 14, `${p.score} pts`, COLOR_HUD_TEXT);
+    drawText(270, 50 + i * 14, `${p.wins}W`, COLOR_HUD_TEXT);
   }
 
-  drawTextShadow(56, 160, 'Press SPACE to restart', COLOR_HUD_TEXT, 0);
+  // EXE: "<<Press any key>>" (DS:0x5212)
+  drawTextShadow(60, 170, '<<Press any key>>', COLOR_HUD_TEXT, 0);
 }
 
 // MAYHEM cheat code tracker

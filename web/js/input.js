@@ -80,6 +80,18 @@ export function consumeKey(code) {
   return false;
 }
 
+// Consume ANY key press — returns true if any key was down and clears it
+// EXE: fg_getkey() at round-over/game-over waits for ANY key, not just specific ones
+export function consumeAnyKey() {
+  for (const code in keys) {
+    if (keys[code]) {
+      keys[code] = false;
+      return true;
+    }
+  }
+  return false;
+}
+
 // Consume mouse click (returns true once per click)
 export function consumeClick(button) {
   const mask = button === undefined ? 1 : (1 << button);

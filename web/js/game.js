@@ -17,7 +17,7 @@ import { getPixel, setPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
-import { isKeyDown, consumeKey, consumeClick, getMouseDelta, mouse } from './input.js';
+import { isKeyDown, consumeKey, consumeClick, consumeAnyKey, getMouseDelta, mouse } from './input.js';
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
@@ -813,8 +813,8 @@ export function gameTick() {
 
     case STATE.ROUND_OVER: {
       game.roundOverTimer++;
-      // Press space to continue (after brief delay)
-      if (game.roundOverTimer > 30 && (consumeKey('Space') || consumeClick(0))) {
+      // EXE: "<<Press any key>>" (DS:0x5212) + fg_getkey() waits for ANY key
+      if (game.roundOverTimer > 30 && (consumeAnyKey() || consumeClick(0))) {
         if (game.round >= config.rounds) {
           game.state = STATE.GAME_OVER;
         } else {
@@ -862,8 +862,8 @@ export function gameTick() {
     }
 
     case STATE.GAME_OVER: {
-      // Press space/click to go back to main menu
-      if (consumeKey('Space') || consumeClick(0)) {
+      // EXE: fg_getkey() — any key to go back to main menu
+      if (consumeAnyKey() || consumeClick(0)) {
         resetMenuState();
         game.state = STATE.CONFIG;
       }
