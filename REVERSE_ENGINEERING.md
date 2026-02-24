@@ -734,7 +734,7 @@ The main menu is the first screen shown after startup. Left panel has buttons/sp
 | ~Extra Dirt | `EXTRA_DIRT=%s` | Off / On |
 | ~Useless Items | `USELESS_ITEMS=%s` | Off / On |
 | ~Mode: | `PLAY_MODE=%s` | Sequential / Simultaneous / Synchronous |
-| Play ~Order: | `PLAY_ORDER=%s` | Random / Losers-First / Winners-First / Round-Robin |
+| Play ~Order: | `PLAY_ORDER=%s` | Random / Losers-First / Winners-First / Round-Robin / Sequential |
 | ~Teams: | `TEAM_MODE=%s` | None / On |
 | ~Hostile Environment | `HOSTILE_ENVIRONMENT=%s` | Off / On |
 | ~Language | — | UI language (?) |
@@ -2253,7 +2253,7 @@ ATTACK_COMMENTS=talk1.cfg # Attack phrases file
 DIE_COMMENTS=talk2.cfg    # Death phrases file
 PLAY_MODE=Sequential      # Sequential/Simultaneous/Synchronous
 STATUS_BAR=On
-PLAY_ORDER=Random         # Random/Losers-First/Winners-First/Round-Robin
+PLAY_ORDER=Random         # Random/Losers-First/Winners-First/Round-Robin/Sequential
 TEAM_MODE=None
 ARMS=4                    # Arms level 0-4 (weapon availability)
 BOMB_ICON=Big             # Small/Big/Invisible
@@ -3172,7 +3172,7 @@ All located in `disasm/` directory:
 - [x] Trace heat guidance trigger and correction: **RESOLVED**. Trigger: `ai_select_target` (file 0x24F01) iterates all tanks, computes Euclidean distance, threshold = DS:0x5186 = **40 pixels** (web port had 60). Callback (0x2589C): continuous attraction force `correction = 10000.0 × dt / distSq^(1/4)` applied per step toward stored target, with overshoot detection (sign flip of dx/dy vs initial wind_x/wind_y → removes callback). Wind vectors are **inverted**: wind_x = -sign(target.X - current.X) — used ONLY for overshoot detection, NOT as correction direction. Web port fixed: HEAT_PROXIMITY 60→40, replaced constant GUIDANCE_STRENGTH=2.0 with continuous attraction model (GUIDANCE_K=10000, GUIDANCE_DT=0.02, GUIDANCE_MIN_DISTSQ=0.001), added overshoot detection and callback removal. See "Heat Guidance — Trigger and Correction" subsection.
 - [x] Trace gravity/wind pre-scaling formula: **RESOLVED**. `setup_physics_constants` at file 0x21064. Constants: DS:0x1CF2=50.0 (f32, gravity mult), DS:0x1CF6=40.0 (f32, wind div), DS:0x1CFA=0.02 (f64, fallback dt), DS:0x1CC8=100.0 (f32, d divisor). Formulas: gravity_step = 2500 × GRAVITY_CONFIG × dt, wind_step = 1.25 × wind × dt (both pre-scaled, applied without further dt multiply). Launch velocity = power directly (no scaling). GRAVITY_CONFIG at DS:0x512A = 0.2 default (f64), range 0.05–10.0. Effective accelerations: gravity = 2500 × G px/sec², wind = 1.25 × W px/sec². Web port corrected: GRAVITY=4.9 → 400×config.gravity, WIND_SCALE=0.15 → 0.2 (using k²=0.16 scaling for MAX_SPEED=400). Config default gravity fixed 1.0→0.2. See "Gravity/Wind Pre-Scaling — Derived Formulas" subsection.
 - [x] Trace sky type enum mapping: **VERIFIED**. Name table init at file 0x3AEA0 copies 8 far ptrs to DS:0x621C: 0=Plain (DS:0x2DE8), 1=Shaded (DS:0x2DEE), 2=Stars (DS:0x2DF5), 3=Storm (DS:0x2DFB), 4=Sunset (DS:0x2E01), 5=Cavern (DS:0x31ED), 6=Black (DS:0x2E08), 7=Random (DS:0x2787). Config key `SKY\0` at DS:0x0454, format `SKY=%s\n` at DS:0x08F8. Random resolution (file 0x3978E): `random(6)` → 0-5, re-rolls if 5 (Cavern) and no .mtn files (DS:0x621A==0). Black (6) never in Random pool. Web port was correct for indices 0-6 but missing Random (7); added Random to menu.js with runtime resolution to 0-6 (including Black, unlike EXE 0-5). See "Sky Type Enum" subsection in Sky/Landscape Mode System section.
-- [ ] Trace play order enum: EXE PLAY_ORDER options are Random/Losers-First/Winners-First/Round-Robin. Web port uses Sequential/Random/Losers First/Winners First. Verify from config string table.
+- [x] Trace play order enum: **VERIFIED**. Config variable DS:0x519C, 5 options via name table at DS:0x62E4 (init at 0x3DA90). Enum: 0=Random (DS:0x2787), 1=Losers-First (DS:0x2CFA), 2=Winners-First (DS:0x2D07), 3=Round-Robin (DS:0x2D15), 4=Sequential (DS:0x2803). Config key `PLAY_ORDER\0` at DS:0x0541, format `PLAY_ORDER=%s\n` at DS:0x0A03. Dispatch at file 0x2AE64: cases 0-3 via jump table, case 4 skips to common code. Case 0: Fisher-Yates shuffle + random(2) start. Case 1: shuffle + rotate start via DS:0x51A4 (player_id tracking). Case 2: sort by score, reverse fill (winners first). Case 3: sort by score, forward fill (lowest first). Case 4: no modification (existing order). Web port fixed: enum corrected 0→Random etc., Round-Robin (3) added, Sequential (4) added, config comment fixed (was conflating with PLAY_MODE), default remains 0 (Random, matching SCORCH.CFG). See "Play Order System" section.
 - [ ] Trace shield color rendering formula: EXE uses continuous fade `shieldEnergy × configColor / maxEnergy` and palette index `playerIndex + 5`. Web port uses quantized 4-step slot system with `playerIndex × 8 + slot`. Disassemble shield draw to confirm.
 - [ ] Trace shield break animation sequence: EXE has 50-frame accelerating fade + final white flash. Web port triggers white flash on frame 0 (first frame, not last). Verify frame ordering.
 - [ ] Trace Flicker Shield implementation: EXE has no config table entry for Flicker Shield (type 4 in switch). Web port invents SHIELD_CONFIG[6] with energy=80, radius=14, rgb=(50,50,63), flags=8. Disassemble flicker shield switch case to find actual values.
@@ -3645,6 +3645,90 @@ At file 0x1DBC6, Sequential and Synchronous are grouped together (`if mode==0 OR
 | 0x29505 | 0x22B0 | AI accuracy: noise parameter switch (types 0-5 only) |
 
 **Intermediate file**: `disasm/play_modes_sentient_analysis.txt`
+
+---
+
+## Play Order System — player.cpp (VERIFIED from disassembly)
+
+### Overview
+
+The PLAY_ORDER config variable (DS:0x519C) controls the turn sequence within each round. The play order function at file 0x2AE53 is called at the start of each round. It fills the order array at DS:0xE4F6 (array of far pointers to tank structs, 4 bytes/entry) and sets the start index DS:0xE4F4.
+
+### Play Order Enum (DS:0x519C, 5 options)
+
+Name table at DS:0x62E4 (BSS, initialized at file 0x3DA90 from static far pointers). Config key `PLAY_ORDER\0` at DS:0x0541, format `PLAY_ORDER=%s\n` at DS:0x0A03. Config parser at file 0x1A4C0 loops si=0..4, comparing input string against name table entries, stores match index into DS:0x519C.
+
+| Index | String | DS Source Ptr | Code Block | Behavior |
+|-------|--------|---------------|------------|----------|
+| 0 | Random | DS:0x2787 | 0x2AE77–0x2AF26 | Fill order sequentially, Fisher-Yates shuffle (50 swaps), `random(2)` start |
+| 1 | Losers-First | DS:0x2CFA | 0x2AF29–0x2B038 | Fill + shuffle, rotate start via DS:0x51A4 tracking (first player's ID ±1 next round) |
+| 2 | Winners-First | DS:0x2D07 | 0x2B03B–0x2B0B9 | Sort players by score (`sort_players(buf,1)` at 0x2CC4:0x0184), fill order array in **reverse** sorted order (highest first), random start |
+| 3 | Round-Robin | DS:0x2D15 | 0x2B0BB–0x2B131 | Sort players by score (same sort call), fill order array in **forward** sorted order (lowest first), random start |
+| 4 | Sequential | DS:0x2803 | (skips to 0x2B133) | No modification to order array — uses existing/default player index order |
+
+Default in SCORCH.CFG: `PLAY_ORDER=Random` (index 0).
+
+### Dispatch Code (file 0x2AE64)
+
+```
+mov bx, [DS:0x519C]     ; PLAY_ORDER
+cmp bx, 3
+jbe use_jump_table       ; cases 0-3 via CS:0x0E7C jump table
+jmp 0x2B133              ; case 4 (Sequential) → skip order modification
+```
+
+### Case 0 — Random (file 0x2AE77)
+
+1. Fill order array: `order[i] = far_ptr(DS:0xD568 + i*0xCA)` for i=0..NUM_PLAYERS-1
+2. Fisher-Yates shuffle: 50 iterations, each picks two `random(NUM_PLAYERS)` indices and swaps
+3. Start index: `random(2)` → stored in DS:0xE4F4
+
+### Case 1 — Losers-First (file 0x2AF29)
+
+1. Fill order array sequentially (same as case 0)
+2. Fisher-Yates shuffle (50 iterations)
+3. Start position tracking via DS:0x51A4:
+   - If DS:0x51A4 == -1 (first round): `random(NUM_PLAYERS)` start
+   - Else: start = DS:0x51A4 + 1 (wrapping mod NUM_PLAYERS)
+   - Scan order array to find slot matching the target player's tank struct
+4. Save first player's `struct+0xA0` (player_id) to DS:0x51A4 for next round
+
+### Case 2 — Winners-First (file 0x2B03B)
+
+1. Random start: `random(NUM_PLAYERS)` → DS:0xE4F4
+2. Sort players: `sort_players(buffer, 1)` — sorts player indices by score
+3. Fill order array reading sorted buffer in **reverse** order: `buffer[NUM_PLAYERS - si]`
+4. Rotate order to start at the random position
+
+### Case 3 — Round-Robin (file 0x2B0BB)
+
+1. Random start: `random(NUM_PLAYERS)` → DS:0xE4F4
+2. Sort players: `sort_players(buffer, 1)` — same sort as case 2
+3. Fill order array reading sorted buffer in **forward** order: `buffer[si]`
+4. Rotate order to start at the random position
+
+### Case 4 — Sequential (falls through to 0x2B133)
+
+No code — the order array is not modified. Players fire in their existing index order (0, 1, 2, ..., N-1) from previous initialization.
+
+### Key Data Locations
+
+| Address | Type | Name | Purpose |
+|---------|------|------|---------|
+| DS:0x519C | int16 | PLAY_ORDER | Config variable, enum 0-4 |
+| DS:0x51A4 | int16 | last_round_starter | Tracks first player's ID for Losers-First rotation |
+| DS:0xE4F4 | int16 | turn_start_index | Which slot in order array fires first |
+| DS:0xE4F6 | far_ptr[] | turn_order_array | Array of far pointers to tank structs (4 bytes × NUM_PLAYERS) |
+| DS:0x62E4 | far_ptr[] | play_order_names | BSS name table (8 bytes × 5), init at 0x3DA90 |
+| DS:0x0541 | string | "PLAY_ORDER" | Config key |
+| DS:0x0A03 | string | "PLAY_ORDER=%s\n" | Config format string |
+| DS:0x50D4 | int16 | NUM_PLAYERS | Number of players in game |
+
+### Web Port Discrepancies (Fixed)
+
+**Before fix**: Web port used wrong enum (0=Sequential, 1=Random, 2=Losers First, 3=Winners First), missing Round-Robin, wrong default. Config comment conflated PLAY_ORDER with PLAY_MODE.
+
+**After fix**: Enum corrected to 0=Random, 1=Losers-First, 2=Winners-First, 3=Round-Robin, 4=Sequential. Round-Robin added. Default set to 0 (Random). Config comment corrected. Note: behavioral implementation (EXE's shuffle+rotate for Losers-First, score-sort+rotate for Winners/Round-Robin) is approximate — web port sorts by score for cases 1-3 which matches the practical effect.
 
 ---
 

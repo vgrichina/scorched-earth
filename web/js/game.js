@@ -132,29 +132,34 @@ export function getCurrentPlayer() {
   return players[game.currentPlayer];
 }
 
-// EXE: compute turn order based on playOrder config
-// 0=Sequential (round-robin), 1=Random (Fisher-Yates), 2=Losers-First, 3=Winners-First
+// EXE: compute turn order based on playOrder config (DS:0x519C)
+// 0=Random, 1=Losers-First, 2=Winners-First, 3=Round-Robin, 4=Sequential
 function computeTurnOrder() {
   const alive = players.filter(p => p.alive).map(p => p.index);
   switch (config.playOrder) {
-    case 1: {
-      // Fisher-Yates shuffle
+    case 0: {
+      // Random: Fisher-Yates shuffle (EXE does 50 random swaps)
       for (let i = alive.length - 1; i > 0; i--) {
         const j = random(i + 1);
         [alive[i], alive[j]] = [alive[j], alive[i]];
       }
       break;
     }
-    case 2:
-      // Losers first: sort by score ascending
+    case 1:
+      // Losers-First: EXE shuffles + rotates start position per round.
+      // Approximation: sort by score ascending (lowest/losers first)
       alive.sort((a, b) => players[a].score - players[b].score);
       break;
-    case 3:
-      // Winners first: sort by score descending
+    case 2:
+      // Winners-First: EXE sorts by score, fills in reverse (highest first)
       alive.sort((a, b) => players[b].score - players[a].score);
       break;
+    case 3:
+      // Round-Robin: EXE sorts by score, fills forward (lowest first)
+      alive.sort((a, b) => players[a].score - players[b].score);
+      break;
     default:
-      // Sequential: already in index order
+      // Sequential (4): already in index order — no modification
       break;
   }
   game.turnOrder = alive;

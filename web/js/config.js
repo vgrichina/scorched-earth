@@ -58,7 +58,7 @@ export const config = {
 
   // Misc
   talkingTanks: 1,     // EXE: TALKING=On (comments.cpp speech bubbles)
-  playOrder: 0,        // EXE: PLAY_ORDER=Sequential (0=Sequential,1=Simultaneous,2=Synchronous)
+  playOrder: 0,        // EXE: PLAY_ORDER=Random (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin,4=Sequential)
 
   // Sound
   soundEnabled: 1,     // EXE: SOUND=On
