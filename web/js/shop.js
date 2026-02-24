@@ -62,7 +62,7 @@
 // palette animation, per-player name switching, "NO KIBITZING!!" privacy guard).
 
 import { config } from './config.js';
-import { fillRect, hline, vline, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
+import { fillRect, hline, vline, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
 import { drawText, drawTextShadow, measureText } from './font.js';
 import { BLACK, saveAccentPalette, restoreAccentPalette, tickAccentPalette } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
@@ -179,6 +179,9 @@ const shop = {
   selling: false,     // EXE: "Sell Equipment" sub-dialog active
   sellQty: 1,         // EXE: "~Quantity to sell:" field value
   frame: 0,           // frame counter for palette animation
+  scrollDrag: false,  // scrollbar thumb drag state
+  scrollDragY: 0,     // mouse Y at drag start
+  scrollDragOff: 0,   // scroll offset at drag start
 };
 
 // Layout constants (EXE: left panel = 200px / 0xC8)
@@ -186,6 +189,8 @@ const PANEL_W_MAX = 200;
 const PANEL_X = 4;
 const PANEL_Y = 20;
 const TAB_H   = 18;   // bottom tab bar height
+// Scrollbar: EXE dialog system (seg 0x3F19) — sunken track, raised thumb, arrow buttons
+const SB_W    = 12;   // scrollbar width (EXE: ~14px at 640, scaled proportionally)
 
 // Resolution-dependent row height: EXE adds 5px at screenH >= 400 (0x190)
 function getRowH() { return config.screenHeight >= 400 ? 18 : 13; }
@@ -588,7 +593,32 @@ export function shopTick(player) {
     return true;
   }
 
-  // Mouse: click on tabs, item rows, Done button
+  // Scrollbar thumb drag (continuous — check every frame while button held)
+  const hasSbTick = shop.category !== TAB_SCORE && shop.items.length > perPage;
+  if (shop.scrollDrag) {
+    if (mouse.buttons & 1) {
+      // Continue dragging — compute new scroll offset from mouse Y delta
+      const panelHTick = SH - PANEL_Y - TAB_H - 2;
+      const listYTick  = PANEL_Y + 16;
+      const btnHTick   = SB_W;
+      const bTick      = config.screenHeight >= 400 ? 3 : 2;
+      const trkTopTick = listYTick + btnHTick + bTick;
+      const trkBotTick = PANEL_Y + panelHTick - 3 - btnHTick - bTick;
+      const innerHTick = trkBotTick - trkTopTick;
+      const thumbHTick = Math.max(8, Math.floor(innerHTick * perPage / shop.items.length));
+      const trackRange = innerHTick - thumbHTick;
+      const maxScroll  = shop.items.length - perPage;
+      if (trackRange > 0 && maxScroll > 0) {
+        const dy = mouse.y - shop.scrollDragY;
+        const newOff = Math.round(shop.scrollDragOff + dy * maxScroll / trackRange);
+        shop.scrollOffset = Math.max(0, Math.min(maxScroll, newOff));
+      }
+    } else {
+      shop.scrollDrag = false; // button released
+    }
+  }
+
+  // Mouse: click on tabs, item rows, scrollbar, Done button
   if (mouse.over && consumeClick(0)) {
     const mx = mouse.x, my = mouse.y;
     const listY = PANEL_Y + 16;
@@ -620,7 +650,75 @@ export function shopTick(player) {
         hitTabCurX += tw + 3;
       }
     }
-    // Item list — click to select; click selected again to buy (skip header rows)
+    // Scrollbar interaction — arrow buttons, track click, thumb drag
+    else if (hasSbTick) {
+      const sbX    = PANEL_X + panelW - SB_W - 3;
+      const panelHSb = SH - PANEL_Y - TAB_H - 2;
+      const sbBot  = PANEL_Y + panelHSb - 3;
+      const btnH   = SB_W;
+      const trkTop = listY + btnH;
+      const trkBot = sbBot - btnH;
+      const maxScroll = shop.items.length - perPage;
+
+      if (mx >= sbX && mx < sbX + SB_W) {
+        // Up arrow button
+        if (my >= listY && my < listY + btnH) {
+          shop.scrollOffset = Math.max(0, shop.scrollOffset - 1);
+        }
+        // Down arrow button
+        else if (my >= trkBot && my < trkBot + btnH) {
+          shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + 1);
+        }
+        // Track / thumb area
+        else if (my >= trkTop && my < trkBot) {
+          const b = config.screenHeight >= 400 ? 3 : 2;
+          const innerH = (trkBot - trkTop) - 2 * b;
+          const thumbH = Math.max(8, Math.floor(innerH * perPage / shop.items.length));
+          const thumbY = trkTop + b + (maxScroll > 0
+            ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll) : 0);
+
+          if (my >= thumbY && my < thumbY + thumbH) {
+            // Start thumb drag
+            shop.scrollDrag = true;
+            shop.scrollDragY = mouse.y;
+            shop.scrollDragOff = shop.scrollOffset;
+          } else if (my < thumbY) {
+            // Click above thumb = page up
+            shop.scrollOffset = Math.max(0, shop.scrollOffset - perPage);
+          } else {
+            // Click below thumb = page down
+            shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + perPage);
+          }
+        }
+      }
+      // Item list — click to select (exclude scrollbar area)
+      else if (mx >= PANEL_X + 2 && mx < sbX && my >= listY) {
+        const clickedRow = Math.floor((my - listY) / rowH) + shop.scrollOffset;
+        if (clickedRow >= 0 && clickedRow < shop.items.length) {
+          const clickedItem = shop.items[clickedRow];
+          if (clickedItem && clickedItem.isHeader) {
+            // Ignore clicks on header rows
+          } else if (clickedRow === shop.selectedItem) {
+            // Second click on already-selected item = buy
+            const item = shop.items[shop.selectedItem];
+            if (item && !item.isHeader) {
+              const price = getWeaponPrice(item.idx);
+              if (player.cash >= price) {
+                player.cash -= price;
+                player.inventory[item.idx] += item.weapon.bundle;
+                trackPurchase(item.idx);
+              }
+            }
+          } else {
+            shop.selectedItem = clickedRow;
+            if (clickedRow < shop.scrollOffset) shop.scrollOffset = clickedRow;
+            if (clickedRow >= shop.scrollOffset + perPage)
+              shop.scrollOffset = clickedRow - perPage + 1;
+          }
+        }
+      }
+    }
+    // Item list (no scrollbar) — click to select; click selected again to buy
     else if (shop.category !== TAB_SCORE &&
              mx >= PANEL_X + 2 && mx < PANEL_X + panelW - 2 && my >= listY) {
       const clickedRow = Math.floor((my - listY) / rowH) + shop.scrollOffset;
@@ -732,12 +830,16 @@ export function drawShop(player) {
     }
   } else {
     // EXE: Weapons and Miscellaneous tabs — scrollable item list
+    const rowH    = getRowH();
+    const perPage = getItemsPerPage();
+    const hasSb   = shop.items.length > perPage;
+    // Right edge of list content (leaves room for scrollbar when present)
+    const listRight = PANEL_X + panelW - 3 - (hasSb ? SB_W + 1 : 0);
+
     drawText(PANEL_X + 3, hdrY, 'Item',  UI_DARK_TEXT);
     drawText(priceX,       hdrY, 'Price', UI_DARK_TEXT);
     drawText(ownX,         hdrY, '#',     UI_DARK_TEXT);
-    hline(PANEL_X + 2, PANEL_X + panelW - 3, PANEL_Y + 13, UI_MED_BORDER);
-    const rowH    = getRowH();
-    const perPage = getItemsPerPage();
+    hline(PANEL_X + 2, listRight, PANEL_Y + 13, UI_MED_BORDER);
     const listY   = PANEL_Y + 16;
     const endIdx  = Math.min(shop.items.length, shop.scrollOffset + perPage);
 
@@ -747,7 +849,7 @@ export function drawShop(player) {
 
       // EXE: Misc tab sub-category headers — non-selectable rows with hline separator
       if (item.isHeader) {
-        hline(PANEL_X + 2, PANEL_X + panelW - 3, y + 1, UI_MED_BORDER);
+        hline(PANEL_X + 2, listRight, y + 1, UI_MED_BORDER);
         drawText(PANEL_X + 3, y + 3, item.header, UI_HIGHLIGHT);
         continue;
       }
@@ -759,7 +861,7 @@ export function drawShop(player) {
 
       if (selected) {
         // EXE paint callback: fillRect with player_color+4 (lighter shade of player color)
-        fillRect(PANEL_X + 2, y - 1, PANEL_X + panelW - 3, y + rowH - 2, selFill);
+        fillRect(PANEL_X + 2, y - 1, listRight, y + rowH - 2, selFill);
       }
 
       // EXE: DS:0xEF22=bright for selected, DS:0xEF24=dark for unselected, EF24 for depleted
@@ -772,17 +874,55 @@ export function drawShop(player) {
                owned > 0 ? baseColor : txtColor);
     }
 
-    // Simple scrollbar (right edge of panel)
+    // EXE-style 3D scrollbar (right side of panel) — sunken track, raised thumb, arrow buttons
     const perPageSb = getItemsPerPage();
     if (shop.items.length > perPageSb) {
-      const sbX   = PANEL_X + panelW - 1;
+      const sbX   = PANEL_X + panelW - SB_W - 3; // inside panel border
       const sbTop = listY;
       const sbBot = PANEL_Y + panelH - 3;
       const sbH   = sbBot - sbTop;
-      vline(sbX, sbTop, sbBot, UI_DARK_BORDER);
-      const thumbH = Math.max(3, Math.floor(sbH * perPageSb / shop.items.length));
-      const thumbY = sbTop + Math.floor(sbH * shop.scrollOffset / shop.items.length);
-      vline(sbX, thumbY, Math.min(thumbY + thumbH, sbBot), UI_BRIGHT_BORDER);
+      const btnH  = SB_W;          // square arrow buttons
+      const trkTop = sbTop + btnH;  // track starts below up arrow
+      const trkBot = sbBot - btnH;  // track ends above down arrow
+      const trkH   = trkBot - trkTop;
+
+      // Up arrow button (raised 3D box + triangle glyph)
+      drawBox3DRaised(sbX, sbTop, SB_W, btnH, UI_BACKGROUND,
+        UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+      // Up triangle (▲)
+      const arrowMidX = sbX + Math.floor(SB_W / 2);
+      for (let row = 0; row < 3; row++) {
+        for (let col = -row; col <= row; col++) {
+          setPixel(arrowMidX + col, sbTop + 3 + row, UI_DARK_TEXT);
+        }
+      }
+
+      // Down arrow button (raised 3D box + triangle glyph)
+      drawBox3DRaised(sbX, trkBot, SB_W, btnH, UI_BACKGROUND,
+        UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+      // Down triangle (▼)
+      for (let row = 0; row < 3; row++) {
+        for (let col = -(2 - row); col <= (2 - row); col++) {
+          setPixel(arrowMidX + col, trkBot + 3 + row, UI_DARK_TEXT);
+        }
+      }
+
+      // Track (sunken groove between arrow buttons)
+      drawBox3DSunken(sbX, trkTop, SB_W, trkH, UI_MED_BORDER,
+        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
+
+      // Thumb (raised 3D box) — proportional to visible/total items
+      if (trkH > 8) {
+        const b = config.screenHeight >= 400 ? 3 : 2; // track border
+        const innerH = trkH - 2 * b;
+        const thumbH = Math.max(8, Math.floor(innerH * perPageSb / shop.items.length));
+        const maxScroll = shop.items.length - perPageSb;
+        const thumbY = trkTop + b + (maxScroll > 0
+          ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll)
+          : 0);
+        drawBox3DRaised(sbX + 1, thumbY, SB_W - 2, thumbH, UI_BACKGROUND,
+          UI_LIGHT_BORDER, UI_DARK_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+      }
     }
 
     // Right info panel (item details + controls help) — only if screen wide enough
