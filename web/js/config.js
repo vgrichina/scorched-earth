@@ -47,8 +47,8 @@ export const config = {
   // Scoring — EXE: score.cpp modes
   scoringMode: 0,      // EXE: SCORING=Standard (0=Standard, 1=Corporate, 2=Vicious)
 
-  // Walls — EXE: physics wall collision types (reordered to match EXE enum)
-  wallType: 7,         // EXE: WALLS=Concrete (0=None,1=Erratic,2=Random,3=Wrap,4=Padded,5=Rubber,6=Spring,7=Concrete)
+  // Walls — EXE: ELASTIC config variable DS:0x5154
+  wallType: 5,         // EXE: WALLS=Concrete (0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete,6=Random,7=Erratic)
 
   // Economy — EXE: equip.cpp shop system
   startCash: 25000,    // EXE: START_CASH=25000

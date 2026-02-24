@@ -115,11 +115,9 @@ export function generateWind() {
 }
 
 // Resolve Erratic/Random wall types to a concrete wall type
-// EXE: Erratic changes each turn, Random changes each round
+// EXE (file 0x22140): random(6) → 0-5 (None through Concrete)
 function resolveRandomWallType() {
-  // Pick from the non-meta types: NONE(0), WRAP(3), PADDED(4), RUBBER(5), SPRING(6), CONCRETE(7)
-  const concreteTypes = [WALL.NONE, WALL.WRAP, WALL.PADDED, WALL.RUBBER, WALL.SPRING, WALL.CONCRETE];
-  setResolvedWallType(concreteTypes[random(concreteTypes.length)]);
+  setResolvedWallType(random(6));  // EXE: 0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete
 }
 
 // EXE: wind random walk per turn — delta in [-5, +5], clamped to ±max_wind (file 0x28E99)

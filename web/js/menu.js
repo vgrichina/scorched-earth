@@ -98,7 +98,7 @@ const SUBMENUS = {
       { label: 'Air Viscosity:', key: 'viscosity', min: 0, max: 20, step: 1 },
       { label: 'Gravity:', key: 'gravity', min: 0.05, max: 10, step: 0.05, float: true },
       { label: 'Effect of Walls:', key: 'wallType', min: 0, max: 7, step: 1,
-        names: ['None', 'Erratic', 'Random', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete'] },
+        names: ['None', 'Wrap', 'Padded', 'Rubber', 'Spring', 'Concrete', 'Random', 'Erratic'] },
       { label: 'Sky:', key: 'skyType', min: 0, max: 6, step: 1,
         names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black'] },
       { label: 'Max. Wind:', key: 'wind', min: 0, max: 20, step: 1 },

@@ -151,18 +151,20 @@ function rollerFlightStep(proj, weapon) {
         proj.x = proj.x < 0 ? config.screenWidth - 1 : 0;
         break;
       case WALL.RUBBER:
+        // EXE: coeff magnitude 1.0 — perfect reflection for rollers
         proj.rollDir = -proj.rollDir;
-        proj.rollSpeed *= 0.8;
         proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
         break;
       case WALL.PADDED:
+        // EXE: coeff magnitude 0.5 — halve speed
         proj.rollDir = -proj.rollDir;
         proj.rollSpeed *= 0.5;
         proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
         break;
       case WALL.SPRING:
+        // EXE: coeff magnitude 2.0 — double speed
         proj.rollDir = -proj.rollDir;
-        proj.rollSpeed *= 1.2;
+        proj.rollSpeed *= 2.0;
         proj.x = proj.x < 0 ? 1 : config.screenWidth - 2;
         break;
       case WALL.CONCRETE:

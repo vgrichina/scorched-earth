@@ -1029,18 +1029,62 @@ A **PI/180 constant (0.0174532930)** was found at DS:0x1D08, confirming the game
 
 **Intermediate files**: `disasm/float_constants.txt`, `disasm/explosion_physics.txt`, `disasm/damage_formula.txt`, `disasm/physics_timestep_wind_analysis.txt`
 
-### Wall Types (ELASTIC setting)
+### Wall Types (ELASTIC setting) (VERIFIED)
 
-| Type | Behavior |
-|------|----------|
-| None | Projectiles fly offscreen |
-| Concrete | Detonate on wall impact |
-| Padded | Reflect with velocity reduction |
-| Rubber | Reflect with little/no loss |
-| Spring | Reflect with velocity increase |
-| Wrap-around | Left wraps to right |
-| Random | Random type per round |
-| Erratic | Random type per turn |
+**Config variable**: DS:0x5154 (ELASTIC enum, set by config parser at 0x29290)
+
+**Enum ordering** (from config string table and dispatch code at file 0x2220F):
+
+| Value | Name | EXE Behavior |
+|-------|------|--------------|
+| 0 | None | Projectiles fly offscreen (DS:CE98=1, terminates flight) |
+| 1 | Wrap | Wrap-around: teleport X to opposite side |
+| 2 | Padded | Reflect with 0.5× velocity (coeff = -0.5) |
+| 3 | Rubber | Perfect reflect (coeff = -1.0, no energy loss) |
+| 4 | Spring | Amplified reflect (coeff = -2.0, doubles speed) |
+| 5 | Concrete | Detonate on wall impact (calls explosion handler) |
+| 6 | Random | Resolved to random(6) → 0–5 once per round |
+| 7 | Erratic | Resolved to random(6) → 0–5 each turn |
+
+**Bounce coefficient dispatch** (file 0x21EFD–0x21F24):
+```
+; At file 0x21EFD (extras.cpp):
+cmp [DS:5154], 3      ; Rubber?
+jnz .check_padded
+fld qword [DS:1D34]   ; coeff = -1.0
+jmp .apply
+
+.check_padded:
+cmp [DS:5154], 2      ; Padded?
+jnz .default_spring
+fld qword [DS:1D3C]   ; coeff = -0.5
+jmp .apply
+
+.default_spring:       ; Spring (type 4) is the fallthrough default
+fld qword [DS:1D44]   ; coeff = -2.0
+
+.apply:
+fstp qword [bp-1C]    ; store bounce_coeff
+; Then: vx_new = vx * bounce_coeff (for X walls)
+;        vy_new = vy * bounce_coeff (for Y ceiling)
+```
+
+**Bounce coefficient float64 constants**:
+| DS Offset | File Offset | Value | Used by |
+|-----------|-------------|-------|---------|
+| DS:0x1D34 | 0x57AB4 | -1.0 | Rubber (type 3) — perfect reflection |
+| DS:0x1D3C | 0x57ABC | -0.5 | Padded (type 2) — half velocity |
+| DS:0x1D44 | 0x57AC4 | -2.0 | Spring (type 4) — double velocity |
+
+The negative sign handles the velocity direction reversal (reflection). The coefficient is applied to vx for left/right wall hits and to vy for ceiling hits.
+
+**X-wall boundary check** (file 0x2220F):
+- Left boundary: `proj.x < DS:EF3C + DS:513E` (screen left + margin)
+- Right boundary: `proj.x > DS:EF42 - DS:513E` (screen right - margin)
+
+**Bounce count limit**: Player struct offset 0x30 is checked `<= 6` (max 6 bounces before alternative handling at file 0x21F35).
+
+**Random/Erratic resolution** (file 0x22140): `random(6)` yields 0–5, mapping to None/Wrap/Padded/Rubber/Spring/Concrete.
 
 ### Explosion/Damage System (VERIFIED)
 
@@ -2815,8 +2859,8 @@ All located in `disasm/` directory:
 
 ### RE Investigation (from audit)
 
-- [ ] Trace wall bounce coefficients: EXE Padded/Rubber/Spring wall bounce velocity factors are undocumented. physics.js uses 0.5/0.8/1.2 but these are unverified guesses. Disassemble wall handler code to find the actual multipliers.
-- [ ] Trace WALL enum ordering: EXE ELASTIC config string order appears to be None=0, Wrap=1, Padded=2, Rubber=3, Spring=4, Concrete=5, Random=6, Erratic=7. Web port uses different ordering (Erratic=1, Random=2, Wrap=3...). Verify from binary config parsing.
+- [x] Trace wall bounce coefficients: **RESOLVED**. Bounce coefficient dispatch at file 0x21EFD: Rubber(type 3)→DS:0x1D34=-1.0 (perfect reflection), Padded(type 2)→DS:0x1D3C=-0.5 (half velocity), Spring(type 4)→DS:0x1D44=-2.0 (doubled velocity). Negative sign handles reflection. Web port fixed: Rubber 0.8→1.0, Spring 1.2→2.0 (in physics.js and behaviors.js roller wall code). Bounce count limit: player struct +0x30 checked ≤6. See "Wall Types (ELASTIC setting)" section.
+- [x] Trace WALL enum ordering: **RESOLVED**. Config variable DS:0x5154 (ELASTIC). Enum from config parser at 0x29290 and dispatch at 0x2220F: 0=None, 1=Wrap, 2=Padded, 3=Rubber, 4=Spring, 5=Concrete, 6=Random, 7=Erratic. Random/Erratic resolve via random(6)→0-5 at file 0x22140. Web port fixed: WALL enum, config default (7→5=Concrete), menu names array, resolveRandomWallType simplified to random(6). See "Wall Types (ELASTIC setting)" section.
 - [ ] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: RE doc says "spawns 5-10 sub-bombs as Baby Missiles" but does not document the parent explosion radius. behaviors.js uses radius=15 (unverified). Also verify sub-bomb weapon index (currently 2).
 - [ ] Trace Leap Frog / Bounce explosion radii: behaviors.js uses radius=20 (final) and radius=5 (intermediate) but neither value is documented from EXE disassembly.
 - [ ] Trace napalm particle physics: behaviors.js applies 0.7× velocity damping per frame to napalm particles citing DS:1D60, but DS:1D60=0.7 is the explosion damage attenuation between successive player hits, not a per-frame particle damping factor. Disassemble napalm particle step to find actual per-step physics.

@@ -19,17 +19,17 @@ const MAX_SPEED = 400;             // EXE: pixels/sec at power=1000 (power/1000 
 const GRAVITY = 4.9;               // EXE: pixels/sec² downward (SCORCH.CFG GRAVITY scaled)
 const WIND_SCALE = 0.15;           // EXE: wind config → pixels/sec² horizontal accel
 
-// Wall types — EXE: ELASTIC config variable, wall collision in physics loop
-// Reordered to match EXE enum ordering
+// Wall types — EXE: ELASTIC config variable DS:0x5154, dispatch at file 0x2220F
+// Enum ordering verified from config parser at 0x29290 and dispatch code
 export const WALL = {
   NONE:     0,  // EXE: fly off screen
-  ERRATIC:  1,  // EXE: random wall type each turn
-  RANDOM:   2,  // EXE: random wall type each round
-  WRAP:     3,  // EXE: wrap-around screen edges
-  PADDED:   4,  // EXE: reflect with 0.5x velocity loss
-  RUBBER:   5,  // EXE: reflect with 0.8x velocity loss
-  SPRING:   6,  // EXE: reflect with 1.2x velocity increase
-  CONCRETE: 7,  // EXE: detonate on wall impact
+  WRAP:     1,  // EXE: wrap-around screen edges
+  PADDED:   2,  // EXE: reflect with coeff -0.5 (DS:0x1D3C)
+  RUBBER:   3,  // EXE: perfect reflect with coeff -1.0 (DS:0x1D34)
+  SPRING:   4,  // EXE: amplified reflect with coeff -2.0 (DS:0x1D44)
+  CONCRETE: 5,  // EXE: detonate on wall impact
+  RANDOM:   6,  // EXE: random(6) → 0-5 per round
+  ERRATIC:  7,  // EXE: random(6) → 0-5 per turn
 };
 
 // Active projectiles array (replaces single projectile)
@@ -166,7 +166,7 @@ export function clearProjectiles() {
 }
 
 // Resolved wall type for Erratic/Random modes (set by game.js)
-export let resolvedWallType = 7;  // default Concrete
+export let resolvedWallType = WALL.CONCRETE;  // default Concrete
 
 export function setResolvedWallType(type) {
   resolvedWallType = type;
@@ -204,20 +204,20 @@ function handleWallCollision(proj) {
       return 'hit_wall';
 
     case WALL.RUBBER:
-      // Reflect with 0.8x velocity loss
-      proj.vx = -proj.vx * 0.8;
+      // EXE: coeff = -1.0 (DS:0x1D34) — perfect reflection, no energy loss
+      proj.vx = -proj.vx;
       proj.x = hitLeft ? 1 : w - 2;
       return 'flying';
 
     case WALL.PADDED:
-      // Reflect with 0.5x velocity loss
+      // EXE: coeff = -0.5 (DS:0x1D3C) — half velocity reflection
       proj.vx = -proj.vx * 0.5;
       proj.x = hitLeft ? 1 : w - 2;
       return 'flying';
 
     case WALL.SPRING:
-      // Reflect with velocity increase
-      proj.vx = -proj.vx * 1.2;
+      // EXE: coeff = -2.0 (DS:0x1D44) — doubled velocity reflection
+      proj.vx = -proj.vx * 2.0;
       proj.x = hitLeft ? 1 : w - 2;
       return 'flying';
 
