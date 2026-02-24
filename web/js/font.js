@@ -306,10 +306,24 @@ function drawChar(ch, x, y, colorIndex) {
 // Draw a string at (x, y) with given palette color index
 // Returns the width in pixels
 // EXE: text_display at file 0x4C914 skips '~' (0x7E) hotkey markers
+// and underlines the next character (hotkey letter) at y+FONT_HEIGHT-1
 export function drawText(x, y, str, colorIndex) {
   let cx = x;
+  let underlineNext = false;
   for (let i = 0; i < str.length; i++) {
-    if (str.charCodeAt(i) === 0x7E) continue; // skip ~ hotkey marker
+    if (str.charCodeAt(i) === 0x7E) {
+      underlineNext = true;
+      continue;
+    }
+    const code = str.charCodeAt(i);
+    const w = charWidth(code);
+    if (underlineNext && w > 0) {
+      // Draw underline spanning the hotkey character width
+      for (let col = 0; col < w; col++) {
+        setPixel(cx + col, y + FONT_HEIGHT - 1, colorIndex);
+      }
+      underlineNext = false;
+    }
     cx += drawChar(str[i], cx, y, colorIndex);
   }
   return cx - x;
