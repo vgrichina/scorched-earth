@@ -28,21 +28,21 @@ export const config = {
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
   gravity: 0.2,        // EXE: GRAVITY=0.200000 (DS:0x512A, range 0.05-10.0, accel = 2500×G px/sec²)
   viscosity: 0,        // EXE: AIR_VISCOSITY=0 (range 0–20; factor = 1.0 - value/10000 per step; DS:5178)
-  wind: 5,             // EXE: WIND=5 (max initial wind magnitude)
-  changeWind: 1,       // EXE: CHANGE_WIND=On (random walk per turn)
+  wind: 0,             // EXE: MAX_WIND=0 (max initial wind magnitude)
+  changeWind: 0,       // EXE: CHANGING_WIND=Off (random walk per turn)
 
   // Terrain — EXE: ranges.cpp generation params
   landType: 2,         // EXE: LAND_TYPE=Rolling (0=Flat,1=Slope,2=Rolling,3=MTN,4=V,5=Castle,6=Cavern)
   skyType: 0,          // EXE: SKY=Plain (0=Plain,1=Shaded,2=Stars,3=Storm,4=Sunset,5=Cavern,6=Black)
   land1: 20,           // EXE: LAND1=20 (bumpiness/flat chance %)
-  land2: 0,            // EXE: LAND2=0 (slope component)
+  land2: 20,           // EXE: LAND2=20 (terrain slope/frequency)
   numPeaks: 20,        // EXE: NUM_PEAKS=20
   randomLand: 0,       // EXE: RANDOM_LAND=Off
 
   // Players
   numPlayers: 2,       // EXE: PLAYERS=2
   rounds: 10,          // EXE: ROUNDS=10
-  armsLevel: 0,        // EXE: ARMS_LEVEL=0 (gates weapon availability at struct +08)
+  armsLevel: 4,        // EXE: ARMS=4 (gates weapon availability at struct +08)
 
   // Scoring — EXE: score.cpp modes
   scoringMode: 0,      // EXE: SCORING=Standard (0=Standard, 1=Corporate, 2=Vicious)
@@ -51,13 +51,13 @@ export const config = {
   wallType: 5,         // EXE: WALLS=Concrete (0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete,6=Random,7=Erratic)
 
   // Economy — EXE: equip.cpp shop system
-  startCash: 25000,    // EXE: START_CASH=25000
-  interest: 10,        // EXE: INTEREST=10 (% applied between rounds)
+  startCash: 1000000,  // EXE: INITIAL_CASH=1000000
+  interest: 30,        // EXE: INTEREST_RATE=0.300000 (30% applied between rounds)
   freeTurns: 5,        // EXE: FREE_TURNS=5
   freeMarket: 0,       // EXE: FREE_MARKET=Off (DS:0x514A) — dynamic weapon pricing
 
   // Misc
-  talkingTanks: 1,     // EXE: TALKING=On (comments.cpp speech bubbles)
+  talkingTanks: 0,     // EXE: TALKING_TANKS=Off (0=Off, 1=Computers, 2=All)
   playOrder: 0,        // EXE: PLAY_ORDER=Random (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin,4=Sequential)
 
   // Sound
@@ -67,11 +67,11 @@ export const config = {
   // Additional gameplay options
   fallingTanks: 1,       // EXE: FALLING_TANKS=On (DS:0x5162) — tanks fall when terrain removed
   impactDamage: 1,       // EXE: DAMAGE_TANKS_ON_IMPACT=On (DS:0x5114) — 0=per-step, 1=on-impact
-  explosionScale: 1,     // 0=Small(0.5x), 1=Medium(1x), 2=Large(1.5x)
+  explosionScale: 2,     // EXE: EXPLOSION_SCALE=Large (0=Small/0.5x, 1=Medium/1x, 2=Large/1.5x)
   tracePaths: 0,         // EXE: permanent projectile trails
   extraDirt: 0,          // EXE: debris scatter from explosions
   playMode: 0,           // EXE: 0=Sequential, 1=Simultaneous, 2=Synchronous
-  hostileEnvironment: 0, // EXE: random lightning/meteor events
+  hostileEnvironment: 1, // EXE: HOSTILE_ENVIRONMENT=On (random lightning/meteor events)
   talkProbability: 100,  // EXE: % chance of speech on fire/death
 };
 

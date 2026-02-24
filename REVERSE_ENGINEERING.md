@@ -3319,7 +3319,7 @@ All located in `disasm/` directory:
 ### Web Port Fixes (from audit)
 
 #### Config defaults (config.js)
-- [ ] Fix config defaults to match EXE: gravity 0.2 (not 1.0), startCash 1000000 (not 25000), interest 30 (not 10), wind 0 (not 5), changeWind 0 (not 1), hostileEnvironment 1 (not 0), talkingTanks 0 (not 1), land2 20 (not 0), armsLevel 4 (not 0), playOrder to match EXE enum, explosionScale 2/Large (not 1), soundEnabled 0 (not 1)
+- [x] Fix config defaults to match EXE: config.js updated — startCash 25000→1000000, interest 10→30, wind 5→0, changeWind 1→0 (Off), hostileEnvironment 0→1 (On), talkingTanks 1→0 (Off), land2 0→20, armsLevel 0→4, explosionScale 1→2 (Large). gravity was already 0.2, playOrder already 0 (Random). soundEnabled kept at 1 (matching EXE's SOUND=On default in shipped SCORCH.CFG)
 
 #### Physics (physics.js)
 - [x] Fix gravity/wind formulas once RE investigation resolves the pre-scaling: **RESOLVED**. physics.js: removed hardcoded GRAVITY=4.9 and WIND_SCALE=0.15, replaced with EXE-derived GRAVITY_FACTOR=400 (2500×k², where k=MAX_SPEED/1000=0.4) × config.gravity and WIND_FACTOR=0.2 (1.25×k²) × wind. config.js: gravity default 1.0→0.2. ai.js: solver constants updated to match. Note: for exact flight-time fidelity, MAX_SPEED should be 1000 (currently 400, trajectories land correctly but take 2.5× longer).
