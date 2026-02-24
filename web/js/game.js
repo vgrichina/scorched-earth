@@ -30,15 +30,16 @@ import { generateTerrain } from './terrain.js';
 import { resetMenuState } from './menu.js';
 
 // EXE System Menu items (DS:0x2B22 pointer table at DS:0x2224)
+// confirm: EXE yes/no prompt text (DS:0x2C06, DS:0x2BC9, DS:0x2BDE)
 export const SYSTEM_MENU_OPTIONS = [
   { label: '~Clear Screen', action: 'clear' },
-  { label: '~Mass Kill', action: 'mass_kill' },
-  { label: '~Quit Game', action: 'quit' },
+  { label: '~Mass Kill', action: 'mass_kill', confirm: 'Mass kill everyone?' },
+  { label: '~Quit Game', action: 'quit', confirm: 'Do you want to quit?' },
   { label: 'Reassign ~Players', action: null, disabled: true },
   { label: 'Reassign ~Teams', action: null, disabled: true },
   { label: 'Save ~Game', action: null, disabled: true },
   { label: '~Restore Game', action: null, disabled: true },
-  { label: '~New Game', action: 'new_game' },
+  { label: '~New Game', action: 'new_game', confirm: 'Do you really want to restart the game?' },
 ];
 
 // War quotes — EXE: 15 strings extracted from binary at 0x05B580-0x05BC5E
@@ -107,6 +108,8 @@ export const game = {
   // System menu
   systemMenuOption: 0,
   systemMenuActions: [],  // populated from SYSTEM_MENU_OPTIONS at F9 open
+  systemMenuConfirm: null, // EXE: confirmation prompt text (DS:0x2C06, DS:0x2BC9, DS:0x2BDE)
+  systemMenuPendingAction: null, // action to execute if confirmed
   // Guided missile steering
   guidedActive: false,
   // Simultaneous mode timer
@@ -498,6 +501,47 @@ function processHit(proj, hitResult) {
   // Remove projectile unless behavior says to keep it alive
   if (!result.keepAlive) {
     proj.active = false;
+  }
+}
+
+// EXE: system menu item activation — shows confirmation prompt if needed
+function activateSystemMenuItem(opt) {
+  if (opt.confirm) {
+    game.systemMenuConfirm = opt.confirm;
+    game.systemMenuPendingAction = opt.action;
+  } else {
+    executeSystemMenuAction(opt.action);
+  }
+}
+
+// EXE: execute confirmed system menu action
+function executeSystemMenuAction(action) {
+  switch (action) {
+    case 'clear':
+      // EXE: ~Clear Screen — redraw playfield (clear craters/debris)
+      game.state = STATE.AIM;
+      break;
+    case 'mass_kill':
+      // EXE: ~Mass Kill — kills all players (DS:0x2C06 confirmed)
+      for (const p of players) p.alive = false;
+      endOfRoundScoring(game.round);
+      game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+      game.roundOverTimer = 0;
+      game.state = STATE.ROUND_OVER;
+      break;
+    case 'quit':
+      // EXE: ~Quit Game — back to main menu (DS:0x2BC9 confirmed)
+      resetMenuState();
+      game.state = STATE.CONFIG;
+      break;
+    case 'new_game':
+      // EXE: ~New Game — restart game (DS:0x2BDE confirmed)
+      resetMenuState();
+      game.state = STATE.CONFIG;
+      break;
+    default:
+      game.state = STATE.AIM;
+      break;
   }
 }
 
@@ -961,8 +1005,8 @@ export function gameTick() {
     // --- No Kibitzing / System Menu states ---
 
     case STATE.SCREEN_HIDE: {
-      // Black screen between human turns — press space/click to continue
-      if (consumeKey('Space') || consumeClick(0)) {
+      // Black screen between human turns — EXE: fg_getkey() waits for any key
+      if (consumeAnyKey() || consumeClick(0)) {
         game.state = STATE.AIM;
       }
       break;
@@ -970,6 +1014,22 @@ export function gameTick() {
 
     case STATE.SYSTEM_MENU: {
       // EXE: F9 system menu — 8 items from DS:0x2224 pointer table
+
+      // Confirmation sub-dialog active?
+      if (game.systemMenuConfirm) {
+        // EXE: yes/no confirmation — Y=confirm, N/Escape=cancel
+        if (consumeKey('KeyY') || consumeKey('Enter')) {
+          const action = game.systemMenuPendingAction;
+          game.systemMenuConfirm = null;
+          game.systemMenuPendingAction = null;
+          executeSystemMenuAction(action);
+        } else if (consumeKey('KeyN') || consumeKey('Escape')) {
+          game.systemMenuConfirm = null;
+          game.systemMenuPendingAction = null;
+        }
+        break;
+      }
+
       // Navigate: skip disabled items
       if (consumeKey('ArrowUp')) {
         let n = game.systemMenuOption - 1;
@@ -982,36 +1042,26 @@ export function gameTick() {
         while (n <= max && game.systemMenuActions[n].disabled) n++;
         if (n <= max) game.systemMenuOption = n;
       }
+
+      // EXE: hotkey letters — extract char after '~' in label, match Key<X>
+      for (let i = 0; i < game.systemMenuActions.length; i++) {
+        const opt = game.systemMenuActions[i];
+        if (opt.disabled) continue;
+        const tildeIdx = opt.label.indexOf('~');
+        if (tildeIdx >= 0 && tildeIdx + 1 < opt.label.length) {
+          const hotkey = opt.label[tildeIdx + 1].toUpperCase();
+          if (consumeKey('Key' + hotkey)) {
+            game.systemMenuOption = i;
+            activateSystemMenuItem(opt);
+            break;
+          }
+        }
+      }
+
       if (consumeKey('Enter') || consumeKey('Space')) {
         const opt = game.systemMenuActions[game.systemMenuOption];
         if (opt && !opt.disabled) {
-          switch (opt.action) {
-            case 'clear':
-              // EXE: ~Clear Screen — redraw playfield (clear craters/debris)
-              game.state = STATE.AIM;
-              break;
-            case 'mass_kill':
-              // EXE: ~Mass Kill — "Mass kill everyone?" (DS:0x2C06), kills all players
-              for (const p of players) p.alive = false;
-              endOfRoundScoring(game.round);
-              game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
-              game.roundOverTimer = 0;
-              game.state = STATE.ROUND_OVER;
-              break;
-            case 'quit':
-              // EXE: ~Quit Game — "Do you want to quit?" (DS:0x2BC9)
-              resetMenuState();
-              game.state = STATE.CONFIG;
-              break;
-            case 'new_game':
-              // EXE: ~New Game — "Do you really want to restart the game?" (DS:0x2BDE)
-              resetMenuState();
-              game.state = STATE.CONFIG;
-              break;
-            default:
-              game.state = STATE.AIM;
-              break;
-          }
+          activateSystemMenuItem(opt);
         }
       }
       if (consumeKey('Escape')) {

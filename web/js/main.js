@@ -369,7 +369,8 @@ function gameLoop() {
     fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
     const targetPlayer = players[game.screenHideTarget] || getCurrentPlayer();
     drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
-    drawTextShadow(72, 100, 'Press SPACE', COLOR_HUD_TEXT, 0);
+    // EXE: "<<Press any key>>" (DS:0x5212) — consistent with round-over/game-over
+    drawTextShadow(72, 100, '<<Press any key>>', COLOR_HUD_TEXT, 0);
     blit();
     requestAnimationFrame(gameLoop);
     return;
@@ -394,7 +395,14 @@ function gameLoop() {
       if (i === game.systemMenuOption) fillRect(84, y - 1, 236, y + 9, 0);
       drawText(100, y, opt.label, color);
     }
-    drawText(88, 88 + smOptions.length * 14 + 4, 'ESC: Cancel', COLOR_HUD_TEXT);
+    // EXE: confirmation dialog overlay (DS:0x2C06, DS:0x2BC9, DS:0x2BDE)
+    if (game.systemMenuConfirm) {
+      fillRect(84, 58 + smH - 28, 236, 58 + smH - 2, 0);
+      drawText(90, 58 + smH - 24, game.systemMenuConfirm, COLOR_HUD_HIGHLIGHT);
+      drawText(90, 58 + smH - 12, 'Y: Yes  N: No', COLOR_HUD_TEXT);
+    } else {
+      drawText(88, 88 + smOptions.length * 14 + 4, 'ESC: Cancel', COLOR_HUD_TEXT);
+    }
     blit();
     requestAnimationFrame(gameLoop);
     return;
