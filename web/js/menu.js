@@ -89,6 +89,7 @@ const SUBMENUS = {
       { label: 'Cash at Start:', key: 'startCash', min: 0, max: 100000, step: 5000 },
       { label: 'Scoring Mode:', key: 'scoringMode', min: 0, max: 2, step: 1,
         names: ['Standard', 'Corporate', 'Vicious'] },
+      { label: 'Free Market:', key: 'freeMarket', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
     ],
   },
   physics: {

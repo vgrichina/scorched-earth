@@ -54,6 +54,7 @@ export const config = {
   startCash: 25000,    // EXE: START_CASH=25000
   interest: 10,        // EXE: INTEREST=10 (% applied between rounds)
   freeTurns: 5,        // EXE: FREE_TURNS=5
+  freeMarket: 0,       // EXE: FREE_MARKET=Off (DS:0x514A) — dynamic weapon pricing
 
   // Misc
   talkingTanks: 1,     // EXE: TALKING=On (comments.cpp speech bubbles)
@@ -80,7 +81,7 @@ const PERSIST_KEYS = [
   'gravity', 'viscosity', 'wind', 'changeWind',
   'landType', 'skyType', 'wallType',
   'numPlayers', 'rounds', 'armsLevel',
-  'scoringMode', 'startCash', 'interest', 'freeTurns',
+  'scoringMode', 'startCash', 'interest', 'freeTurns', 'freeMarket',
   'talkingTanks', 'playOrder',
   'soundEnabled', 'flySoundEnabled',
   'fallingTanks', 'impactDamage', 'explosionScale', 'tracePaths', 'extraDirt',

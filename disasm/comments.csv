@@ -118,3 +118,6 @@ DS:0x5164,FALL_DAMAGE_PER_PIXEL: hardcoded constant = 2; total damage = 2 * fall
 0x20A59,fall_damage_off_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jnz skip; calls damage_tank(tank, 2, 1)
 0x20AE4,fall_damage_on_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jz skip; calls damage_tank(tank, accum, 1)
 0x31B48,damage_tank: args(tank_far_ptr, amount, flag); if flag>0: subtract HP; if amount==0: no-op
+0x37955,compute_sell_refund: refund = floor(qty * price * SELL_FACTOR / bundle); factor=0.8 normal; 0.65 free market
+DS:0x613C,SELL_FACTOR: float64 0.8 — normal sell refund = 80% of per-unit price
+DS:0x6144,SELL_FACTOR_MKT: float64 0.65 — free market sell refund = 65% of per-unit price

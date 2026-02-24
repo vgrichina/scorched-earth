@@ -2427,6 +2427,30 @@ The shop screen dispatches through a 12-case jump table at file 0x1DF4D. For com
 
 Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll (skip guidance in mountain terrain).
 
+### Sell Equipment — Refund Price Formula (file 0x37955, VERIFIED)
+
+Function `compute_sell_refund` at file 0x37955 (seg 0x2CBF:0x4365):
+
+```
+// DS:0x613C = 0.8 (float64, normal sell factor)
+// DS:0x6144 = 0.65 (float64, free market sell factor)
+// DS:0x514A = FREE_MARKET config toggle
+
+if (FREE_MARKET != 0) {
+    DS:0x613C = DS:0x6144;   // overwrite: 0.8 → 0.65 for session
+}
+gross = qty × weapon_price;               // 32-bit multiply (call far 0x17A6)
+refund = floor(gross × DS:0x613C / weapon_bundle);  // FPU: fild, fmul, fild, fdivp, _ftol
+return refund;
+```
+
+| Constant | DS Offset | File Offset | Value | Purpose |
+|----------|-----------|-------------|-------|---------|
+| SELL_FACTOR | DS:0x613C | 0x5BEBC | 0.8 (float64) | Normal sell refund = 80% of per-unit price |
+| SELL_FACTOR_MKT | DS:0x6144 | 0x5BEC4 | 0.65 (float64) | Free Market sell refund = 65% of per-unit price |
+
+**Web port**: Fixed in `web/js/shop.js` — sell factor changed from 0.5 to `config.freeMarket ? 0.65 : 0.8`. Config toggle `freeMarket` added to `web/js/config.js` (DS:0x514A, default Off). Menu toggle added to Economics sub-dialog in `web/js/menu.js`.
+
 **Intermediate files**: `disasm/cavern_shop_analysis.txt`
 
 ---
@@ -2587,7 +2611,7 @@ The buy function at file 0x14924 increments `weapon[i].sold_qty` (field +0x1E) a
 ### Web Port Impact
 
 The free market system is a complete economic simulation. To implement in the web port:
-- Add `FREE_MARKET` toggle to config
+- ~~Add `FREE_MARKET` toggle to config~~ — DONE (`config.freeMarket` in config.js + menu.js Economics)
 - Use `mkt_cost` for shop prices when enabled (fall back to base price when disabled)
 - Call `mkt_update()` at end of each round
 - Persist market state to localStorage (matching the 22-byte per-weapon format)
@@ -2735,7 +2759,7 @@ All located in `disasm/` directory:
 - [x] Fix sky palette gradients in web port: Sunset (type 4) gradient direction fixed in web/js/palette.js — now goes cool-blue/indigo at top (i=0: R=28,G=5,B=50) to warm-orange at bottom (i=23: R=63,G=20,B=10). Other sky types unchanged (no verified EXE values found from static analysis for types 0–3, 5).
 - [x] Add sun/planet rendering to terrain preview: **CANCELLED** — RE investigation resolved as "No explicit sun circle"; the "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes (see "Sun/Planet Rendering" section). No draw call to implement. Sunset palette gradient already fixed in web/js/palette.js.
 - [x] Implement impact damage system: **DS:0x5114** = DAMAGE_TANKS_ON_IMPACT (0=Off, 1=On, default On). **DS:0x5164** = 2 (hardcoded fall damage per pixel). Two modes: Off = per-step damage during fall; On = accumulated damage on landing. Total damage identical (2 × fall_distance). Parachute negates all damage. Web port: `config.impactDamage` toggle added (config.js, menu.js); `tank.js` fall damage corrected from `fallDist/5` to `2*fallDist`; `fallStartY` tracks fall origin for accurate distance; both damage modes implemented. See "Falling Tank / Impact Damage System" section.
-- [ ] Implement shop sell sub-dialog: EXE shows "Sell Equipment" title with "Quantity to sell:" input and Accept/Reject buttons; add to web/js/shop.js matching layout from REVERSE_ENGINEERING.md
+- [x] Implement shop sell sub-dialog: EXE sell refund formula = `floor(qty × price × factor / bundle)` where factor = **0.8** (normal, DS:0x613C) or **0.65** (free market, DS:0x6144). Web port had 0.5 — fixed to 0.8/0.65 in shop.js; `config.freeMarket` toggle added (config.js, menu.js Economics sub-dialog). Sell dialog UI was already implemented. See "Sell Equipment — Refund Price Formula" subsection.
 - [ ] Implement shop palette animation: accent colors cycle through indices 8-11 every 8 frames; trace animation loop at shop render and implement in web/js/shop.js + web/js/palette.js
 - [ ] Implement Full Row 2 HUD widgets: replace text approximations with actual icon+bar widgets using icon bitmap data from DS:0x3826 (48 icons × 125 bytes); implement all 7 per-player inventory widgets in web/js/hud.js
 
@@ -4815,7 +4839,7 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 **Remaining gaps** — full audit in `HUD_MENU_COMPARISON.md`. Summary:
 
 HIGH:
-- Shop sell sub-dialog missing (EXE: "Sell Equipment" title, "Quantity to sell:", Accept/Reject)
+- ~~Shop sell sub-dialog~~ — FIXED (sell factor 0.5→0.8/0.65; freeMarket config toggle added)
 - Shop palette animation missing (accent colors cycle indices 8-11 every 8 frames)
 - Full Row 2: 7 inventory widgets (icon + fill bar each) replaced by text approximations; no actual battery/parachute icons
 - ~~Sunken box bevel order~~ — verified correct (outer edges match EF26/EE/30/32 mapping)

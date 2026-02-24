@@ -227,11 +227,12 @@ export function shopTick(player) {
     if (consumeKey('ArrowUp') && shop.sellQty > 1) shop.sellQty--;
     if (consumeKey('ArrowDown') && shop.sellQty < maxQty) shop.sellQty++;
     // Accept (EXE: "~Accept" hotkey 'A')
-    // EXE: sell price ~50% of purchase price per unit (price / bundle / 2)
+    // EXE: refund = floor(qty × price × factor / bundle); factor = 0.8 normal, 0.65 free market
     if (consumeKey('Enter') || consumeKey('KeyA')) {
       if (item && maxQty > 0) {
         const qty = Math.min(shop.sellQty, maxQty);
-        const refund = Math.floor(qty * item.weapon.price / item.weapon.bundle * 0.5);
+        const sellFactor = config.freeMarket ? 0.65 : 0.8;
+        const refund = Math.floor(qty * item.weapon.price / item.weapon.bundle * sellFactor);
         player.cash += refund;
         player.inventory[item.idx] -= qty;
         shop.sellQty = 1;
@@ -256,10 +257,11 @@ export function shopTick(player) {
       const mx = mouse.x, my = mouse.y;
       if (my >= btnY && my < btnY + btnH) {
         if (mx >= acceptX && mx < acceptX + btnW) {
-          // Accept — refund at 50% of per-unit purchase price
+          // Accept — EXE: refund = floor(qty × price × factor / bundle)
           if (item && maxQty > 0) {
             const qty = Math.min(shop.sellQty, maxQty);
-            player.cash += Math.floor(qty * item.weapon.price / item.weapon.bundle * 0.5);
+            const sellFactor = config.freeMarket ? 0.65 : 0.8;
+            player.cash += Math.floor(qty * item.weapon.price / item.weapon.bundle * sellFactor);
             player.inventory[item.idx] -= qty;
             shop.sellQty = 1;
           }
@@ -549,8 +551,9 @@ export function drawShop(player) {
     const item = shop.items[shop.selectedItem];
     if (item) {
       const owned = player.inventory[item.idx];
-      // EXE: sell offer = 50% of per-unit purchase price × quantity
-      const offer = Math.floor(shop.sellQty * item.weapon.price / item.weapon.bundle * 0.5);
+      // EXE: sell offer = floor(qty × price × factor / bundle); 0.8 normal, 0.65 free market
+      const sellFactor = config.freeMarket ? 0.65 : 0.8;
+      const offer = Math.floor(shop.sellQty * item.weapon.price / item.weapon.bundle * sellFactor);
       const dlgW = Math.min(240, SW - 20);
       const dlgH = 106;
       const dlgX = Math.floor((SW - dlgW) / 2);
