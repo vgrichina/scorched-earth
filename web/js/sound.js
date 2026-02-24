@@ -245,3 +245,9 @@ export function playShieldHitSound() {
   const freq = Math.max(5, Math.floor(Math.random() * 50));
   playTone(freq, freq, 0.03, 'square', 0.10);
 }
+
+// EXE: Glancing crush contact — sound(5, 200) at file 0x207CB
+// 1-2 columns overlap between falling tank and another tank
+export function playCrushGlanceSound() {
+  playTone(200, 200, 0.03, 'square', 0.12);
+}

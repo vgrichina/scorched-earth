@@ -13,7 +13,8 @@ import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
 import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE } from './constants.js';
-import { playParachuteDeploySound, playLandingThudSound } from './sound.js';
+import { playParachuteDeploySound, playLandingThudSound, playCrushGlanceSound } from './sound.js';
+import { applyShieldDamage } from './shields.js';
 
 // Tank dimensions — EXE: verified from icons.cpp disassembly (file 0x263F0+)
 const TANK_WIDTH = 7;       // EXE: 7px wide dome and body
@@ -172,6 +173,38 @@ function getDeployThreshold(player) {
   return player.inventory[WPN.BATTERY] > 0 ? 10 : 5;
 }
 
+// EXE: Per-step pixel scan for crush detection (file 0x20690)
+// Checks if falling tank overlaps another tank's bounding box
+// Returns { victim, overlapCols } or null if no overlap
+const HALF_W = Math.floor(TANK_WIDTH / 2); // 3
+function detectCrush(faller) {
+  const fallerLeft = faller.x - HALF_W;
+  const fallerRight = faller.x + HALF_W;
+  const fallerBottom = faller.y; // bottom of tank body (ground line)
+
+  for (const other of players) {
+    if (other === faller || !other.alive || other.falling) continue;
+
+    const otherLeft = other.x - HALF_W;
+    const otherRight = other.x + HALF_W;
+    const otherTop = other.y - BODY_HEIGHT - DOME_HEIGHT; // top of dome
+    const otherBottom = other.y; // ground line
+
+    // Check vertical overlap: faller's bottom must be within other tank's vertical extent
+    if (fallerBottom < otherTop || fallerBottom > otherBottom) continue;
+
+    // Count horizontal column overlap
+    const overlapLeft = Math.max(fallerLeft, otherLeft);
+    const overlapRight = Math.min(fallerRight, otherRight);
+    const overlapCols = overlapRight - overlapLeft + 1;
+
+    if (overlapCols > 0) {
+      return { victim: other, overlapCols };
+    }
+  }
+  return null;
+}
+
 // Step falling animation for all tanks, returns true while any are still falling
 // EXE: handle_falling_tanks at file 0x205DC
 export function stepFallingTanks() {
@@ -221,6 +254,55 @@ export function stepFallingTanks() {
     }
     // EXE: parachute deployed → NO damage accumulation; damage_tank(tank, 0, 1) = no-op
     // EXE: delay(20) per step for visual effect — approximated by half-speed frame skip above
+
+    // EXE: Per-step crush detection (file 0x20690)
+    // Check if falling tank overlaps another tank
+    const crush = detectCrush(player);
+    if (crush) {
+      if (crush.overlapCols > 2) {
+        // EXE: >2 columns overlap → immediate landing + crush damage (file 0x2071C)
+        player.y = crush.victim.y - BODY_HEIGHT - DOME_HEIGHT; // land on top
+        player.falling = false;
+
+        // EXE: Post-landing impact self-damage (0x20AE4)
+        if (!player.parachuteDeployed && config.impactDamage) {
+          player.energy -= player.fallDamageAccum;
+          if (player.energy <= 0) {
+            player.energy = 0;
+            player.alive = false;
+          }
+        }
+
+        // EXE: Crush damage to victim: shield_and_damage(victim, accum+50, 1)
+        // Damage goes through shield first (file 0x20B4C → 0x3FFD2)
+        const crushDmgToVictim = player.fallDamageAccum + 50;
+        const throughShield = applyShieldDamage(crush.victim, crushDmgToVictim);
+        if (throughShield > 0) {
+          crush.victim.energy -= throughShield;
+          if (crush.victim.energy <= 0) {
+            crush.victim.energy = 0;
+            crush.victim.alive = false;
+          }
+        }
+
+        // EXE: Crush self-damage to faller: damage_tank(self, accum/2+10, 1)
+        // Direct damage, no shield (file 0x20B8C)
+        const crushSelfDmg = Math.floor(player.fallDamageAccum / 2) + 10;
+        player.energy -= crushSelfDmg;
+        if (player.energy <= 0) {
+          player.energy = 0;
+          player.alive = false;
+        }
+
+        playLandingThudSound();
+        player.parachuteDeployed = false;
+        flattenTerrainAt(player.x);
+        continue; // skip normal terrain landing check
+      } else {
+        // EXE: Glancing contact (1-2 columns) → sound(5, 200) but no landing (file 0x207CB)
+        playCrushGlanceSound();
+      }
+    }
 
     // Check if reached terrain
     const terrainY = getTerrainY(player.x);
