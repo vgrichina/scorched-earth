@@ -75,11 +75,16 @@ const SUBMENUS = {
   hardware: {
     title: 'Hardware',
     items: [
-      { label: 'Graphics Mode:', key: 'graphicsMode', min: 0, max: GRAPHICS_MODES.length - 1, step: 1,
+      { label: '~Graphics Mode:', key: 'graphicsMode', min: 0, max: GRAPHICS_MODES.length - 1, step: 1,
         names: GRAPHICS_MODES.map(m => m.name) },
-      { label: 'BIOS Keyboard', key: null, fixed: 'N/A', disabled: true },
-      { label: 'Small Memory', key: null, fixed: 'N/A', disabled: true },
-      { label: 'Mouse Enabled', key: null, fixed: 'On', disabled: true },
+      { label: '~Bios Keyboard', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Small Memory', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Mouse Enabled', key: null, fixed: 'On', disabled: true },
+      { label: '~Firing Delay:', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Hardware Delay:', key: null, fixed: 'N/A', disabled: true },
+      { label: 'Falling ~Delay:', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Calibrate Joystick', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Fast Computers', key: null, fixed: 'N/A', disabled: true },
     ],
   },
   economics: {
