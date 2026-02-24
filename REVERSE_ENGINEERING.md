@@ -457,34 +457,131 @@ void roller_per_frame() {
 
 #### Napalm / Hot Napalm (BhvType 0x01A0, Segment 0x26E6)
 
-99-slot particle pool with 6-byte particle structs (x, y, next_ptr).
+99-slot particle pool with 6-byte particle structs at DS:0xE754 (x:word, y:word, next_ptr:word).
+Main handler at file 0x2DA00. **NOT velocity-based** — uses pixel-walking cellular automaton.
 
 ```c
-void napalm_handler(int x, int y) {
-    int param = weapon_param;  // 15=Napalm, 20=Hot Napalm, -20=Ton of Dirt
+void napalm_handler(int x, int y) {  // file 0x2DA00
+    int param = weapon[DS:E344].explosion_radius;  // 15=Napalm, 20=Hot Napalm, -20=Ton of Dirt
 
     if (param < 0) {
         param = -param;
-        DS:E702 = 0x50;       // dirt palette (brown)
+        DS:E702 = 0x50;       // dirt palette (brown/VGA 80)
     } else {
-        DS:E702 = 0xFE;       // fire palette (bright)
+        DS:E702 = 0xFE;       // fire palette (bright/VGA 254)
+        fg_drect(0x3C, 0x14, 0x14, fire_color);  // initial flash
     }
-    if (param > 20) param = 20;  // max 20 simultaneous particles
+    if (param > 20) param = 20;  // max simultaneous particles
 
-    // Main simulation loop:
-    //   1. Allocate particle from 99-slot circular pool
-    //   2. Animate flame with random flicker (40x10 grid)
-    //   3. Particles spread outward, fall under gravity
-    //   4. Burn/melt terrain on contact, damage nearby players
-    //   5. Velocity dampened 0.7x per frame (DS:1D60)
-    //   6. Stop when speed² < 0.001 (DS:1D68 epsilon)
+    // Initialize: pool_avail=99 (DS:E9B2), pool_index=2 (DS:E9B4),
+    //   wrapped=0 (DS:E9B6), list_head=1 (DS:E9BA), spawn_count=1 (DS:E9B8)
+
+    // === PHASE 1: Particle spawn loop (file 0x2DB18–0x2DD34) ===
+    while (spawn_count < param && !overflow) {
+        frame_counter++;                   // bp-0x14
+        if (frame_counter > 1000) overflow = 1;  // safety limit
+
+        int slot = get_list_head();        // DS:E9BA (file 0x2DFB7)
+        if (slot == 0) break;              // list empty
+        int px = particle[slot].x;         // [slot*6 - 0x18AC]
+        int py = particle[slot].y;         // [slot*6 - 0x18AA]
+
+        int dir = check_direction(px, py); // file 0x2DFCC
+
+        switch (dir) {
+        case 2:  // no horizontal neighbor → fall down
+            // check pixel above (py-1): if terrain, erode it
+            new_x = px; new_y = py - 1;   // actually erodes upward
+            break;
+        case 0:  // terrain below → drop down
+            new_x = px; new_y = py + 1;
+            break;
+        default: // -1 or +1 → move sideways
+            new_x = px + dir; new_y = py;
+            // clamp/wrap to screen bounds (DS:510E = wall wrap)
+            break;
+        }
+
+        draw_pixel(new_x, new_y, fire_color);
+        insert_particle(new_x, new_y);     // file 0x2D8DA
+
+        // Every 20 particles: store position in explosion array
+        particle_count++;                   // bp-0x08
+        if (particle_count >= 20) {         // 0x14
+            particle_count = 0;
+            explosion_pts[spawn_count] = {new_x, new_y};  // DS:E704 array, 4 bytes each
+            spawn_count++;                  // DS:E9B8
+        }
+
+        // Odd frames + fire mode: call flame flicker animation (file 0x2D99E)
+        //   random(18)+2 → x_offset mod 40, random(8)+2 → y_offset mod 10
+        //   fg_drect at flicker position with fire color
+    }
+
+    if (dirt_mode) goto cleanup;  // skip damage phase for Ton of Dirt
+
+    // === PHASE 2: Damage phase (file 0x2DD41–0x2DEF4) ===
+    for (int i = 0; i < spawn_count; i++) {
+        erase_particle(explosion_pts[i]);
+        for (int p = 0; p < NUM_PLAYERS; p++) {
+            if (!tank[p].alive) continue;
+            double dist = sqrt(distance_squared(explosion_pts[i], tank[p]));
+            if (param > 15) {              // Hot Napalm
+                if (dist < 40.0)           // DS:0x5682 = 40.0f
+                    damage_tank(1, tank[p], (int)(50.0 - dist));  // DS:0x5686 = 50.0f
+            } else {                       // Regular Napalm
+                if (dist < 25.0)           // DS:0x568A = 25.0f
+                    damage_tank(1, tank[p], (int)(30.0 - dist));  // DS:0x568E = 30.0f
+            }
+        }
+    }
+
+    // === PHASE 3: 50-frame fire fade animation (file 0x2DEFE–0x2DF32) ===
+    for (int f = 0; f < 50; f++) {
+        fg_locate(0x1E, 0xAA); check_keyboard(); fg_sound(random(50), 5);
+    }
+
+    // cleanup: erase dirty rect, redraw terrain
+}
+
+// check_direction(x, y) — file 0x2DFCC
+// Returns: 0 = terrain below (drop), -1 = go left, +1 = go right, 2 = fall/erode
+int check_direction(int x, int y) {
+    // Check pixel below (y+1)
+    if (y < screen_bottom) {
+        int below = getpixel(x, y+1);
+        if (below != fire_color && below >= 0x69)
+            return 0;  // terrain below → drop down
+    }
+    // Check pixel left (x-1) and right (x+1) — with wall wrap via DS:510E
+    bool can_left  = getpixel(x-1, y) is terrain;
+    bool can_right = getpixel(x+1, y) is terrain;
+    if (can_left && can_right) return (DS:515A > 0) ? +1 : -1;  // wind direction
+    if (can_left)  return -1;
+    if (can_right) return +1;
+    return 2;  // no horizontal neighbor → erode upward
 }
 ```
 
-- Negative param (Ton of Dirt = -20) switches to dirt mode with brown palette
+**Key constants:**
+| Address | Type | Value | Purpose |
+|---------|------|-------|---------|
+| DS:0x5682 | float32 | 40.0 | Hot Napalm damage check radius |
+| DS:0x5686 | float32 | 50.0 | Hot Napalm max damage (at distance 0) |
+| DS:0x568A | float32 | 25.0 | Regular Napalm damage check radius |
+| DS:0x568E | float32 | 30.0 | Regular Napalm max damage (at distance 0) |
+| DS:0x515A | word | (runtime) | Current wind value — determines lateral spread |
+| DS:0xE702 | word | 0xFE/0x50 | Fire color (VGA 254) or dirt color (VGA 80) |
+| DS:0xE9B2 | word | 99 | Pool available count (decremented on alloc) |
+| DS:0xE9B4 | word | 2 | Pool circular index (wraps at 101) |
+| DS:0xE9BA | word | 1 | Linked list head pointer |
+
+**Critical correction**: Previous documentation claimed "0.7x velocity dampening/frame (DS:1D60)" and "speed² < 0.001 (DS:1D68 epsilon)". **Both are WRONG for napalm.** DS:0x1D60=0.7 is the explosion damage falloff between successive player hits (at file 0x235B6). DS:0x1D68=0.001 is a numerical epsilon for explosion sqrt (at file 0x23638). The napalm system has **no velocity vectors and no damping** — particles walk 1 pixel per step.
+
+- Negative param (Ton of Dirt = -20) switches to dirt mode with brown palette, skips damage phase
 - Circular allocation with recycling after all 99 slots used once
 - Sorted linked list maintains render order by Y position
-- Same 0.7x velocity falloff constant as the damage system
+- Damage formula: `max_damage - distance` (linear falloff), different per weapon variant
 
 #### Popcorn Bomb (Special Case)
 
@@ -2911,7 +3008,7 @@ All located in `disasm/` directory:
 
 13. ~~**Player struct full layout**~~ — **RESOLVED**. Two-level architecture: Player struct (0x6C/108 bytes, base DS:CEB8) + Target/sub struct (0xCA/202 bytes, base DS:D568). 30+ player fields and 40+ sub-struct fields mapped with file offset evidence. See "Player Data Structures" section above.
 
-14. ~~**Napalm/fire particle system**~~ — **RESOLVED**. 99-slot particle pool (6-byte structs), negative param = dirt mode (brown 0x50 vs fire 0xFE), max 20 simultaneous particles, 0.7x velocity dampening/frame, circular allocation with recycling. See "Weapon Behavior Dispatch" section.
+14. ~~**Napalm/fire particle system**~~ — **RESOLVED**. 99-slot particle pool (6-byte structs), negative param = dirt mode (brown 0x50 vs fire 0xFE), max 20 simultaneous particles, **pixel-walking cellular automaton** (NOT velocity-based — previous "0.7x dampening" claim was incorrect; DS:0x1D60=0.7 is explosion damage falloff), circular allocation with recycling. See "Weapon Behavior Dispatch" section.
 
 15. ~~**Roller physics**~~ — **RESOLVED**. Two-phase: impact handler scans terrain left/right for deeper valley to determine roll direction, then spawns rolling projectile with per-frame terrain-follower callback. Gravity acceleration increases speed. Supports all wall types. Terrain threshold = pixel >= 0x69. See "Weapon Behavior Dispatch" section.
 
@@ -2985,7 +3082,7 @@ All located in `disasm/` directory:
 - [x] Trace WALL enum ordering: **RESOLVED**. Config variable DS:0x5154 (ELASTIC). Enum from config parser at 0x29290 and dispatch at 0x2220F: 0=None, 1=Wrap, 2=Padded, 3=Rubber, 4=Spring, 5=Concrete, 6=Random, 7=Erratic. Random/Erratic resolve via random(6)→0-5 at file 0x22140. Web port fixed: WALL enum, config default (7→5=Concrete), menu names array, resolveRandomWallType simplified to random(6). See "Wall Types (ELASTIC setting)" section.
 - [x] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: **RESOLVED**. Main handler at file 0x246E0, spawner at 0x24894. Parent explosion radius = **20** (hardcoded at 0x24AA9, NOT scaled by EXPLOSION_SCALE). Sub-bomb explosion radius = **(random(10)+15) × DS:0x50DA** (EXPLOSION_SCALE float, base 15-24). Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with own explosion logic (no weapon index). Shield hit (damage=10) blocks sub-bomb spawn (early return). Web port fixed: parent radius 15→20, sub-bomb radius 10→random(10)+15 scaled by explosionScale. See "Funky Bomb" section in Weapon Behavior Dispatch.
 - [x] Trace Leap Frog / Bounce explosion radii: **RESOLVED**. Handler at file 0x2A226. Uses damage_type countdown (player+0x54, initial=2, set at 0x21397). Bounce radius table at DS:0x50CA = {20, 25, 30} indexed by damage_type. Sequence: 1st hit radius=30, 2nd=25, 3rd(final)=20, all × EXPLOSION_SCALE (DS:0x50DA). Speed ÷ 1.5 (DS:0x50D0=1.5f) per bounce via sin/cos angle reconstruction. Web port fixed: decreasing radii 30→25→20 × explosionScale, speed ÷ 1.5 (was 0.7/0.9), damage_type countdown (was bounceCount vs param). See "LeapFrog / Bounce" section in Weapon Behavior Dispatch.
-- [ ] Trace napalm particle physics: behaviors.js applies 0.7× velocity damping per frame to napalm particles citing DS:1D60, but DS:1D60=0.7 is the explosion damage attenuation between successive player hits, not a per-frame particle damping factor. Disassemble napalm particle step to find actual per-step physics.
+- [x] Trace napalm particle physics: **RESOLVED — NOT velocity-based**. Main handler at file 0x2DA00. Particles use **pixel-walking cellular automaton**: each step checks adjacent pixels via `check_direction(x,y)` (file 0x2DFCC) and moves 1 pixel. Direction: 0=terrain below (drop), -1/+1=move left/right (wind via DS:0x515A determines when both available), 2=erode upward. No velocity vectors, no damping. DS:0x1D60=0.7 is explosion damage falloff (file 0x235B6), NOT particle damping. DS:0x1D68=0.001 is explosion sqrt epsilon (file 0x23638), NOT speed threshold. Damage: Hot Napalm (param>15) max 50 at range 40 (DS:0x5682/0x5686), Regular Napalm max 30 at range 25 (DS:0x568A/0x568E). Max 1000 steps per particle, explosion array stores every 20th position. See "Napalm / Hot Napalm" section in Weapon Behavior Dispatch.
 - [ ] Trace heat guidance trigger and correction: behaviors.js uses HEAT_PROXIMITY=60 (undocumented) and GUIDANCE_STRENGTH=2.0 (undocumented). EXE calls shark.cpp:heat_seek for trigger, not a simple proximity check. Also EXE heat guidance X correction sign is inverted (wind_x=-1 when target is right).
 - [ ] Trace gravity/wind pre-scaling formula: EXE computes gravity_step=50.0×GRAVITY/d and wind_step=wind/(d×40.0) once before the physics loop. Web port uses GRAVITY=4.9 and WIND_SCALE=0.15 which have no traceable connection to EXE constants. Need to derive correct web-equivalent formulas.
 - [ ] Trace sky type enum mapping: EXE sky list appears to be Plain/Shaded/Stars/Storm/Sunset/Black/Random (7 types). Web port has Cavern at index 5 and Black at index 6 with no Random. Verify EXE sky type enum from config parsing and sky dispatch table.

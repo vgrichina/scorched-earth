@@ -144,3 +144,13 @@ DS:0x50D0,BOUNCE_SPEED_DIVISOR: float32 1.5 — velocity divided by this each bo
 DS:0x50DA,EXPLOSION_SCALE_FLOAT: runtime float64, Small/Medium/Large config multiplier
 0x21397,set_damage_type_for_leapfrog: player+0x54=2 when weapon.bhv_type==0x0006
 0x2A3DB,bounce_decrement_damage_type: lea ax,[di-1] → player+0x54 = damage_type-1
+0x2DA00,napalm_main_handler: pixel-walking particle system (NOT velocity-based)
+0x2DFCC,napalm_check_direction: returns 0=drop,-1=left,+1=right,2=erode; uses wind DS:515A
+0x2D86B,napalm_alloc_slot: circular 99-slot pool allocator (index wraps at 101)
+0x2D8DA,napalm_insert_particle: sorted linked-list insert by Y position
+0x2D99E,napalm_flame_flicker: random rectangle animation (40x10 grid offsets)
+DS:0x5682,NAPALM_HOT_DAMAGE_RADIUS: 40.0f — Hot Napalm damage check range
+DS:0x5686,NAPALM_HOT_MAX_DAMAGE: 50.0f — Hot Napalm max damage at distance 0
+DS:0x568A,NAPALM_REG_DAMAGE_RADIUS: 25.0f — Regular Napalm damage check range
+DS:0x568E,NAPALM_REG_MAX_DAMAGE: 30.0f — Regular Napalm max damage at distance 0
+DS:0x1D60,EXPLOSION_DAMAGE_FALLOFF: 0.7 f64 — per-player damage attenuation (NOT napalm damping)
