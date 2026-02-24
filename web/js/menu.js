@@ -208,20 +208,20 @@ function computeSubmenuWidth(sub) {
   w = Math.max(w, measureText('ESC/Enter: Back') + pad);
   for (const item of sub.items) {
     const labelW = measureText(item.label);
-    // Find widest possible value for this item (including < > arrows)
+    // Find widest possible value for this item
     let maxValW = 0;
     if (item.disabled) {
-      maxValW = measureText('< ' + item.fixed + ' >');
+      maxValW = measureText(item.fixed);
     } else if (item.names) {
       for (const name of item.names) {
-        maxValW = Math.max(maxValW, measureText('< ' + name + ' >'));
+        maxValW = Math.max(maxValW, measureText(name));
       }
     } else {
       const suffix = item.suffix || '';
       const fmtVal = v => item.float ? v.toFixed(2) : String(v);
       maxValW = Math.max(
-        measureText('< ' + fmtVal(item.min) + suffix + ' >'),
-        measureText('< ' + fmtVal(item.max) + suffix + ' >')
+        measureText(fmtVal(item.min) + suffix),
+        measureText(fmtVal(item.max) + suffix)
       );
     }
     w = Math.max(w, labelW + gap + maxValW + pad);
@@ -532,15 +532,10 @@ export function drawMainMenu() {
     const textY = by + Math.floor((getBtnH() - FONT_HEIGHT) / 2);
 
     if (item.type === 'spinner') {
-      // Label on left, value on right with arrows when selected
+      // Label on left, value right-aligned (EXE: no < > arrows, just the value)
       drawText(bx + 4, textY, item.label, textColor);
       const valStr = String(config[item.key]);
-      if (selected) {
-        const arrowStr = '< ' + valStr + ' >';
-        drawText(bx + BTN_W - measureText(arrowStr), textY, arrowStr, textColor);
-      } else {
-        drawText(bx + BTN_W - measureText(valStr), textY, valStr, textColor);
-      }
+      drawText(bx + BTN_W - measureText(valStr), textY, valStr, textColor);
     } else {
       // Center text in button
       const tx = bx + Math.floor((BTN_W - measureText(item.label)) / 2);
@@ -659,14 +654,9 @@ function drawSubmenu() {
 
     drawText(dlgX + 8, iy, item.label, color);
 
-    // Value on right side
+    // Value right-aligned (EXE: no < > arrows, just the value)
     const valStr = formatValue(item);
-    if (selected && !item.disabled) {
-      const arrowStr = '< ' + valStr + ' >';
-      drawText(dlgX + dlgW - 8 - measureText(arrowStr), iy, arrowStr, color);
-    } else {
-      drawText(dlgX + dlgW - 8 - measureText(valStr), iy, valStr, color);
-    }
+    drawText(dlgX + dlgW - 8 - measureText(valStr), iy, valStr, color);
   }
 
   // Footer
