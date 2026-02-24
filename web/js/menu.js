@@ -338,6 +338,26 @@ function handleMainMenuInput() {
     if (result) return result;
   }
 
+  // EXE: hotkey letters — extract char after '~' in label, match Key<X>
+  // EXE dialog system handles this generically for all item lists
+  for (let i = 0; i < MENU_ITEMS.length; i++) {
+    const mi = MENU_ITEMS[i];
+    const tildeIdx = mi.label.indexOf('~');
+    if (tildeIdx >= 0 && tildeIdx + 1 < mi.label.length) {
+      const hotkey = mi.label[tildeIdx + 1].toUpperCase();
+      if (consumeKey('Key' + hotkey)) {
+        menu.selectedOption = i;
+        if (mi.type === 'spinner') {
+          // For spinners, just select (user adjusts with arrows)
+        } else {
+          const result = activateMenuItem(mi);
+          if (result) return result;
+        }
+        break;
+      }
+    }
+  }
+
   // Mouse: hover to select, click to activate
   if (mouse.over) {
     const hit = hitTestMenuButton(mouse.x, mouse.y);
@@ -385,6 +405,23 @@ function handleSubmenuInput() {
 
   if (consumeKey('ArrowLeft')) adjustValue(item, -1);
   if (consumeKey('ArrowRight')) adjustValue(item, 1);
+
+  // EXE: hotkey letters — extract char after '~' in label, match Key<X>
+  // EXE dialog system handles hotkeys generically for all submenu items
+  for (let i = 0; i < sub.items.length; i++) {
+    const si = sub.items[i];
+    if (si.disabled) continue;
+    const tildeIdx = si.label.indexOf('~');
+    if (tildeIdx >= 0 && tildeIdx + 1 < si.label.length) {
+      const hotkey = si.label[tildeIdx + 1].toUpperCase();
+      if (consumeKey('Key' + hotkey)) {
+        menu.submenuSelected = i;
+        // Select + increment value (same as right-arrow)
+        adjustValue(si, 1);
+        break;
+      }
+    }
+  }
 
   // Mouse: click items to select, left/right half to adjust value
   if (mouse.over && consumeClick(0)) {
