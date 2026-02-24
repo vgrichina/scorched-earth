@@ -341,6 +341,88 @@ void spawn_sub_bombs(int x, int y, int param) {    // file 0x24894
 - Shield hit damage: **10** (blocks sub-bomb spawn — early return)
 - Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with their own explosion
 
+#### LeapFrog / Bounce (BhvType 0x0006, Segment 0x2382)
+
+Handler at file 0x2A226 (seg 0x1F7F:0x4036, in icons.cpp region).
+Uses a **damage_type countdown** (player struct +0x54) to control bounce count and explosion radius per bounce.
+
+```c
+void bounce_handler(int x, int y) {                   // file 0x2A226
+    int damage_type = player[cur].damage_type;         // +0x54, initially 2
+    int base_radius = bounce_radius_table[damage_type]; // DS:0x50CA[type*2]
+    int radius = (int)(base_radius * DS:0x50DA);       // × EXPLOSION_SCALE_FLOAT
+
+    // Store hit position
+    hit_x[cur] = x;                                    // DS:E34A[cur*2]
+    hit_y[cur] = y;                                    // DS:E412[cur*2]
+
+    // Direct hit check
+    if (hit_player_ptr != NULL) {
+        if (shielded) {                                // file 0x2A28D
+            fg_tone(1000, 10);
+            shield_damage(hit_player_ptr, 10, 0);      // 0x3912:0x04B2
+            // NOTE: shield hit skips explosion, falls through to bounce
+        } else {
+            damage_tank(hit_player_ptr, hit_player[0xA2], 1);  // file 0x2A2CE
+        }
+    }
+
+    // Explosion at hit point (skipped if shield absorbed)
+    create_explosion(x, y, radius, 0);                 // file 0x2A2E1 → 0x3D1E:0x015A
+
+    // Bounce check: if damage_type == 0, this was the final hit
+    if (damage_type == 0) return;                      // file 0x2A2E9
+
+    // Bounce: compute new velocity
+    double speed = player[cur].fpu_workspace_56;       // player+0x56 (speed magnitude)
+    speed /= 1.5;                                      // DS:0x50D0 = 1.5f
+    double angle = player[cur].fpu_workspace_5E;       // player+0x5E (trajectory angle)
+    double new_vx = sin(angle) * speed;
+    double new_vy = cos(angle) * speed;
+
+    // Re-launch projectile at hit position with new velocity
+    int new_player = launch_projectile(y, x, 0,        // file 0x2A3C2 → 0x1A4A:0x0763
+        player[cur].defense_counter,                    // +0x24
+        player[cur].warhead_count,                      // +0x2E
+        player[cur].weapon_index,                       // +0x26
+        player[cur].warhead_ptr,                        // +0x2A/+0x2C
+        new_vx, new_vy);
+
+    if (new_player >= 0) {
+        player[new_player].damage_type = damage_type - 1;  // file 0x2A3DB: lea ax,[di-1]
+        // Copy speed and angle to new player's FPU workspace
+        player[new_player].fpu_workspace_56 = speed;
+        player[new_player].fpu_workspace_5E = angle;
+    }
+}
+```
+
+**Bounce radius table** at DS:0x50CA (3 × int16, indexed by damage_type):
+
+| DS Offset | damage_type | Base Radius | Bounce # |
+|-----------|-------------|-------------|----------|
+| DS:0x50CA | 0 | 20 | 3rd (final) |
+| DS:0x50CC | 1 | 25 | 2nd |
+| DS:0x50CE | 2 | 30 | 1st |
+
+All radii scaled by **EXPLOSION_SCALE_FLOAT** (DS:0x50DA, float64, default 1.0).
+
+**Key constants:**
+- DS:0x50CA = bounce_radius_table: {20, 25, 30} (3 entries, indexed by damage_type 0/1/2)
+- DS:0x50D0 = 1.5f (float32) — velocity divisor per bounce (speed ÷ 1.5 each bounce)
+- DS:0x50DA = EXPLOSION_SCALE_FLOAT (float64, set from EXPLOSION_SCALE config)
+- Initial damage_type = 2 (hardcoded at file 0x21397, condition: weapon.behavior_type == 0x0006)
+
+**Bounce sequence** (LeapFrog weapon.param=3 in struct, but bounces controlled by damage_type countdown):
+1. **First hit**: radius = 30 × EXPLOSION_SCALE (damage_type=2), re-launch at speed/1.5
+2. **Second hit**: radius = 25 × EXPLOSION_SCALE (damage_type=1), re-launch at speed/1.5
+3. **Third hit**: radius = 20 × EXPLOSION_SCALE (damage_type=0), no re-launch (final)
+
+**Web port discrepancies found:**
+- Web used fixed radius=20 (final) and radius=5 (intermediate) — should be decreasing 30→25→20
+- Web used 0.7× vy / 0.9× vx damping — should be speed÷1.5 (≈0.667× both components)
+- Web counted bounces against weapon.param — should use damage_type countdown from 2
+
 #### Roller (BhvType 0x0003, Segment 0x2FBD)
 
 Two-phase: impact handler (0x365D3) + per-frame terrain follower (0x3684B).
@@ -2902,7 +2984,7 @@ All located in `disasm/` directory:
 - [x] Trace wall bounce coefficients: **RESOLVED**. Bounce coefficient dispatch at file 0x21EFD: Rubber(type 3)→DS:0x1D34=-1.0 (perfect reflection), Padded(type 2)→DS:0x1D3C=-0.5 (half velocity), Spring(type 4)→DS:0x1D44=-2.0 (doubled velocity). Negative sign handles reflection. Web port fixed: Rubber 0.8→1.0, Spring 1.2→2.0 (in physics.js and behaviors.js roller wall code). Bounce count limit: player struct +0x30 checked ≤6. See "Wall Types (ELASTIC setting)" section.
 - [x] Trace WALL enum ordering: **RESOLVED**. Config variable DS:0x5154 (ELASTIC). Enum from config parser at 0x29290 and dispatch at 0x2220F: 0=None, 1=Wrap, 2=Padded, 3=Rubber, 4=Spring, 5=Concrete, 6=Random, 7=Erratic. Random/Erratic resolve via random(6)→0-5 at file 0x22140. Web port fixed: WALL enum, config default (7→5=Concrete), menu names array, resolveRandomWallType simplified to random(6). See "Wall Types (ELASTIC setting)" section.
 - [x] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: **RESOLVED**. Main handler at file 0x246E0, spawner at 0x24894. Parent explosion radius = **20** (hardcoded at 0x24AA9, NOT scaled by EXPLOSION_SCALE). Sub-bomb explosion radius = **(random(10)+15) × DS:0x50DA** (EXPLOSION_SCALE float, base 15-24). Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with own explosion logic (no weapon index). Shield hit (damage=10) blocks sub-bomb spawn (early return). Web port fixed: parent radius 15→20, sub-bomb radius 10→random(10)+15 scaled by explosionScale. See "Funky Bomb" section in Weapon Behavior Dispatch.
-- [ ] Trace Leap Frog / Bounce explosion radii: behaviors.js uses radius=20 (final) and radius=5 (intermediate) but neither value is documented from EXE disassembly.
+- [x] Trace Leap Frog / Bounce explosion radii: **RESOLVED**. Handler at file 0x2A226. Uses damage_type countdown (player+0x54, initial=2, set at 0x21397). Bounce radius table at DS:0x50CA = {20, 25, 30} indexed by damage_type. Sequence: 1st hit radius=30, 2nd=25, 3rd(final)=20, all × EXPLOSION_SCALE (DS:0x50DA). Speed ÷ 1.5 (DS:0x50D0=1.5f) per bounce via sin/cos angle reconstruction. Web port fixed: decreasing radii 30→25→20 × explosionScale, speed ÷ 1.5 (was 0.7/0.9), damage_type countdown (was bounceCount vs param). See "LeapFrog / Bounce" section in Weapon Behavior Dispatch.
 - [ ] Trace napalm particle physics: behaviors.js applies 0.7× velocity damping per frame to napalm particles citing DS:1D60, but DS:1D60=0.7 is the explosion damage attenuation between successive player hits, not a per-frame particle damping factor. Disassemble napalm particle step to find actual per-step physics.
 - [ ] Trace heat guidance trigger and correction: behaviors.js uses HEAT_PROXIMITY=60 (undocumented) and GUIDANCE_STRENGTH=2.0 (undocumented). EXE calls shark.cpp:heat_seek for trigger, not a simple proximity check. Also EXE heat guidance X correction sign is inverted (wind_x=-1 when target is right).
 - [ ] Trace gravity/wind pre-scaling formula: EXE computes gravity_step=50.0×GRAVITY/d and wind_step=wind/(d×40.0) once before the physics loop. Web port uses GRAVITY=4.9 and WIND_SCALE=0.15 which have no traceable connection to EXE constants. Need to derive correct web-equivalent formulas.

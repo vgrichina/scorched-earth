@@ -138,4 +138,9 @@ DS:0x1D44,BOUNCE_SPRING: float64 -2.0 — doubled velocity reflection
 0x24894,funky_bomb_spawn_sub_bombs: count=random(6)+5; parent explosion radius=20; sub-bomb radius=(random(10)+15)*EXPLOSION_SCALE
 0x24AA9,funky_bomb_parent_explosion: hardcoded radius=20, palette base=170
 0x24B0C,funky_bomb_sub_radius: (random(10)+15) × DS:0x50DA (EXPLOSION_SCALE float)
+0x2A226,bounce_handler: LeapFrog bounce — damage_type countdown, radius from DS:0x50CA table, speed÷1.5
+DS:0x50CA,BOUNCE_RADIUS_TABLE: {20, 25, 30} int16×3 — indexed by damage_type (0=final, 2=first bounce)
+DS:0x50D0,BOUNCE_SPEED_DIVISOR: float32 1.5 — velocity divided by this each bounce
 DS:0x50DA,EXPLOSION_SCALE_FLOAT: runtime float64, Small/Medium/Large config multiplier
+0x21397,set_damage_type_for_leapfrog: player+0x54=2 when weapon.bhv_type==0x0006
+0x2A3DB,bounce_decrement_damage_type: lea ax,[di-1] → player+0x54 = damage_type-1

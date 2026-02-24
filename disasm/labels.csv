@@ -189,4 +189,8 @@ DS:0x1D44,BOUNCE_SPRING
 0x246E0,funky_bomb_handler
 0x24894,funky_bomb_spawn_sub_bombs
 0x2476B,draw_explosion_expanding
+0x2A226,bounce_handler
+DS:0x50CA,BOUNCE_RADIUS_TABLE
+DS:0x50D0,BOUNCE_SPEED_DIVISOR
 DS:0x50DA,EXPLOSION_SCALE_FLOAT
+0x21397,set_damage_type_for_leapfrog

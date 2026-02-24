@@ -187,29 +187,37 @@ function rollerFlightStep(proj, weapon) {
   return { split: false, spawn: [], remove: false };
 }
 
-// --- Bounce/LeapFrog (0x0006): reflect velocity on terrain, param = bounce count ---
-// EXE: handler seg 0x2382 (file 0x2A220), struct param = max bounce count
+// --- Bounce/LeapFrog (0x0006): damage_type countdown with decreasing radii ---
+// EXE: handler at file 0x2A226 (seg 0x1F7F:0x4036). Uses damage_type (player+0x54)
+// as countdown: initial=2, decrements each bounce. Radius from DS:0x50CA table:
+//   damage_type 2→30, 1→25, 0→20 (all × EXPLOSION_SCALE). Speed ÷ 1.5 per bounce.
+const BOUNCE_RADIUS_TABLE = [20, 25, 30]; // DS:0x50CA, indexed by damage_type
 function bhvBounce(proj, weapon, hitResult) {
+  // Initialize damage_type countdown (EXE: hardcoded to 2 at file 0x21397)
+  if (proj.damageType === undefined) proj.damageType = 2;
+
+  const scale = [0.5, 1.0, 1.5][config.explosionScale] || 1.0;
+  const radius = Math.floor(BOUNCE_RADIUS_TABLE[proj.damageType] * scale);
+
   if (hitResult !== 'hit_terrain') {
-    return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
+    return { explode: true, radius, spawn: [], dirtAdd: false, skipDamage: false };
   }
 
-  if (!proj.bounceCount) proj.bounceCount = 0;
-  proj.bounceCount++;
-
-  if (proj.bounceCount >= weapon.param) {
-    // Final bounce: explode
-    return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
+  if (proj.damageType <= 0) {
+    // Final bounce: explode with smallest radius (20 × scale)
+    return { explode: true, radius, spawn: [], dirtAdd: false, skipDamage: false };
   }
 
-  // Bounce: reflect vy, slight randomization, small explosion at bounce point
-  proj.vy = Math.abs(proj.vy) * 0.7;
-  proj.vx *= 0.9;
+  // Bounce: decrement damage_type, reduce speed by ÷1.5, reflect vy
+  proj.damageType--;
+  const dampFactor = 1.0 / 1.5; // DS:0x50D0 = 1.5f
+  proj.vx *= dampFactor;
+  proj.vy = -Math.abs(proj.vy) * dampFactor;
   // Move projectile above terrain
   proj.y -= 3;
   proj.active = true;
 
-  return { explode: true, radius: 5, spawn: [], dirtAdd: false, skipDamage: false, keepAlive: true };
+  return { explode: true, radius, spawn: [], dirtAdd: false, skipDamage: false, keepAlive: true };
 }
 
 // --- MIRV (0x0239): detect apogee (vy sign flip), spawn sub-warheads ---
