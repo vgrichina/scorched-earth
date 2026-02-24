@@ -3311,7 +3311,7 @@ All located in `disasm/` directory:
 - [x] Trace Flicker Shield implementation: **RESOLVED — plain absorption shield**. Flicker Shield = config entry 5 (weapon 49) with energy=200, radius=16, RGB=(63,53,33) orange, dispatch_type=1 (same as all shields). NO probabilistic on/off cycling, NO flickering visual effect, NO special handler. The name is misleading — behavior is identical to all other shields. Web port fixed: removed invented SHIELD_CONFIG[6] (energy=80, radius=14, rgb=50/50/63), removed fabricated 50% damage bypass and random pixel skipping, removed inner ring rendering, renamed SHIELD_TYPE enum to match EXE config indices (MAG_DEFLECTOR=1, SHIELD=2, WARP=3, TELEPORT=4, FLICKER=5), stubbed checkShieldDeflection (Force/Heavy not in EXE config table). See "Shield Type Configuration Table" section.
 - [x] Trace terrain bitmap shading direction: **VERIFIED — RE doc and web port are both correct**. Traced height_array population loop at file 0x3999A: `height_array[y] = (terrain_bottom - y) × 29 / terrain_height + 120`. At surface (small y, top of terrain): index approaches **149**. At deepest underground (y = terrain_bottom): index = **120**. Web port formula at terrain.js:324 is identical: `120 + floor((bottom - y) × 29 / globalRange)`. Palette color directions confirmed per-type: type 1 (Snow/Ice) VGA 120=(29,29,63) bright → 149=(0,0,63) dark; type 2 (Rock/Gray) VGA 121=(7,7,7) dark → 149=(63,63,63) bright; type 5 (Varied) VGA 120=dark → 149=bright. Direction is type-dependent via palette setup, but index mapping (surface→149, underground→120) is consistent. No fix needed.
 - [x] Trace Type 4 (Desert/Lava) terrain palette: **RESOLVED**. 3-segment FPU interpolation (10+10+9 entries) at file 0x39C31 using float32 constants DS:0x6258-0x626C. VGA 120=(63,63,0) set by set_sky_palette_entry. Loop 1 (VGA 121-130): R=63, G=58→20, B=2→20 (warm gold→red-brown). Loop 2 (VGA 131-140): R=59→29, G=20→29, B=24→63 (red→blue-purple). Loop 3 (VGA 141-149): R=G=27→11, B=59→34 (blue→dark indigo). Previous doc had Loop 2 RGB values swapped (said (24,20,59) start, correct is (59,20,24)) and Loop 3 end wrong (said (9,9,31), correct is (11,11,34)). DS:0x626C=31.0 (not 31.5). DS:0x6270=45.0 is unused by these loops. Full 30-entry table with exact integer values added to "Desert/Lava Gradient Detail" section. Web port palette.js case 4 uses single linear lerp — needs 3-segment replacement.
-- [ ] Trace Type 3 (Night/MTN) terrain palette: EXE uses (i, i+30, i, i) for VGA 120-129 (greenish tint) per RE doc. Web port uses black→dark-blue smooth ramp. Also EXE has separate depth palette at VGA 130-150 not implemented in web.
+- [x] Trace Type 3 (Night/MTN) terrain palette: **RESOLVED — blue tint, not greenish**. Two palette loops at file 0x39AEF: Loop 1 (di=0..9, VGA 120–129): `fg_setrgb(di, di, di, di+30)` — R=G=i, B=i+30, creating dark **blue** gradient (not green as doc previously stated). Loop 2 (di=10..29, VGA 130–149): `fg_setrgb(di, (di-10)*2, (di-10)*2, (di-10)*2)` — gray depth gradient (0,0,0)→(38,38,38). Previous doc notation "(i, i+30, i, i)" had +30 on wrong channel (R instead of B). Type 3 falls through to Type 4's shared code (fg_setdacs upload, 9-level height_array, bitmap fill, LandGenerator). setTerrainPixel case 3: bitmap clear → height_array[y] (VGA 120–128 blue); bitmap set → depth+130 (VGA 130–150 gray depth). Web port had 15/15 split with pure-blue ramp; EXE has 10/20 split with blue-gray terrain + gray depth. See "Night/MTN Palette Detail" table.
 - [ ] Trace parachute deploy mechanics: EXE deploys mid-fall at threshold, sets flag, halves fall speed by skipping every other frame. Web port only consumes parachute at landing with no speed reduction.
 - [ ] Trace landing crater explosion: EXE always fires explosion(player, accum+50, 1) when tank lands. Web port has no landing crater at all.
 - [ ] Trace dome direction-dependent rendering: EXE has two asymmetric dome shapes (dir1 base at Y+5 with 4px rise, dir2 base at Y+7 with 3px rise) using separate color globals. Web port draws single direction-independent dome.
@@ -3349,6 +3349,7 @@ All located in `disasm/` directory:
 - [ ] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103)
 - [ ] Fix terrain palette type 4 (Sunset/Desert) to use 3-segment FPU gradient: VGA 120=(63,63,0), Loop 1 (121-130) gold→red, Loop 2 (131-140) red→blue, Loop 3 (141-149) blue→indigo (see "Desert/Lava Gradient Detail" section for full table)
 - [ ] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table
+- [ ] Fix terrain palette type 3 (Night/MTN) to use EXE's 10/20 split: Loop 1 (VGA 120–129): R=G=i, B=i+30 (10 entries, blue-gray gradient). Loop 2 (VGA 130–149): R=G=B=(i-10)*2 (20 entries, gray depth gradient). Web port incorrectly uses 15/15 split with pure-blue ramp. See "Night/MTN Palette Detail" table.
 - [x] Fix terrain bitmap shading direction once RE investigation confirms correct mapping (surface=120 or surface=149): **No fix needed** — web port already has correct direction (surface=149, underground=120), matching EXE. See RE investigation task above.
 
 #### Sound system (sound.js)
@@ -4319,14 +4320,42 @@ Each terrain type has a handler in the main terrain gen function (0x3971F) that 
 - height_array[y] = `30 - (screen_bottom - y) * 29 / screen_height` — inverted depth (darker at bottom)
 - Runs LandGenerator random walk
 
-**Type 3 — MTN** (handler at 0x39AEF):
+**Type 3 — MTN/Night** (handler at 0x39AEF, falls through to Type 4 shared code at 0x39B40):
 - Checks DS:0x624A (scanned_mtn_flag); if not loaded → **falls back to Type 0**
-- Palette: 10 entries `(i, i+30, i, i)` dark gradient for VGA 120–129; plus separate depth palette 130–150
-- height_array[y] = depth gradient `(30 - depth_idx)` where depth_idx = `(screen_bottom - y) * 29 / screen_height`
+- **Palette Loop 1** (di=0..9, 10 entries → VGA 120–129): `fg_setrgb(di, R=di, G=di, B=di+30)` — **blue tint** gradient (NOT greenish as previously documented). Blue channel leads by +30, creating dark blue tones. VGA 120=(0,0,30) dark blue → VGA 129=(9,9,39) slightly brighter blue-gray.
+- **Palette Loop 2** (di=10..29, 20 entries → VGA 130–149): `fg_setrgb(di, R=(di-10)*2, G=(di-10)*2, B=(di-10)*2)` — **gray depth gradient** from black to medium gray. VGA 130=(0,0,0) black → VGA 149=(38,38,38). This is the depth palette for mountain recesses (setTerrainPixel case 3: `depth + 130`).
+- `fg_setdacs(120, 30)` uploads palette buffer to VGA DAC 120–149.
+- **Falls through** to Type 4 shared code: depth_divisor, 9-level height_array, bitmap fill, LandGenerator.
+- height_array[y] = `(screen_bottom - y) * 9 / screen_height + 120` — 9-level gradient (VGA 120–128)
+- setTerrainPixel case 3: bitmap NOT set → height_array[y] (blue gradient VGA 120–128); bitmap SET → `depth + 130` capped at depth=20 (gray gradient VGA 130–150). Note: VGA 150 not explicitly set by palette loops (only 120–149 initialized); depth cap of 20 can reach VGA 150.
 - bitmap_array columns filled with rand() data for texture mask
 - LandGenerator called with scanned mountain callback (0x32C2 = setTerrainPixel) and column count from screen dimensions
 
-**Type 4 — V-Shaped** (handler at 0x39B40):
+#### Night/MTN Palette Detail
+
+| VGA | R | G | B | Source |
+|-----|---|---|---|--------|
+| 120 | 0 | 0 | 30 | Loop 1: terrain gradient (darkest) |
+| 121 | 1 | 1 | 31 | |
+| 122 | 2 | 2 | 32 | |
+| 123 | 3 | 3 | 33 | |
+| 124 | 4 | 4 | 34 | |
+| 125 | 5 | 5 | 35 | |
+| 126 | 6 | 6 | 36 | |
+| 127 | 7 | 7 | 37 | |
+| 128 | 8 | 8 | 38 | Loop 1: terrain gradient (surface, brightest) |
+| 129 | 9 | 9 | 39 | Loop 1: unused by height_array (max 128) |
+| 130 | 0 | 0 | 0 | Loop 2: depth gradient (shallowest recess) |
+| 131 | 2 | 2 | 2 | |
+| 132 | 4 | 4 | 4 | |
+| 133 | 6 | 6 | 6 | |
+| 134 | 8 | 8 | 8 | |
+| 135 | 10 | 10 | 10 | |
+| 140 | 20 | 20 | 20 | |
+| 145 | 30 | 30 | 30 | |
+| 149 | 38 | 38 | 38 | Loop 2: depth gradient (deepest recess) |
+
+**Type 4 — V-Shaped** (handler at 0x39B40, shared with Type 3 after palette):
 - Sets depth_divisor (DS:ECBE): 3 if screen_width == 0x167 (359), else 2
 - Palette: height_array[y] = `(screen_bottom - y) * 9 / screen_height + 120` — shallow gradient (only 9 levels)
 - bitmap_array column fill + LandGenerator random walk

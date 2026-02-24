@@ -130,6 +130,9 @@ DS:0x5270,mkt_filename
 0x39969,terrain_type1_palette
 0x3999A,fill_height_array_palIdx
 0x399D7,terrain_type2_palette
+0x39AEF,terrain_type3_mtn_palette
+0x39B03,terrain_type3_loop1_blue
+0x39B1B,terrain_type3_loop2_gray
 0x39B40,terrain_type4_vshape
 0x39C31,terrain_type5_sunset_castle
 0x39C45,sunset_palette_setup

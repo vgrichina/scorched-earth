@@ -74,7 +74,10 @@ DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
 0x39969,terrain_type1_palette: loop di=0..29: fg_setcolor(di, 29-di, 29-di, 63); flush to VGA 120-149
 0x3999A,fill_height_array_palIdx: height_array[y]=(bottom-y)*29/height+120; surface→149 underground→120
 0x399D7,terrain_type2_palette: setTerrainPalette(120,5,5,10) base; then loop di=0..28: R=G=B=di*2+7 scatter
-0x39B40,terrain_type4_vshape: fg_setdacs(120,30); depth_divisor=2or3; height_array 9-level; bitmap+LandGenerator; jmp cleanup
+0x39AEF,terrain_type3_mtn_palette: check scanned_mtn_flag; if 0 → fallback type0; else 2 palette loops then fall through to type4
+0x39B03,terrain_type3_loop1_blue: di=0..9 → buffer[0-9] → VGA 120-129: fg_setrgb(di, di, di, di+30) blue tint
+0x39B1B,terrain_type3_loop2_gray: di=10..29 → buffer[10-29] → VGA 130-149: fg_setrgb(di, (di-10)*2, (di-10)*2, (di-10)*2) gray depth
+0x39B40,terrain_type4_vshape: fg_setdacs(120,30); depth_divisor=2or3; height_array 9-level; bitmap+LandGenerator; jmp cleanup (shared by type3)
 0x39C31,terrain_type5_sunset_castle: if !scanned_mtn_flag → fallback type0; else 3-band FPU palette + castle terrain
 0x39C45,sunset_palette_setup: set_sky_palette_entry(120,63,63,0,1); loop1(0-9) loop2(10-19) loop3(20-28) FPU gradient
 0x39CCE,sunset_loop2: di=0..9 → VGA 131-140: R=t2*63+t1*29 G=t2*20+t1*29 B=t2*20+t1*63 (red→blue)
