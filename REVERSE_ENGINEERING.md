@@ -3332,7 +3332,7 @@ All located in `disasm/` directory:
 
 #### Score system (score.js)
 - [x] Fix scoreOnDeath teams-enabled branch: EXE gives +500 (not +4000) when teams enabled. **DONE**: score.js — `scoreOnDeath()` now checks `teamsEnabled()`: +500 when teams enabled (players share team numbers), +4000 when teams disabled (default). Added `teamsEnabled()` helper (checks if any players share `.team` property) and updated `isEnemy()` to compare team numbers. tank.js — added `team: index` to `createPlayer()` (each player on own team by default, matching EXE player struct +0x30). Current default: teams disabled → +4000 (unchanged behavior until team assignment UI is added).
-- [ ] Fix scoreOnDamage teams-disabled guard: EXE suppresses per-damage scoring when teams disabled (the default)
+- [x] Fix scoreOnDamage teams-disabled guard: EXE suppresses per-damage scoring when teams disabled (the default). **DONE**: score.js — `scoreOnDamage()` now calls `teamsEnabled()` early-return guard matching EXE pseudocode `if teams_disabled (DS:0x5148 == 0): return`. Per-damage scoring (+30x/+2x enemy, -15x/-1x friendly) only activates when players share team numbers. Default behavior (each player on own team) = no per-damage scoring, matching EXE.
 - [ ] Fix endOfRoundScoring teams-enabled branch: missing pool formula (round×500+5000+maxPower×30+shieldEnergy×2)
 
 #### Shield system (shields.js)

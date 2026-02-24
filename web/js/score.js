@@ -19,8 +19,10 @@ export const SCORE_MODE = {
 };
 
 // EXE: score_on_damage at file 0x37688 — multiplier lookup per target relationship
+// EXE: if teams_disabled (DS:0x5148 == 0): return — per-damage scoring only when teams enabled
 export function scoreOnDamage(attacker, target, damage, isDamageToShield) {
   if (!attacker || attacker === target) return;  // self-hits: no score change
+  if (!teamsEnabled()) return;  // EXE: per-damage scoring suppressed when teams disabled (default)
 
   const multiplier = isDamageToShield ? (isEnemy(attacker, target) ? 2 : -1)
                                        : (isEnemy(attacker, target) ? 30 : -15);
