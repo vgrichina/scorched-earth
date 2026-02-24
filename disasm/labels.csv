@@ -58,7 +58,7 @@ DS:0x515C,MAX_WIND
 DS:0x633C,wind_min_f
 DS:0x6348,wind_max_f
 DS:0x5180,wind_int_tmp
-DS:0x5190,AIR_VISCOSITY
+DS:0x5190,MKT_SENSITIVITY
 DS:0x0408,viscosity_max_f
 DS:0x040C,viscosity_div_f
 DS:0x637C,viscosity_div_f2
@@ -84,3 +84,17 @@ DS:0x70E4,font_glyph_data
 DS:0x6E2A,sky_gradient_base_index
 DS:0xDEA8,sky_ceiling_rgb_table
 DS:0xDD5E,player_palette_rgb_table
+
+# ---- Market system (SCORCH.MKT) ----
+0x2B80A,mkt_init_defaults
+0x2B873,mkt_load
+0x2BA52,mkt_save
+0x2BB5E,mkt_update
+0x14924,buy_weapon
+DS:0x514A,FREE_MARKET
+DS:0x5260,MKT_ALPHA
+DS:0x5268,MKT_INIT
+DS:0x5298,MKT_SIGNAL_DIV
+DS:0x50D4,NUM_PLAYERS
+DS:0x1BB6,WEAPON_COUNT
+DS:0x5270,mkt_filename

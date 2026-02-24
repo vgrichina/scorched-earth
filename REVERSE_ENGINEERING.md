@@ -2359,6 +2359,121 @@ Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll (skip guidance i
 
 ---
 
+## SCORCH.MKT Market File Format (VERIFIED from disassembly)
+
+### Overview
+
+SCORCH.MKT is a persistent binary file storing the arms market state. It implements a **dynamic pricing economy** where weapon prices fluctuate based on player purchasing behavior. The system is gated by the "Free Market" config toggle (DS:0x514A). When disabled, all weapons use their static base prices.
+
+- **File size**: 1060 bytes (4-byte header + 48 × 22-byte records)
+- **Load function**: `mkt_load` at file 0x2B873 (icons.cpp segment)
+- **Save function**: `mkt_save` at file 0x2BA52 (deletes then recreates with mode "ab")
+- **Default init**: `mkt_init_defaults` at file 0x2B80A (sets market cost = base price, EMAs = 0.1)
+- **Per-round update**: `mkt_update` at file 0x2BB5E
+
+### Binary File Layout
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 2 | uint16 | Version (must equal 2) |
+| 2 | 2 | uint16 | Weapon count (must match DS:0x1BB6 = 48) |
+| 4 | 22×48 | records | Per-weapon market data (1056 bytes) |
+
+### Per-Weapon Record (22 bytes)
+
+| Record Offset | Size | Type | Weapon Struct Offset | Field |
+|---------------|------|------|---------------------|-------|
+| 0 | 4 | int32 | +0x1A | `mkt_cost` — current market price (replaces base Price at +0x04) |
+| 4 | 2 | int16 | +0x22 | `unsold_rounds` — consecutive rounds with zero sales |
+| 6 | 8 | float64 | +0x24 | `price_signal` — EMA of squared price ratio (measures "expensiveness") |
+| 14 | 8 | float64 | +0x2C | `demand_avg` — EMA of normalized sales rate per player |
+
+### Extended Weapon Struct Fields (+0x18 to +0x33)
+
+These fields within the weapon struct's "Additional fields" region are used exclusively by the market system:
+
+| Struct Offset | Size | Type | Stored in MKT? | Field |
+|---------------|------|------|----------------|-------|
+| +0x1A | 4 | int32 | Yes | `mkt_cost` — current market price (dword) |
+| +0x1E | 2 | int16 | No | `sold_qty` — units sold this round (reset to 0 after each update) |
+| +0x20 | 2 | int16 | No | `purchasable` — flag (0=not in economy, 1=available for purchase) |
+| +0x22 | 2 | int16 | Yes | `unsold_rounds` — rounds since last sale |
+| +0x24 | 8 | float64 | Yes | `price_signal` — expensiveness EMA |
+| +0x2C | 8 | float64 | Yes | `demand_avg` — demand EMA |
+
+### Market Constants
+
+| DS Offset | Type | Value | Name |
+|-----------|------|-------|------|
+| DS:0x514A | word | 0/1 | `FREE_MARKET` — config toggle |
+| DS:0x5260 | float64 | 0.7 | `MKT_ALPHA` — EMA smoothing factor |
+| DS:0x5268 | float64 | 0.1 | `MKT_INIT` — default init value for EMAs; also minimum price ratio |
+| DS:0x5298 | float32 | 10.0 | `MKT_SIGNAL_DIV` — price signal divisor |
+| DS:0x5190 | float64 | 0.05 | `MKT_SENSITIVITY` — price adjustment multiplier |
+| DS:0x50D4 | word | (runtime) | `NUM_PLAYERS` — denominator for demand normalization |
+| DS:0x1BB6 | word | 48 | `WEAPON_COUNT` — total weapons in economy |
+
+### Price Validation (on MKT load)
+
+When loading from file, each weapon's `mkt_cost` is validated against its base price:
+- **Minimum**: `base_cost × 0.1` (10% of base — floor at DS:0x5268)
+- **Maximum**: `base_cost × 100` (10000% of base)
+- If out of range, `mkt_cost` is clamped to `base_cost` (reset to default)
+
+### Market Update Algorithm (per round)
+
+```c
+// Called at end of each round when FREE_MARKET enabled
+void mkt_update() {
+    const double alpha = 0.7;          // DS:0x5260
+    const double sensitivity = 0.05;   // DS:0x5190
+    const float signal_div = 10.0;     // DS:0x5298
+
+    for (int i = 0; i < WEAPON_COUNT; i++) {
+        if (weapon[i].purchasable == 0) continue;
+
+        // Track unsold duration
+        if (weapon[i].sold_qty == 0)
+            weapon[i].unsold_rounds++;
+        else
+            weapon[i].unsold_rounds = 0;
+
+        // Update demand EMA (normalized by player count)
+        weapon[i].demand_avg = weapon[i].demand_avg * alpha
+            + weapon[i].sold_qty * (1 - alpha) / NUM_PLAYERS;
+
+        // Update price signal EMA (tracks squared price ratio)
+        double price_ratio = (double)weapon[i].mkt_cost / (double)weapon[i].base_cost;
+        double signal_update = price_ratio * price_ratio * (1 - alpha) / signal_div;
+        weapon[i].price_signal = weapon[i].price_signal * alpha + signal_update;
+
+        // Adjust market price
+        //   demand > signal → price rises  (popular weapon, underpriceed)
+        //   demand < signal → price falls  (unpopular weapon, overpriced)
+        double factor = 1.0 + (weapon[i].demand_avg - weapon[i].price_signal) * sensitivity;
+        weapon[i].mkt_cost = (int32_t)((double)weapon[i].mkt_cost * factor);
+
+        // Reset per-round purchase counter
+        weapon[i].sold_qty = 0;
+    }
+}
+```
+
+### Purchase Tracking
+
+The buy function at file 0x14924 increments `weapon[i].sold_qty` (field +0x1E) at file 0x14A2A (`inc [bx+0x1214]`) each time a player purchases a weapon. This is the demand signal consumed by `mkt_update`.
+
+### Web Port Impact
+
+The free market system is a complete economic simulation. To implement in the web port:
+- Add `FREE_MARKET` toggle to config
+- Use `mkt_cost` for shop prices when enabled (fall back to base price when disabled)
+- Call `mkt_update()` at end of each round
+- Persist market state to localStorage (matching the 22-byte per-weapon format)
+- Initialize EMAs to 0.1 and prices to base prices on first run
+
+---
+
 ## Intermediate Disassembly Files
 
 All located in `disasm/` directory:
@@ -2478,8 +2593,8 @@ All located in `disasm/` directory:
 
 - [x] Trace sky palette init for all 6 sky types: investigated code at 0x285A7, 0x3A0A9, 0x3A182, ranges.cpp fg_setdacs calls. **Key finding**: the handler addresses (0x3E700, 0x4758B, etc.) are menu dialog renderers (segment 0x34ED), NOT palette init functions. Sky gradient base = DS:0x6E2A = 80 (VGA 80). Sky gradient VGA 80–104 (25 entries). Player colors VGA 0–79 set by icons.cpp:0x28592. Black sky ceiling init at 0x3A0A9 (sets VGA 0–104 and 110–149 all black). Exact per-entry RGB for all types not recoverable from static analysis (runtime-computed). **Sunset gradient direction confirmed reversed in web port**: EXE goes cool-blue/indigo at top → warm-orange at bottom; web port was reversed. Fixed in web/js/palette.js: r=28+t×35, g=5+t×15, b=50-t×40 (i=0=top=cool, i=23=bottom=warm). See "Sky Palette Architecture" subsection in Sky/Landscape Mode System section.
 - [x] Decode .MTN mountain bitmap format and terrain compositing: **RESOLVED**. Format fully decoded by `disasm/decode_mtn.py` (9/10 files verified). 72-byte header (16b core + 8b unknown + 48b palette). Fields: magic=`MT\xBE\xEF`, version=0x0100, h=rows_per_column (419–1483), x_start/x_end=encoded column range, n_colors=16, palette=16×RGB888 at byte 24. Pixel data at byte 72: **PCX-RLE nibble-packed 4bpp, column-major**. Index 0=(255,255,255)=sky, indices 1–15=terrain. Terrain height at column x = first non-zero pixel row from the top (row 0=top of image). Files contain TWO consecutive PCX-RLE blocks (block2 purpose unknown, possibly background layer). MTN_PERCENT is a **selection probability** (binary choice: scanned vs. procedural), not a visual blend. Sky type jump table at file 0x39198 (CS:0x0A18 in seg 0x31D8) dispatches terrain handlers per sky type; type 5 (Cavern) handler at file 0x3F146. Descriptor table at DS:0x5F04 (8 bytes/entry: 4-byte far ptr to filename + 4-byte file_size). Reference parser: https://github.com/zsennenga/scorched-earth-mountain. See "MTN Terrain File Format" section for full spec.
-- [ ] Trace sun/planet rendering: v86 screenshot shows a large bright circle (sun) at the bottom-center of the right-panel terrain preview during Sunset sky type; find the draw call in the Sunset handler (file 0x3F587) or terrain generation (file 0x3971F); document position formula (horizontal: center of playfield?, vertical: near bottom?), radius, color palette index; add a new "Sun/Planet Rendering" subsection to the Sky/Landscape Mode System section
-- [ ] Decode SCORCH.MKT binary format: file is 1060 bytes, opened read-only (`fopen("scorch.mkt","rb")`), read in icons.cpp at file 0x2B873 (DS:0x5270 = filename); first word = 2 (magic/version), second word = 48 (0x30) — likely 48 weapon records × 22 bytes = 1056 + 4 header = 1060 bytes exact; decode the remaining fields per record (probably price, initial quantity, market flags — "MKT" = market); determine whether this is economy init data, registration data, or something else; document full binary format spec and add a "SCORCH.MKT Format" section; check if this data needs to be used in the web port
+- [x] Trace sun/planet rendering: **RESOLVED — No explicit sun circle**. The "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes. No Fastgraph circle/ellipse calls originate from terrain gen or sky palette code. Sunset case handler (file 0x39C31) only sets palette entries (VGA 120–149) and generates terrain height. Full sunset palette interpolation documented (3 gradient segments of 10 entries, FPU-computed from float32 constants at DS:0x6258–0x6270). See "Sun/Planet Rendering" subsection in Sky/Landscape Mode System section.
+- [x] Decode SCORCH.MKT binary format: **RESOLVED**. 1060-byte file = 4-byte header (version=2, count=48) + 48×22-byte records. Per-weapon record: int32 mkt_cost (weapon+0x1A), int16 unsold_rounds (+0x22), float64 price_signal (+0x24), float64 demand_avg (+0x2C). Implements a dynamic pricing economy: EMA-based market simulation with α=0.7 smoothing, demand tracks purchase rate per player, price_signal tracks squared price ratio / 10.0, adjustment = mkt_cost × (1 + (demand - signal) × 0.05). Price clamped to [base×0.1, base×100] on load. Purchase tracking via `inc sold_qty` at file 0x14A2A in buy function. Gated by FREE_MARKET config (DS:0x514A). Key constants: DS:0x5260=0.7 (α), DS:0x5268=0.1 (init), DS:0x5298=10.0 (divisor), DS:0x5190=0.05 (sensitivity). **Correction**: DS:0x5190 is MKT_SENSITIVITY (0.05), not AIR_VISCOSITY as previously labeled. See "SCORCH.MKT Market File Format" section.
 - [ ] Trace SCORCH.PCX loading context: referenced at DS:0x575C, loaded in play.cpp at file 0x2FAD1–0x2FAF8 (conditional on DS:0x5188 != 0); Fastgraph calls are 0x480a:0x9 (open/load PCX) and 0x4847:0x2 (display); SCORCH.PCX is NOT present in the earth/ directory — determine (a) when this code runs (which game state), (b) what DS:0x5188 represents, (c) what visual content SCORCH.PCX contains (a full-screen image?), (d) whether the file should be included in v86/images/game.img; document in a new "SCORCH.PCX" section
 - [ ] Trace terrain generation for each sky type: ranges.cpp (file 0x3971F) has the main generation function; there's a jump table at file 0x3A118 (7 entries for sky types 0-6); decode the terrain shape algorithm for Sunset (type 4) specifically — does it call the .MTN loader, use procedural noise, or both?; also check HOSTILE_ENVIRONMENT flag (DS:0x??? — find offset) which enables lightning/meteor random events; document the per-type terrain shape differences
 - [ ] Trace TALK1.CFG / TALK2.CFG parsing: files are plain text (one taunt per line); find the loader code (search for DS ref to "talk1.cfg" at DS:0x??? from config parser); document how many lines are read, how a random line is selected (random(count)?), how the text is displayed on screen, and what triggers attack vs die comments; verify web port talks.js (if it exists) or add to implementation tasks

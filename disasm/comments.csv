@@ -35,7 +35,7 @@
 
 # ---- Data segment variables ----
 DS:0x515C,MAX_WIND: maximum wind speed (default 200; slider 5-500); per-turn clamp uses +-this
-DS:0x5190,AIR_VISCOSITY: air viscosity value (0-20); formula 1.0-val/10000 per physics step
+DS:0x5190,MKT_SENSITIVITY: market price adjustment multiplier = 0.05 (float64); NOT air viscosity
 DS:0xED58,layout_mode: 0=spacious(25px rows) 1=compact(17px rows); same font both modes
 DS:0xEF22,highlight_color: UI highlight/selected-item color (pal 200 dynamic player color)
 DS:0x518E,HUD_Y: HUD Y position
@@ -48,3 +48,16 @@ DS:0x52A2,sub_count_table: [MIRV=5 DeathsHead=9] sub-warhead count by param
 0x28592,setup_player_palette: sets VGA 0-79 = player colors (8 per player); slot 5 mod 8 = white(63,63,63); slot 7 mod 8 = grey(30,30,30); if sky==6 all black; then fg_setdacs(0,80)
 0x3A0A9,setup_sky_ceiling_palette: if sky!=6 returns; sets VGA 110-149 from DS:DEA8 table; sets VGA 0-104 from DS:DD5E table (all black for Black sky); arg [bp+6]==0 = all-black variant
 DS:0x6E2A,sky_gradient_base_index: base VGA palette index for sky gradient = 0x50=80; used as color in hline/vline calls for terrain borders
+
+# ---- Market system (SCORCH.MKT) ----
+0x2B80A,mkt_init_defaults: sets mkt_cost=base_price EMAs=0.1 for all 48 weapons
+0x2B873,mkt_load: fopen("scorch.mkt","rb"); validates version=2 count=48; clamps prices to [base*0.1, base*100]
+0x2BA52,mkt_save: remove+fopen("scorch.mkt","ab"); writes version+count+22bytes*48weapons
+0x2BB5E,mkt_update: per-round EMA-based market price adjustment; alpha=0.7 sensitivity=0.05
+0x14A2A,buy_weapon_inc_sold: inc [bx+0x1214] — increments weapon sold_qty for market demand tracking
+DS:0x514A,FREE_MARKET: config toggle (0=disabled 1=enabled); gates MKT load/save/update
+DS:0x5260,MKT_ALPHA: EMA smoothing factor = 0.7 (float64)
+DS:0x5268,MKT_INIT: default EMA init value = 0.1 (float64); also minimum price ratio for validation
+DS:0x5298,MKT_SIGNAL_DIV: price signal divisor = 10.0 (float32)
+DS:0x50D4,NUM_PLAYERS: total player count (runtime); used to normalize demand in market update
+DS:0x1BB6,WEAPON_COUNT: total weapons in economy = 48
