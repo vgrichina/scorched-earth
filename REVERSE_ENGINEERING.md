@@ -2007,12 +2007,48 @@ if (shieldEnergy > damage) {
 }
 ```
 
-### Visual Feedback
+### Visual Feedback — Shield Color Rendering
 
-- Shield color = `shieldEnergy * configColor / maxEnergy` (fades as energy depletes)
-- Shield drawn as circular region using VGA palette index `playerIndex + 5`
-- Shield pixels marked with color 0xFF; terrain boundary at 0x69 (105)
-- Break animation: 50-frame accelerating fade (`delay -= 100` per frame) + final white flash
+**Color formula** (continuous energy-based fade): `update_shield_color` at file 0x389DA.
+
+```c
+// Per-channel continuous fade — NOT quantized, NOT stepped
+R = shieldEnergy × configR / maxEnergy
+G = shieldEnergy × configG / maxEnergy
+B = shieldEnergy × configB / maxEnergy
+// Written to VGA palette entry (player_number + 200) via fg_setrgb
+```
+
+Where `configR/G/B` = shield config entry offsets +0x06/+0x08/+0x0A, `maxEnergy` = config +0x02.
+
+**Two palette indices** used:
+- **Activation**: VGA entry `player_number × 8 + 5` (sub-struct +0x1A + 5, within player's 8-color block). Temporarily used during 50-frame fade-in animation. Source: 0x388CE.
+- **Ongoing gameplay**: VGA entry `player_number + 200` (sub-struct +0xA0 + 0xC8, dedicated per-player shield entry). RGB updated continuously when shield takes damage. Source: 0x38A8C.
+
+**Activation animation** (`shields_start` at file 0x38780, 50 frames):
+```c
+fg_setrgb(player*8+5, 0, 0, 0);           // start black
+draw_shield_shape();                        // draw pixels with palette index player*8+5
+for (i = 0; i <= 50; i++) {
+    delay(2*i);                             // accelerating: 0, 2, 4, ... 100 ticks
+    sound(20, 1000 + i*100);               // rising pitch
+    brightness = clamp(i * 63 / 50, 0, 63);
+    R = configR * brightness / 63;
+    G = configG * brightness / 63;
+    B = configB * brightness / 63;
+    fg_setrgb(player*8+5, R, G, B);        // VGA hardware palette animation
+}
+```
+
+**Pixel replacement** (callback at file 0x3899C): After activation, `update_shield_color` redraws the shield shape using a callback that replaces pixels of value `player*8+5` with `player+200`, switching them to the dedicated per-player shield palette entry.
+
+**Pixel drawing callback** (activation, at file 0x38649): Gets current pixel via `fg_getpixel(x,y)`; skips pixels in VGA 0x50-0x68 (80-104 = sky range); otherwise sets pixel to `DS:EC80` (player*8+5). Shield pixels marked with 0xFF check and terrain boundary at 0x69 (105) handled separately.
+
+**Key DS globals**:
+- DS:EC80 = shield pixel value = player*8+5 (set at 0x387D3)
+- DS:EC82 = tank Y position (set at 0x389FC)
+- DS:EC84 = shield pixel match value = player*8+5 (set at 0x38A09)
+- DS:EC86 = replacement pixel value = player+200 (set at 0x38A17)
 
 ### Battery Interaction
 
@@ -2026,9 +2062,14 @@ See full **Player Data Structures** section for complete layout. Shield-relevant
 |--------|-------|
 | +0x0E | X position |
 | +0x10 | Y position |
+| +0x1A | Player palette base = player_number × 8 (set at 0x30F38: `shl di, 3`) |
+| +0x1C | Player color R (from DS:0x57E2 table, 6 bytes/player) |
+| +0x1E | Player color G |
+| +0x20 | Player color B |
 | +0x92 | Turret angle (fine) |
 | +0x94 | Turret direction (-1 or 1) |
 | +0x96 | Shield energy remaining (HP) |
+| +0xA0 | Player number (0-9) (set at 0x30E96) |
 | +0xC6 | Far pointer to shield config entry (16 bytes) |
 
 ### Mag Deflector / Super Mag
@@ -3173,7 +3214,7 @@ All located in `disasm/` directory:
 - [x] Trace gravity/wind pre-scaling formula: **RESOLVED**. `setup_physics_constants` at file 0x21064. Constants: DS:0x1CF2=50.0 (f32, gravity mult), DS:0x1CF6=40.0 (f32, wind div), DS:0x1CFA=0.02 (f64, fallback dt), DS:0x1CC8=100.0 (f32, d divisor). Formulas: gravity_step = 2500 × GRAVITY_CONFIG × dt, wind_step = 1.25 × wind × dt (both pre-scaled, applied without further dt multiply). Launch velocity = power directly (no scaling). GRAVITY_CONFIG at DS:0x512A = 0.2 default (f64), range 0.05–10.0. Effective accelerations: gravity = 2500 × G px/sec², wind = 1.25 × W px/sec². Web port corrected: GRAVITY=4.9 → 400×config.gravity, WIND_SCALE=0.15 → 0.2 (using k²=0.16 scaling for MAX_SPEED=400). Config default gravity fixed 1.0→0.2. See "Gravity/Wind Pre-Scaling — Derived Formulas" subsection.
 - [x] Trace sky type enum mapping: **VERIFIED**. Name table init at file 0x3AEA0 copies 8 far ptrs to DS:0x621C: 0=Plain (DS:0x2DE8), 1=Shaded (DS:0x2DEE), 2=Stars (DS:0x2DF5), 3=Storm (DS:0x2DFB), 4=Sunset (DS:0x2E01), 5=Cavern (DS:0x31ED), 6=Black (DS:0x2E08), 7=Random (DS:0x2787). Config key `SKY\0` at DS:0x0454, format `SKY=%s\n` at DS:0x08F8. Random resolution (file 0x3978E): `random(6)` → 0-5, re-rolls if 5 (Cavern) and no .mtn files (DS:0x621A==0). Black (6) never in Random pool. Web port was correct for indices 0-6 but missing Random (7); added Random to menu.js with runtime resolution to 0-6 (including Black, unlike EXE 0-5). See "Sky Type Enum" subsection in Sky/Landscape Mode System section.
 - [x] Trace play order enum: **VERIFIED**. Config variable DS:0x519C, 5 options via name table at DS:0x62E4 (init at 0x3DA90). Enum: 0=Random (DS:0x2787), 1=Losers-First (DS:0x2CFA), 2=Winners-First (DS:0x2D07), 3=Round-Robin (DS:0x2D15), 4=Sequential (DS:0x2803). Config key `PLAY_ORDER\0` at DS:0x0541, format `PLAY_ORDER=%s\n` at DS:0x0A03. Dispatch at file 0x2AE64: cases 0-3 via jump table, case 4 skips to common code. Case 0: Fisher-Yates shuffle + random(2) start. Case 1: shuffle + rotate start via DS:0x51A4 (player_id tracking). Case 2: sort by score, reverse fill (winners first). Case 3: sort by score, forward fill (lowest first). Case 4: no modification (existing order). Web port fixed: enum corrected 0→Random etc., Round-Robin (3) added, Sequential (4) added, config comment fixed (was conflating with PLAY_MODE), default remains 0 (Random, matching SCORCH.CFG). See "Play Order System" section.
-- [ ] Trace shield color rendering formula: EXE uses continuous fade `shieldEnergy × configColor / maxEnergy` and palette index `playerIndex + 5`. Web port uses quantized 4-step slot system with `playerIndex × 8 + slot`. Disassemble shield draw to confirm.
+- [x] Trace shield color rendering formula: **RESOLVED**. `update_shield_color` at file 0x389DA. Formula: `R = shieldEnergy × configR / maxEnergy`, `G = shieldEnergy × configG / maxEnergy`, `B = shieldEnergy × configB / maxEnergy` — continuous fade, NOT quantized. Two palette indices: activation uses `player*8+5` (shared player entry, 50-frame fade-in), ongoing uses `player+200` (dedicated per-player shield entry, RGB updated on damage). Key init: struct[+0x1A] = player_number×8 (file 0x30F32), struct[+0xA0] = player_number (file 0x30E96). DS globals: EC80/EC84=pixel value, EC82=tank Y, EC86=replacement value. Web port fixed: replaced quantized 4-step slot system (`player.index*8+slot`) with continuous formula using dedicated palette entries (210+playerIndex), added `setPaletteRgb()` to palette.js. See "Visual Feedback — Shield Color Rendering" subsection.
 - [ ] Trace shield break animation sequence: EXE has 50-frame accelerating fade + final white flash. Web port triggers white flash on frame 0 (first frame, not last). Verify frame ordering.
 - [ ] Trace Flicker Shield implementation: EXE has no config table entry for Flicker Shield (type 4 in switch). Web port invents SHIELD_CONFIG[6] with energy=80, radius=14, rgb=(50,50,63), flags=8. Disassemble flicker shield switch case to find actual values.
 - [ ] Trace terrain bitmap shading direction: RE doc line 2153 says "DAC 149 = surface, DAC 120 = deepest underground" but the formula at line 2155 gives surface=120. Web port assigns surface=120 (darkest). Verify which direction is correct.

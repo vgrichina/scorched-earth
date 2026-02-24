@@ -67,6 +67,16 @@ export function updatePalette32() {
   }
 }
 
+// EXE: fg_setrgb equivalent — set a single palette entry and update the 32-bit lookup
+// Used for dynamic per-frame palette changes (shield color, shop animation, etc.)
+export function setPaletteRgb(index, r, g, b) {
+  setEntry(index, r, g, b);
+  const r8 = vga6to8(r);
+  const g8 = vga6to8(g);
+  const b8 = vga6to8(b);
+  palette32[index] = (255 << 24) | (b8 << 16) | (g8 << 8) | r8;
+}
+
 // --- Player colors (VGA 0-79): 10 players × 8 gradient slots ---
 // EXE: tank color gradient setup at file 0x28540 (icons.cpp)
 // EXE: slots 0-3 = dark→light body/dome, slot 4 = full color, slot 5 = white flash,

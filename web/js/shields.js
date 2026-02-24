@@ -10,6 +10,7 @@
 import { config } from './config.js';
 import { setPixel } from './framebuffer.js';
 import { random } from './utils.js';
+import { setPaletteRgb } from './palette.js';
 
 // Shield type constants
 export const SHIELD_TYPE = {
@@ -146,7 +147,13 @@ function warpTank(player) {
   player.fallDamageAccum = 0;
 }
 
+// EXE: VGA palette entries 210-219 = per-player dedicated shield color
+// EXE: activation uses player*8+5 (shared), ongoing uses player+200 (dedicated)
+// Web port maps player+200 → 210+playerIndex (200-208 used by 3D UI)
+const SHIELD_PALETTE_BASE = 210;
+
 // Draw shield circle around a tank
+// EXE: update_shield_color at file 0x389DA — continuous fade formula
 export function drawShield(player) {
   if (player.activeShield === SHIELD_TYPE.NONE || player.shieldEnergy <= 0) return;
 
@@ -157,12 +164,15 @@ export function drawShield(player) {
   const cy = player.y - 6;  // center on tank body
   const radius = cfg.radius;
 
-  // EXE: continuous color fade based on energy ratio
-  const energyRatio = player.shieldEnergy / cfg.energy;
-  const slot = Math.floor(energyRatio * 4) + 1;  // 1-5 color slots
-  const color = player.index * 8 + slot;
+  // EXE: continuous color = shieldEnergy × configColor / maxEnergy
+  // Sets VGA palette entry (player+200) RGB based on current energy
+  const paletteIdx = SHIELD_PALETTE_BASE + player.index;
+  const r = Math.floor(player.shieldEnergy * cfg.r / cfg.energy);
+  const g = Math.floor(player.shieldEnergy * cfg.g / cfg.energy);
+  const b = Math.floor(player.shieldEnergy * cfg.b / cfg.energy);
+  setPaletteRgb(paletteIdx, r, g, b);
 
-  // Draw shield as circle outline
+  // Draw shield as circle outline using dedicated palette entry
   for (let angle = 0; angle < 360; angle += 4) {
     // EXE: Flicker shield randomly skips pixels for visual flicker
     if (player.activeShield === SHIELD_TYPE.FLICKER && random(3) === 0) continue;
@@ -171,14 +181,14 @@ export function drawShield(player) {
     const px = Math.round(cx + Math.cos(rad) * radius);
     const py = Math.round(cy + Math.sin(rad) * radius);
     if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-      setPixel(px, py, color);
+      setPixel(px, py, paletteIdx);
     }
     // Inner ring for heavy shields
     if (cfg.flags === 4 && radius > 2) {
       const px2 = Math.round(cx + Math.cos(rad) * (radius - 1));
       const py2 = Math.round(cy + Math.sin(rad) * (radius - 1));
       if (px2 >= 0 && px2 < config.screenWidth && py2 >= 0 && py2 < config.screenHeight) {
-        setPixel(px2, py2, player.index * 8 + Math.max(1, slot - 1));
+        setPixel(px2, py2, paletteIdx);
       }
     }
   }
