@@ -13,7 +13,7 @@ import { setPixel, getBackgroundColor } from './framebuffer.js';
 import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
-import { playExplosionSound } from './sound.js';
+import { playExplosionSound, playShieldHitSound, playImpactFrame } from './sound.js';
 import { random } from './utils.js';
 import { TERRAIN_PAL_START, TERRAIN_PAL_COUNT, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
@@ -216,6 +216,9 @@ export function stepExplosion() {
 
   const { cx, cy, radius, maxFrames } = currentExplosion;
 
+  // EXE: random(3000) Hz tone per explosion frame (extras.cpp 0x247BA)
+  playImpactFrame();
+
   // Expanding ring animation using fire palette (VGA 170-199)
   const t = currentExplosion.frame / maxFrames;
   const ringRadius = Math.floor(radius * t);
@@ -305,6 +308,8 @@ export function applyExplosionDamage(cx, cy, radius, attackerIndex, projVx, proj
         const shieldDmg = Math.min(damage, player.shieldEnergy);
         player.shieldEnergy -= shieldDmg;
         damage -= shieldDmg;
+        // EXE: random(50) Hz tone per shield hit (shields.cpp 0x3AF33)
+        playShieldHitSound();
         // EXE: score_on_damage for shield absorption (+2x enemy, -1x friendly)
         if (attacker) scoreOnDamage(attacker, player, shieldDmg, true);
       }

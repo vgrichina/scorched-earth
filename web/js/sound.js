@@ -138,3 +138,96 @@ export function playLightningSound() {
 export function playDeathSound() {
   playTone(80, 20, 0.3, 'square', 0.12);
 }
+
+// EXE: terrain generation ping (ranges.cpp, file 0x35D41)
+// for (si = 10; si < 20; si++) { fg_click(0, 20); delay(25 - (si-10)*2); }
+// Rising-speed click train: 10 clicks with decreasing delay (25→7 ticks).
+export function playTerrainGenPing() {
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  const now = audioCtx.currentTime;
+  let t = 0;
+  for (let si = 10; si < 20; si++) {
+    const delayTicks = 25 - (si - 10) * 2; // 25, 23, 21, ... 7 ticks
+    const delaySec = delayTicks / 18.2;     // PIT timer at 18.2 Hz
+
+    // Each fg_click(0, 20) = 40 speaker toggles with no busy-wait → ~0.5ms burst
+    const clickDur = 0.0005;
+    const sampleRate = audioCtx.sampleRate;
+    const numSamples = Math.ceil(sampleRate * clickDur);
+    const buffer = audioCtx.createBuffer(1, numSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+    let val = 1;
+    for (let i = 0; i < numSamples; i++) {
+      if (i % 3 === 0) val = -val;
+      data[i] = val;
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.10, now + t);
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start(now + t);
+
+    t += delaySec;
+  }
+}
+
+// EXE: impact random tone (extras.cpp, file 0x247BA)
+// freq = random(3000); fg_sound_on(freq); — updated each explosion animation frame.
+// Rapidly varying random-frequency tone during impact/explosion animation.
+export function playImpactFrame() {
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  const freq = Math.max(20, Math.floor(Math.random() * 3000));
+  playTone(freq, freq, 0.05, 'square', 0.08);
+}
+
+// EXE: terrain-hit rising sound (extras.cpp, file 0x24DCD)
+// Starting freq = 1000 Hz (0x3E8 at file 0x24CE4), +200 Hz per terrain pixel step.
+// Plays when projectile enters terrain; frequency rises until projectile stops.
+// numSteps = approximate number of terrain pixels traversed (typically 1–5 for web port).
+export function playTerrainHitSound(numSteps) {
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  const baseFreq = 1000;
+  const stepHz = 200;
+  const steps = Math.min(numSteps || 3, 20);
+  const stepDur = 0.015; // ~15ms per step
+  const totalDur = steps * stepDur;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  const now = audioCtx.currentTime;
+
+  for (let i = 0; i < steps; i++) {
+    osc.frequency.setValueAtTime(baseFreq + i * stepHz, now + i * stepDur);
+  }
+
+  gain.gain.setValueAtTime(0.10, now);
+  gain.gain.setValueAtTime(0, now + totalDur);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + totalDur);
+}
+
+// EXE: shield-hit random tone (shields.cpp, file 0x3AF33)
+// freq = random(50); fg_sound_on(freq); — per-frame during shield hit animation.
+// Low-frequency rumble/buzz matching PC speaker behavior at sub-50 Hz.
+export function playShieldHitSound() {
+  if (!audioCtx || !config.soundEnabled) return;
+  initSound();
+
+  // PC speaker at 0-49 Hz produces audible mechanical clicks;
+  // Web Audio square wave at these frequencies produces a low buzz.
+  const freq = Math.max(5, Math.floor(Math.random() * 50));
+  playTone(freq, freq, 0.03, 'square', 0.10);
+}

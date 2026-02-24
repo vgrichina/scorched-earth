@@ -305,3 +305,11 @@ DS:0xEC88,SHIELD_FLICKER_TOGGLE
 DS:0x1D54,MAG_DAMP_COEFF
 DS:0x1D58,MAG_ABSORB_THRESHOLD
 DS:0x1C7E,MAG_DAMPING_APPLIED_FLAG
+0x247BA,sound_impact_random_tone
+0x24CBF,terrain_hit_traversal_func
+0x24CE4,terrain_hit_freq_init_1000
+0x24DCD,sound_terrain_hit_rising
+0x35D41,sound_terrain_gen_ping
+0x3AF1F,shield_hit_animation_func
+0x3AF33,sound_shield_hit_random
+DS:0xEF46,SOUND_DEVICE

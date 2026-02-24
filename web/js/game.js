@@ -23,7 +23,7 @@ import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath } from './score.js';
 import { checkShieldDeflection } from './shields.js';
-import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, initSound, toggleSound } from './sound.js';
+import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop } from './shop.js';
 import { generateTerrain } from './terrain.js';
@@ -247,6 +247,7 @@ function startNewRound() {
 
   // Regenerate terrain and place tanks
   generateTerrain();
+  playTerrainGenPing();
   generateWind();
 
   // Reuse existing players (preserves score/cash/wins/inventory/aiType/name)
@@ -616,6 +617,8 @@ export function gameTick() {
           const result = stepSingleProjectile(proj, getPixel, game.wind);
 
           if (result === 'hit_terrain' || result === 'hit_tank' || result === 'hit_wall') {
+            // EXE: rising tone on terrain hit (extras.cpp 0x24DCD), starts 1000 Hz, +200/step
+            if (result === 'hit_terrain') playTerrainHitSound(3);
             processHit(proj, result);
           } else if (result === 'offscreen') {
             proj.active = false;
