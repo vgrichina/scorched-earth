@@ -458,6 +458,8 @@ function handlePlayerSetupInput() {
     }
   }
 
+  // Tab cycles fields (EXE: Tab key navigation between Name/Type)
+  if (consumeKey('Tab')) menu.playerSetupField = (menu.playerSetupField + 1) % 2;
   if (consumeKey('ArrowUp')) menu.playerSetupField = Math.max(0, menu.playerSetupField - 1);
   if (consumeKey('ArrowDown')) menu.playerSetupField = Math.min(1, menu.playerSetupField + 1);
 
@@ -467,17 +469,21 @@ function handlePlayerSetupInput() {
     if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
   }
 
-  // Mouse: click name field (y~48) or AI field (y~66) to select
+  // Mouse: click name or AI field based on dialog layout
   if (mouse.over && consumeClick(0)) {
-    if (mouse.y >= 42 && mouse.y < 58) {
-      menu.playerSetupField = 0;
-    } else if (mouse.y >= 58 && mouse.y < 78) {
-      menu.playerSetupField = 1;
-      // Left/right half adjusts AI type
-      if (mouse.x > 160) {
-        setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
-      } else if (mouse.x > 80) {
-        setup.aiType = Math.max(0, setup.aiType - 1);
+    const lay = getPlayerSetupLayout();
+    if (mouse.x >= lay.dlgX && mouse.x < lay.dlgX + lay.dlgW) {
+      if (mouse.y >= lay.nameFieldY - 2 && mouse.y < lay.nameFieldY + lay.fieldH) {
+        menu.playerSetupField = 0;
+      } else if (mouse.y >= lay.typeFieldY - 2 && mouse.y < lay.typeFieldY + lay.fieldH) {
+        menu.playerSetupField = 1;
+        // Left/right half adjusts AI type
+        const midX = lay.dlgX + Math.floor(lay.dlgW / 2);
+        if (mouse.x > midX) {
+          setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
+        } else if (mouse.x > lay.valX - 10) {
+          setup.aiType = Math.max(0, setup.aiType - 1);
+        }
       }
     }
   }
@@ -667,9 +673,28 @@ function drawSubmenu() {
   drawText(dlgX + 8, dlgY + dlgH - 12, 'ESC/Enter: Back', UI_MED_BORDER);
 }
 
-// --- Player setup screen (kept similar to original) ---
+// --- Player setup dialog layout (EXE: dialog widget system, centered) ---
+// EXE: player setup uses segment 0x3F19 dialog system with sunken input fields,
+// spinner for AI type, Tab key navigation, centered on screen.
+function getPlayerSetupLayout() {
+  const rowH = isSmallMode() ? 16 : 22;
+  const labelW = measureText('Type:') + 8;
+  const inputW = measureText('WWWWWWWWWWWW_') + 8; // 12-char name + cursor + padding
+  const footerW = measureText('Tab/Arrows:Field  L/R:Type  Enter  Esc') + 20;
+  const dlgW = Math.max(labelW + inputW + 24, footerW, 180);
+  const dlgH = rowH * 2 + 60; // title + separator + 2 fields + footer
+  const dlgX = Math.floor((getScreenW() - dlgW) / 2);
+  const dlgY = Math.floor((getScreenH() - dlgH) / 2);
+  const fieldH = rowH + 2;
+  const labelX = dlgX + 10;
+  const valX = dlgX + 10 + labelW;
+  const nameFieldY = dlgY + 26;
+  const typeFieldY = nameFieldY + rowH + 6;
+  return { dlgX, dlgY, dlgW, dlgH, rowH, labelX, valX, inputW, nameFieldY, typeFieldY, fieldH };
+}
+
 export function drawPlayerSetupScreen() {
-  // Use 3D background
+  // Full-screen raised 3D background (EXE: dialog over raised base)
   boxRaised(0, 0, getScreenW(), getScreenH());
 
   const idx = menu.playerSetupIdx;
@@ -677,46 +702,44 @@ export function drawPlayerSetupScreen() {
 
   const setup = playerSetup[idx];
   const baseColor = idx * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const lay = getPlayerSetupLayout();
 
-  // Title area
-  const titleStr = 'PLAYER SETUP';
-  drawText(Math.floor((getScreenW() - measureText(titleStr)) / 2), 8, titleStr, UI_HIGHLIGHT);
-  hline(8, getScreenW() - 9, 18, UI_MED_BORDER);
+  // Centered raised dialog box
+  boxRaised(lay.dlgX, lay.dlgY, lay.dlgW, lay.dlgH);
 
-  // Player indicator
-  drawText(8, 28, `Player ${idx + 1} of ${config.numPlayers}`, baseColor);
+  // Title: "Player N of M" centered in dialog, in player color
+  const titleStr = `Player ${idx + 1} of ${config.numPlayers}`;
+  const titleX = lay.dlgX + Math.floor((lay.dlgW - measureText(titleStr)) / 2);
+  drawText(titleX, lay.dlgY + 5, titleStr, baseColor);
+  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, lay.dlgY + 17, UI_MED_BORDER);
 
-  // Sunken fields area
-  boxSunken(20, 42, getScreenW() - 40, 50, UI_BACKGROUND);
-
-  // Name field
+  // Name field — label + sunken input box
   const nameSelected = menu.playerSetupField === 0;
   const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  drawText(28, 48, 'Name:', nameColor);
-  drawText(80, 48, setup.name, baseColor);
+  drawText(lay.labelX, lay.nameFieldY + 2, '~Name:', nameColor);
+  // Sunken input field for name
+  boxSunken(lay.valX, lay.nameFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
+  drawText(lay.valX + 3, lay.nameFieldY + 2, setup.name, baseColor);
   if (nameSelected) {
     // Blinking cursor
     if (Math.floor(menu.blinkTimer / 20) % 2 === 0) {
-      drawText(80 + measureText(setup.name), 48, '_', UI_HIGHLIGHT);
+      drawText(lay.valX + 3 + measureText(setup.name), lay.nameFieldY + 2, '_', UI_HIGHLIGHT);
     }
   }
 
-  // AI type field
+  // AI type field — label + value as spinner
   const aiSelected = menu.playerSetupField === 1;
   const aiColor = aiSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  drawText(28, 66, 'Type:', aiColor);
+  drawText(lay.labelX, lay.typeFieldY + 2, '~Type:', aiColor);
   const typeName = AI_NAMES[setup.aiType] || 'Human';
-  if (aiSelected) {
-    drawText(80, 66, '< ' + typeName + ' >', aiColor);
-  } else {
-    drawText(80, 66, typeName, aiColor);
-  }
+  // Sunken field for type value
+  boxSunken(lay.valX, lay.typeFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
+  drawText(lay.valX + 3, lay.typeFieldY + 2, typeName, aiColor);
 
-  // Instructions
-  const footerY = getScreenH() - 24;
-  hline(8, getScreenW() - 9, footerY - 4, UI_MED_BORDER);
-  drawText(8, footerY, 'UP/DOWN:Field  L/R:Type  Type name', UI_DARK_TEXT);
-  drawText(8, footerY + 10, 'ENTER:Next  ESC:Back', UI_DARK_TEXT);
+  // Footer: key hints
+  const footerY = lay.dlgY + lay.dlgH - 13;
+  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, footerY - 4, UI_MED_BORDER);
+  drawText(lay.dlgX + 8, footerY, 'Tab/Arrows:Field  L/R:Type  Enter  Esc', UI_MED_BORDER);
 }
 
 // Reset menu state when re-entering from game over / system menu
