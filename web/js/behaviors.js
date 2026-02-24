@@ -276,33 +276,40 @@ function mirvFlightCheck(proj, weapon) {
   return { split: false, spawn: [], remove: false };
 }
 
-// --- Napalm (0x01A0): fire particle spread ---
-// EXE: handler seg 0x26E6 (file 0x2D860), 99-slot particle pool, 6-byte structs
-// EXE: negative param → dirt particles (Ton of Dirt), positive → fire particles
+// --- Napalm (0x01A0): pixel-walking cellular automaton ---
+// EXE: handler at file 0x2DA00 (seg 0x26E6). NOT velocity-based.
+// Particles walk 1 pixel/step along terrain surfaces using check_direction().
+// DS:1D60=0.7 is explosion damage falloff, DS:1D68=0.001 is explosion sqrt epsilon —
+// NEITHER is related to napalm (previous 0.7× damping and speedSq<25 were fabricated).
+// Single controller particle manages internal queue (linked list in EXE).
 function bhvNapalm(proj, weapon) {
   const particleCount = Math.min(Math.abs(weapon.param), 99);  // EXE: 99-slot pool (DS:0xE9B2)
   const isDirt = weapon.param < 0;
-  const spawn = [];
+  const ix = Math.round(proj.x);
+  const iy = Math.round(proj.y);
 
-  for (let i = 0; i < particleCount; i++) {
-    const angle = (Math.random() * Math.PI * 2);
-    const speed = Math.random() * 150 + 50;  // per-second (was 3+1 per-step)
-    spawn.push({
-      x: proj.x,
-      y: proj.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.5 + 50,  // bias upward
-      weaponIdx: proj.weaponIdx,
-      attackerIdx: proj.attackerIdx,
-      isNapalmParticle: true,
-      isDirtParticle: isDirt,
-      napalmLife: 60 + random(40),
-      trail: [],
-      active: true,
-    });
-  }
+  // Single controller particle with internal queue (EXE: linked list at DS:E754)
+  const spawn = [{
+    x: ix, y: iy,
+    vx: 0, vy: 0,
+    weaponIdx: proj.weaponIdx,
+    attackerIdx: proj.attackerIdx,
+    isNapalmParticle: true,
+    isDirtParticle: isDirt,
+    // Internal pixel-walking state
+    napalmQueue: [{ x: ix, y: iy }],
+    napalmExplosionPts: [],
+    napalmStepsTotal: 0,
+    napalmStepsSinceExp: 0,
+    napalmParam: particleCount,    // max explosion points (EXE: spawn_count < param)
+    napalmExplosionCount: 0,
+    napalmFirePixels: [],          // track fire pixels for cleanup
+    trail: [],
+    active: true,
+  }];
 
-  return { explode: true, radius: 5, spawn, dirtAdd: false, skipDamage: false };
+  // Fire mode: small initial explosion; Dirt mode: no explosion
+  return { explode: !isDirt, radius: isDirt ? 0 : 5, spawn, dirtAdd: false, skipDamage: isDirt };
 }
 
 // --- Dirt Adding (0x0009): inverse crater, fill circle with terrain ---
@@ -349,24 +356,25 @@ function bhvDisrupter(proj) {
 // --- Liquid Dirt (0x0081): napalm-style dirt spread ---
 // EXE: handler seg 0x15A0 (file 0x1C400), uses napalm particle system with isDirt
 function bhvLiquid(proj) {
-  const spawn = [];
-  for (let i = 0; i < 15; i++) {
-    const angle = (Math.random() * Math.PI * 2);
-    const speed = Math.random() * 100 + 25;  // per-second (was 2+0.5 per-step)
-    spawn.push({
-      x: proj.x,
-      y: proj.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.3 + 25,
-      weaponIdx: proj.weaponIdx,
-      attackerIdx: proj.attackerIdx,
-      isNapalmParticle: true,
-      isDirtParticle: true,
-      napalmLife: 80 + random(40),
-      trail: [],
-      active: true,
-    });
-  }
+  const ix = Math.round(proj.x);
+  const iy = Math.round(proj.y);
+  const spawn = [{
+    x: ix, y: iy,
+    vx: 0, vy: 0,
+    weaponIdx: proj.weaponIdx,
+    attackerIdx: proj.attackerIdx,
+    isNapalmParticle: true,
+    isDirtParticle: true,
+    napalmQueue: [{ x: ix, y: iy }],
+    napalmExplosionPts: [],
+    napalmStepsTotal: 0,
+    napalmStepsSinceExp: 0,
+    napalmParam: 15,
+    napalmExplosionCount: 0,
+    napalmFirePixels: [],
+    trail: [],
+    active: true,
+  }];
   return { explode: false, radius: 0, spawn, dirtAdd: false, skipDamage: true };
 }
 
@@ -572,36 +580,100 @@ export function applyGuidance(proj) {
   }
 }
 
-// --- Napalm particle flight step ---
-// EXE: napalm particle pool at seg 0x26E6 (file 0x2D860), 6-byte per-particle structs
-// EXE: velocity damping 0.7x from DS:1D60 (float constant), threshold DS:1D68 = 0.001
-export function napalmParticleStep(proj) {
+// --- Napalm pixel-walking cellular automaton ---
+// EXE: handler at file 0x2DA00, check_direction at file 0x2DFCC
+// Particles walk 1 pixel/step along terrain surfaces. No velocity, no damping.
+// Previous 0.7× damping (DS:1D60) and speedSq<25 (DS:1D68) were WRONG — those
+// constants are explosion damage falloff and sqrt epsilon respectively.
+const NAPALM_STEPS_PER_FRAME = 20;  // steps per game frame (EXE runs all 1000 synchronously)
+const NAPALM_MAX_STEPS = 1000;      // EXE: frame_counter > 1000 → overflow
+const FIRE_COLOR = 254;              // VGA 254 — fire pixel (DS:E702 = 0xFE)
+const DIRT_NAPALM_COLOR = 130;       // mid-terrain palette for dirt deposition
+
+// check_direction(x, y) — EXE at file 0x2DFCC
+// Returns: 0 = terrain below (drop), -1 = go left, +1 = go right, 2 = erode upward
+function checkNapalmDirection(x, y, pixelColor, wind) {
+  // Check pixel below (y+1)
+  if (y + 1 < config.screenHeight) {
+    const below = getPixel(x, y + 1);
+    if (below !== pixelColor && below >= TERRAIN_THRESHOLD)
+      return 0;  // terrain below → drop down
+  }
+  // Check pixels left (x-1) and right (x+1) for terrain
+  let canLeft = false, canRight = false;
+  if (x > 0) {
+    const left = getPixel(x - 1, y);
+    canLeft = left !== pixelColor && left >= TERRAIN_THRESHOLD;
+  }
+  if (x < config.screenWidth - 1) {
+    const right = getPixel(x + 1, y);
+    canRight = right !== pixelColor && right >= TERRAIN_THRESHOLD;
+  }
+  // Wind direction determines preference when both available (EXE: DS:0x515A)
+  if (canLeft && canRight) return wind > 0 ? 1 : -1;
+  if (canLeft) return -1;
+  if (canRight) return 1;
+  return 2;  // no horizontal neighbor → erode upward
+}
+
+export function napalmParticleStep(proj, wind) {
   if (!proj.isNapalmParticle) return { remove: false };
 
-  proj.napalmLife--;
-  if (proj.napalmLife <= 0) return { remove: true };
+  const queue = proj.napalmQueue;
+  const isDirt = proj.isDirtParticle;
+  const pixelColor = isDirt ? DIRT_NAPALM_COLOR : FIRE_COLOR;
+  const W = config.screenWidth;
+  const H = config.screenHeight;
 
-  // Dampen velocity 0.7x per frame (from RE: DS:1D60)
-  proj.vx *= 0.7;
-  proj.vy *= 0.7;
+  for (let step = 0; step < NAPALM_STEPS_PER_FRAME; step++) {
+    // Done conditions: queue empty, enough explosion points, or step limit
+    if (queue.length === 0 ||
+        proj.napalmExplosionCount >= proj.napalmParam ||
+        proj.napalmStepsTotal >= NAPALM_MAX_STEPS) {
+      return {
+        remove: true,
+        napalmDamage: isDirt ? null : proj.napalmExplosionPts,
+        napalmFirePixels: proj.napalmFirePixels,
+        isDirt,
+      };
+    }
 
-  // Check if speed is below threshold
-  const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-  if (speedSq < 25) return { remove: true };  // per-sec² threshold (was 0.01 per-step²)
+    const pos = queue.shift();
+    const dir = checkNapalmDirection(pos.x, pos.y, pixelColor, wind || 0);
 
-  // Napalm particles interact with terrain
-  const sx = Math.round(proj.x);
-  const sy = Math.round(proj.y);
-  if (sx >= 0 && sx < config.screenWidth && sy >= 0 && sy < config.screenHeight) {
-    const pixel = getPixel(sx, sy);
-    if (pixel >= TERRAIN_THRESHOLD) {
-      if (proj.isDirtParticle) {
-        // Dirt particle: add terrain at this position
-        return { remove: true, addDirt: true };
-      } else {
-        // Fire particle: burn terrain (small crater)
-        return { remove: true, burnRadius: 3 };
-      }
+    let nx, ny;
+    switch (dir) {
+      case 0:  nx = pos.x; ny = pos.y + 1; break;      // drop down
+      case -1: nx = pos.x - 1; ny = pos.y; break;       // go left
+      case 1:  nx = pos.x + 1; ny = pos.y; break;       // go right
+      case 2:  nx = pos.x; ny = pos.y - 1; break;       // erode upward
+      default: continue;
+    }
+
+    // Bounds check
+    if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+
+    // Set fire/dirt pixel in framebuffer (EXE: draw_pixel at each step)
+    setPixel(nx, ny, pixelColor);
+    proj.napalmFirePixels.push({ x: nx, y: ny });
+
+    // Add new position to queue (EXE: insert_particle)
+    queue.push({ x: nx, y: ny });
+
+    // Update proj position for rendering
+    proj.x = nx;
+    proj.y = ny;
+    proj.trail.push({ x: nx, y: ny });
+    if (proj.trail.length > 30) proj.trail.shift();
+
+    proj.napalmStepsTotal++;
+    proj.napalmStepsSinceExp++;
+
+    // Every 20th step: record explosion point (EXE: explosion_pts[spawn_count])
+    if (proj.napalmStepsSinceExp >= 20) {
+      proj.napalmStepsSinceExp = 0;
+      proj.napalmExplosionPts.push({ x: nx, y: ny });
+      proj.napalmExplosionCount++;
     }
   }
 

@@ -242,6 +242,12 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // Rollers in rolling mode handled by behavior system
   if (proj.rolling) return 'flying';
 
+  // Napalm particles use pixel-walking cellular automaton, not velocity physics
+  // EXE: napalm handler at file 0x2DA00 — NO velocity vectors, NO damping
+  // DS:1D60=0.7 is explosion damage falloff, DS:1D68=0.001 is explosion sqrt epsilon
+  // Neither is related to napalm. See napalmParticleStep() in behaviors.js.
+  if (proj.isNapalmParticle) return 'flying';
+
   // Track projectile age for spawn grace period
   proj.age++;
 
@@ -255,28 +261,22 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // not a speed threshold. Speed is bounded naturally by viscosity damping.
 
   // 1. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
-  if (!proj.isNapalmParticle) {
-    applyMagDeflection(proj);
-  }
+  applyMagDeflection(proj);
 
   // 2. Integrate position (screen coords: y increases downward)
   proj.x += proj.vx * DT;
   proj.y -= proj.vy * DT;  // subtract because screen y is inverted
 
-  // 3. Viscosity (air resistance) — skip for napalm particles (they have own damping)
-  if (!proj.isNapalmParticle) {
-    const visc = getViscosityFactor();
-    proj.vx *= visc;
-    proj.vy *= visc;
-  }
+  // 3. Viscosity (air resistance)
+  const visc = getViscosityFactor();
+  proj.vx *= visc;
+  proj.vy *= visc;
 
   // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt, scaled by k²)
   proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
 
-  // 5. Wind (EXE: vx += 1.25 × wind × dt, scaled by k²) — skip for napalm particles
-  if (!proj.isNapalmParticle) {
-    proj.vx += WIND_FACTOR * wind * DT;
-  }
+  // 5. Wind (EXE: vx += 1.25 × wind × dt, scaled by k²)
+  proj.vx += WIND_FACTOR * wind * DT;
 
   // 6. Wall collision
   const wallResult = handleWallCollision(proj);
