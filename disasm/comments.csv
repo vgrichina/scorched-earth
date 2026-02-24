@@ -134,3 +134,8 @@ DS:0x5154,ELASTIC: wall type enum (0=None 1=Wrap 2=Padded 3=Rubber 4=Spring 5=Co
 DS:0x1D34,BOUNCE_RUBBER: float64 -1.0 — perfect reflection (no energy loss)
 DS:0x1D3C,BOUNCE_PADDED: float64 -0.5 — half velocity reflection
 DS:0x1D44,BOUNCE_SPRING: float64 -2.0 — doubled velocity reflection
+0x246E0,funky_bomb_handler: direct hit + spawn sub-bombs; shield hit (damage=10) blocks sub-bomb spawn
+0x24894,funky_bomb_spawn_sub_bombs: count=random(6)+5; parent explosion radius=20; sub-bomb radius=(random(10)+15)*EXPLOSION_SCALE
+0x24AA9,funky_bomb_parent_explosion: hardcoded radius=20, palette base=170
+0x24B0C,funky_bomb_sub_radius: (random(10)+15) × DS:0x50DA (EXPLOSION_SCALE float)
+DS:0x50DA,EXPLOSION_SCALE_FLOAT: runtime float64, Small/Medium/Large config multiplier

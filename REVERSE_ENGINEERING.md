@@ -280,26 +280,66 @@ Note: Spread is purely horizontal (vx-only), no angle/sin/cos math. All offsets 
 #### Funky Bomb (BhvType 0x0000, Segment 0x1DCE)
 
 BhvType=0 but with non-zero BhvSeg=0x1DCE — offset 0 is literally the entry point.
+Main handler at file 0x246E0, sub-bomb spawner at file 0x24894.
 
 ```c
-void funky_bomb_handler(int x, int y) {
-    int blast_radius = weapon_param;  // 80
+void funky_bomb_handler(int x, int y) {           // file 0x246E0
+    int weapon_param = weapon_table[current_weapon].param;  // 80
 
     // Direct hit check
-    if (hit_player && !shielded)
-        apply_damage(1, blast_radius / 10, hit_player);
-
-    // Spawn 5-10 sub-bombs
-    int num_bombs = random(6) + 5;
-    for (int i = 0; i < num_bombs; i++) {
-        sub_x = random(2 * radius) - radius + x;  // scatter within 2x radius
-        sub_y = screen_top;                         // fall from top
-        clamp(&sub_x, screen_left, screen_right);
+    if (hit_player_ptr != NULL) {
+        if (shielded) {                             // file 0x2470D
+            fg_tone(1000, 10);                      // shield impact sound
+            shield_damage(hit_player_ptr, 10, 0);   // call 0x3912:0x04B2
+            return;                                  // NOTE: no sub-bombs if shielded!
+        }
+        damage_tank(hit_player_ptr, hit_player[0xA2], 1);  // file 0x2474E
+        // damage value = player struct field 0xA2 (health → instant kill on direct hit)
     }
-    // Simulate sub-bombs falling under gravity
-    // Each triggers small explosion on terrain contact
+
+    spawn_sub_bombs(x, y, weapon_param);            // file 0x24761 → 0x24894
+}
+
+void spawn_sub_bombs(int x, int y, int param) {    // file 0x24894
+    int count = random(6) + 5;                      // 5-10 sub-bombs
+    fg_setrgb(254, 30, 30, 63);                     // flash color setup
+
+    // Setup sub-bomb positions
+    for (int i = 0; i < count; i++) {
+        if (param == -1) {
+            sub_x[i] = random(screen_width) + screen_left;  // full screen scatter
+        } else {
+            sub_x[i] = random(param * 2) - param + x;       // scatter within ±80px
+            clamp(&sub_x[i], screen_left, screen_right);
+        }
+        sub_y[i] = screen_top;                      // DS:EF38 (fall from top of screen)
+    }
+
+    // Phase 1: Palette setup (5 base colors × 6 gradient levels = 30 VGA entries at 170+)
+    // Phase 2: Parent explosion visual — radius 20, palette base 170
+    draw_explosion(x, y, 170, 20);                  // file 0x24AB5, hardcoded radius=20
+
+    // Phase 3: Sub-bomb fall animation + explosion
+    for (int i = 0; i < count; i++) {
+        animate_fall(x, y, sub_x[i], sub_y[i], ...);  // file 0x24CBF — custom fall, NOT a weapon projectile
+        int sub_radius = (random(10) + 15) * DS:0x50DA; // file 0x24B0C-0x24B23
+        // DS:0x50DA = EXPLOSION_SCALE float (Small/Medium/Large config)
+        // Base range 15-24, scaled by config
+        draw_explosion(sub_x[i], sub_y[i], palette, sub_radius);
+    }
+
+    // Phase 4: Damage application pass (re-draws explosions with damage detection)
+    // ...
 }
 ```
+
+**Key constants:**
+- Parent explosion radius: **20** (hardcoded at file 0x24AA9, NOT scaled by EXPLOSION_SCALE)
+- Sub-bomb explosion radius: **(random(10)+15) × DS:0x50DA** (EXPLOSION_SCALE float)
+- Sub-bomb count: random(6)+5 = **5-10**
+- Sub-bomb X scatter: random(param×2) - param + x = **±80px** (param=80)
+- Shield hit damage: **10** (blocks sub-bomb spawn — early return)
+- Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with their own explosion
 
 #### Roller (BhvType 0x0003, Segment 0x2FBD)
 
@@ -2861,7 +2901,7 @@ All located in `disasm/` directory:
 
 - [x] Trace wall bounce coefficients: **RESOLVED**. Bounce coefficient dispatch at file 0x21EFD: Rubber(type 3)→DS:0x1D34=-1.0 (perfect reflection), Padded(type 2)→DS:0x1D3C=-0.5 (half velocity), Spring(type 4)→DS:0x1D44=-2.0 (doubled velocity). Negative sign handles reflection. Web port fixed: Rubber 0.8→1.0, Spring 1.2→2.0 (in physics.js and behaviors.js roller wall code). Bounce count limit: player struct +0x30 checked ≤6. See "Wall Types (ELASTIC setting)" section.
 - [x] Trace WALL enum ordering: **RESOLVED**. Config variable DS:0x5154 (ELASTIC). Enum from config parser at 0x29290 and dispatch at 0x2220F: 0=None, 1=Wrap, 2=Padded, 3=Rubber, 4=Spring, 5=Concrete, 6=Random, 7=Erratic. Random/Erratic resolve via random(6)→0-5 at file 0x22140. Web port fixed: WALL enum, config default (7→5=Concrete), menu names array, resolveRandomWallType simplified to random(6). See "Wall Types (ELASTIC setting)" section.
-- [ ] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: RE doc says "spawns 5-10 sub-bombs as Baby Missiles" but does not document the parent explosion radius. behaviors.js uses radius=15 (unverified). Also verify sub-bomb weapon index (currently 2).
+- [x] Trace Funky Bomb parent explosion radius and sub-bomb weapon index: **RESOLVED**. Main handler at file 0x246E0, spawner at 0x24894. Parent explosion radius = **20** (hardcoded at 0x24AA9, NOT scaled by EXPLOSION_SCALE). Sub-bomb explosion radius = **(random(10)+15) × DS:0x50DA** (EXPLOSION_SCALE float, base 15-24). Sub-bombs are **NOT weapon projectiles** — custom animated fall objects with own explosion logic (no weapon index). Shield hit (damage=10) blocks sub-bomb spawn (early return). Web port fixed: parent radius 15→20, sub-bomb radius 10→random(10)+15 scaled by explosionScale. See "Funky Bomb" section in Weapon Behavior Dispatch.
 - [ ] Trace Leap Frog / Bounce explosion radii: behaviors.js uses radius=20 (final) and radius=5 (intermediate) but neither value is documented from EXE disassembly.
 - [ ] Trace napalm particle physics: behaviors.js applies 0.7× velocity damping per frame to napalm particles citing DS:1D60, but DS:1D60=0.7 is the explosion damage attenuation between successive player hits, not a per-frame particle damping factor. Disassemble napalm particle step to find actual per-step physics.
 - [ ] Trace heat guidance trigger and correction: behaviors.js uses HEAT_PROXIMITY=60 (undocumented) and GUIDANCE_STRENGTH=2.0 (undocumented). EXE calls shark.cpp:heat_seek for trigger, not a simple proximity check. Also EXE heat guidance X correction sign is inverted (wind_x=-1 when target is right).

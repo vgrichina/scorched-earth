@@ -364,29 +364,35 @@ function bhvDirtCharge(proj) {
 }
 
 // --- Funky Bomb: scatter 5-10 sub-bombs from screen top ---
-// EXE: handler seg 0x1DCE (file 0x246E0), spawns 5-10 sub-bombs as Baby Missiles
+// EXE: handler seg 0x1DCE (file 0x246E0). Sub-bombs are NOT weapon projectiles in EXE —
+// they are custom animated fall objects. Parent explosion radius = 20 (hardcoded at 0x24AA9).
+// Sub-bomb radius = (random(10)+15) × EXPLOSION_SCALE (file 0x24B0C-0x24B23).
+// Shield hit blocks sub-bomb spawn in EXE (shield damage=10, early return).
 function bhvFunky(proj, weapon) {
   const count = random(6) + 5;  // 5-10 sub-bombs
   const spawn = [];
   const cx = Math.round(proj.x);
+  // EXE sub-bomb radius: (random(10)+15) × EXPLOSION_SCALE float (DS:0x50DA)
+  const scale = [0.5, 1.0, 1.5][config.explosionScale] || 1.0;
 
   for (let i = 0; i < count; i++) {
     const spreadX = cx + random(weapon.param * 2) - weapon.param;
+    const subRadius = Math.floor((random(10) + 15) * scale);  // EXE: 15-24 × scale
     spawn.push({
       x: clamp(spreadX, 10, config.screenWidth - 10),
       y: 16,  // just below HUD
-      vx: (Math.random() - 0.5) * 100,  // per-second (was *2 per-step)
+      vx: (Math.random() - 0.5) * 100,  // per-second
       vy: -(Math.random() * 100 + 50),  // downward, per-second
-      weaponIdx: 2,  // sub-bombs act as Baby Missiles
+      weaponIdx: 2,  // approximation — EXE uses custom fall, not weapon projectiles
       attackerIdx: proj.attackerIdx,
       isSubWarhead: true,
-      subRadius: 10,
+      subRadius,
       trail: [],
       active: true,
     });
   }
 
-  return { explode: true, radius: 15, spawn, dirtAdd: false, skipDamage: false };
+  return { explode: true, radius: 20, spawn, dirtAdd: false, skipDamage: false };
 }
 
 // --- Popcorn Bomb (idx 1): scatter 5-10 sub-bombs from screen top ---
