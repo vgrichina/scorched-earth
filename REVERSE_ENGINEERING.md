@@ -3378,7 +3378,7 @@ All located in `disasm/` directory:
 - [x] Add crush damage: **DONE**. tank.js — added `detectCrush(faller)` function: per-step bounding-box overlap check against all alive non-falling tanks (column overlap counted from tank width=7). >2 columns overlap → immediate landing, crush victim damage (fallDamageAccum+50 through shield via `applyShieldDamage()`), crush self-damage (floor(fallDamageAccum/2)+10 direct), plus normal impact self-damage if config.impactDamage on. 1-2 columns → glancing contact sound only (200 Hz). sound.js — added `playCrushGlanceSound()` (200 Hz, 30ms). Matching EXE: victim damage at 0x20B4C via shield_and_damage(0x3FFD2), self-damage at 0x20B8C via damage_tank, glancing sound at 0x207CB, >2 threshold at 0x2071C.
 
 #### Napalm particles (behaviors.js)
-- [ ] Fix napalm particle pool cap: EXE allows 99 particles; web caps at 20
+- [x] Fix napalm particle pool cap: EXE allows 99 particles; web caps at 20. **DONE**: behaviors.js `bhvNapalm()` — changed `Math.min(Math.abs(weapon.param), 20)` to `Math.min(Math.abs(weapon.param), 99)`, matching EXE's 99-slot particle pool at DS:0xE754 (pool_avail=99 at DS:0xE9B2). Current weapons (Napalm=15, Hot Napalm=20, Ton of Dirt=20) are unaffected since params ≤ 20, but cap now correctly reflects EXE pool capacity.
 - [ ] Fix napalm speed threshold: EXE uses DS:1D68=0.001 per-step; web uses speedSq<25 (different units/magnitude)
 
 ---

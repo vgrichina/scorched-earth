@@ -280,7 +280,7 @@ function mirvFlightCheck(proj, weapon) {
 // EXE: handler seg 0x26E6 (file 0x2D860), 99-slot particle pool, 6-byte structs
 // EXE: negative param → dirt particles (Ton of Dirt), positive → fire particles
 function bhvNapalm(proj, weapon) {
-  const particleCount = Math.min(Math.abs(weapon.param), 20);
+  const particleCount = Math.min(Math.abs(weapon.param), 99);  // EXE: 99-slot pool (DS:0xE9B2)
   const isDirt = weapon.param < 0;
   const spawn = [];
 
