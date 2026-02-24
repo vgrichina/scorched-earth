@@ -159,6 +159,13 @@ DS:0x5164,FALL_DAMAGE_PER_PIXEL: hardcoded constant = 2; total damage = 2 * fall
 0x207B3,crush_landing: set landing_flag=1 and inc landed_count for crush landings
 0x3FFD2,shield_and_damage(tank_ptr, damage, flag): inc attacker stats, shield_absorb_damage, damage_tank(rem,0)
 0x31B48,damage_tank: args(tank_far_ptr, amount, flag); if flag>0: subtract HP; if amount==0: no-op
+0x37381,end_of_round_scoring: teams_enabled → pool=round*500+5000+sum(maxPower*30+shieldEnergy*2); teams_disabled → pool=numPlayers*1000+round*4000; each alive gets pool/round
+0x37398,teams-enabled pool: round*500+5000 then per-alive-player adds maxPower(DS:50E4=100)*30 + shieldEnergy*2
+0x37412,teams-disabled pool: numPlayers*1000 + round*4000
+0x377D9,add_score: accumulates score to player's bignum score table (DS:E1EC stride 22)
+DS:0x50E4,MAX_POWER: player starting energy = 100 (32-bit at sub+0xA2); used for instant-kill damage and score pool
+DS:0xE340,ROUND_NUMBER: current round (1-based)
+0x30DA5,player_round_init: sets alive=1; inits max_power from DS:50E4; zeros shield_energy
 0x37955,compute_sell_refund: refund = floor(qty * price * SELL_FACTOR / bundle); factor=0.8 normal; 0.65 free market
 DS:0x613C,SELL_FACTOR: float64 0.8 — normal sell refund = 80% of per-unit price
 DS:0x6144,SELL_FACTOR_MKT: float64 0.65 — free market sell refund = 65% of per-unit price

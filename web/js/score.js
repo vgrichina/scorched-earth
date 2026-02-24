@@ -45,20 +45,34 @@ export function scoreOnDeath(attacker, victim) {
   }
 }
 
-// EXE: end_of_round_scoring at file 0x37381 — pool = numPlayers * 1000 + round * 4000
+// EXE: end_of_round_scoring at file 0x37381
+// Teams enabled:  pool = round×500 + 5000 + sum(alive: maxPower×30 + shieldEnergy×2)
+// Teams disabled: pool = numPlayers×1000 + round×4000
+// Both: each alive player gets floor(pool / roundNumber) added to score
+const MAX_POWER = 100;  // DS:0x50E4 — player starting energy (sub-struct +0xA2)
 export function endOfRoundScoring(roundNumber) {
   if (config.scoringMode === SCORE_MODE.VICIOUS) return;
 
   const alive = players.filter(p => p.alive);
   if (alive.length === 0) return;
 
-  // Pool calculation (from RE)
-  const numPlayers = players.length;
-  let pool = numPlayers * 1000 + roundNumber * 4000;
+  let pool;
+  if (teamsEnabled()) {
+    // EXE teams-enabled branch (file 0x37398): pool includes per-player contributions
+    pool = roundNumber * 500 + 5000;
+    for (const p of alive) {
+      pool += MAX_POWER * 30;
+      pool += (p.shieldEnergy || 0) * 2;
+    }
+  } else {
+    // EXE teams-disabled branch (file 0x37412): flat pool based on player count
+    pool = players.length * 1000 + roundNumber * 4000;
+  }
 
+  const share = Math.floor(pool / Math.max(1, roundNumber));
   for (const p of alive) {
     p.wins++;
-    p.score += Math.floor(pool / Math.max(1, roundNumber));
+    p.score += share;
   }
 }
 
