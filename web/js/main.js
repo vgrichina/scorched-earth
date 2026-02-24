@@ -4,14 +4,14 @@
 // Phase 6: Title screen, config menu, full game flow
 
 import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
-import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, vline } from './framebuffer.js';
+import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
 import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers } from './terrain.js';
 import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud, drawWindIndicator } from './hud.js';
-import { drawText, drawTextShadow } from './font.js';
+import { drawText, drawTextShadow, measureText } from './font.js';
 import { projectiles } from './physics.js';
 import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
@@ -24,7 +24,9 @@ import { initSound, toggleSound } from './sound.js';
 import { drawSpeechBubble } from './talk.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, COLOR_HUD_WARNING,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
-         FIRE_PAL_BASE } from './constants.js';
+         FIRE_PAL_BASE,
+         UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
+         UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 
 // Update CSS --game-aspect custom property for display scaling.
 // EXE: each mode has a displayAspect (pixel height/width ratio). For non-square
@@ -383,25 +385,47 @@ function gameLoop() {
     gameTick();
     // Draw overlay on top of current world
     redrawWorld();
+    // EXE: system menu uses full 3D dialog widget system (0x3F19:0x2577 add_item_list)
+    // Same raised box + UI palette as shop/submenu dialogs
     const smOptions = SYSTEM_MENU_OPTIONS;
-    const smH = 68 + smOptions.length * 14 + 18;
-    fillRect(80, 60, 240, 60 + smH, 0);
-    fillRect(82, 62, 238, 58 + smH, 1);
-    drawTextShadow(100, 68, 'System Menu', COLOR_HUD_HIGHLIGHT, 0);
+    const rowH = 14;
+    // Auto-size dialog width based on content (matching menu.js submenu pattern)
+    let maxW = measureText('System Menu');
+    for (const opt of smOptions) maxW = Math.max(maxW, measureText(opt.label));
+    const dlgW = maxW + 24;
+    const dlgH = 30 + smOptions.length * rowH;
+    const dlgX = Math.floor((config.screenWidth - dlgW) / 2);
+    const dlgY = Math.floor((config.screenHeight - dlgH) / 2);
+
+    // 3D raised dialog box (EXE: draw_3d_box at file 0x444BB)
+    drawBox3DRaised(dlgX, dlgY, dlgW, dlgH, UI_BACKGROUND,
+      UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+
+    // Title
+    const titleX = dlgX + Math.floor((dlgW - measureText('System Menu')) / 2);
+    drawText(titleX, dlgY + 4, 'System Menu', UI_HIGHLIGHT);
+    hline(dlgX + 4, dlgX + dlgW - 5, dlgY + 14, UI_MED_BORDER);
+
+    // Items
     for (let i = 0; i < smOptions.length; i++) {
-      const y = 88 + i * 14;
+      const iy = dlgY + 18 + i * rowH;
       const opt = smOptions[i];
-      const color = opt.disabled ? 8 : (i === game.systemMenuOption ? COLOR_HUD_HIGHLIGHT : COLOR_HUD_TEXT);
-      if (i === game.systemMenuOption) fillRect(84, y - 1, 236, y + 9, 0);
-      drawText(100, y, opt.label, color);
+      const selected = i === game.systemMenuOption;
+      const color = opt.disabled ? UI_MED_BORDER : (selected ? UI_HIGHLIGHT : UI_DARK_TEXT);
+      if (selected && !opt.disabled) {
+        fillRect(dlgX + 3, iy - 1, dlgX + dlgW - 4, iy + rowH - 3, UI_DEEP_SHADOW);
+      }
+      drawText(dlgX + 8, iy, opt.label, color);
     }
+
     // EXE: confirmation dialog overlay (DS:0x2C06, DS:0x2BC9, DS:0x2BDE)
     if (game.systemMenuConfirm) {
-      fillRect(84, 58 + smH - 28, 236, 58 + smH - 2, 0);
-      drawText(90, 58 + smH - 24, game.systemMenuConfirm, COLOR_HUD_HIGHLIGHT);
-      drawText(90, 58 + smH - 12, 'Y: Yes  N: No', COLOR_HUD_TEXT);
+      const confY = dlgY + dlgH - 28;
+      fillRect(dlgX + 3, confY, dlgX + dlgW - 4, dlgY + dlgH - 4, UI_BACKGROUND);
+      drawText(dlgX + 8, confY + 2, game.systemMenuConfirm, UI_HIGHLIGHT);
+      drawText(dlgX + 8, confY + 14, 'Y: Yes  N: No', UI_DARK_TEXT);
     } else {
-      drawText(88, 88 + smOptions.length * 14 + 4, 'ESC: Cancel', COLOR_HUD_TEXT);
+      drawText(dlgX + 8, dlgY + dlgH - 12, 'ESC: Cancel', UI_MED_BORDER);
     }
     blit();
     requestAnimationFrame(gameLoop);
