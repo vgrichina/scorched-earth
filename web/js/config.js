@@ -64,7 +64,8 @@ export const config = {
   flySoundEnabled: 0,  // EXE: FLY_SOUND=Off (in-flight projectile tone, can be annoying)
 
   // Additional gameplay options
-  fallingTanks: 1,       // EXE: toggle fall damage
+  fallingTanks: 1,       // EXE: FALLING_TANKS=On (DS:0x5162) — tanks fall when terrain removed
+  impactDamage: 1,       // EXE: DAMAGE_TANKS_ON_IMPACT=On (DS:0x5114) — 0=per-step, 1=on-impact
   explosionScale: 1,     // 0=Small(0.5x), 1=Medium(1x), 2=Large(1.5x)
   tracePaths: 0,         // EXE: permanent projectile trails
   extraDirt: 0,          // EXE: debris scatter from explosions
@@ -82,7 +83,7 @@ const PERSIST_KEYS = [
   'scoringMode', 'startCash', 'interest', 'freeTurns',
   'talkingTanks', 'playOrder',
   'soundEnabled', 'flySoundEnabled',
-  'fallingTanks', 'explosionScale', 'tracePaths', 'extraDirt',
+  'fallingTanks', 'impactDamage', 'explosionScale', 'tracePaths', 'extraDirt',
   'playMode', 'hostileEnvironment', 'talkProbability',
 ];
 

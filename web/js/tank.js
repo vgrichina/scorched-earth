@@ -42,7 +42,8 @@ export function createPlayer(index, name) {
 
     // Phase 3: falling state
     falling: false,
-    fallTargetY: 0,
+    fallStartY: 0,          // Y position when fall began (for damage calculation)
+    fallDamageAccum: 0,     // EXE: DS:0xCE80[player] — accumulated fall damage
 
     // Phase 4: AI + shields
     aiType: 0,           // 0 = human
@@ -98,6 +99,7 @@ export function resetAndPlaceTanks() {
     p.angle = 90;
     p.power = 500;
     p.falling = false;
+    p.fallDamageAccum = 0;
     p.shieldEnergy = 0;
     p.activeShield = 0;
 
@@ -137,14 +139,19 @@ export function checkTanksFalling() {
     const terrainY = getTerrainY(player.x);
     if (terrainY > player.y + 1) {  // terrain is below tank
       player.falling = true;
-      player.fallTargetY = terrainY;
+      player.fallStartY = player.y;   // record starting position for damage calc
+      player.fallDamageAccum = 0;     // EXE: reset accumulator
       anyFalling = true;
     }
   }
   return anyFalling;
 }
 
+// EXE: DS:0x5164 = 2 — fall damage per pixel (hardcoded constant)
+const FALL_DAMAGE_PER_PIXEL = 2;
+
 // Step falling animation for all tanks, returns true while any are still falling
+// EXE: handle_falling_tanks at file 0x205DC
 export function stepFallingTanks() {
   let anyFalling = false;
   for (const player of players) {
@@ -153,25 +160,40 @@ export function stepFallingTanks() {
     // Move tank downward
     player.y += FALL_SPEED;
 
+    // EXE: Parachute (idx 42) deployment — check and consume
+    // EXE: 0x208CD checks tank[0x2C] > 0; deploys if fall distance threshold met
+    const hasParachute = player.inventory[42] > 0;
+
+    // EXE: Per-step damage accumulation (always, regardless of mode)
+    if (!hasParachute) {
+      player.fallDamageAccum += FALL_DAMAGE_PER_PIXEL * FALL_SPEED;
+
+      // EXE: When DAMAGE_TANKS_ON_IMPACT = Off (0), deal per-step damage
+      if (!config.impactDamage) {
+        player.energy -= FALL_DAMAGE_PER_PIXEL * FALL_SPEED;
+        if (player.energy <= 0) {
+          player.energy = 0;
+          player.alive = false;
+        }
+      }
+    }
+
     // Check if reached terrain
     const terrainY = getTerrainY(player.x);
     if (player.y >= terrainY) {
       player.y = terrainY;
       player.falling = false;
 
-      // EXE: Parachute (idx 42) prevents fall damage, consumed on use
-      const fallDist = terrainY - player.fallTargetY;
-      if (fallDist > 10) {
-        if (player.inventory[42] > 0) {
-          player.inventory[42]--;  // consume parachute
-        } else {
-          // Fall damage: 1 point per 5 pixels fallen
-          const damage = Math.floor(fallDist / 5);
-          player.energy -= damage;
-          if (player.energy <= 0) {
-            player.energy = 0;
-            player.alive = false;
-          }
+      // EXE: Consume parachute on landing (if had one during fall)
+      if (hasParachute) {
+        player.inventory[42]--;
+      } else if (config.impactDamage) {
+        // EXE: DAMAGE_TANKS_ON_IMPACT = On (1) — deal accumulated damage on landing
+        // EXE: 0x20AE4: damage_tank(tank, fall_damage_accum[player], 1)
+        player.energy -= player.fallDamageAccum;
+        if (player.energy <= 0) {
+          player.energy = 0;
+          player.alive = false;
         }
       }
 

@@ -142,7 +142,8 @@ function warpTank(player) {
   player.x = newX;
   // Will be adjusted to terrain in next redraw cycle
   player.falling = true;
-  player.fallTargetY = player.y;
+  player.fallStartY = player.y;
+  player.fallDamageAccum = 0;
 }
 
 // Draw shield circle around a tank

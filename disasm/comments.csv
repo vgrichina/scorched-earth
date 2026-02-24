@@ -106,3 +106,15 @@ DS:0x0128,talk_files_loaded: set to 1 after load_talk_files() runs
 DS:0x575C,pcx_filename: "scorch.pcx" — optional user-provided background image
 0x2FAE0,pcx_display: B-key handler — push ds/offset; fg_pcxopen; fg_pcxhead; fg_pcximage; no error check
 0x2FB6B,play_loop_switch_table: 80 word entries at CS:0x05DB; index = (scancode-2)*2; dispatches gameplay input
+
+# ---- Falling tank / impact damage system ----
+0x205DC,handle_falling_tanks: enter 0x7A; outer loop until no tanks move; inner per-tank fall step
+DS:0x5114,DAMAGE_TANKS_ON_IMPACT: 0=Off (per-step damage); 1=On (accumulated impact damage); default On
+DS:0x5116,FALLING_DELAY: animation speed for falling tanks; default 10
+DS:0x5162,FALLING_TANKS: 0=Off; 1=On; controls whether tanks fall when terrain removed
+DS:0x5164,FALL_DAMAGE_PER_PIXEL: hardcoded constant = 2; total damage = 2 * fall_distance
+0x208CD,parachute_deploy_check: if tank[0x2C] > 0; call 0x202F6 to check deploy condition
+0x20913,parachute_set_deployed: tank[0x0C] = 1; flash color RGB(63,63,63); sound(0x1E, 2000)
+0x20A59,fall_damage_off_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jnz skip; calls damage_tank(tank, 2, 1)
+0x20AE4,fall_damage_on_check: cmp DAMAGE_TANKS_ON_IMPACT, 0; jz skip; calls damage_tank(tank, accum, 1)
+0x31B48,damage_tank: args(tank_far_ptr, amount, flag); if flag>0: subtract HP; if amount==0: no-op

@@ -2734,7 +2734,7 @@ All located in `disasm/` directory:
 - [x] Fix copyright format: EXE builds `sprintf(buf, "%s %s Copyright (c) 1991-1995 Wendell Hicken", "1.50", ...)` producing "1.50 Copyright (c) 1991-1995 Wendell Hicken" as the full string, split to two lines only if too wide (checked via `text_measure`); web port now builds the full string "1.50 Copyright (c) 1991-1995 Wendell Hicken" and checks `measureText` against panel width — displays as one line if it fits, otherwise splits to "1.50 Copyright (c) 1991-1995" / "Wendell Hicken" on two lines (web/js/menu.js:523-534)
 - [x] Fix sky palette gradients in web port: Sunset (type 4) gradient direction fixed in web/js/palette.js — now goes cool-blue/indigo at top (i=0: R=28,G=5,B=50) to warm-orange at bottom (i=23: R=63,G=20,B=10). Other sky types unchanged (no verified EXE values found from static analysis for types 0–3, 5).
 - [x] Add sun/planet rendering to terrain preview: **CANCELLED** — RE investigation resolved as "No explicit sun circle"; the "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes (see "Sun/Planet Rendering" section). No draw call to implement. Sunset palette gradient already fixed in web/js/palette.js.
-- [ ] Implement impact damage system: config flag `DAMAGE_TANKS_ON_IMPACT` (DS:0x??? — find it) controls whether tanks take damage from falling; add config toggle and damage-on-land logic to web/js/tank.js
+- [x] Implement impact damage system: **DS:0x5114** = DAMAGE_TANKS_ON_IMPACT (0=Off, 1=On, default On). **DS:0x5164** = 2 (hardcoded fall damage per pixel). Two modes: Off = per-step damage during fall; On = accumulated damage on landing. Total damage identical (2 × fall_distance). Parachute negates all damage. Web port: `config.impactDamage` toggle added (config.js, menu.js); `tank.js` fall damage corrected from `fallDist/5` to `2*fallDist`; `fallStartY` tracks fall origin for accurate distance; both damage modes implemented. See "Falling Tank / Impact Damage System" section.
 - [ ] Implement shop sell sub-dialog: EXE shows "Sell Equipment" title with "Quantity to sell:" input and Accept/Reject buttons; add to web/js/shop.js matching layout from REVERSE_ENGINEERING.md
 - [ ] Implement shop palette animation: accent colors cycle through indices 8-11 every 8 frames; trace animation loop at shop render and implement in web/js/shop.js + web/js/palette.js
 - [ ] Implement Full Row 2 HUD widgets: replace text approximations with actual icon+bar widgets using icon bitmap data from DS:0x3826 (48 icons × 125 bytes); implement all 7 per-player inventory widgets in web/js/hud.js
@@ -3681,6 +3681,126 @@ else if (pixel >= 0x69) {      // Ground hit (VGA 105+ = terrain)
 **Key behavior**: When HOSTILE_ENVIRONMENT is On, any projectile passing through a tank pixel inflicts **1 unit of damage per pixel traversed** via `damage_tank(10, tank_ptr, 1)`. The first argument (10) is likely the damage type/source, and the third (1) is the damage amount. This creates a "hostile" environment where projectiles that clip tanks during flight do incremental damage even before the final explosion.
 
 **Intermediate files**: `disasm/terrain_generation_analysis.txt`
+
+---
+
+## Falling Tank / Impact Damage System (VERIFIED from disassembly)
+
+### Overview
+
+When terrain is removed by an explosion, unsupported tanks fall to the new terrain level. The fall handler function is at file **0x205DC** (seg 0x19BD, `enter 0x007A`). The system is controlled by three config flags:
+
+| DS Offset | Config Key | Values | Default | Purpose |
+|-----------|-----------|--------|---------|---------|
+| DS:0x5162 | FALLING_TANKS | 0=Off, 1=On | On | Enable/disable tank falling |
+| DS:0x5114 | DAMAGE_TANKS_ON_IMPACT | 0=Off, 1=On | On | Fall damage delivery mode |
+| DS:0x5116 | FALLING_DELAY | integer | 10 | Animation speed for falling |
+
+### Fall Damage Constant
+
+**DS:0x5164 = 2** — hardcoded fall damage per pixel. Never written by code; initialized from data segment. Total fall damage for a fall of N pixels = 2 × N.
+
+### Fall Handler Algorithm (file 0x205DC)
+
+```
+function handle_falling_tanks():
+    frame_counter++                              // DS:0x1C68
+
+    // Per-player init: zero out fall_damage_accum[] and needs_fall[]
+    for each player (si = 0..NUM_PLAYERS-1):
+        fall_damage_accum[player] = 0            // DS:0xCE80[player*2]
+        needs_fall[player] = check_needs_fall()  // DS:0xCE58[player*2]
+
+    // Main fall loop: repeat until no tanks move
+    while any_tank_moved:
+        for each falling tank (via iterator at 0x2A16:0x1606):
+            if tank_has_parachute (tank[0x0C] != 0):
+                // Parachuted tanks fall at half speed (skip every other frame)
+                if frame_counter % 2 == 0: skip
+
+            // Erase old position, move tank down, redraw
+            tank[0x0E] += step_amount       // Y position
+            tank[0x10]++                    // fall distance counter
+
+            // Wind slide: if abs(WIND) > 10, tank slides horizontally
+            // (complex lateral movement logic at 0x20937-0x209BC)
+
+            // Parachute deployment check (0x208CD):
+            if tank[0x2C] > 0:              // parachute inventory
+                call check_deploy(tank)     // near call 0x202F6
+                if should_deploy:
+                    sound(0x1E, 2000)        // deployment sound
+                    set_flash_color(tank)    // RGB 63,63,63 highlight
+                    tank[0x0C] = 1           // mark parachute deployed
+
+            // Clamp Y to screen bounds (EF42+9 .. EF3C-9)
+
+            // Redraw tank: call 0x3912:0x0007(tank, 0, 0)
+
+            // === DAMAGE LOGIC (per step) ===
+            if tank[0x0C] == 0:             // NO parachute
+                fall_damage_accum[player] += 2          // always accumulate
+                if DAMAGE_TANKS_ON_IMPACT == 0 (Off):   // DS:0x5114
+                    damage_tank(tank, 2, 1)              // per-step damage
+            else:                            // HAS parachute
+                if DAMAGE_TANKS_ON_IMPACT == 0 (Off):
+                    damage_tank(tank, 0, 1)              // no-op (0 damage skipped)
+                delay(20)                                // slow landing animation
+
+    // === POST-LANDING PHASE (after all tanks settled) ===
+    for each player that fell (fall_damage_accum[player] > 0):
+        sound(0x1E, 0xC8)                               // impact thud
+        if DAMAGE_TANKS_ON_IMPACT != 0 (On):             // DS:0x5114
+            damage_tank(tank, fall_damage_accum[player], 1)  // total impact damage
+
+        // Landing crater: explosion(player_ptr, accum + 50, 1) at 0x3912:0x04B2
+        // Always runs regardless of DAMAGE_TANKS_ON_IMPACT setting
+```
+
+### Damage Mode Summary
+
+The **total fall damage is identical** in both modes (2 × fall_distance). The setting controls **when** damage is applied:
+
+| DAMAGE_TANKS_ON_IMPACT | During Fall | On Landing | Visual |
+|------------------------|-------------|------------|--------|
+| Off (0) | 2 damage/pixel (continuous) | None | Health decreases gradually |
+| On (1, default) | None (accumulate only) | 2 × total_pixels | Single big hit on impact |
+
+### Parachute Interaction
+
+- Parachute deployment checked at 0x208CD: if `tank[0x2C] > 0` (inventory count)
+- When deployed: `tank[0x0C] = 1`, fall speed halved (skip every other frame), sound (0x1E, 2000 Hz)
+- Parachute negates ALL fall damage in both modes
+- Parachute consumed on deployment (inventory decremented)
+
+### damage_tank Function (0x2A16:0x0FE8, file 0x31B48)
+
+Signature: `damage_tank(tank_far_ptr, amount, flag)`
+
+- `flag` ([bp+0x0A] = di) — always 1 for fall damage
+- If `flag > 0`: subtract `amount` from `tank[0xA2]` (health), capped at 0
+- If `flag <= 0`: different branch (healing/other)
+- If `amount == 0`: early return (no-op) — used for parachute branch
+- Tracks damage stats: increments kill/damage counters at `tank[0x52]` and `tank[0x66]`
+- Delegates to `0x3098:0x0308` for actual HP subtraction and visual effects
+
+### Key File Offsets
+
+| Address | Description |
+|---------|-------------|
+| 0x205DC | `handle_falling_tanks` entry (enter 0x007A) |
+| 0x208CD | Parachute deployment check |
+| 0x20913 | Set tank[0x0C]=1 (parachute deployed) |
+| 0x20937 | Wind-based horizontal slide during fall |
+| 0x20A41 | Per-step damage branch (parachute check) |
+| 0x20A59 | DAMAGE_TANKS_ON_IMPACT check (per-step) |
+| 0x20AE4 | DAMAGE_TANKS_ON_IMPACT check (post-landing) |
+| 0x20B4C | Landing crater explosion call |
+| 0x31B48 | damage_tank function entry |
+
+### Web Port Implementation
+
+`web/js/tank.js`: Fall damage formula corrected from `fallDist / 5` to `fallDist * 2` (matching EXE constant DS:0x5164 = 2). Config toggle `impactDamage` added (default On). When On, accumulated damage dealt at landing. When Off, per-step damage during fall animation. Parachute negates damage in both modes. `fallStartY` tracks tank position at fall start for accurate distance calculation.
 
 ---
 

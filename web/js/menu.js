@@ -120,6 +120,7 @@ const SUBMENUS = {
       { label: 'Talking Tanks:', key: 'talkingTanks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: 'Talk Prob.:', key: 'talkProbability', min: 0, max: 100, step: 10, suffix: '%' },
       { label: 'Tanks Fall', key: 'fallingTanks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Impact Dmg', key: 'impactDamage', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: 'Arms Level:', key: 'armsLevel', min: 0, max: 4, step: 1 },
       { label: 'Scale:', key: 'explosionScale', min: 0, max: 2, step: 1,
         names: ['Small', 'Medium', 'Large'] },
