@@ -268,7 +268,7 @@ function generateRolling(width, yStart, yEnd) {
 }
 
 // Precompute per-row sky gradient palette indices into framebuffer background table.
-// Called once when sky type changes. The row→palette index mapping (80-103) is
+// Called once when sky type changes. The row→palette index mapping (80-104) is
 // independent of the palette RGB values — those are set by setupSkyPalette().
 // This enables clearToBackground() to fill the entire framebuffer in a single
 // memcpy, emulating VGA hardware where every pixel always has a valid DAC color.
@@ -280,7 +280,7 @@ export function initSkyBackground() {
   setBackground(rowColors);
 }
 
-// Draw sky (VGA 80-103 mapped to screen rows)
+// Draw sky (VGA 80-104 mapped to screen rows)
 // Supports: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function drawSky() {
   const width = config.screenWidth;

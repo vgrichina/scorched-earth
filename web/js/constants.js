@@ -29,9 +29,9 @@ export const FIRE_PAL_BASE = 170;
 export const FIRE_PAL_COUNT = 30;
 
 // --- Sky palette ---
-// EXE: VGA 80-103 (24 entries), row-gradient mapping
+// EXE: VGA 80-104 (25 entries), row-gradient mapping
 export const SKY_PAL_START = 80;
-export const SKY_PAL_COUNT = 24;
+export const SKY_PAL_COUNT = 25;
 
 // --- 3D UI palette (VGA indices 200-208) ---
 // EXE: UI color variables at DS:0xEF22-0xEF32, used by 3D box/title rendering

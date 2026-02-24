@@ -155,7 +155,7 @@ function initWebGL() {
 
 // Set per-row background palette indices (sky gradient)
 // Called once when sky type is configured; the mapping from screen row
-// to palette index (80-103) is independent of the palette RGB values.
+// to palette index (80-104) is independent of the palette RGB values.
 export function setBackground(rowColors) {
   background.set(rowColors);
   for (let y = 0; y < HEIGHT; y++) {

@@ -2742,7 +2742,7 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 
 ### Sky Palette Architecture (VERIFIED from disassembly)
 
-The sky gradient occupies **VGA 80–103** (24 entries, web port) / **VGA 80–104** (25 entries, EXE). The base index 80 is stored at DS:0x6E2A and used as the drawing color for terrain border rendering in ranges.cpp and extras.cpp (calls to `[DS:0xEF0C]` draw_hline and `[DS:0xEF10]` draw_vline).
+The sky gradient occupies **VGA 80–104** (25 entries). The base index 80 is stored at DS:0x6E2A and used as the drawing color for terrain border rendering in ranges.cpp and extras.cpp (calls to `[DS:0xEF0C]` draw_hline and `[DS:0xEF10]` draw_vline).
 
 **VGA Palette Ranges (confirmed):**
 - VGA 0–79: Player tank colors (10 players × 8 entries; set by `fg_setdacs(start=0, count=80)` at file 0x28676)
@@ -3350,7 +3350,7 @@ All located in `disasm/` directory:
 - [x] Fix talkingTanks to be 3-way enum (Off/Computers/All) not binary Off/On: **DONE**. EXE DS:0x5118 TALKING_TANKS is 0=Off, 1=Computers, 2=All. Attack speech guard at play.cpp 0x30661: `if TALKING_TANKS > 1` → always show; else check `player[+0x22] != 0` (skip humans). Death speech has NO caller guard — display_talk_bubble's `TALKING_TANKS != 0` check suffices (death bubbles show for all players when enabled). Web port: menu.js — changed from Off/On to Off/Computers/All (max: 2). talk.js — `triggerAttackSpeech()` added `if (config.talkingTanks === 1 && player.aiType === 0) return;` to skip humans in Computers mode. `triggerDeathSpeech()` unchanged (JS falsy check `!config.talkingTanks` already handles Off=0 correctly).
 
 #### Terrain/palette (terrain.js, palette.js)
-- [ ] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103)
+- [x] Fix sky gradient to 25 entries (VGA 80-104) not 24 (VGA 80-103): **DONE**. palette.js — all 7 sky type loops changed from 24 to 25 entries (i<25, t=i/24), writing VGA 80-104. BLACK constant moved from 104→252 (unused palette space) to avoid conflict with 25th sky entry. constants.js SKY_PAL_COUNT changed 24→25. Comments updated in terrain.js, framebuffer.js, palette.js.
 - [ ] Fix terrain palette type 4 (Sunset/Desert) to use 3-segment FPU gradient: VGA 120=(63,63,0), Loop 1 (121-130) gold→red, Loop 2 (131-140) red→blue, Loop 3 (141-149) blue→indigo (see "Desert/Lava Gradient Detail" section for full table)
 - [ ] Fix terrain palette type 5 (Castle) to use Sunset-style 3-band FPU gradient, not Varied base-color table
 - [ ] Fix terrain palette type 3 (Night/MTN) to use EXE's 10/20 split: Loop 1 (VGA 120–129): R=G=i, B=i+30 (10 entries, blue-gray gradient). Loop 2 (VGA 130–149): R=G=B=(i-10)*2 (20 entries, gray depth gradient). Web port incorrectly uses 15/15 split with pure-blue ramp. See "Night/MTN Palette Detail" table.

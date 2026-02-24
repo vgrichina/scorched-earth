@@ -2,12 +2,13 @@
 // EXE: VGA Mode 13h — 256-entry DAC palette, 6-bit per channel (0-63)
 // EXE: palette ranges:
 //   0-79:   player colors (10 players × 8 gradient slots) — DS:0x57E2 base colors
-//   80-103: sky gradient (24 entries) — varies by sky type
-//   104:    system black
+//   80-104: sky gradient (25 entries) — varies by sky type
 //   105-119: unused
 //   120-149: terrain gradient (30 entries) — varies by terrain type
 //   150:    wall color
 //   170-199: explosion fire palette (3 bands × 10)
+//   210-219: shield per-player entries
+//   252:    system black (UI screens only)
 //   253:    laser sight green (remapped from EXE 0x78 to avoid terrain overlap)
 //   254:    laser sight white (EXE 0xFE)
 // EXE: palette analysis in disasm/vga_palette_analysis.txt, disasm/color_palettes.txt
@@ -105,14 +106,13 @@ export function setupPlayerPalette() {
   }
 }
 
-// --- Sky palette (VGA 80-103, 24 entries) ---
-// Entry 104 reserved for system black
+// --- Sky palette (VGA 80-104, 25 entries) ---
 // 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function setupSkyPalette(skyType) {
   switch (skyType) {
     case 1: // Shaded — gentle variation on plain
-      for (let i = 0; i < 24; i++) {
-        const t = i / 23;
+      for (let i = 0; i < 25; i++) {
+        const t = i / 24;
         const r = Math.floor(t * 15 + random(5));
         const g = Math.floor(t * 15 + (1 - t) * 8 + random(3));
         const b = Math.floor(35 + t * 28);
@@ -120,20 +120,20 @@ export function setupSkyPalette(skyType) {
       }
       break;
     case 2: // Stars — black background
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 25; i++) {
         setEntry(80 + i, 0, 0, Math.floor(i * 0.5));
       }
       break;
     case 3: // Storm — dark grey gradient
-      for (let i = 0; i < 24; i++) {
-        const t = i / 23;
+      for (let i = 0; i < 25; i++) {
+        const t = i / 24;
         const grey = Math.floor(8 + t * 15);
         setEntry(80 + i, grey, grey, Math.floor(grey * 1.1));
       }
       break;
     case 4: // Sunset — cool blue/indigo at top → warm orange/red at bottom (verified from v86)
-      for (let i = 0; i < 24; i++) {
-        const t = i / 23;
+      for (let i = 0; i < 25; i++) {
+        const t = i / 24;
         const r = Math.floor(28 + t * 35);   // 28→63 (warm at bottom)
         const g = Math.floor(5 + t * 15);    // 5→20
         const b = Math.floor(50 - t * 40);   // 50→10 (cool at top)
@@ -141,20 +141,20 @@ export function setupSkyPalette(skyType) {
       }
       break;
     case 5: // Cavern — dark brownish
-      for (let i = 0; i < 24; i++) {
-        const t = i / 23;
+      for (let i = 0; i < 25; i++) {
+        const t = i / 24;
         setEntry(80 + i, Math.floor(5 + t * 8), Math.floor(3 + t * 5), Math.floor(2 + t * 3));
       }
       break;
     case 6: // Black — solid black
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 25; i++) {
         setEntry(80 + i, 0, 0, 0);
       }
       break;
     case 0: // Plain — gradient blue (default)
     default:
-      for (let i = 0; i < 24; i++) {
-        const t = i / 23;
+      for (let i = 0; i < 25; i++) {
+        const t = i / 24;
         const r = Math.floor(t * 20);
         const g = Math.floor(t * 20 + (1 - t) * 5);
         const b = Math.floor(40 + t * 23);
@@ -263,10 +263,9 @@ function setupWallPalette() {
 
 // --- System colors ---
 // Dedicated true-black entry for HUD background, outlines, etc.
-// Must be < 80 (tank threshold) to avoid collision false positives,
-// but not in range 0-79 (player gradients). Use entry 80 and shift sky to 81-104.
-// Simpler: use entry 104 (last sky slot) as black — sky only needs 24 entries (80-103).
-export const BLACK = 104;
+// Entry 252 is in unused palette space (above shield entries 210-219, below laser 253-254).
+// Only used for UI screens (menus, shop, game-over) — not in playfield during projectile flight.
+export const BLACK = 252;
 function setupSystemColors() {
   setEntry(BLACK, 0, 0, 0);
 }
