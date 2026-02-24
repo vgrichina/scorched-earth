@@ -199,16 +199,38 @@ export function setupTerrainPalette(terrainType) {
       }
       break;
 
-    case 4: // Desert/Lava: yellow → red-brown
-      for (let di = 0; di < 30; di++) {
-        const t = di / 29;
-        setEntry(120 + di,
-          63,
-          Math.floor(20 + (63 - 20) * (1 - t)),
-          Math.floor(2 + (20 - 2) * t)
+    case 4: { // Desert/Lava: 3-segment FPU gradient matching EXE (file 0x39C31)
+      // VGA 120: bright yellow (set separately in EXE via set_sky_palette_entry)
+      setEntry(120, 63, 63, 0);
+      // Loop 1 (VGA 121-130): warm gold → red-brown
+      for (let di = 0; di < 10; di++) {
+        const t2 = (9 - di) / 10, t1 = 1 - t2;
+        setEntry(121 + di,
+          Math.trunc(t2 * 63 + t1 * 63),  // R: 63 constant
+          Math.trunc(t2 * 63 + t1 * 20),  // G: 58→20
+          Math.trunc(t1 * 20)             // B: 2→20
+        );
+      }
+      // Loop 2 (VGA 131-140): red → blue-purple
+      for (let di = 0; di < 10; di++) {
+        const t2 = (9 - di) / 10, t1 = 1 - t2;
+        setEntry(131 + di,
+          Math.trunc(t2 * 63 + t1 * 29),  // R: 59→29
+          Math.trunc(t2 * 20 + t1 * 29),  // G: 20→29
+          Math.trunc(t2 * 20 + t1 * 63)   // B: 24→63
+        );
+      }
+      // Loop 3 (VGA 141-149): blue-purple → dark indigo (same t2=(9-di)/10 formula)
+      for (let di = 0; di < 9; di++) {
+        const t2 = (9 - di) / 10, t1 = 1 - t2;
+        setEntry(141 + di,
+          Math.trunc(t2 * 29 + t1 * 9),   // R=G: 27→11
+          Math.trunc(t2 * 29 + t1 * 9),
+          Math.trunc(t2 * 63 + t1 * 31)   // B: 59→34
         );
       }
       break;
+    }
 
     case 5: { // Varied: random from 6-entry table
       const cidx = random(6);
