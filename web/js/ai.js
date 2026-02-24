@@ -20,8 +20,8 @@ export const AI_TYPE = {
   TOSSER:    4,
   CHOOSER:   5,
   SPOILER:   6,
-  CYBORG:    7,  // randomizes to 1-6
-  UNKNOWN:   8,  // randomizes to 1-6
+  CYBORG:    7,  // randomizes to 0-5 (EXE: dispatch at 0x292A5)
+  UNKNOWN:   8,  // randomizes to 0-5 (EXE: dispatch at 0x292A5)
 };
 
 export const AI_NAMES = [
@@ -120,10 +120,11 @@ export function isAI(player) {
   return player.aiType > 0;
 }
 
-// Get effective AI type (resolve Cyborg/Unknown to random 1-6)
+// Get effective AI type (resolve Cyborg/Unknown to random 0-5)
+// EXE: dispatch at file 0x292A5 — random(6) gives 0-5 (Human through Chooser)
 function getEffectiveType(aiType) {
   if (aiType === AI_TYPE.CYBORG || aiType === AI_TYPE.UNKNOWN) {
-    return random(6) + 1;  // 1-6
+    return random(6);  // 0-5 (includes Human, excludes Spoiler)
   }
   return aiType;
 }
