@@ -18,6 +18,14 @@
 0x24F01,ai_solver_start
 0x2943A,generate_wind
 0x28E99,update_wind
+0x28F1D,draw_wind_indicator
+DS:0xD4E0,WIND_DISPLAY_X
+DS:0xD4E2,WIND_DISPLAY_Y
+DS:0xE05E,sprintf_buffer
+DS:0x50FA,CHANGING_WIND
+DS:0x505A,FMT_WIND_NEG
+DS:0x5061,FMT_WIND_POS
+DS:0x5068,FMT_WIND_ZERO
 0x19B54,viscosity_clamp
 0x21064,setup_physics_constants
 0x20F63,get_mips_count

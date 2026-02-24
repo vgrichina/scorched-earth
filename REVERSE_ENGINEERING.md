@@ -3387,7 +3387,7 @@ All located in `disasm/` directory:
 - [x] Add shop Miscellaneous sub-category headers: EXE groups misc items under 5 headers — "Parachutes" (DS:0x2E5B), "Triggers" (DS:0x2E67), "Guidance" (DS:0x2E71), "Shields" (DS:0x2EFE), "Inventory" (DS:0x2EEF). Web shows flat list. **DONE**: shop.js — added `MISC_GROUPS` constant defining 5 sub-categories with header names and weapon indices (Guidance=[37-40], Parachutes=[41-42], Triggers=[56], Shields=[46-52], Inventory=[35,36,43-45,53-55]). `updateItemList()` inserts `{isHeader:true}` rows before each non-empty group. `adjustSelectionPastHeader(dir)` skips header rows during keyboard/mouse navigation. `drawShop()` renders headers as hline separator + tinted text (non-selectable). Info panel and buy/sell handlers check `isHeader` to skip header items.
 - [x] Fix shop tab buttons — plain text vs 3D boxes: EXE renders tabs as 3D raised boxes (active=sunken) via dialog widget system. Web draws tab names as plain text with underline for active. **DONE**: shop.js `drawShop()` — replaced plain text tabs + underline with 3D boxes: inactive tabs use `drawBox3DRaised()`, active tab uses `drawBox3DSunken()`, text centered vertically inside each box with 6px horizontal padding. Done button also rendered as 3D raised box. Mouse hit-testing updated to match new box-based layout (variable-width tabs walked sequentially with 3px gap).
 - [x] Fix embossed title X-position — manual fudge vs computed: EXE centers "Scorched Earth" in right panel accounting for 4px emboss shift. Web uses `centerXRight(titleStr) - 2` hardcoded. Fix: derive offset from emboss layer count (5 layers → 4px shift → offset = 2). **DONE**: menu.js `drawMainMenu()` — replaced hardcoded `- 2` with computed `Math.floor((embossLayers - 1) / 2)` where `embossLayers = 5`. font.js `drawTextEmbossed()` — loop bound changed from hardcoded `5` to `colors.length` for consistency.
-- [ ] Trace wind display string format (struct+0xB6): EXE renders pre-formatted string from player struct+0xB6 via `text_display(E9DC, HUD_Y, struct+0xB6)` at file 0x302ED. Format unknown — could be directional arrows, signed number, or magnitude text. Web shows "No Wind" / "Wind: N". Needs DOSBox runtime breakpoint to dump struct+0xB6. **Files**: hud.js (blocked on RE)
+- [x] Trace wind display string format (struct+0xB6): **RESOLVED — NOT wind, it's the player NAME**. struct+0xB6/+0xB8 is a far pointer to the player name string (already documented in Sub-Struct field table at line 2293). The HUD Row 1 Full sequence at 0x302ED sets VGA 163 = player's RGB color, then displays the player name at position E9DC. The **actual wind display** is a separate playfield indicator (function at 0x28F1D): formats "Wind: <magnitude>" or "No Wind" via `sprintf(DS:E05E, "%s: %d", "Wind", abs(wind))` (DS:0x505A/0x5061/0x5068 format strings, DS:0x2B04="Wind", DS:0x2B09="No Wind"), draws right-aligned at viewport top (X=screenW-textW-20, Y=viewportY+5) in VGA 154, plus a directional pixel-arrow triangle (5-column narrowing pattern at viewportY+10). Web port hud.js fixed: replaced "Wind: N"/"No Wind" at E9DC with player.name in player color. **Files**: hud.js, REVERSE_ENGINEERING.md
 - [ ] Add extended font characters CP437: EXE has 161 glyphs (95 ASCII + 66 CP437 extended 0x80-0xFD). Web has 95 ASCII only. Extract 66 glyphs from DS:0x70E4–0x94EA using font_dump.py, add GLYPHS_EXT/WIDTHS_EXT arrays to font.js. **Files**: font.js
 - [ ] Add shop scrollbar widget: EXE uses full scrollbar from dialog system (seg 0x3F19:0x2CD1) — track, thumb, up/down arrows, drag. Web has 1px vline with brighter thumb. Fix: draw 2-3px sunken track, raised thumb box, mouse drag support. **Files**: shop.js
 - [ ] Fix player setup screen layout fidelity: EXE uses dialog widget system — sunken input field, spinner widget, Tab key navigation, centered layout. Web has hardcoded Y positions (42, 48, 66), no Tab key, not resolution-aware. Fix: relative layout, Tab key, proper sunken input styling. **Files**: menu.js (drawPlayerSetupScreen, handlePlayerSetupInput)
@@ -5504,14 +5504,19 @@ Three call variants (same internal renderer, different wrappers):
 Internal renderer at ~0x26120 (near call from all three): 9 args:
 `renderer(x, y, pattern_type, width, height, data_far_ptr, color, flag)`
 
-#### Wind Indicator (draw_hud_full Row 1)
+#### Player Name Display (draw_hud_full Row 1, position E9DC)
 
-The wind display sequence in draw_hud_full (0x302ED-0x30330):
+The player name display sequence in draw_hud_full (0x302ED-0x30330):
 1. `fg_setcolor(0xA3)` — set drawing color to palette 163
 2. `fg_setrgb(0xA3, struct+0x1C, struct+0x1E, struct+0x20)` — set palette 163 = player's RGB
-3. `text_display(E9DC, HUD_Y, struct+0xB6)` — draw wind string at E9DC in palette 163
+3. `text_display(E9DC, HUD_Y, struct+0xB6)` — draw **player name** at E9DC in player's color
 
-Function at 0x456B:0x5 (file 0x4C0B5) is **fg_setrgb** (NOT a wind renderer):
+struct+0xB6/+0xB8 is a far pointer to the player name string (see Sub-Struct field table).
+The full HUD Row 1 sequence is: "Power:" (E9D4) → power value (E9D6, "%4d" DS:0x57B6) →
+"Angle:" (E9D8) → angle value (E9DA, "%2d" DS:0x57BE) → **player name** (E9DC, in player color) →
+weapon icon (E9DE). Column width at E9DC is `measureText("MMMMMMMMMMMMMMM") + 2` (15 M's).
+
+Function at 0x456B:0x5 (file 0x4C0B5) is **fg_setrgb**:
 ```
 ; Build 16-byte Fastgraph DAC control packet on stack:
 [bp-0x10] = 0x10             ; packet type 16 (set DAC registers)
@@ -5523,11 +5528,55 @@ Function at 0x456B:0x5 (file 0x4C0B5) is **fg_setrgb** (NOT a wind renderer):
 call fg_dispctl(packet_ptr, packet_ptr, 16)  ; Fastgraph palette setter
 ```
 
-**Correction**: struct+0x1C/0x1E/0x20 are the player's RGB color values (same as
-DS:0x57E2 player color table), NOT wind direction/magnitude bytes.
-The wind display string comes from tank sub-struct far pointer at +0xB6/+0xB8.
-This is a pre-formatted string set elsewhere before the HUD draw call.
-Web port approximates with text "Wind: N" / "No Wind" in baseColor (same color).
+#### Wind Playfield Indicator (function at 0x28F1D)
+
+Separate from HUD — draws wind text + directional arrow in the top-right viewport area.
+Called per turn (not per HUD redraw). Source: icons.cpp+ (seg 0x1F7F).
+
+```
+function draw_wind_indicator():   // file 0x28F1D, seg 1F7F:2D2D
+    fg_setrgb(87, 40, 40, 63)     // set VGA 87 = blueish gray
+    if DS:0x50FA != 0:             // CHANGING_WIND enabled?
+        update_wind()              // add random(-5..+5), clamp ±MAX_WIND
+
+    if wind < 0:
+        direction = -1
+        sprintf(DS:E05E, "%s: %d", "Wind", abs(wind))   // DS:505A, DS:2214→"Wind"
+    elif wind > 0:
+        direction = +1
+        sprintf(DS:E05E, "%s: %d", "Wind", wind)        // DS:5061, DS:2214→"Wind"
+    else:
+        direction = 0
+        sprintf(DS:E05E, "%s", "No Wind")                // DS:5068, DS:2218→"No Wind"
+
+    fg_setcolor(0x9A)              // VGA 154 for text
+    textW = text_measure(DS:E05E)
+    x = screenWidth - textW - 20   // right-aligned with 20px margin
+    DS:D4E0 = x                    // store wind display X
+    DS:D4E2 = viewportY + 5       // store wind display Y
+    text_display_styled(DS:E05E, 0xA3, ???)  // 0x4589:0x0BD4
+
+    if direction == 0: return
+    // Draw directional arrow (pixel triangle):
+    if direction == -1: arrowX = x - 5       // left of text
+    if direction == +1: arrowX = screenW - 15 // right edge
+    for col = 4 downto 0:          // 5 columns, narrowing
+        for row = -col to +col:    // symmetric around center
+            draw_pixel(arrowX, viewportY + 10 + row)
+            draw_pixel(arrowX, viewportY + 10 - row)
+        arrowX += direction         // advance in wind direction
+```
+
+Key constants:
+- Format strings: DS:0x505A = "%s: %d" (negative), DS:0x5061 = "%s: %d" (positive), DS:0x5068 = "%s" (zero)
+- String labels: DS:0x2B04 = "Wind", DS:0x2B09 = "No Wind" (far ptrs at DS:0x2214/0x2218)
+- Buffer: DS:0xE05E (global sprintf destination, reused by HUD)
+- Position storage: DS:0xD4E0 (X), DS:0xD4E2 (Y)
+- Text color: VGA 154 (0x9A)
+- Arrow center: viewportY + 10 (DS:EF40 + 0x0A)
+
+**Key difference from web port**: wind magnitude only in text (no sign), direction shown by arrow.
+Web port was incorrectly displaying wind at HUD position E9DC (which is the player name column).
 
 #### Column Fill Helper (file 0x39482)
 
@@ -5659,7 +5708,7 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 | Aspect | EXE | Web Port | Status |
 |--------|-----|----------|--------|
 | **Basic mode Row 1** | Name + multi-player bar + icons | Name + multi-player bar + icons | **Correct** |
-| **Full mode Row 1** | Name + Power + Angle + Wind + Weapon | Name + Power + Angle + Wind + Weapon | **Correct** |
+| **Full mode Row 1** | Name + Power + Angle + **PlayerName** + Weapon | Name + Power + Angle + ~~Wind~~ PlayerName + Weapon | **Fixed** (was "Wind: N", now player name) |
 | Bar outline color | Player color ([EF22]) | Player color (baseColor) | **Correct** |
 | Bar fill color | Shadow ([EF2C]) | Shadow (UI_DEEP_SHADOW) | **Correct** |
 | Bar width | numPlayers × 6 (variable) | numPlayers × 6 | **Correct** |
@@ -5668,7 +5717,7 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 | Background | UI_BACKGROUND ([EF28], gray) | UI_BACKGROUND (palette 203) | **Correct** |
 | All text color | Player color ([EF22], palette 163) | baseColor (player slot 4) | **Fixed** |
 | Angle format (full) | "%2d" (DS:0x57BE) | padStart(2) | **Fixed** (was padStart(3)) |
-| Wind rendering | text_display(E9DC, struct+0xB6) in pal 163 | Text "Wind: N" / "No Wind" | Simplified |
+| Player name (E9DC) | text_display(E9DC, struct+0xB6) in pal 163 = player name | Player name in player color | **Fixed** (was "Wind: N") |
 | Player icons | Bitmap from icon table (48 icons) | Simple 5×5 squares/outlines | Simplified |
 | Weapon position (full) | Left-aligned at E9E0 (after icon at E9DE) | Right-aligned to screen edge | Divergent |
 | **Basic Row 2** | Name + energy bars + Angle + angle bars | Name + energy bars + Angle + angle bars + W:N | **Fixed** (+wind text) |
@@ -5695,7 +5744,7 @@ MEDIUM:
 
 LOW:
 - Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
-- Wind display string: struct+0xB6 format unknown; text approximation is sufficient
+- ~~Wind display string: struct+0xB6 format unknown~~ — **RESOLVED**: struct+0xB6 is the **player name** far pointer, NOT wind. Wind is a separate playfield indicator (function 0x28F1D) with "Wind: N" + directional arrow. HUD E9DC now displays player name in player color.
 - HUD fuel display: ~~0-100% scale~~ — FIXED (now 0-1000 per mille, player.energy×10)
 - HUD battery count: ~~reads stale player.batteries~~ — FIXED (now reads inventory[43])
 - ~~Shop Score tab missing~~ — FIXED (Score tab shows ranked player table)

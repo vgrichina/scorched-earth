@@ -19,11 +19,11 @@
 //   DS:0xEF2C = deep shadow [EF2C] — bar interior fill
 //   Palette 163 (0xA3) = DYNAMIC — fg_setrgb(0xA3, R, G, B) at file 0x3030E
 //     sets palette 163 to current player's base color from tank sub-struct +0x1C/+0x1E/+0x20
-//     Used for wind indicator; effectively same as [EF22] = player color
+//     Used for player name display at E9DC; effectively same as [EF22] = player color
 //
 // EXE Row 1 layout:
 //   Basic mode: Name + multi-player power bar (6px columns) + player icons
-//   Full mode:  Name + Power + Angle + Wind (struct+0xB6 text) + Weapon
+//   Full mode:  Name + Power + Angle + PlayerName (struct+0xB6 name ptr) + Weapon
 //
 // EXE Row 2 layout (if [0x5142] != 0):
 //   Basic mode: Name + multi-player energy bar + Angle + multi-player angle bar
@@ -231,17 +231,13 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, HUD_Y, String(player.angle).padStart(2), baseColor);
     x += measureText('99  '); // EXE: DS:0x577E = "99  " (2 digits + 2 spaces)
     // EXE: fg_setrgb(0xA3, R, G, B) sets palette 163 = player color
-    // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws wind string in palette 163
-    // Web port approximates with text (same color = baseColor)
-    const windX = x;  // E9DC — wind display x position
-    if (wind === 0) {
-      drawText(windX, HUD_Y, 'No Wind', baseColor);
-    } else {
-      drawText(windX, HUD_Y, 'Wind: ' + wind, baseColor);
-    }
+    // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws PLAYER NAME in palette 163
+    // struct+0xB6 is a far pointer to the player name string (not wind!)
+    const nameX = x;  // E9DC — player name x position
+    drawText(nameX, HUD_Y, player.name, baseColor);
     // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
     // EXE: E9E0 = E9DE + 15 → weapon text position
-    const wpnIconX = windX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
+    const wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
     // EXE: draw_player_icon([E9DE], HUD_Y, wpn_idx) — draws selected weapon's icon
     if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
       drawIcon(wpnIconX, HUD_Y, player.selectedWeapon, baseColor);
