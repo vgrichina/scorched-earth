@@ -2227,6 +2227,68 @@ When SKY=Black, 7 code patches create an underground visual environment:
 
 **Intermediate files**: `disasm/cavern_shop_analysis.txt`
 
+### Sun/Planet Rendering — **RESOLVED: No Explicit Sun Circle**
+
+**Investigation**: v86 screenshots show a bright circle resembling a "sun" in the Sunset terrain preview. Traced the full Sunset (type 4) case handler and all Fastgraph circle/ellipse calls in the EXE.
+
+**Finding**: There is NO explicit sun/circle drawing call for the Sunset sky type. The "sun" appearance is an optical illusion created by the warm palette gradient (bright yellow-gold at the horizon fading to dark indigo at the top) visible in the gap between terrain mountain silhouettes. The large centered mountain in Sunset mode frames this gradient, making the bright horizon region look like a sun disc.
+
+**Evidence**:
+- Fastgraph circle functions identified: `fg_circlef` (3F19:1951, 1 caller at file 0x276CE), `fg_ellipsef` (3F19:3781, 3 callers), `fg_circle` (3F19:3D91, 2 callers) — NONE called from terrain generation or sky palette code paths
+- The Sunset case handler (file 0x39C31) only sets palette entries and generates terrain height; no drawing primitives
+
+#### Sunset Palette Interpolation (Case 4, file 0x39C31)
+
+Entry condition: `DS:0x624A == 1` (sunset available flag); falls back to type 0 (Plain) if not set.
+
+**VGA 120** = (63, 63, 0) — bright yellow, set via `set_sky_palette_entry(120, 63, 63, 0, 1)` at file 0x3A046.
+
+Three FPU-interpolated gradient segments of 10 entries each, using float32 constants:
+
+| DS Offset | Value | Role |
+|-----------|-------|------|
+| DS:0x6258 | 9.0 | R interpolation divisor |
+| DS:0x625C | 10.0 | loop count (10 entries per segment) |
+| DS:0x6260 | 20.0 | G/B base offset |
+| DS:0x6264 | 63.0 | max component value |
+| DS:0x6268 | 29.0 | segment 2 R scaling |
+| DS:0x626C | 31.0 | segment 2 G scaling |
+| DS:0x6270 | 45.0 | segment 2 B scaling |
+
+Computed palette (VGA 121–149, 29 entries mapped to sky rows bottom→top):
+
+| VGA Range | Gradient | RGB Start → End |
+|-----------|----------|-----------------|
+| 121–130 | Warm gold → warm red | (63,58,2) → (63,20,20) |
+| 131–140 | Blue-purple → orange-red | (24,20,59) → (63,29,29) |
+| 141–149 | Blue-purple → dark indigo | (27,27,59) → (9,9,31) |
+
+**Sky row mapping**: `color[row] = (bottom - row) * 28 / height + 121` — row 0 (bottom) = VGA 149 (dark indigo), row max (top) = VGA 121 (warm gold). Wait — actually bottom=warm, top=cool: the formula maps bottom rows to higher VGA indices (warm colors) and top rows to lower VGA indices (cool/dark). This matches the verified sunset gradient direction (cool top → warm bottom).
+
+**Sunset terrain**: Large centered mountain via `mountain_gen(width/2, bottom-5, width/3, shape=109, seed=0x32C2)`.
+
+#### Sky Type Case Handlers (Sequential Disassembly)
+
+All 7 case handlers identified by sequential disassembly from file 0x39956. Each ends with `jmp 0x3A01C` (switch exit). The jump table at cs:0x0A18 (file 0x39198) could not be decoded directly due to a relocation entry at file 0x3919F overlapping the table data.
+
+| Case | Sky Type | Handler Start | Summary |
+|------|----------|--------------|---------|
+| 0 | Normal | 0x39956 | VGA 120 = dark blue (9,9,31) |
+| 1 | Plain | 0x39969 | Blue gradient loop, VGA 121–149 |
+| 2 | DalSky | 0x399C1 | Complex: bitmap loading + palette |
+| 3 | Random | 0x39AEF | Random terrain with FPU palette |
+| 4 | Sunset | 0x39C31 | FPU-interpolated warm gradient (see above) |
+| 5 | Cavern | 0x39E6A | V-shaped terrain (uses .mtn files) |
+| 6 | Black | 0x39F30 | All-black sky with red terrain gradient |
+
+#### Gradient Helper Function (file 0x3A046)
+
+`set_sky_palette_entry(vga_idx, r, g, b, immediate_flag)` — stores RGB at `DS:0xDD5E + idx*3`, then if `immediate_flag != 0` calls `fg_setrgb(idx, r, g, b)` immediately.
+
+**Correction**: `DS:0xEF08` is NOT `fg_setcolor` (1 arg) as previously assumed — it is `fg_setrgb` with 4 args (index, r, g, b), confirmed by 8-byte stack cleanup (`add sp, 8`) at multiple call sites.
+
+**Intermediate files**: `disasm/read_sky_dispatch.py`, `disasm/find_fg_ellipse.py`, `disasm/read_sunset_floats.py`, `disasm/find_sky_table.py`
+
 ---
 
 ## Shop/Equipment System — equip.cpp (VERIFIED)
