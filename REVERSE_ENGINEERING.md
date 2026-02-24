@@ -2580,16 +2580,21 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 | 4 | Sunset | file 0x3F587 | Sunset gradient sky |
 | 5 | Cavern | file 0x44BDD | Mountain .mtn terrain (DS:0x50D8=1) |
 | 6 | Black | file 0x3E700 | Underground visual mode (same terrain as Plain) |
-| 7 | Random | (runtime) | Randomizes to 0-5 via `random(6)` |
+| 7 | Random | (runtime) | Randomizes to 0-5 via `random(6)`, re-rolls if 5 (Cavern) and no .mtn files |
+
+**VERIFIED from name table init (file 0x3AEA0)**: The 8-entry string table at DS:0x621C is initialized from source far pointers: DS:0x22FC→"Plain", DS:0x2300→"Shaded", DS:0x2304→"Stars", DS:0x2308→"Storm", DS:0x230C→"Sunset", DS:0x2404→"Cavern", DS:0x2310→"Black", DS:0x20DC→"Random". Config key: `SKY\0` at DS:0x0454, format `SKY=%s\n` at DS:0x08F8.
 
 **NOTE**: The "handler" addresses listed above are **menu dialog handlers** (segment 0x34ED, the menu module) that render sky selection UI options — they are NOT sky palette initialization functions. Sky palette setup is scattered across several modules.
+
+**Random resolution** (file 0x3978E): `push 6; call random` → result 0-5 stored in DS:0x5110. If result is 5 (Cavern) and DS:0x621A==0 (no .mtn files), loops back to re-roll. Black (6) is never selected by Random.
 
 ### Key Data Locations
 
 | Item | Location |
 |------|----------|
 | Sky type variable | DS:0x5110 |
-| Sky name table | DS:0x621C (8 far ptrs, init at file 0x3AEA0) |
+| Sky name table | DS:0x621C (8 far ptrs, init at file 0x3AEA0 from source ptrs DS:0x22FC–0x20DC) |
+| Config key string | DS:0x0454 (`SKY\0`), format DS:0x08F8 (`SKY=%s\n`) |
 | Max sky type | DS:0x624E (value 7 = "Random") |
 | Mountain mode flag | DS:0x50D8 (1 when type 5) |
 | Mountain files available | DS:0x621A (0 = no .mtn files) |
@@ -3166,7 +3171,7 @@ All located in `disasm/` directory:
 - [x] Trace napalm particle physics: **RESOLVED — NOT velocity-based**. Main handler at file 0x2DA00. Particles use **pixel-walking cellular automaton**: each step checks adjacent pixels via `check_direction(x,y)` (file 0x2DFCC) and moves 1 pixel. Direction: 0=terrain below (drop), -1/+1=move left/right (wind via DS:0x515A determines when both available), 2=erode upward. No velocity vectors, no damping. DS:0x1D60=0.7 is explosion damage falloff (file 0x235B6), NOT particle damping. DS:0x1D68=0.001 is explosion sqrt epsilon (file 0x23638), NOT speed threshold. Damage: Hot Napalm (param>15) max 50 at range 40 (DS:0x5682/0x5686), Regular Napalm max 30 at range 25 (DS:0x568A/0x568E). Max 1000 steps per particle, explosion array stores every 20th position. See "Napalm / Hot Napalm" section in Weapon Behavior Dispatch.
 - [x] Trace heat guidance trigger and correction: **RESOLVED**. Trigger: `ai_select_target` (file 0x24F01) iterates all tanks, computes Euclidean distance, threshold = DS:0x5186 = **40 pixels** (web port had 60). Callback (0x2589C): continuous attraction force `correction = 10000.0 × dt / distSq^(1/4)` applied per step toward stored target, with overshoot detection (sign flip of dx/dy vs initial wind_x/wind_y → removes callback). Wind vectors are **inverted**: wind_x = -sign(target.X - current.X) — used ONLY for overshoot detection, NOT as correction direction. Web port fixed: HEAT_PROXIMITY 60→40, replaced constant GUIDANCE_STRENGTH=2.0 with continuous attraction model (GUIDANCE_K=10000, GUIDANCE_DT=0.02, GUIDANCE_MIN_DISTSQ=0.001), added overshoot detection and callback removal. See "Heat Guidance — Trigger and Correction" subsection.
 - [x] Trace gravity/wind pre-scaling formula: **RESOLVED**. `setup_physics_constants` at file 0x21064. Constants: DS:0x1CF2=50.0 (f32, gravity mult), DS:0x1CF6=40.0 (f32, wind div), DS:0x1CFA=0.02 (f64, fallback dt), DS:0x1CC8=100.0 (f32, d divisor). Formulas: gravity_step = 2500 × GRAVITY_CONFIG × dt, wind_step = 1.25 × wind × dt (both pre-scaled, applied without further dt multiply). Launch velocity = power directly (no scaling). GRAVITY_CONFIG at DS:0x512A = 0.2 default (f64), range 0.05–10.0. Effective accelerations: gravity = 2500 × G px/sec², wind = 1.25 × W px/sec². Web port corrected: GRAVITY=4.9 → 400×config.gravity, WIND_SCALE=0.15 → 0.2 (using k²=0.16 scaling for MAX_SPEED=400). Config default gravity fixed 1.0→0.2. See "Gravity/Wind Pre-Scaling — Derived Formulas" subsection.
-- [ ] Trace sky type enum mapping: EXE sky list appears to be Plain/Shaded/Stars/Storm/Sunset/Black/Random (7 types). Web port has Cavern at index 5 and Black at index 6 with no Random. Verify EXE sky type enum from config parsing and sky dispatch table.
+- [x] Trace sky type enum mapping: **VERIFIED**. Name table init at file 0x3AEA0 copies 8 far ptrs to DS:0x621C: 0=Plain (DS:0x2DE8), 1=Shaded (DS:0x2DEE), 2=Stars (DS:0x2DF5), 3=Storm (DS:0x2DFB), 4=Sunset (DS:0x2E01), 5=Cavern (DS:0x31ED), 6=Black (DS:0x2E08), 7=Random (DS:0x2787). Config key `SKY\0` at DS:0x0454, format `SKY=%s\n` at DS:0x08F8. Random resolution (file 0x3978E): `random(6)` → 0-5, re-rolls if 5 (Cavern) and no .mtn files (DS:0x621A==0). Black (6) never in Random pool. Web port was correct for indices 0-6 but missing Random (7); added Random to menu.js with runtime resolution to 0-6 (including Black, unlike EXE 0-5). See "Sky Type Enum" subsection in Sky/Landscape Mode System section.
 - [ ] Trace play order enum: EXE PLAY_ORDER options are Random/Losers-First/Winners-First/Round-Robin. Web port uses Sequential/Random/Losers First/Winners First. Verify from config string table.
 - [ ] Trace shield color rendering formula: EXE uses continuous fade `shieldEnergy × configColor / maxEnergy` and palette index `playerIndex + 5`. Web port uses quantized 4-step slot system with `playerIndex × 8 + slot`. Disassemble shield draw to confirm.
 - [ ] Trace shield break animation sequence: EXE has 50-frame accelerating fade + final white flash. Web port triggers white flash on frame 0 (first frame, not last). Verify frame ordering.
