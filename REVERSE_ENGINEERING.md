@@ -3314,7 +3314,7 @@ All located in `disasm/` directory:
 - [x] Trace Type 3 (Night/MTN) terrain palette: **RESOLVED — blue tint, not greenish**. Two palette loops at file 0x39AEF: Loop 1 (di=0..9, VGA 120–129): `fg_setrgb(di, di, di, di+30)` — R=G=i, B=i+30, creating dark **blue** gradient (not green as doc previously stated). Loop 2 (di=10..29, VGA 130–149): `fg_setrgb(di, (di-10)*2, (di-10)*2, (di-10)*2)` — gray depth gradient (0,0,0)→(38,38,38). Previous doc notation "(i, i+30, i, i)" had +30 on wrong channel (R instead of B). Type 3 falls through to Type 4's shared code (fg_setdacs upload, 9-level height_array, bitmap fill, LandGenerator). setTerrainPixel case 3: bitmap clear → height_array[y] (VGA 120–128 blue); bitmap set → depth+130 (VGA 130–150 gray depth). Web port had 15/15 split with pure-blue ramp; EXE has 10/20 split with blue-gray terrain + gray depth. See "Night/MTN Palette Detail" table.
 - [x] Trace parachute deploy mechanics: **RESOLVED**. Sub struct field `sub[0x2C]` is a deploy damage threshold (NOT inventory count): default=5, with Battery item=10 (0x18852/0x18872). `check_deploy` (0x202F6) simulates remaining fall returning predicted damage (2/pixel). Deploy when predicted_damage > threshold. Deploy action: sound(30, 2000Hz), flash white (63,63,63), set `sub[0x0C]=1`. Half-speed: `DS:0x1C68` frame counter % 2 == 0 → skip iteration (0x20626). Per-step delay(20) for visual effect (0x20A8F). Parachuted tanks accumulate zero damage. Web port gaps: no mid-fall threshold check, no frame-skipping half-speed, no deploy sound/flash, no Battery interaction. See "Parachute Deploy Mechanics" subsection in Falling Tank section.
 - [x] Trace landing crater explosion: **RESOLVED — crush damage mechanic, NOT universal crater**. The "landing crater" at 0x20B4C only triggers when a falling tank lands on top of another tank (>2 pixel columns overlap, detected by per-step pixel scan at 0x20690). Crush damage to victim = faller_accum + 50 (through shield via shield_and_damage at 0x3912:0x04B2 / file 0x3FFD2). Faller self-damage = faller_accum/2 + 10 (direct). Pixel scan: pixel < 0x50 = tank pixel, hit_player = pixel/8, tank substruct = DS:D568 + hit_player × 0xCA. Glancing contact (1-2 columns): sound(5, 200) but no landing. Normal terrain landings have NO crater explosion. See "Crush Damage Summary" in Falling Tank section.
-- [ ] Trace dome direction-dependent rendering: EXE has two asymmetric dome shapes (dir1 base at Y+5 with 4px rise, dir2 base at Y+7 with 3px rise) using separate color globals. Web port draws single direction-independent dome.
+- [x] Trace dome direction-dependent rendering: **RESOLVED — no direction-dependent dome shape**. Previous doc was incorrect. EXE uses pixel data tables at DS:0x673E (6 tank types, 18 bytes/entry) with 3-byte pixel entries (x_i8, y_i8, color_u8). Direction (sub[+0x94]) only mirrors X axis (`tank.X + offset` vs `tank.X - offset`); Y is unchanged. Type 0 dome is 9×5 semicircle with concentric color rings (0=outline, 3=interior), fully X-symmetric — both directions produce identical visual output. Color globals EF26/EF30 are for panel rendering (icons.cpp), not in-game dome. Previous "In-Game Tank Dome" section at 0x3FC9A was incorrect — that address is within draw_tank_setup (barrel erase + globals init), not a dome function. Draw chain: 0x3FC7D → 0x3FB27 → 0x40A75 → 0x40C19. Web port's single dome shape is correct; no fix needed. See "In-Game Tank Rendering — Pixel Table System" section.
 
 ### Web Port Fixes (from audit)
 
@@ -3519,45 +3519,46 @@ Columns 4-7: Repeat the 3-pixel pattern (di-1, di, di+1) with x_step decrements
 
 The function spans from 0x2694C to 0x26AB2 (retf at 0x26AB2), 358 bytes.
 
-### In-Game Tank Dome (Alternate Rendering Path)
+### In-Game Tank Rendering — Pixel Table System
 
-Found at file offset 0x3FC9A (within the per-frame tank drawing routine). This draws the dome using the actual player position:
+**CORRECTION**: Previous documentation described two asymmetric dome shapes at file 0x3FC9A. This was incorrect. The in-game tank rendering uses a **pixel data table** system, not hardcoded hline+point calls.
 
-**Direction 1 dome** (barrel pointing right):
+**Pixel table** at DS:0x673E, 18 bytes per entry, indexed by tank type (sub[0x00]):
+
+| Type | DS Offset | Pixels | Shape Description |
+|------|-----------|--------|-------------------|
+| 0 | DS:0x649C | 35 | Classic dome: 9×5 semicircle, concentric color rings |
+| 1 | DS:0x6640 | 24 | Low profile: 9×4, dashed outline pattern |
+| 2 | DS:0x6577 | 31 | Antenna tank: 11×6, asymmetric antenna left, tread dots |
+| 3 | DS:0x65D7 | 34 | Tall antenna: 9×7, 2px antenna + turret bar |
+| 4 | DS:0x6508 | 36 | Turret tank: 11×5, offset dome cap |
+| 5 | DS:0x668B | 17 | Small tank: 7×5, minimal body |
+
+**Pixel data format**: 3-byte entries `[x_offset_i8, y_offset_i8, color_index_u8]`, terminated by sentinel byte 0x63. Color values 0-3 are offsets from the player's base palette color (sub[+0x1A]).
+
+**Direction handling** (sub[+0x94] = turret_direction, +1 or -1):
+- Direction +1 (right): `X = tank.X + x_offset`
+- Direction -1 (left): `X = tank.X - x_offset` (X mirrored)
+- Y is always: `Y = tank.Y + y_offset` (unchanged by direction)
+
+The dome shape is **identical** for both directions — direction only mirrors the X axis. Types 0 and 1 are X-symmetric so both directions look the same. Types 2-5 have asymmetric features (antenna, protrusions) that flip horizontally.
+
+**Type 0 pixel art** (default tank dome, color 0=outline → 3=interior):
 ```
-Base position: si = player_X, y_base = player_Y + 11
-
-Horizontal line:  hline(si, si+6, y_base-6, dome_base_color)     ← 7px base line
-
-Dome pixels (left side, color=[0xEF30]):
-  point(si+0, y_base-7)    ← ascending
-  point(si+1, y_base-8)
-  point(si+2, y_base-9)
-  point(si+3, y_base-10)   ← peak (4px above base line)
-
-Dome pixels (right side, color=[0xEF26] = highlight):
-  point(si+4, y_base-9)    ← descending
-  point(si+5, y_base-8)
-  point(si+6, y_base-7)
-```
-
-**Direction 2 dome** (barrel pointing left):
-```
-Horizontal line:  hline(si, si+6, y_base-4, dome_base_color)     ← 7px base line
-
-Dome pixels (left side):
-  point(si+0, y_base-3)
-  point(si+1, y_base-2)
-  point(si+2, y_base-1)
-
-Dome pixels (right side = highlight):
-  point(si+3, y_base+0)    ← peak at base level
-  point(si+4, y_base-1)
-  point(si+5, y_base-2)
-  point(si+6, y_base-3)
+y=-4: ...000...
+y=-3: .0011100.
+y=-2: .0122210.
+y=-1: 012333210
+y= 0: 012333210
 ```
 
-**In-game dome dimensions**: 7 pixels wide, 5 pixels tall (base line + 4 pixel rise), with left/right color asymmetry for 3D shading effect.
+**Draw function chain** (in-game):
+1. `draw_tank_setup` (file 0x3FC7D): validate visibility, set up barrel globals (DS:EE4A-EE50), call barrel erase (0x171B:0x0733), then call draw_tank_complete
+2. `draw_tank_complete` (file 0x3FB27): call draw_body (pixel table), draw barrel, draw parachute, draw shield
+3. `draw_tank_type` (file 0x40A75): look up pixel data far ptr from DS:0x673E[type*18], call pixel renderer
+4. `render_pixel_table` (file 0x40C19): iterate pixel data, direction-check mirrors X, call `point_with_clip` (0x40ABB) for each pixel
+
+**Color globals** (EF26=highlight, EF2E=body fill, EF30=shadow) are used by the **panel/HUD rendering** (icons.cpp at 0x26527), NOT the in-game pixel table renderer. The in-game renderer uses palette offsets 0-3 from the pixel data directly.
 
 ### Tank Body Rectangle
 
