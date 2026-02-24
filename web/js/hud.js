@@ -50,6 +50,7 @@ import { WEAPONS, WPN } from './weapons.js';
 import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
+import { PLAYFIELD_TOP } from './terrain.js';
 
 // Icon bitmap table — all 48 icons from EXE DS:0x3826 (stride 125 bytes)
 // Per icon: {t:pattern_type, w:width, h:height, px:[column-major pixels]}
@@ -424,5 +425,56 @@ export function drawHud(player, wind, round, opts) {
   // Simultaneous mode aim timer
   if (opts && opts.aimTimer > 0) {
     drawText(afterBarX, ROW2_Y, 'T:' + opts.aimTimer, baseColor);
+  }
+}
+
+// Draw wind indicator on playfield — separate from HUD
+// EXE: draw_wind_indicator at file 0x28F1D (seg 1F7F:2D2D)
+// Shows "Wind: N" or "No Wind" text right-aligned with 20px margin,
+// plus a directional pixel-arrow triangle (5 columns, narrowing).
+// Color: VGA 154 (0x9A). Position: top-right viewport area.
+const WIND_COLOR = 154; // VGA 0x9A — wind indicator text + arrow color
+export function drawWindIndicator(wind) {
+  const viewportY = PLAYFIELD_TOP;
+  let direction, text;
+  if (wind < 0) {
+    direction = -1;
+    text = 'Wind: ' + Math.abs(wind);
+  } else if (wind > 0) {
+    direction = 1;
+    text = 'Wind: ' + wind;
+  } else {
+    direction = 0;
+    text = 'No Wind';
+  }
+
+  // EXE: x = screenWidth - textW - 20, y = viewportY + 5
+  const textW = measureText(text);
+  const x = config.screenWidth - textW - 20;
+  const y = viewportY + 5;
+  drawText(x, y, text, WIND_COLOR);
+
+  if (direction === 0) return;
+
+  // EXE: directional arrow — 5 columns, narrowing triangle
+  // direction=-1: arrowX starts at x-5, moves left (arrow points left)
+  // direction=+1: arrowX starts at screenW-15, moves right (arrow points right)
+  const arrowCenterY = viewportY + 10;
+  let arrowX;
+  if (direction === -1) {
+    arrowX = x - 5;
+  } else {
+    arrowX = config.screenWidth - 15;
+  }
+
+  // EXE: for col = 4 downto 0, for di = 0 to col:
+  //   pixel(arrowX, centerY + di), pixel(arrowX, centerY - di)
+  //   arrowX += direction
+  for (let col = 4; col >= 0; col--) {
+    for (let di = 0; di <= col; di++) {
+      setPixel(arrowX, arrowCenterY + di, WIND_COLOR);
+      if (di > 0) setPixel(arrowX, arrowCenterY - di, WIND_COLOR);
+    }
+    arrowX += direction;
   }
 }

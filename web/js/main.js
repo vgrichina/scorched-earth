@@ -10,7 +10,7 @@ import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP
 import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
-import { drawHud } from './hud.js';
+import { drawHud, drawWindIndicator } from './hud.js';
 import { drawText, drawTextShadow } from './font.js';
 import { projectiles } from './physics.js';
 import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound } from './game.js';
@@ -400,6 +400,7 @@ function gameLoop() {
     aimTimer: game.aimTimer > 0 ? Math.ceil(game.aimTimer / 60) : 0,
   };
   drawHud(player, game.wind, game.round, hudOpts);
+  drawWindIndicator(game.wind);
   drawAllProjectiles();
 
   // EXE VERIFIED: laser drawn during AIM phase only (draw_laser_sight at 0x36321)

@@ -260,6 +260,10 @@ export function setupExplosionPalette() {
 // EXE: fg_setrgb(150, 50,50,50) at file 0x2A73B — medium gray wall
 function setupWallPalette() {
   setEntry(150, 50, 50, 50); // Gray wall (was 40, EXE verified 50)
+  // VGA 154 (0x9A) — wind indicator text+arrow color (file 0x28FBC: fg_setcolor(0x9A))
+  // EXE: not in the UI palette init block (151-159), likely initialized elsewhere.
+  // Set to white for visibility against all sky types.
+  setEntry(154, 63, 63, 63);
 }
 
 // --- System colors ---
