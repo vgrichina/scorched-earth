@@ -249,9 +249,11 @@ function adjustValue(item, dir) {
 }
 
 // --- Helper: center text X in right panel ---
+// EXE: centering uses FG_MAXX (screenW-1), NOT the terrain frame inset (screenW-6)
+// See 0x3D72B: mov ax,[EF3E]; sub ax,[bp-0x3A]; sub ax,di; cwd; sub ax,dx; sar ax,1; add ax,[bp-0x3A]
 function centerXRight(str) {
   const tw = measureText(str);
-  return Math.floor((getScreenW() - 6 - getRightX() - tw) / 2) + getRightX();
+  return Math.floor((getScreenW() - 1 - getRightX() - tw) / 2) + getRightX();
 }
 
 // --- 3D box helpers with standard UI colors ---
