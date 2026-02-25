@@ -448,9 +448,10 @@ export function drawWindIndicator(wind) {
     text = 'No Wind';
   }
 
-  // EXE: x = screenWidth - textW - 20, y = viewportY + 5
+  // EXE: x = FG_MAXX - textW - 20 (0x28FD1: dx = [EF3E] - textW - 20), y = viewportY + 5
   const textW = measureText(text);
-  const x = config.screenWidth - textW - 20;
+  const FG_MAXX = config.screenWidth - 1;
+  const x = FG_MAXX - textW - 20;
   const y = viewportY + 5;
   drawText(x, y, text, WIND_COLOR);
 
@@ -458,13 +459,13 @@ export function drawWindIndicator(wind) {
 
   // EXE: directional arrow — 5 columns, narrowing triangle
   // direction=-1: arrowX starts at x-5, moves left (arrow points left)
-  // direction=+1: arrowX starts at screenW-15, moves right (arrow points right)
+  // direction=+1: arrowX starts at FG_MAXX-15 (0x29010: ax = [EF3E] + 0xFFF1)
   const arrowCenterY = viewportY + 10;
   let arrowX;
   if (direction === -1) {
     arrowX = x - 5;
   } else {
-    arrowX = config.screenWidth - 15;
+    arrowX = FG_MAXX - 15;
   }
 
   // EXE: for col = 4 downto 0, for di = 0 to col:
