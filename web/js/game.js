@@ -451,9 +451,13 @@ function processHit(proj, hitResult) {
 
   const result = handleBehavior(proj, hitResult);
 
-  // EXE: explosion scale config — 0=Small(0.5x), 1=Medium(1x), 2=Large(1.5x)
+  // EXE: explosion scale is resolution-dependent (file 0x2B4A8, icons.cpp)
+  // 320×200 (FG_MAXX==319): Normal=0.5, Medium=0.75, Large=1.0 (DS:0x5250/0x5254/default)
+  // >320 wide:               Normal=1.0, Medium=2.0, Large=3.0 (default/DS:0x5258/0x525C)
   if (result.radius > 0) {
-    const scale = [0.5, 1.0, 1.5][config.explosionScale] || 1.0;
+    const scale = config.screenWidth <= 320
+      ? [0.5, 0.75, 1.0][config.explosionScale] || 1.0
+      : [1.0, 2.0, 3.0][config.explosionScale] || 1.0;
     result.radius = Math.floor(result.radius * scale);
   }
 

@@ -193,7 +193,13 @@ DS:0x1D44,BOUNCE_SPRING: float64 -2.0 — doubled velocity reflection
 0x2A226,bounce_handler: LeapFrog bounce — damage_type countdown, radius from DS:0x50CA table, speed÷1.5
 DS:0x50CA,BOUNCE_RADIUS_TABLE: {20, 25, 30} int16×3 — indexed by damage_type (0=final, 2=first bounce)
 DS:0x50D0,BOUNCE_SPEED_DIVISOR: float32 1.5 — velocity divided by this each bounce
-DS:0x50DA,EXPLOSION_SCALE_FLOAT: runtime float64, Small/Medium/Large config multiplier
+DS:0x50DA,EXPLOSION_SCALE_FLOAT: runtime float64, resolution-dependent — 320×200:[0.5,0.75,1.0] vs >320:[1.0,2.0,3.0]
+DS:0x5112,EXPLOSION_SCALE_INDEX: config index 0=Normal 1=Medium 2=Large — from SCORCH.CFG EXPLOSION_SCALE
+DS:0x5250,SCALE_SMALL_NORMAL: float32 0.5 — 320×200 Normal scale
+DS:0x5254,SCALE_SMALL_MEDIUM: float32 0.75 — 320×200 Medium scale
+DS:0x5258,SCALE_LARGE_MEDIUM: float32 2.0 — >320 Medium scale
+DS:0x525C,SCALE_LARGE_LARGE: float32 3.0 — >320 Large scale
+0x2B4A8,setup_explosion_scale: fld1→fstp default 1.0; branches on FG_MAXX==319 (320×200) vs larger
 0x21397,set_damage_type_for_leapfrog: player+0x54=2 when weapon.bhv_type==0x0006
 0x2A3DB,bounce_decrement_damage_type: lea ax,[di-1] → player+0x54 = damage_type-1
 0x2DA00,napalm_main_handler: pixel-walking particle system (NOT velocity-based)
