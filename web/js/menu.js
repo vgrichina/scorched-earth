@@ -596,10 +596,11 @@ export function drawMainMenu() {
 
   // 5. Embossed title "Scorched Earth" (EXE: title_3d_text at 0x4CEFD)
   // EXE layers: deep_shadow(0,0), bright(1,1), dark(2,2), light(3,3), dark_border(4,4)
+  // EXE centering at 0x3D6CF: width = 2*textW + 4 (not textW + 4), shifts title left of center
   const titleStr = 'Scorched Earth';
-  const embossLayers = 5;
-  const embossShift = embossLayers - 1; // 4px total shift from layer 0 to layer 4
-  const titleX = centerXRight(titleStr) - Math.floor(embossShift / 2); // center the full embossed width
+  const titleW = measureText(titleStr);
+  const embossCenterW = 2 * titleW + 4; // EXE: add ax,ax; add ax,4 at 0x3D6CF
+  const titleX = Math.floor((getScreenW() - 1 - getRightX() - embossCenterW) / 2) + getRightX();
   const titleY = isSmallMode() ? 2 : 11;   // EXE: Y=2 (small) / Y=11 (large)
   drawTextEmbossed(titleX, titleY, titleStr, [
     UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
@@ -613,19 +614,27 @@ export function drawMainMenu() {
   const regStr = 'Registered Version';
   drawText(centerXRight(regStr), isSmallMode() ? 52 : 71, regStr, UI_DARK_TEXT);
 
-  // 7. Copyright at bottom of right panel
-  // EXE: sprintf produces "1.50 Copyright (c) 1991-1995 Wendell Hicken",
-  // split to two lines only if text_measure says it's too wide for the panel
-  const copyFull = '1.50 Copyright (c) 1991-1995 Wendell Hicken';
-  const panelW = getScreenW() - 6 - getRightX();
-  if (measureText(copyFull) <= panelW) {
-    drawText(centerXRight(copyFull), getScreenH() - 33, copyFull, UI_DARK_TEXT);
+  // 7. Copyright at bottom of right panel (EXE: 0x3D790-0x3D84E)
+  // EXE renders copyright and version as SEPARATE lines:
+  //   copyright at Y = screenH-21, version "Version 1.50" above at Y = copyrightY - 13
+  // If copyright is too wide (checked at 0x3D7C0), splits to two lines (Y -= 13 each)
+  const copyrightStr = 'Copyright (c) 1991-1995 Wendell Hicken';
+  let copyrightY = getScreenH() - 21; // EXE: FG_MAXY - 20 = screenH - 21 (0x3D793)
+  const panelW = getScreenW() - 1 - getRightX() - 10; // EXE: FG_MAXX - bp_3A - 10 (0x3D7BD)
+  if (measureText(copyrightStr) <= panelW) {
+    // Single-line copyright
+    drawText(centerXRight(copyrightStr), copyrightY, copyrightStr, UI_DARK_TEXT);
   } else {
-    const copy1 = '1.50 Copyright (c) 1991-1995';
+    // Two-line copyright: first line shifted up by 13
+    copyrightY -= 13; // EXE: sub [bp-0x2E], 0x0D (0x3D7C4)
+    const copy1 = 'Copyright (c) 1991-1995';
     const copy2 = 'Wendell Hicken';
-    drawText(centerXRight(copy1), getScreenH() - 33, copy1, UI_DARK_TEXT);
-    drawText(centerXRight(copy2), getScreenH() - 20, copy2, UI_DARK_TEXT);
+    drawText(centerXRight(copy1), copyrightY, copy1, UI_DARK_TEXT);
+    drawText(centerXRight(copy2), copyrightY + 13, copy2, UI_DARK_TEXT);
   }
+  // Version line above copyright (EXE: sprintf "%s %s", "Version", "1.50" at 0x3D855)
+  const versionStr = 'Version 1.50';
+  drawText(centerXRight(versionStr), copyrightY - 13, versionStr, UI_DARK_TEXT);
 
   // 8. Save feedback
   if (menu.saveFlash > 0) {
