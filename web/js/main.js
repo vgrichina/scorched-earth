@@ -246,7 +246,7 @@ function drawRoundOver() {
 
   // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead
   if (alive.length === 1) {
-    drawTextShadow(104, 60, alive[0].name + ' wins!', alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
+    drawTextShadow(104, 60, alive[0].name, alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
   } else {
     drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
   }
