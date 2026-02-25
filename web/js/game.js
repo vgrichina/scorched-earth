@@ -116,18 +116,18 @@ export const game = {
   aimTimer: 0,
 };
 
-// EXE: wind generation — positive-biased with NESTED random doubling (file 0x2943A)
-// Formula: rand(max_wind) - max_wind/4 → range [-max/4, +3*max/4); positive-biased
+// EXE: wind generation — centered with NESTED random doubling (file 0x2943A)
+// Formula: rand(max_wind/2) - max_wind/4 → range [-max/4, +max/4); approximately centered
 // 20% chance ×2; nested 40% of that = 8% total chance of ×4
 export function generateWind() {
   const maxWind = config.wind;
   if (maxWind === 0) { game.wind = 0; return; }
-  let wind = random(maxWind) - Math.floor(maxWind / 4);
+  let wind = random(Math.floor(maxWind / 2)) - Math.floor(maxWind / 4);
   if (random(100) < 20) {
     wind *= 2;
     if (random(100) < 40) wind *= 2;  // nested: only if first double fired
   }
-  game.wind = clamp(wind, -maxWind * 4, maxWind * 4);
+  game.wind = wind;  // EXE has no clamp on initial generation; natural range ≈ [-max, +max]
 }
 
 // Resolve Erratic/Random wall types to a concrete wall type
