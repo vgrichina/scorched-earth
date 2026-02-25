@@ -39,8 +39,9 @@ function getScreenH() { return config.screenHeight; }
 function getFrameX() { return getRightX(); }
 function getFrameY() { return 6; }
 function getFrameW() { return getScreenW() - 6 - getRightX(); }
-// EXE: height = screenH - 37 (reduced to screenH - 51 if copyright overflows)
-function getFrameH() { return getScreenH() - 37; }
+// EXE: draw_flat_box(minx, 6, maxx, maxy) where maxy = fg_getmaxy - 36 = screenH-37 (inclusive)
+// Height = maxy - miny + 1 = (screenH-37) - 6 + 1 = screenH - 42
+function getFrameH() { return getScreenH() - 42; }
 // Interior (2px inset)
 function getPrevX() { return getFrameX() + 2; }
 function getPrevY() { return getFrameY() + 2; }
