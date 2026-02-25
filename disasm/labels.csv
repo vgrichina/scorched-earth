@@ -349,3 +349,9 @@ DS:0x2E2A,STR_NO_KIBITZING
 DS:0xEF3A,FG_MAXY
 DS:0xEF3E,FG_MAXX
 0x44630,draw_flat_box
+DS:0x2100,scale_name_ptrs_static
+DS:0x27CC,STR_NORMAL
+DS:0x6294,wall_type_name_ptrs_bss
+DS:0x62CC,scale_name_ptrs_bss
+0x3D978,init_wall_type_names
+0x3DA35,init_scale_names
