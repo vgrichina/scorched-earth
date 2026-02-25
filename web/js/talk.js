@@ -208,10 +208,10 @@ export function drawSpeechBubble() {
 
   // EXE: si = tank.X - textWidth/2 (center text on tank)
   // EXE: clamps X to screen bounds: left = EF42+5, right = EF3C - textWidth - 11
-  const sw = config.screenWidth;
+  const FG_MAXX = config.screenWidth - 1;  // EXE: DS:EF3C = SHIELD_DRAW_X_MAX
   let tx = Math.round(bubble.x - textWidth / 2);
   if (tx < 5) tx = 5;
-  if (tx + textWidth > sw - 11) tx = sw - 11 - textWidth;
+  if (tx + textWidth > FG_MAXX - 10) tx = FG_MAXX - textWidth - 11;
 
   // EXE: text Y = tank.Y - 19 (bubble.y is already set to player.y - 19)
   const ty = Math.max(1, bubble.y);
