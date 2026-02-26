@@ -223,24 +223,28 @@ export function clear(colorIndex) {
 
 // EXE: draw_3d_box at file 0x444BB (0x3DAB:0x000B) — raised box, Windows 3.1-style
 // EXE: draw_3d_box at file 0x444BB — raised 3D border
-// EXE: 2px beveled border normally; 3px when [DS:0x6E28]==3 (hi-res mode, 640x480+)
+// EXE: ASYMMETRIC borders in hi-res (DS:0x6E28==3, 640x480+):
+//   TOP/BOTTOM hlines: 3px (conditional 3rd line at 0x44526/0x445B9)
+//   LEFT/RIGHT vlines: always 2px (no hi-res conditional)
+//   Fill rect: (minx+2, miny+bV, maxx-2, maxy-bV) — 2px X inset, 2-3px Y inset
 // EXE: each edge uses ONE color for all border lines of that edge:
 //   Left=DS:0xEF26, Top=DS:0xEF2E, Right=DS:0xEF30, Bottom=DS:0xEF32
 // Callers pass: (UI_DARK_BORDER=EF26, UI_LIGHT_BORDER=EF2E, UI_MED_BORDER=EF30, UI_BRIGHT_BORDER=EF32)
 export function drawBox3DRaised(x, y, w, h, fill, leftColor, topColor, rightColor, bottomColor) {
-  const b = config.screenHeight >= 400 ? 3 : 2;
-  fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
+  const bV = config.screenHeight >= 400 ? 3 : 2; // TOP/BOTTOM border width (hi-res gets 3rd line)
+  const bH = 2;                                   // LEFT/RIGHT border width (always 2)
+  fillRect(x + bH, y + bV, x + w - bH - 1, y + h - bV - 1, fill);
   // EXE: hlines claim corner pixels; vlines skip corner rows to avoid overlap
-  for (let i = 0; i < b; i++) {
+  for (let i = 0; i < bV; i++) {
     hline(x + i, x + w - 1 - i, y + i, topColor);
   }
-  for (let i = 0; i < b; i++) {
+  for (let i = 0; i < bV; i++) {
     hline(x + i, x + w - 1 - i, y + h - 1 - i, bottomColor);
   }
-  for (let i = 0; i < b; i++) {
+  for (let i = 0; i < bH; i++) {
     vline(x + i, y + i + 1, y + h - 2 - i, leftColor);
   }
-  for (let i = 0; i < b; i++) {
+  for (let i = 0; i < bH; i++) {
     vline(x + w - 1 - i, y + i + 1, y + h - 2 - i, rightColor);
   }
 }
