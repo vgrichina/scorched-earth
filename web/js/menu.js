@@ -609,12 +609,14 @@ export function drawMainMenu() {
   ]);
 
   // 6. Subtitle "The Mother of All Games" (EXE: Y=27 small / Y=41 large)
+  // EXE: no fg_setcolor between title_3d_text and subtitle — inherits last layer color EF26
   const subStr = 'The Mother of All Games';
-  drawText(centerXRight(subStr), isSmallMode() ? 27 : 41, subStr, UI_DARK_TEXT);
+  drawText(centerXRight(subStr), isSmallMode() ? 27 : 41, subStr, UI_DARK_BORDER);
 
   // 6b. "Registered Version" (EXE: Row 3, Y=52 small / Y=71 large)
+  // EXE: still inheriting EF26 from title_3d_text (no fg_setcolor call)
   const regStr = 'Registered Version';
-  drawText(centerXRight(regStr), isSmallMode() ? 52 : 71, regStr, UI_DARK_TEXT);
+  drawText(centerXRight(regStr), isSmallMode() ? 52 : 71, regStr, UI_DARK_BORDER);
 
   // 7. Copyright at bottom of right panel (EXE: 0x3D790-0x3D84E)
   // EXE renders copyright and version as SEPARATE lines:
@@ -623,20 +625,21 @@ export function drawMainMenu() {
   const copyrightStr = 'Copyright (c) 1991-1995 Wendell Hicken';
   let copyrightY = getScreenH() - 21; // EXE: FG_MAXY - 20 = screenH - 21 (0x3D793)
   const panelW = getScreenW() - 1 - getRightX() - 10; // EXE: FG_MAXX - bp_3A - 10 (0x3D7BD)
+  // EXE: fg_setcolor(EF2C) at 0x3D786 — copyright/version in deep shadow (black)
   if (measureText(copyrightStr) <= panelW) {
     // Single-line copyright
-    drawText(centerXRight(copyrightStr), copyrightY, copyrightStr, UI_DARK_TEXT);
+    drawText(centerXRight(copyrightStr), copyrightY, copyrightStr, UI_DEEP_SHADOW);
   } else {
     // Two-line copyright: first line shifted up by 13
     copyrightY -= 13; // EXE: sub [bp-0x2E], 0x0D (0x3D7C4)
     const copy1 = 'Copyright (c) 1991-1995';
     const copy2 = 'Wendell Hicken';
-    drawText(centerXRight(copy1), copyrightY, copy1, UI_DARK_TEXT);
-    drawText(centerXRight(copy2), copyrightY + 13, copy2, UI_DARK_TEXT);
+    drawText(centerXRight(copy1), copyrightY, copy1, UI_DEEP_SHADOW);
+    drawText(centerXRight(copy2), copyrightY + 13, copy2, UI_DEEP_SHADOW);
   }
   // Version line above copyright (EXE: sprintf "%s %s", "Version", "1.50" at 0x3D855)
   const versionStr = 'Version 1.50';
-  drawText(centerXRight(versionStr), copyrightY - 13, versionStr, UI_DARK_TEXT);
+  drawText(centerXRight(versionStr), copyrightY - 13, versionStr, UI_DEEP_SHADOW);
 
   // 8. Save feedback
   if (menu.saveFlash > 0) {
