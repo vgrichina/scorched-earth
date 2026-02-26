@@ -252,6 +252,7 @@ DS:0x57E2,player color RGB table: 10 players * 6 bytes (R,G,B words, VGA 6-bit)
 0x2253A,mag_deflector_apply_damping: vx/vy *= DS:1D54 (0.75); absorb if speed² < DS:1D58 (2000.0)
 DS:0x1D54,MAG_DAMP_COEFF = 0.75 (f32): Mag Deflector collision velocity damping factor
 DS:0x1D58,MAG_ABSORB_THRESHOLD = 2000.0 (f32): speed² below this → projectile absorbed
+0x444BB,draw_3d_box(minx, miny, maxx, maxy): raised 3D border (2px lo-res, 3px hi-res) using per-edge colors LEFT=EF26 TOP=EF2E RIGHT=EF30 BOTTOM=EF32
 DS:0x1C7E,MAG_DAMPING_APPLIED_FLAG: set to 1 when Mag Deflector collision damping is applied
 DS:0xEF3A,FG_MAXY: fg_getmaxy() = screenH - 1 (max Y pixel coordinate)
 DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)

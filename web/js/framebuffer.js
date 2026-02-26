@@ -222,48 +222,48 @@ export function clear(colorIndex) {
 }
 
 // EXE: draw_3d_box at file 0x444BB (0x3DAB:0x000B) — raised box, Windows 3.1-style
+// EXE: draw_3d_box at file 0x444BB — raised 3D border
 // EXE: 2px beveled border normally; 3px when [DS:0x6E28]==3 (hi-res mode, 640x480+)
-// EXE: Left/Top = DS:0xEF26(dark) + DS:0xEF2E(light),
-//      Right/Bottom = DS:0xEF30(med) + DS:0xEF32(bright). Interior = fill_color.
-export function drawBox3DRaised(x, y, w, h, fill, lightBorder, darkBorder, medBorder, brightBorder) {
-  // EXE: 3px border at hi-res ([DS:0x6E28]==3 i.e. 640x480+)
+// EXE: each edge uses ONE color for all border lines of that edge:
+//   Left=DS:0xEF26, Top=DS:0xEF2E, Right=DS:0xEF30, Bottom=DS:0xEF32
+// Callers pass: (UI_DARK_BORDER=EF26, UI_LIGHT_BORDER=EF2E, UI_MED_BORDER=EF30, UI_BRIGHT_BORDER=EF32)
+export function drawBox3DRaised(x, y, w, h, fill, leftColor, topColor, rightColor, bottomColor) {
   const b = config.screenHeight >= 400 ? 3 : 2;
   fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
-  // Top/Left edges — outer=light, inner(s)=dark
-  hline(x, x + w - 1, y, lightBorder);
-  vline(x, y, y + h - 1, lightBorder);
-  for (let i = 1; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + i, darkBorder);
-    vline(x + i, y + i, y + h - 1 - i, darkBorder);
+  // EXE: hlines claim corner pixels; vlines skip corner rows to avoid overlap
+  for (let i = 0; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + i, topColor);
   }
-  // Bottom/Right edges — outer=bright, inner(s)=med
-  hline(x, x + w - 1, y + h - 1, brightBorder);
-  vline(x + w - 1, y, y + h - 1, brightBorder);
-  for (let i = 1; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + h - 1 - i, medBorder);
-    vline(x + w - 1 - i, y + i, y + h - 1 - i, medBorder);
+  for (let i = 0; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + h - 1 - i, bottomColor);
+  }
+  for (let i = 0; i < b; i++) {
+    vline(x + i, y + i + 1, y + h - 2 - i, leftColor);
+  }
+  for (let i = 0; i < b; i++) {
+    vline(x + w - 1 - i, y + i + 1, y + h - 2 - i, rightColor);
   }
 }
 
 // EXE: draw_flat_box at file 0x44630 (0x3DAB:0x0180) — sunken/inset frame
-// EXE: reversed bevel. Top=DS:0xEF30, Left=DS:0xEF32, Bottom=DS:0xEF26, Right=DS:0xEF2E
-// EXE: also uses 3px border at hi-res (same [DS:0x6E28] check)
-export function drawBox3DSunken(x, y, w, h, fill, medBorder, brightBorder, darkBorder, lightBorder) {
+// EXE: reversed bevel — each edge uses ONE color:
+//   Left=DS:0xEF30, Top=DS:0xEF32, Right=DS:0xEF26, Bottom=DS:0xEF2E
+// Callers pass: (UI_MED_BORDER=EF30, UI_BRIGHT_BORDER=EF32, UI_DARK_BORDER=EF26, UI_LIGHT_BORDER=EF2E)
+export function drawBox3DSunken(x, y, w, h, fill, leftColor, topColor, rightColor, bottomColor) {
   const b = config.screenHeight >= 400 ? 3 : 2;
   fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
-  // Top/Left edges — outer=med, inner(s)=bright
-  hline(x, x + w - 1, y, medBorder);
-  vline(x, y, y + h - 1, brightBorder);
-  for (let i = 1; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + i, brightBorder);
-    vline(x + i, y + i, y + h - 1 - i, medBorder);
+  // Same structure as raised box: hlines claim corners, vlines skip corner rows
+  for (let i = 0; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + i, topColor);
   }
-  // Bottom/Right edges — outer=dark, inner(s)=light
-  hline(x, x + w - 1, y + h - 1, darkBorder);
-  vline(x + w - 1, y, y + h - 1, lightBorder);
-  for (let i = 1; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + h - 1 - i, lightBorder);
-    vline(x + w - 1 - i, y + i, y + h - 1 - i, darkBorder);
+  for (let i = 0; i < b; i++) {
+    hline(x + i, x + w - 1 - i, y + h - 1 - i, bottomColor);
+  }
+  for (let i = 0; i < b; i++) {
+    vline(x + i, y + i + 1, y + h - 2 - i, leftColor);
+  }
+  for (let i = 0; i < b; i++) {
+    vline(x + w - 1 - i, y + i + 1, y + h - 2 - i, rightColor);
   }
 }
 
