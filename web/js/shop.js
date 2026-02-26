@@ -773,9 +773,9 @@ export function drawShop(player) {
   }
 
   const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-  // EXE: paint callback (file 0x1580D) uses player_color+4 for selection fill (lighter shade)
-  // Web: slot 3 = 80% brightness — visible highlight without being blinding
-  const selFill = player.index * PLAYER_PALETTE_STRIDE + 3;
+  // EXE: paint callback (file 0x1580D) uses [EF22] = player's full base color for selection fill
+  // EXE: [EF22] is set to the player's palette index (slot 4 = full brightness) before drawing
+  const selFill = baseColor; // = slot 4 = PLAYER_COLOR_FULL, matching EXE [EF22]
 
   // Full-screen 3D raised box (EXE: dialog_alloc creates full-screen modal)
   // EXE draw_3d_box: outer TL=EF26(UI_DARK_BORDER=WHITE), inner TL=EF2E, inner BR=EF30, outer BR=EF32

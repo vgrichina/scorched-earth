@@ -70,6 +70,7 @@ DS:0x5068,FMT_WIND_ZERO
 0x6F00,_fabs
 0x6A00,code_start
 0x28592,setup_player_palette
+0x1580D,shop_paint_callback
 0x3A0A9,setup_sky_ceiling_palette
 0x4569F,store_sky_base_index
 0x261D7,draw_icon_alive
