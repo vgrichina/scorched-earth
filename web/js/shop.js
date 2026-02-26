@@ -601,7 +601,7 @@ export function shopTick(player) {
       const panelHTick = SH - PANEL_Y - TAB_H - 2;
       const listYTick  = PANEL_Y + 16;
       const btnHTick   = SB_W;
-      const bTick      = config.screenHeight >= 400 ? 3 : 2;
+      const bTick      = 1; // draw_flat_box uses 1px border
       const trkTopTick = listYTick + btnHTick + bTick;
       const trkBotTick = PANEL_Y + panelHTick - 3 - btnHTick - bTick;
       const innerHTick = trkBotTick - trkTopTick;
@@ -671,7 +671,7 @@ export function shopTick(player) {
         }
         // Track / thumb area
         else if (my >= trkTop && my < trkBot) {
-          const b = config.screenHeight >= 400 ? 3 : 2;
+          const b = 1; // draw_flat_box uses 1px border
           const innerH = (trkBot - trkTop) - 2 * b;
           const thumbH = Math.max(8, Math.floor(innerH * perPage / shop.items.length));
           const thumbY = trkTop + b + (maxScroll > 0
@@ -918,11 +918,11 @@ export function drawShop(player) {
 
       // Thumb (raised 3D box) — proportional to visible/total items
       if (trkH > 8) {
-        const b = config.screenHeight >= 400 ? 3 : 2; // track border
-        const innerH = trkH - 2 * b;
+        const trackBorder = 1; // draw_flat_box uses 1px border
+        const innerH = trkH - 2 * trackBorder;
         const thumbH = Math.max(8, Math.floor(innerH * perPageSb / shop.items.length));
         const maxScroll = shop.items.length - perPageSb;
-        const thumbY = trkTop + b + (maxScroll > 0
+        const thumbY = trkTop + trackBorder + (maxScroll > 0
           ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll)
           : 0);
         drawBox3DRaised(sbX + 1, thumbY, SB_W - 2, thumbH, UI_BACKGROUND,

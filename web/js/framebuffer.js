@@ -246,25 +246,21 @@ export function drawBox3DRaised(x, y, w, h, fill, leftColor, topColor, rightColo
 }
 
 // EXE: draw_flat_box at file 0x44630 (0x3DAB:0x0180) — sunken/inset frame
+// EXE: 1px border only (unlike draw_3d_box which uses 2-3px)
 // EXE: reversed bevel — each edge uses ONE color:
 //   Left=DS:0xEF30, Top=DS:0xEF32, Right=DS:0xEF26, Bottom=DS:0xEF2E
+// Corner ownership: Left=TL, Top=TR, Right=BR, Bottom=BL (differs from raised box)
 // Callers pass: (UI_MED_BORDER=EF30, UI_BRIGHT_BORDER=EF32, UI_DARK_BORDER=EF26, UI_LIGHT_BORDER=EF2E)
 export function drawBox3DSunken(x, y, w, h, fill, leftColor, topColor, rightColor, bottomColor) {
-  const b = config.screenHeight >= 400 ? 3 : 2;
-  fillRect(x + b, y + b, x + w - b - 1, y + h - b - 1, fill);
-  // Same structure as raised box: hlines claim corners, vlines skip corner rows
-  for (let i = 0; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + i, topColor);
-  }
-  for (let i = 0; i < b; i++) {
-    hline(x + i, x + w - 1 - i, y + h - 1 - i, bottomColor);
-  }
-  for (let i = 0; i < b; i++) {
-    vline(x + i, y + i + 1, y + h - 2 - i, leftColor);
-  }
-  for (let i = 0; i < b; i++) {
-    vline(x + w - 1 - i, y + i + 1, y + h - 2 - i, rightColor);
-  }
+  // EXE draw_flat_box (0x44630): 1px sunken border — NOT multi-pixel like raised box.
+  // Corner ownership: Left=TL, Top=TR, Right=BR, Bottom=BL
+  const x2 = x + w - 1;
+  const y2 = y + h - 1;
+  fillRect(x + 1, y + 1, x2 - 1, y2 - 1, fill);
+  vline(x, y, y2 - 1, leftColor);       // LEFT: owns top-left corner
+  hline(x + 1, x2, y, topColor);        // TOP: owns top-right corner
+  vline(x2, y + 1, y2, rightColor);     // RIGHT: owns bottom-right corner
+  hline(x, x2 - 1, y2, bottomColor);    // BOTTOM: owns bottom-left corner
 }
 
 // Blit indexed framebuffer to canvas
