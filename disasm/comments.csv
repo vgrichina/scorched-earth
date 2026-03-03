@@ -341,3 +341,4 @@ DS:0x5142,STATUS_BAR: 0=basic HUD Row 1 only (power bar+icons); nonzero=expanded
 0x28DA4,draw_wind_pixel: (X, Y) — get bg pixel color via [EEF8]; if bg in [0x50..0x68] (sky range) use palette 87 else palette 154; draw pixel via [EEF4]; used for arrow pixels
 0x28E43,wind_text_pixel_callback: font callback for draw_wind_indicator text; maps (col, row) to screen (col+DS:D4E0, row+DS:D4E2); applies same sky-adaptive color logic as draw_wind_pixel
 DS:0x515A,WIND_SPEED: current wind speed, signed int16; negative=leftward, positive=rightward, 0=no wind; updated by update_wind (add rand(-5..+5), clamp ±DS:515C=MAX_WIND)
+0x4CEFD,draw_embossed_text(int x, int y, char far* str): draws text 5× at (x+i, y+i) for i=0..4 with colors EF2C→EF32→EF24→EF2A→EF26 (BLACK→dark-gray→dim-gray→light-gray→WHITE); after return DS:6E2A=EF26=WHITE

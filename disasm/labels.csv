@@ -37,6 +37,11 @@ DS:0x5068,FMT_WIND_ZERO
 0x2A850,call_main_menu
 0x3D140,main_menu
 0x3D59B,main_menu_right_panel
+0x4CEFD,draw_embossed_text
+DS:0x206C,title_scorched_earth_far_ptr
+DS:0x2070,title_subtitle_far_ptr
+DS:0x269B,str_Scorched_Earth
+DS:0x26AA,str_The_Mother_of_All_Games
 0x3BA1C,btn_start_handler
 0x3BA31,btn_save_changes
 0x3CFBC,btn_save_changes_alt
