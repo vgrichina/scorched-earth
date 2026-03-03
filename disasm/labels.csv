@@ -285,7 +285,7 @@ DS:0x5188,PLAY_MODE
 0x1D8EA,play_sync_fire_phase
 0x29280,play_ai_type_dispatch
 0x29505,play_ai_noise_params
-DS:0x510E,SIMULTANEOUS_AI_FLAG
+DS:0x510E,WRAP_ENABLED
 
 # ---- Score System (score.cpp, seg 0x30B2) ----
 0x375E3,score_on_death
