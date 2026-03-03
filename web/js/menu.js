@@ -30,8 +30,9 @@ function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large
 function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
 function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
 function getBtnH()   { return getRowH() - 2; }             // button height = row_h - 2 gap
-// EXE: dialog item spacing — adds 5px at screenH >= 400px (shop analysis confirmed)
-function getSubRowH() { return getScreenH() >= 400 ? 19 : 14; }
+// EXE: submenu item pitch 15px ([bp-0x0A]=15 at 0x3BA92; items at y=5,20,35,50...n*15+5)
+// Web adds 4px extra in hi-res (19) for readability; lo-res must be 15 (not 14)
+function getSubRowH() { return getScreenH() >= 400 ? 19 : 15; }
 function getScreenW() { return config.screenWidth; }
 function getScreenH() { return config.screenHeight; }
 
