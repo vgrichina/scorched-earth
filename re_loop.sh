@@ -74,8 +74,12 @@ RE tools (all under disasm/):
   # Supporting tools:
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -s
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -w -n 32
+  python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -f32 -n 4  # float32 values
+  python3 disasm/decode_float64.py earth/SCORCH.EXE DS:0xXXXX -f32 -n 4  # same + raw bytes
   python3 disasm/xref.py earth/SCORCH.EXE DS:0xXXXX --code
-  python3 disasm/xref.py earth/SCORCH.EXE --callers 0xFILEOFF  # find all callers of function
+  python3 disasm/xref.py earth/SCORCH.EXE --callers 0xFILEOFF  # far-call callers of function
+  python3 disasm/find_callers.py earth/SCORCH.EXE 0xFILEOFF    # far+near callers of function
+  python3 disasm/seg_offset.py SEG:OFF DS:0xXXXX 0xFILEOFF     # convert between address forms
   python3 disasm/struct_dump.py earth/SCORCH.EXE weapon -n 60
   python3 disasm/strings_dump.py earth/SCORCH.EXE -g \"pattern\"
   python3 disasm/icon_dump.py earth/SCORCH.EXE 0 -n 8
@@ -91,7 +95,7 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
   echo "$PROMPT" | claude -p \
     --output-format stream-json \
     --max-turns 50 \
-    --allowedTools "Bash(python3 disasm/fpu_decode.py*),Bash(python3 disasm/ds_lookup.py*),Bash(python3 disasm/xref.py*),Bash(python3 disasm/struct_dump.py*),Bash(python3 disasm/strings_dump.py*),Bash(python3 disasm/icon_dump.py*),Bash(python3 disasm/font_dump.py*),Bash(python3 disasm/palette_dump.py*),Bash(python3 disasm/seg_offset.py*),Bash(python3 disasm/*.py*),Bash(git add*),Bash(git commit*),Bash(git log*),Bash(git status*),Bash(git diff*),Read,Edit,Write,Glob,Grep" \
+    --allowedTools "Bash(python3 disasm/dis.py*),Bash(python3 disasm/ds_lookup.py*),Bash(python3 disasm/xref.py*),Bash(python3 disasm/find_callers.py*),Bash(python3 disasm/struct_dump.py*),Bash(python3 disasm/strings_dump.py*),Bash(python3 disasm/decode_float64.py*),Bash(python3 disasm/seg_offset.py*),Bash(python3 disasm/icon_dump.py*),Bash(python3 disasm/palette_dump.py*),Bash(git add*),Bash(git commit*),Bash(git log*),Bash(git status*),Bash(git diff*),Read,Edit,Write,Glob,Grep" \
     | jq --unbuffered -r '
         if .type == "assistant" then
           .message.content[] |
