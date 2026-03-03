@@ -35,7 +35,9 @@ for (( i=1; i<=MAX; i++ )); do
 
   PROMPT="Continue the Scorched Earth v1.50 reverse-engineering and web port project.
 
-Before picking a task, read the 2-3 most recent session logs in re_loop_sessions/ (format: YYYYMMDD_HHMMSS_session_NNN.txt, sorted by name — pick the last few). Skim them to understand what was just investigated and what dead ends were hit, so you don't repeat the same work.
+Before picking a task:
+1. Read disasm/dead_ends.md for known investigation dead-ends (avoid repeating these).
+2. Read the 2-3 most recent STANDALONE session summaries in re_loop_sessions/ (format: YYYYMMDD_session_NNN.txt — NOT the verbose YYYYMMDD_HHMMSS_*.txt tool-call logs. Skim them to understand what was just investigated.
 
 Then read REVERSE_ENGINEERING.md '## Next Tasks' section. Pick the top $TASKS unchecked items (\`- [ ]\`).
 
@@ -54,6 +56,8 @@ Do not batch all investigation before writing — write after every few tool cal
 3. Update REVERSE_ENGINEERING.md to note what was changed.
 No need to re-investigate the binary — all values are already documented.
 
+**If stuck**: If after 10 tool calls you have not made progress on an investigation, STOP. Add what you learned to disasm/dead_ends.md. Then break the stuck task into 2-3 smaller sub-tasks in REVERSE_ENGINEERING.md (e.g., 'Find function X callers using --callers mode', 'Trace code path Y from known label Z'). Mark the original task [x] with note 'Split into sub-tasks'. Move to the next task.
+
 Mark task done (\`- [x]\`) once fully documented/implemented.
 End your final message with: SESSION_SUMMARY: <one line>
 
@@ -71,6 +75,7 @@ RE tools (all under disasm/):
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -s
   python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xXXXX -w -n 32
   python3 disasm/xref.py earth/SCORCH.EXE DS:0xXXXX --code
+  python3 disasm/xref.py earth/SCORCH.EXE --callers 0xFILEOFF  # find all callers of function
   python3 disasm/struct_dump.py earth/SCORCH.EXE weapon -n 60
   python3 disasm/strings_dump.py earth/SCORCH.EXE -g \"pattern\"
   python3 disasm/icon_dump.py earth/SCORCH.EXE 0 -n 8
@@ -117,7 +122,7 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
   SUMMARY=$(git diff REVERSE_ENGINEERING.md | grep '^+- \[x\]' | head -1 | sed 's/^+- \[x\] //' || true)
   [[ -z "$SUMMARY" ]] && SUMMARY="session $i progress"
 
-  git add REVERSE_ENGINEERING.md web/ disasm/labels.csv disasm/comments.csv
+  git add REVERSE_ENGINEERING.md web/ disasm/labels.csv disasm/comments.csv disasm/dead_ends.md
   if git diff --cached --quiet; then
     echo "No changes — retrying same task..."
     continue
