@@ -3376,7 +3376,7 @@ All located in `disasm/` directory:
 #### AI system (ai.js) — session 107
 - [x] Add AI sticky targeting: **DONE**. EXE Moron AI (0x38B4E) reads player struct +0x8E/+0x90 (stored previous target far ptr) before each targeting pass. 0x254AF is inside the main solver, not a separate function entry. The sticky target state is stored per-player in `playerLastTarget` Map. ai.js `selectTarget()`: returns `playerLastTarget.get(shooter)` if that player is still alive, otherwise finds nearest alive enemy by Euclidean distance and stores result in `playerLastTarget`. `resetAINoise()` now also clears `playerLastTarget`. **Files**: ai.js
 - [x] Fix Spoiler AI noise budget: **DONE**. EXE function at file 0x29564 (in icons.cpp, called from per_turn_fire_setup 0x2927E when DS:0x5150 != 0) generates: `random(2)→DS:0x5172`, `random(100)→DS:0x516E`, `random(100)→DS:0x5170` — these are random noise values for Spoiler's budget per solve. Unlike other AI types which use fixed params ([50,50,50] for Moron through [63,63,23] for Chooser), Spoiler regenerates amplitudes each call making its accuracy unpredictable. web ai.js: removed `[AI_TYPE.SPOILER]: [63,63,63]` from `AI_NOISE` table; added `getSpoilerNoise()` returning `[random(64), random(64), random(64)]`; `aiComputeShot()` uses `getSpoilerNoise()` when effectiveType===SPOILER, else `AI_NOISE[...]`. **Additional note**: `play_ai_noise_params` at 0x29505 (comment says "AI type switch") is called with DS:5154 holding the **wall type** (0-5, after random/erratic resolution in per_turn_fire_setup), NOT the AI type. The AI noise dispatch is a distinct mechanism. **Also noted**: EXE ai_inject_noise budget = `amplitude - 30` (from [bp+0x08] at 0x25E43-0x25E49), not a fixed constant; web uses `NOISE_SHOT_RANGE - 30 = 60` which is a separate discrepancy. **Files**: ai.js
-- [ ] Distinguish Simultaneous vs Synchronous play modes: EXE Simultaneous (1) has a countdown timer (DS:0xD506), forced sequential turn order, and batch firing. Synchronous (2) is sequential aim + batch fire (no timer). Note: DS:0x510E is NOT an AI/mode flag — it is WRAP_ENABLED (set=1 when wall type is WRAP). Web collapses both into same SYNC_AIM→SYNC_FIRE path with only `aimTimer` differing. Trace DS:0xD506 timer logic and mode-specific AI behavior differences to implement correctly.
+- [x] Distinguish Simultaneous vs Synchronous play modes: **INVESTIGATED — web port mechanics already correct; doc corrections made.** DS:0xD506 is NOT a mode aiming timer — it is a **projectile damage counter** used in icons.cpp: initialized to `param × 10` at fire time (file 0x2A0C3), decremented by 25-40 per trajectory step (0x29F28, 0x29F95, 0x2A07F), compared to 0 to determine if damage budget remains. The aiming phase countdown is per-player in the play loop, not DS:0xD506. **Key mode distinctions confirmed**: (1) Sequential: animate turret; fire after each aim; show wind indicator, player name/weapon HUD, full display. (2) Simultaneous: clear fire callbacks → NO per-player shots; game cycles through players sequentially (EXE turn handler at 0x3056D skips animation and clears callbacks each pass); wind indicator suppressed (0x307B2: `if PLAY_MODE==0 → draw_wind_indicator`); player name/weapon display suppressed (0x1DBC6: `if mode==0 OR mode==2 → show player name`); different icon-row HUD shown (0x307F6→0x308AB: icon at DS:E9DA+playerIdx×11); per-player countdown timer in input handler. (3) Synchronous: sequential aim with full player HUD; no timer; batch fire. **Web port status**: timer (600 frames/player for Simultaneous), batch SYNC_FIRE, and wind indicator guard (`if config.playMode===0`) already correct. Gap: web shows individual player HUD (weapon/angle/power) during Simultaneous SYNC_AIM — EXE suppresses this and shows icon-row display instead. **DS:0x5142 = STATUS_BAR** (confirmed: DS:0x0536="STATUS_BAR" config key; position in Play Options menu between SCORING_MODE DS:0x50EA and PLAY_ORDER DS:0x519C; shark.cpp 0x38554/0x38631 check `PLAY_MODE==1 AND DS:0x5142!=0` before calling HUD update 0x3249:0x06B4). Doc table corrected: "Timer-controlled (DS:0xD506)" entry removed. See "Play Modes" section for updated table and details.
 
 #### Game logic (game.js) — session 107
 - [ ] Fix play order start rotation for Round Robin and Losers First: EXE `play_order()` at 0x2AE53 case 1 (Losers First) uses DS:0x51A4 to rotate start position each round. Round Robin (3) also rotates. Web just sorts by score with no per-round rotation. Add `game.playOrderStartIdx` tracking and advance it each round for these modes.
@@ -3846,13 +3846,18 @@ Mode name strings: `"Sequential"` at DS:0x2803, `"Simultaneous"` at DS:0x280E, `
 
 | Feature | Sequential (0) | Simultaneous (1) | Synchronous (2) |
 |---------|---------------|-------------------|-----------------|
-| Aiming | One player at a time | All players at once | One at a time |
+| Aiming | One player at a time | Cycles through players (each gets countdown timer) | One at a time, no timer |
 | Firing | After each aim | All at once (batch) | All at once (batch) |
 | Fire callback (+0xAE/+0xB0) | Active | Cleared to NULL | Active during aim |
 | Screen wrapping | Disabled | Enabled | Enabled |
-| Timer-controlled | No | Yes (DS:0xD506) | No |
-| Display updates | Full per-turn | Minimal during aim | Full during aim |
-| AI flag (DS:0x510E) | 0 | 1 | 0 |
+| Per-player timer | No | Yes (in input handler) | No |
+| Wind indicator | Yes (0x307B2) | No (suppressed) | No (suppressed) |
+| Player name/weapon HUD | Yes | No (suppressed, 0x1DBC6) | Yes (same as Sequential) |
+| HUD mode | Individual player | Icon-row (0x307F6→0x308AB) | Individual player |
+| Barrel update | Yes | No (skipped, 0x30706) | No (skipped, 0x30706) |
+| DS:0x510E (WRAP_ENABLED) | 0 | 1 when ELASTIC=WRAP | 0 |
+
+**Note**: DS:0xD506 is a **projectile damage counter** (initialized to `param×10`, decremented per trajectory step), NOT an aiming timer. The "timer" for Simultaneous mode is per-player in the input handler, separate from DS:0xD506.
 
 ### Sequential Mode (0)
 
@@ -3867,22 +3872,26 @@ jmp clear_callbacks     ; yes -> skip animation
 
 ### Simultaneous Mode (1)
 
-All players aim simultaneously with a timer countdown. The fire callback far pointers in the player struct are cleared to prevent individual firing:
+The game cycles through players one at a time. Each player's "aim turn" clears the fire callback pointers (so individual shots are disabled) and returns immediately — no turret animation, no per-player display:
 
 ```
-; File 0x3063A:
+; File 0x3063A (play_clear_fire_callbacks):
 les bx, [0x5182]               ; load current player ptr
 mov word [es:bx+0xB0], 0       ; clear fire callback segment
 mov word [es:bx+0xAE], 0       ; clear fire callback offset
 ```
 
-After the timer expires, all projectiles fire and resolve simultaneously. Screen wrapping is enabled for projectiles that exit the viewport horizontally (file 0x29CA8-0x29CC2):
+The input handler provides a per-player countdown timer (the human player sees a ticking countdown; AI players compute instantly). When the timer expires (or all players have aimed), all stored angle/power values fire simultaneously.
+
+Instead of individual player HUD, Simultaneous mode shows an icon-row display (file 0x308AB): each player's icon is drawn at `DS:E9DA + playerIdx × 11` pixels, showing which player is currently aiming. Wind indicator and player name/weapon text are suppressed.
+
+Screen wrapping enabled for projectiles that exit horizontally (file 0x29CA8-0x29CC2):
 ```
 if x < screen_left:  x += (screen_right - screen_left + 1)
 if x > screen_right: x -= (screen_right - screen_left + 1)
 ```
 
-The AI dispatch at file 0x292CA sets DS:0x510E = 1 to flag simultaneous AI behavior.
+Note: DS:0x510E (WRAP_ENABLED) is set to 1 when ELASTIC==WRAP (wall type 1), not directly by Simultaneous mode.
 
 ### Synchronous Mode (2)
 
@@ -3897,10 +3906,19 @@ At file 0x1DBC6, Sequential and Synchronous are grouped together (`if mode==0 OR
 
 | File Offset | Segment | Purpose |
 |-------------|---------|---------|
-| 0x30560 | ~0x29B6 | Turn handler: turret animation, mode-specific fire dispatch |
-| 0x30652 | ~0x29B6 | Fire check: alive player count, ready-to-fire flag |
-| 0x29280 | 0x2288 | AI type dispatch: randomize Cyborg/Unknown, set AI flags |
-| 0x29505 | 0x22B0 | AI accuracy: noise parameter switch (types 0-5 only) |
+| 0x30560 | play.cpp | Turn handler: Sequential→animate turret; Simultaneous→clear fire callbacks; returns |
+| 0x3063A | play.cpp | play_clear_fire_callbacks: clears player+0xAE/+0xB0 to NULL |
+| 0x30652 | play.cpp | play_fire_talk_guard: fire + show attack comment |
+| 0x307B2 | play.cpp | if PLAY_MODE==0 → draw_wind_indicator |
+| 0x307F6 | play.cpp | if PLAY_MODE==1 → Simultaneous icon-row HUD (0x308AB), else normal HUD |
+| 0x308AB | play.cpp | Simultaneous HUD: draw player icon at DS:E9DA + player[+0xA0]×11 |
+| 0x1DBC6 | equip.cpp | if PLAY_MODE==0 OR 2 → draw player name/weapon display |
+| 0x1D8EA | equip.cpp | play_sync_fire_phase: if PLAY_MODE==2, push/call Synchronous fire handler |
+| 0x306FE | play.cpp | if PLAY_MODE==2 → skip barrel update call |
+| 0x29280 | icons.cpp | per_turn_fire_setup: resolve random wall type, call noise params, set WRAP_ENABLED |
+| 0x29505 | icons.cpp | AI accuracy: noise parameter switch (types 0-5 only) |
+| 0x2A0A6 | icons.cpp | fire_projectile: initializes DS:0xD506 = param×10 (projectile damage counter); cos/sin → vx/vy |
+| 0x38554 | shark.cpp | if PLAY_MODE==1 AND STATUS_BAR(DS:0x5142)!=0 → call HUD update (0x3249:0x06B4) after shield draw |
 
 **Intermediate file**: `disasm/play_modes_sentient_analysis.txt`
 
