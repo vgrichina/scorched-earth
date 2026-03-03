@@ -402,7 +402,7 @@ export function drawHud(player, wind, round, opts) {
     // EXE: color = struct[0x2A] != 0 ? [EF22] : [EF24]
     // EXE: draw_icon_alive(EA00, ROW2_Y, D566=52, color) — icon 52 is blank (w=0)
     drawIcon(x, ROW2_Y, WPN.SUPER_MAG, magColor);
-    x += 25; // → EA02 (icon area width, matches W2/W3 pattern)
+    x += 20; // → EA02 (EXE: EA02 = EA00 + 20 at 0x3005D, not 25 like W2/W3 icons)
 
     // Widget 7 (0x3DD95): Heavy Shield energy, conditional on screen width
     // EXE: check1 (0x31249) = inventory[D564=HeavyShield] * 10 + struct[0xAA]
