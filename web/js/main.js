@@ -446,7 +446,8 @@ function gameLoop() {
     aimTimer: game.aimTimer > 0 ? Math.ceil(game.aimTimer / 60) : 0,
   };
   drawHud(player, game.wind, game.round, hudOpts);
-  drawWindIndicator(game.wind);
+  // EXE: draw_wind_indicator only in Sequential mode (file 0x307B2: cmp [5188],0 jnz skip)
+  if (config.playMode === 0) drawWindIndicator(game.wind);
   drawAllProjectiles();
 
   // EXE VERIFIED: laser drawn during AIM phase only (draw_laser_sight at 0x36321)
