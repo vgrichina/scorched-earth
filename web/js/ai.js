@@ -89,6 +89,10 @@ function evaluateHarmonics(harmonics, shotNumber) {
 // Per-player noise state: harmonics persist for scanning correlation, shot counter increments
 const playerNoiseState = new Map();
 
+// Per-player sticky target: EXE player struct +0x8E/+0x90 stores previous target far ptr
+// EXE Moron AI (0x38B4E) reads player[+0x8E/+0x90]; if previous target valid, prefers it
+const playerLastTarget = new Map();
+
 function getNoiseState(player, noiseParams) {
   let state = playerNoiseState.get(player);
   const key = noiseParams.join(',');
@@ -105,6 +109,7 @@ function getNoiseState(player, noiseParams) {
 
 export function resetAINoise() {
   playerNoiseState.clear();
+  playerLastTarget.clear();
 }
 
 // AI state for current computation
@@ -181,13 +186,17 @@ export function aiComputeShot(player) {
   return aiState;
 }
 
-// Select nearest alive enemy
-// EXE: ai_select_target (0x24F01) uses Euclidean distance via compute_distance (0x2640F)
-// EXE per-type AI functions also use both x and y coordinates for target selection
+// Select target: sticky — prefer previous target if alive, else fall back to nearest enemy.
+// EXE: player struct +0x8E/+0x90 stores previous target far ptr (Moron AI at 0x38B4E reads it).
+// EXE: selects nearest valid target (by horizontal distance in Moron); web uses Euclidean.
 function selectTarget(shooter) {
+  // Sticky: return previous target if still alive
+  const last = playerLastTarget.get(shooter);
+  if (last && last.alive) return last;
+
+  // Fall back: find nearest alive enemy
   let bestTarget = null;
   let bestDist = Infinity;
-
   for (const p of players) {
     if (p === shooter || !p.alive) continue;
     const dx = p.x - shooter.x;
@@ -198,6 +207,7 @@ function selectTarget(shooter) {
       bestTarget = p;
     }
   }
+  playerLastTarget.set(shooter, bestTarget);
   return bestTarget;
 }
 
