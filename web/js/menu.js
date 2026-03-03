@@ -19,11 +19,12 @@ import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
 // --- Layout helpers (EXE-verified, mode-dependent) ---
 // EXE at 0x3D161: if screenHeight <= 200 → small mode, else large mode
 // EXE: DS:0x6316 row height table: [0]=25 (large), [1]=17 (small)
-// EXE: item list width = 0x50 (80px); left panel = getBtnX + BTN_W + right margin
-// EXE: large mode start_x=12, item_w=80 → panel ends at x≈96; small=5+80+4=89
-const BTN_W = 80;  // EXE: 0x50 — item list/button width (was 120 before)
-function getLeftW()  { return (isSmallMode() ? 5 : 12) + BTN_W + 4; }
-function getRightX() { return getLeftW() + 1; }
+// EXE: item list width = 0x50 (80px); terrain frame x = dialog.x1 + max(item.x+w-1) + getBtnX
+// EXE: terrain_frame_x = 0 + (getBtnX+80-1) + getBtnX = 2*getBtnX+79
+// EXE: large mode (getBtnX=12): 2*12+80-1=103; small (getBtnX=5): 2*5+80-1=89
+const BTN_W = 80;  // EXE: 0x50 — item list/button width
+function getLeftW()  { return 2 * getBtnX() + BTN_W - 2; }  // terrain_frame_x - 1
+function getRightX() { return getLeftW() + 1; }  // = terrain_frame_x = 2*getBtnX+BTN_W-1
 
 function isSmallMode() { return config.screenHeight <= 200; }
 function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
