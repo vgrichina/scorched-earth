@@ -309,3 +309,8 @@ DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)
 0x44630,draw_flat_box(minx, miny, maxx, maxy): sunken 3D border (1px) using EF30/EF32/EF26/EF2E colors
 0x26245,draw_icon_dead: color=0xA9(169) fill=0; fill=0 draws color=|pixel_val|+base; icon 0 col3 row0=0x9D=-99 signed → skipped in alive(fill=1) but drawn in dead(fill=0)
 0x30F3F,sub-struct[+0x16] = player_icon_idx initialized to 0 here; never written elsewhere; all players use icon 0 always in draw_hud_basic (intentional — icon differentiates by color only)
+0x2FBCA,compute_hud_layout_basic: E9D4=5; E9D6=5+max(measureText([220C])+8, measureText([2364])+measureText(":")); si=0x3E; barW=numP×6
+0x2FEBE,compute_hud_layout_full: E9D4=5; E9D6=E9D4+measureText([220C])+8; E9D8=E9D6+measureText("8888 "); E9DA=E9D8+measureText([2210])+8; E9DC=E9DA+measureText("99  "); E9DE=E9DC+measureText("MMMMMMMMMMMMMMM")+2; E9E0=E9DE+15
+0x2FC84,draw_hud_basic: clears HUD area; draws [220C]→player_name ":" at X=E9D4=5; draws power bar at E9D6; Row2 at Y=HUD_Y+0xB
+0x301B2,draw_hud_full: draws [220C]→player_name ":" at X=E9D4=5; power%4d at E9D6; "Angle:" at E9D8; angle%2d at E9DA; player_name at E9DC (palette 163); weapon_icon at E9DE; weapon_name at E9E0
+0x4C0B5,fg_setrgb(palette_idx, R, G, B): builds 16-byte Fastgraph DAC packet on stack; sets VGA palette entry to RGB; called from draw_hud_full to set palette 163 = current player RGB before drawing player name
