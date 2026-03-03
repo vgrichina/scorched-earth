@@ -219,7 +219,8 @@ DS:0x5188,PLAY_MODE: 0=Sequential 1=Simultaneous 2=Synchronous (PLAY_MODE= in SC
 0x3063A,play_clear_fire_callbacks: Simultaneous mode — clears fire callback far ptr at player+0xAE/+0xB0 to NULL
 0x1D8EA,play_sync_fire_phase: Synchronous-specific fire handling (mode==2)
 0x29280,per_turn_fire_setup: copy DS:5156→DS:5154 (effective ELASTIC); resolve RANDOM/ERRATIC(6/7) via random(6); call play_ai_noise_params; set DS:510E=1 iff ELASTIC==1(WRAP) else 0
-0x29505,play_ai_noise_params: noise budget switch by AI type (0-5 only); returns param for ai_inject_noise
+0x29505,play_ai_noise_params: WALL TYPE switch (0-5 from DS:5154); NOT AI type; pushes noise vals + 0x9D then calls 0x456B:0x0005; called from per_turn_fire_setup and wall_random_resolve
+0x29564,spoiler_random_noise_setup: called when DS:5150 != 0; random(2)→DS:5172; random(100)→DS:516E; random(100)→DS:5170; Spoiler-specific random noise budget per solve
 DS:0x510E,WRAP_ENABLED: set=1 by per_turn_fire_setup when effective ELASTIC==1(WRAP); used by drawing/ray-cast routines to wrap x coords; NOT a playMode or AI flag
 
 # ---- Score System (score.cpp, seg 0x30B2, file 0x37520) ----

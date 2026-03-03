@@ -33,15 +33,24 @@ export const AI_NAMES = [
 // EXE: noise parameters per AI type — higher = more inaccurate
 // EXE: switch at file 0x29505, each type pushes different param count
 // Lower noise_amplitude = higher freq harmonics = more accurate scanning
+// NOTE: Spoiler (type 5) uses RANDOM amplitudes per solve (unpredictable difficulty);
+// EXE function at 0x29564 generates random values for Spoiler's noise budget each turn.
+// All others use fixed amplitudes.
 const AI_NOISE = {
   [AI_TYPE.MORON]:     [50, 50, 50],
   [AI_TYPE.SHOOTER]:   [23],
   [AI_TYPE.POOLSHARK]: [23],
   [AI_TYPE.TOSSER]:    [63, 23],
   [AI_TYPE.CHOOSER]:   [63, 63, 23],
-  [AI_TYPE.SPOILER]:   [63, 63, 63],
   [AI_TYPE.SENTIENT]:  [],  // EXE: accuracy switch (0x29505) only covers types 0-5; Sentient gets NO noise = perfect accuracy
 };
+
+// EXE: Spoiler AI uses random noise amplitudes per solve (not fixed [63,63,63]).
+// EXE: function at file 0x29564 generates: random(2)→DS:5172, random(100)→DS:516E, random(100)→DS:5170
+// Modeled here as three independent random(64) values per aiComputeShot call.
+function getSpoilerNoise() {
+  return [random(64), random(64), random(64)];
+}
 
 // EXE: ai_inject_noise (file 0x25DE9-0x2610F)
 // Budget-driven harmonics with shot-number domain (not wall-clock).
@@ -139,7 +148,10 @@ function getEffectiveType(aiType) {
 // Main AI entry: compute shot parameters
 export function aiComputeShot(player) {
   const effectiveType = getEffectiveType(player.aiType);
-  const noise = AI_NOISE[effectiveType] || AI_NOISE[AI_TYPE.MORON];
+  // Spoiler: random amplitudes per solve (EXE: random budget at 0x29564)
+  const noise = effectiveType === AI_TYPE.SPOILER
+    ? getSpoilerNoise()
+    : (AI_NOISE[effectiveType] || AI_NOISE[AI_TYPE.MORON]);
 
   // Select target: nearest alive enemy
   const target = selectTarget(player);

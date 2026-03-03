@@ -412,3 +412,8 @@ DS:0x62CC,scale_name_ptrs_bss
 0x3D978,init_wall_type_names
 0x3DA35,init_scale_names
 0x444BB,draw_3d_box
+0x29564,spoiler_random_noise_setup
+DS:0x5150,current_player_ai_type_or_cond
+DS:0x5172,spoiler_noise_rand2
+DS:0x516E,spoiler_noise_rand100a
+DS:0x5170,spoiler_noise_rand100b
