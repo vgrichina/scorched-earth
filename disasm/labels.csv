@@ -435,3 +435,9 @@ DS:0x57BA,FMT_ANGLE_LABEL
 DS:0x57BE,FMT_ANGLE_VALUE
 DS:0x57C2,FMT_WEAPON_NO_AMMO
 DS:0x57C5,FMT_WEAPON_WITH_AMMO
+0x32166,iter_all_players
+0x307E8,update_hud_row1
+0x394F2,hud_draw_power_bar_col
+0x39544,hud_draw_item_bar_col
+0x3959F,hud_draw_angle_bar_col
+0x30910,hud_cycle_weapon_icon

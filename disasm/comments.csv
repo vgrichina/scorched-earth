@@ -314,3 +314,9 @@ DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)
 0x2FC84,draw_hud_basic: clears HUD area; draws [220C]→player_name ":" at X=E9D4=5; draws power bar at E9D6; Row2 at Y=HUD_Y+0xB
 0x301B2,draw_hud_full: draws [220C]→player_name ":" at X=E9D4=5; power%4d at E9D6; "Angle:" at E9D8; angle%2d at E9DA; player_name at E9DC (palette 163); weapon_icon at E9DE; weapon_name at E9E0
 0x4C0B5,fg_setrgb(palette_idx, R, G, B): builds 16-byte Fastgraph DAC packet on stack; sets VGA palette entry to RGB; called from draw_hud_full to set palette 163 = current player RGB before drawing player name
+0x32166,iter_all_players: iterates i=0..NUM_PLAYERS-1; returns DS:D568+i*0xCA (tank sub-struct) including dead players; ax=1 if more players remain
+0x307E8,update_hud_row1: if PLAY_MODE==1 (Simul): clears active_player icon cell + redraws E344 weapon icon at player_id*11+E9DA; else: clears weapon area E9DE..FG_MAXX-5 + draws weapon name text + weapon icon at E9DE
+0x394F2,hud_draw_power_bar_col: draws power-bar column for one player; height = min(power/100, 10); X=player_id*6+E9D6; Y=HUD_Y+1; color=[tank+0x1A]; calls bar_column at 0x39482
+0x39544,hud_draw_item_bar_col: draws item-percentage bar column; calls compute_item_percentage; X=player_id*6+E9EE; Y=HUD_Y+0xD; color=[tank+0x1A]; only drawn if STATUS_BAR!=0
+0x3959F,hud_draw_angle_bar_col: draws angle bar column; uses 32-bit angle value from [tank+0xA2/A4]; only drawn if STATUS_BAR!=0
+0x30910,hud_cycle_weapon_icon: adds [bp+6] delta to [DS:0x5182 tank+0x16]; wraps at DS:E4F0 (total icon count); advances weapon display icon for current player
