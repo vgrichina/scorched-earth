@@ -446,3 +446,6 @@ DS:0x57C5,FMT_WEAPON_WITH_AMMO
 0x3968D,shield_expand_y
 0x396FA,update_terrain_type_cache
 DS:0x5142,STATUS_BAR
+0x28DA4,draw_wind_pixel
+0x28E43,wind_text_pixel_callback
+DS:0x515A,WIND_SPEED
