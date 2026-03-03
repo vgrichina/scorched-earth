@@ -323,3 +323,8 @@ DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)
 0x30E80,player_init_substruct: sub[0xA0]=player_id; sub[0x1A]=player_id*8 (palette base); sub[0x16]=0 (icon); sub[0x96]=0 (shield count); sub[0xC6/C8]=DS:0x61CC/61CE (SHIELD_CONFIG_PTR_ARRAY); sub[0xA2]=health (starts at 100)
 0x30EE7,sub-struct init: sub[0x96]=0 — shield count initialized to 0; hud_draw_item_bar_col/compute_item_percentage uses this as current shields count
 0x30EF5,sub-struct init: sub[0xC6/C8]=SHIELD_CONFIG_PTR_ARRAY (DS:0x61CC/61CE) — far ptr to shield weapon record; ptr[0x02]=max shield count used in compute_item_percentage
+0x39482,bar_column: (X, Y_TOP, fill_height, color) — 6px wide (X..X+5), 10px tall (Y_TOP..Y_TOP+9), clamped 0-10; draws EF2C background for empty top portion, fill color for bottom fill portion (bottom-up)
+0x39628,shield_plot_point: (dx, dy) — set bit at (SHIELD_DRAW_X_MIN+dx, SHIELD_DRAW_Y_MIN+dy) in bitmap_array DS:0x6246; used for shield collision map
+0x3968D,shield_expand_y: (dx, dy) — set bit at (SHIELD_DRAW_X_MIN+dx, dy) in bitmap_array; updates DS:0xECBC=max_y_written; used for shield draw extent tracking
+0x396FA,update_terrain_type_cache: if DS:0x623C!=0 then TERRAIN_TYPE(DS:0x5110)=DS:0x624E (cached_terrain_type); clears DS:0x623C
+DS:0x5142,STATUS_BAR: 0=basic HUD Row 1 only (power bar+icons); nonzero=expanded HUD (Row 1+Row 2 with energy+shields bars); checked at 0x2FD37 for entire Row 2 block

@@ -437,7 +437,12 @@ DS:0x57C2,FMT_WEAPON_NO_AMMO
 DS:0x57C5,FMT_WEAPON_WITH_AMMO
 0x32166,iter_all_players
 0x307E8,update_hud_row1
+0x39482,bar_column
 0x394F2,hud_draw_power_bar_col
 0x39544,hud_draw_item_bar_col
 0x3959F,hud_draw_angle_bar_col
 0x30910,hud_cycle_weapon_icon
+0x39628,shield_plot_point
+0x3968D,shield_expand_y
+0x396FA,update_terrain_type_cache
+DS:0x5142,STATUS_BAR
