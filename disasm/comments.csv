@@ -342,3 +342,8 @@ DS:0x5142,STATUS_BAR: 0=basic HUD Row 1 only (power bar+icons); nonzero=expanded
 0x28E43,wind_text_pixel_callback: font callback for draw_wind_indicator text; maps (col, row) to screen (col+DS:D4E0, row+DS:D4E2); applies same sky-adaptive color logic as draw_wind_pixel
 DS:0x515A,WIND_SPEED: current wind speed, signed int16; negative=leftward, positive=rightward, 0=no wind; updated by update_wind (add rand(-5..+5), clamp ±DS:515C=MAX_WIND)
 0x4CEFD,draw_embossed_text(int x, int y, char far* str): draws text 5× at (x+i, y+i) for i=0..4 with colors EF2C→EF32→EF24→EF2A→EF26 (BLACK→dark-gray→dim-gray→light-gray→WHITE); after return DS:6E2A=EF26=WHITE
+0x483F2,add_widget_type9(dialog_far, param, default_cb_far, group, callback_far): allocs 90-byte widget; type=9 (text input); widget[0x0C]=param (max chars or col: 9/32/13); widget[0x04/06]=default-text-cb; widget[0x0E]=group/parent; widget[0x52/54]=callback
+0x352B7,per_player_dialog_callback(dialog_far, player_idx): copies [tank+0xB6/B8](name far ptr) to local buf; calls 3F19:5260 to populate dialog
+0x357B0,reassign_players: F9 system menu → per-player button dialog; clicking opens name edit for that player
+0x33F67,computer_person_toggle_cb: toggles DS:0x6022 (0=Person 1=Computer); called by type-9 widget[0] with param=9
+DS:0x6022,PLAYER_IS_COMPUTER: 0=Person, 1=Computer; toggled by computer_person_toggle_cb at 0x33F67

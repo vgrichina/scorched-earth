@@ -465,3 +465,8 @@ DS:0x5142,STATUS_BAR
 0x28DA4,draw_wind_pixel
 0x28E43,wind_text_pixel_callback
 DS:0x515A,WIND_SPEED
+0x483F2,add_widget_type9
+0x352B7,per_player_dialog_callback
+0x357B0,reassign_players
+0x33F67,computer_person_toggle_cb
+DS:0x6022,PLAYER_IS_COMPUTER
