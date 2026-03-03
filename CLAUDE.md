@@ -66,6 +66,13 @@ python3 disasm/fpu_decode.py earth/SCORCH.EXE 0x24F01 0x2610F -c -f
 python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0x2B04 -s      # string at DS offset
 python3 disasm/ds_lookup.py earth/SCORCH.EXE 0x058884 -s        # string at file offset
 python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0xEF22 -w -n 32 # dump as 16-bit words
+python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0x5250 -f32 -n 4 # 4 float32 values
+python3 disasm/ds_lookup.py earth/SCORCH.EXE DS:0x613C -f64     # one float64/double
+
+# Float decoder (same as ds_lookup -f32/-f64 but prints DS+file offset + raw bytes)
+python3 disasm/decode_float64.py earth/SCORCH.EXE DS:0x613C DS:0x6144  # two float64s
+python3 disasm/decode_float64.py earth/SCORCH.EXE DS:0x5250 -f32 -n 4  # four float32s
+python3 disasm/decode_float64.py earth/SCORCH.EXE 0x57AB4               # by file offset
 
 # String scanner with grep
 python3 disasm/strings_dump.py earth/SCORCH.EXE -g "wind"    # find wind-related strings
@@ -77,10 +84,14 @@ python3 disasm/struct_dump.py earth/SCORCH.EXE weapon -n 60   # all weapons
 python3 disasm/struct_dump.py earth/SCORCH.EXE glyph 65       # glyph for 'A'
 python3 disasm/struct_dump.py earth/SCORCH.EXE mode -n 9      # graphics modes
 
-# Cross-reference finder (who reads/writes a DS variable?)
-python3 disasm/xref.py earth/SCORCH.EXE DS:0xED58 --code      # font selector refs
-python3 disasm/xref.py earth/SCORCH.EXE DS:0xEF22 --code      # highlight color refs
-python3 disasm/xref.py earth/SCORCH.EXE DS:0x518E -c 8        # HUD Y with context
+# Cross-reference finder (who reads/writes a DS variable? who calls a function?)
+python3 disasm/xref.py earth/SCORCH.EXE DS:0xED58 --code         # font selector refs
+python3 disasm/xref.py earth/SCORCH.EXE DS:0xEF22 --code         # highlight color refs
+python3 disasm/xref.py earth/SCORCH.EXE DS:0x518E -c 8           # HUD Y with context
+python3 disasm/xref.py earth/SCORCH.EXE --callers 0x38344        # far-call callers only
+
+# Far+near caller finder (xref.py --callers for far calls only; this adds near calls)
+python3 disasm/find_callers.py earth/SCORCH.EXE 0x334B6          # all callers of function
 
 # SEG:OFF ↔ file offset converter
 python3 disasm/seg_offset.py 2910:0184 DS:0x3826 0x261D7       # multiple at once
@@ -89,9 +100,6 @@ python3 disasm/seg_offset.py 2910:0184 DS:0x3826 0x261D7       # multiple at onc
 python3 disasm/icon_dump.py earth/SCORCH.EXE                   # list all icons
 python3 disasm/icon_dump.py earth/SCORCH.EXE 0 -n 8            # render icons 0-7 as ASCII
 python3 disasm/icon_dump.py earth/SCORCH.EXE 0 --raw           # raw hex bytes
-
-# Font glyph dump (NOTE: pixel data is BSS — use runtime dump or web/js/font.js)
-python3 disasm/font_dump.py earth/SCORCH.EXE 65 -n 26          # widths for A-Z (via ptr table)
 
 # VGA palette dump
 python3 disasm/palette_dump.py earth/SCORCH.EXE --accent       # shop animation colors
