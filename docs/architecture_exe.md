@@ -325,3 +325,45 @@ Layout modes (DS:0xED58):
   1 = compact  (17px row height)
   Same font glyphs in both modes
 ```
+
+## Play Modes
+
+```
+play.cpp — mode stored at DS:0x5188 (PLAY_MODE config key)
+
+  0 = Sequential   One player aims + fires at a time; full per-turn display
+  1 = Simultaneous All players aim at once (timer at DS:0xD506); batch fire;
+                   projectile x-wrapping enabled; DS:0x510E=1 for AI dispatch
+  2 = Synchronous  Players aim one-by-one; all projectiles fire simultaneously
+
+Fire callback (player struct +0xAE/+0xB0 far ptr):
+  Sequential:   active — each player's callback fires on collision
+  Simultaneous: cleared to NULL during aim phase; set on batch fire
+  Synchronous:  active during aim, batch-launched like Simultaneous
+
+Screen wrapping (file 0x29CA8) — Simultaneous + Synchronous only:
+  if x < screen_left:  x += screen_width
+  if x > screen_right: x -= screen_width
+
+Key code locations:
+  0x30560  Turn handler: turret animation, mode-specific fire dispatch
+  0x30652  Fire check: alive player count, ready-to-fire flag
+  0x3063A  Clear fire callbacks for Simultaneous mode
+  0x1D8EA  Synchronous fire phase
+```
+
+## Play Order System
+
+```
+player.cpp — DS:0x519C (PLAY_ORDER config key)
+
+  0 = Random         shuffle each round
+  1 = Losers First   lowest score goes first
+  2 = Winners First  highest score goes first
+  3 = Round Robin    rotate starting position each round
+  4 = Sequential     fixed order 0..N
+
+Order array: DS:0xE4F6 (far ptrs to tank structs, 4 bytes/entry)
+Start index: DS:0xE4F4
+Function:    play_order() at file 0x2AE53, called at round start
+```

@@ -47,87 +47,98 @@
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| **main.js** | Entry point, animation loop, world draw | `init()`, `startGame()`, `gameLoop()` |
-| **game.js** | State machine, turn logic, fire/collide | `game`, `STATE`, `gameTick()`, `generateWind()` |
-| **config.js** | Mutable settings, graphics modes | `config`, `saveConfig()`, `GRAPHICS_MODES` |
-| **framebuffer.js** | 256-color pixel buffer, WebGL/Canvas2D | `initFramebuffer()`, `blit()`, `setPixel()`, `getPixel()` |
-| **palette.js** | VGA 256-entry palette management | `initPalette()`, `palette6`, `palette32`, color constants |
-| **font.js** | 12px proportional bitmap text | `drawText()`, `measureText()`, `FONT_HEIGHT` |
-| **terrain.js** | Height map generation + rendering | `generateTerrain()`, `drawTerrain()`, `terrain`, `getTerrainY()` |
-| **tank.js** | Player state array + tank rendering | `players`, `createPlayer()`, `drawAllTanks()`, `stepFallingTanks()` |
-| **physics.js** | Projectile position/velocity stepping | `projectiles`, `launchProjectile()`, `stepSingleProjectile()` |
-| **weapons.js** | 57-weapon data table + constants | `WEAPONS`, `WPN`, `BHV`, `cycleWeapon()` |
-| **behaviors.js** | On-hit + in-flight weapon handlers | `handleBehavior()`, `handleFlightBehavior()`, `applyGuidance()` |
-| **explosions.js** | Crater creation + explosion animation | `createCrater()`, `startExplosion()`, `applyExplosionDamage()` |
-| **shields.js** | Shield activation + damage absorption | `activateShield()`, `applyShieldDamage()`, `SHIELD_TYPE` |
-| **ai.js** | AI trajectory solver (7 levels) | `isAI()`, `startAITurn()`, `stepAITurn()`, `AI_TYPE` |
-| **menu.js** | Main menu + player setup screens | `menuTick()`, `drawMainMenu()`, `playerSetup` |
-| **hud.js** | Two-row HUD with icons + bars | `drawHud()` |
-| **shop.js** | Equipment shop between rounds | `openShop()`, `shopTick()`, `drawShop()` |
-| **score.js** | Scoring + interest calculations | `scoreOnDamage()`, `scoreOnDeath()`, `applyInterest()` |
-| **talk.js** | Speech bubbles on fire/death | `triggerAttackSpeech()`, `triggerDeathSpeech()` |
-| **sound.js** | PC speaker emulation via WebAudio | `initSound()`, `playFireSound()`, `playExplosionSound()` |
-| **input.js** | Keyboard + mouse event tracking | `mouse`, `isKeyDown()`, `consumeKey()`, `consumeClick()` |
-| **utils.js** | PRNG (xorshift32), math, Bresenham | `seedRandom()`, `random()`, `clamp()`, `vga6to8()` |
-| **constants.js** | Color indices, thresholds, sizes | `UI_*`, `PLAYER_COLOR_*`, `TERRAIN_THRESHOLD` |
+| **main.js** | Entry point, animation loop, world draw | `init()`, `gameLoop()`, `redrawWorld()` |
+| **game.js** | State machine, turn logic, wind, system menu | `game`, `STATE`, `gameTick()`, `generateWind()`, `getCurrentPlayer()`, `initGameRound()`, `SYSTEM_MENU_OPTIONS` |
+| **config.js** | Mutable settings, graphics modes | `config`, `saveConfig()`, `GRAPHICS_MODES`, `applyGraphicsMode()` |
+| **framebuffer.js** | 256-color pixel buffer, WebGL/Canvas2D | `initFramebuffer()`, `blit()`, `setPixel()`, `getPixel()`, `fillRect()`, `hline()`, `vline()`, `drawBox3DRaised()`, `drawBox3DSunken()`, `setBackground()`, `clearToBackground()` |
+| **palette.js** | VGA 256-entry palette management | `initPalette()`, `palette6`, `palette32`, `setupPlayerPalette()`, `setupSkyPalette()`, `setupTerrainPalette()`, `setupExplosionPalette()`, `tickAccentPalette()`, `BLACK`, `LASER_GREEN`, `LASER_WHITE` |
+| **font.js** | 12px proportional bitmap text | `drawText()`, `drawTextShadow()`, `drawTextEmbossed()`, `measureText()`, `FONT_HEIGHT` |
+| **terrain.js** | Height map generation + rendering | `generateTerrain()`, `drawTerrain()`, `drawSky()`, `terrain`, `ceilingTerrain`, `getTerrainY()`, `PLAYFIELD_TOP`, `HUD_HEIGHT` |
+| **tank.js** | Player state array + tank rendering | `players`, `createPlayer()`, `drawAllTanks()`, `drawTank()`, `placeTanks()`, `resetAndPlaceTanks()`, `stepFallingTanks()`, `checkTanksFalling()`, `startDeathAnimation()`, `drawDeathAnimations()` |
+| **physics.js** | Projectile position/velocity stepping | `projectiles`, `launchProjectile()`, `createProjectile()`, `spawnProjectiles()`, `stepSingleProjectile()`, `hasActiveProjectiles()`, `WALL`, `DT`, `applyMagDamping()` |
+| **weapons.js** | 57-weapon data table + constants | `WEAPONS`, `WPN`, `BHV`, `CATEGORY`, `cycleWeapon()`, `createInventory()` |
+| **behaviors.js** | On-hit + in-flight weapon handlers | `handleBehavior()`, `handleFlightBehavior()`, `applyGuidance()`, `selectGuidanceType()`, `napalmParticleStep()` |
+| **explosions.js** | Crater/dirt creation + explosion animation | `createCrater()`, `addDirt()`, `addDirtTower()`, `createTunnel()`, `applyDisrupter()`, `startExplosion()`, `stepExplosion()`, `applyExplosionDamage()`, `screenFlash` |
+| **shields.js** | Shield activation + damage absorption | `activateShield()`, `applyShieldDamage()`, `checkShieldDeflection()`, `handleShieldHit()`, `drawShield()`, `drawShieldBreak()`, `SHIELD_TYPE`, `SHIELD_CONFIG`, `shieldBreak` |
+| **ai.js** | AI trajectory solver (8 levels) | `isAI()`, `startAITurn()`, `stepAITurn()`, `aiComputeShot()`, `setAIWind()`, `resetAINoise()`, `AI_TYPE`, `AI_NAMES` |
+| **menu.js** | Main menu + player setup screens | `menuTick()`, `drawMainMenu()`, `drawPlayerSetupScreen()`, `resetMenuState()`, `menu`, `playerSetup`, `initPlayerSetup()` |
+| **hud.js** | Two-row HUD with icons + bars | `drawHud()`, `drawWindIndicator()` |
+| **shop.js** | Equipment shop between rounds | `openShop()`, `closeShop()`, `shopTick()`, `drawShop()`, `initMarket()`, `mktUpdate()`, `aiAutoPurchase()` |
+| **score.js** | Scoring + interest calculations | `scoreOnDamage()`, `scoreOnDeath()`, `endOfRoundScoring()`, `applyInterest()`, `getLeaderboard()`, `SCORE_MODE` |
+| **talk.js** | Speech bubbles on fire/death | `triggerAttackSpeech()`, `triggerDeathSpeech()`, `stepSpeechBubble()`, `drawSpeechBubble()`, `bubble` |
+| **sound.js** | PC speaker emulation via WebAudio | `initSound()`, `toggleSound()`, `playFireSound()`, `playExplosionSound()`, `playFlightSound()`, `playDeathSound()`, `playTerrainGenPing()`, `playShieldHitSound()`, `playLightningSound()` |
+| **input.js** | Keyboard + mouse event tracking | `mouse`, `initInput()`, `isKeyDown()`, `consumeKey()`, `consumeAnyKey()`, `consumeClick()`, `getMouseDelta()` |
+| **utils.js** | PRNG (xorshift32), math, Bresenham | `seedRandom()`, `random()`, `clamp()`, `vga6to8()`, `bresenhamLine()` |
+| **constants.js** | Color indices, thresholds, palette offsets | `UI_HIGHLIGHT`, `UI_DARK_TEXT`, `UI_DARK_BORDER`, `UI_BACKGROUND`, `UI_LIGHT_ACCENT`, `UI_DEEP_SHADOW`, `UI_LIGHT_BORDER`, `UI_MED_BORDER`, `UI_BRIGHT_BORDER`, `PLAYER_COLOR_MAX`, `TERRAIN_THRESHOLD`, `SKY_PAL_START`, `TERRAIN_PAL_START`, `FIRE_PAL_BASE` |
 
 ## State Machine (game.js)
 
 ```
-                     +--------+
-                     | CONFIG |  Main menu
-                     +---+----+
-                         |  ~Start
-                  +------v--------+
-                  | PLAYER_SETUP  |  Name/color/AI per player
-                  +------+--------+
-                         |
-                  +------v--------+
-              +-->|     SHOP      |  Buy/sell equipment (round > 1)
-              |   +------+--------+
-              |          |
-              |   +------v--------+
-              |   |  SCREEN_HIDE  |  "No Kibitzing" (hot-seat AI)
-              |   +------+--------+
-              |          |
-              |   +------v--------+
-              +---|      AIM      |<-----------+
-                  +------+--------+            |
-                         | Space / AI fire     |
-                  +------v--------+            |
-                  |    FLIGHT     |            |
-                  |  (per-frame   |            |
-                  |   physics)    |            |
-                  +------+--------+            |
-                         | collision           |
-                  +------v--------+            |
-                  |   EXPLOSION   |            |
-                  |  (ring anim)  |            |
-                  +------+--------+            |
-                         |                     |
-                  +------v--------+            |
-                  |    FALLING    |            |
-                  |  (settle)     |            |
-                  +------+--------+            |
-                         |                     |
-                  +------v--------+            |
-                  |   NEXT_TURN   +------------+
-                  +------+--------+  (alive > 1)
-                         |
-                    (alive <= 1)
-                  +------v--------+
-                  |  ROUND_OVER   |
-                  +------+--------+
-                         |
-                  +------v--------+     +------v--------+
-                  |     SHOP      |---->|   GAME_OVER   |
-                  +---------------+     +---------------+
-                  (more rounds)         (rounds exhausted)
+                  +-------+
+                  | TITLE |  Initial state (treated same as CONFIG)
+                  +---+---+
+                      | (immediate)
+                  +---v----+
+                  | CONFIG |  Main menu
+                  +---+----+
+                      |  ~Start
+               +------v--------+
+               | PLAYER_SETUP  |  Name/color/AI per player
+               +------+--------+
+                      | (first round goes direct to AIM)
+                      |
+              +-------v-------+
+          +-->|     SHOP      |  Buy/sell equipment (round >= 2)
+          |   +------+--------+
+          |          |  (all players done)
+          |   +------v--------+
+          |   |  ROUND_SETUP  |  Battery check; terrain regen; place tanks
+          |   +------+--------+
+          |          |
+          |   +------v--------+
+          |   |  SCREEN_HIDE  |  "No Kibitzing" (hot-seat between humans)
+          |   +------+--------+
+          |          |
+          |   +------v--------+
+          +---|      AIM      |<-----------+
+              +------+--------+            |
+                     | Space / AI fire     |
+              +------v--------+            |
+              |    FLIGHT     |            |
+              |  (per-frame   |            |
+              |   physics)    |            |
+              +------+--------+            |
+                     | collision           |
+              +------v--------+            |
+              |   EXPLOSION   |            |
+              |  (ring anim)  |            |
+              +------+--------+            |
+                     |                     |
+              +------v--------+            |
+              |    FALLING    |            |
+              |  (settle)     |            |
+              +------+--------+            |
+                     |                     |
+              +------v--------+            |
+              |   NEXT_TURN   +------------+
+              +------+--------+  (alive > 1)
+                     |
+               (alive <= 1)
+              +------v--------+
+              |  ROUND_OVER   |
+              +------+--------+
+                     |                    (rounds exhausted)
+              +------v--------+          +---------------+
+              |     SHOP      |--------->|   GAME_OVER   |
+              +---------------+          +---------------+
+              (more rounds)
 
-  F9 at any time --> SYSTEM_MENU (overlay, resumes on dismiss)
+  F9 at any time --> SYSTEM_MENU overlay (resumes on dismiss)
 
-  Simultaneous play modes use SYNC_AIM / SYNC_FIRE states
-  (all players aim concurrently, then fire in sequence)
+  Simultaneous/Synchronous play modes (config.playMode >= 1):
+    AIM replaced by SYNC_AIM → SYNC_FIRE → EXPLOSION/FALLING/...
+    SYNC_AIM: players aim one-by-one (aims queued)
+    SYNC_FIRE: all queued projectiles launch simultaneously
 ```
 
 ## Game Loop (requestAnimationFrame)
@@ -135,7 +146,7 @@
 ```
 main.js gameLoop()  [called ~60 fps]
 |
-+-- if STATE == CONFIG or PLAYER_SETUP:
++-- if STATE == TITLE or CONFIG or PLAYER_SETUP:
 |     menuTick()       -- handle menu input, draw menu
 |     blit()           -- upload framebuffer to GPU
 |     return
@@ -205,51 +216,71 @@ main.js gameLoop()  [called ~60 fps]
 ```
 config (config.js) -- mutable settings, persisted to localStorage
 |
-+-- Graphics: mode, screenWidth, screenHeight, aspectRatio
-+-- Physics:  gravity, viscosity, wind, changeWind, wallType
-+-- Terrain:  landType, skyType, land1, land2, numPeaks, mtnPercent
-+-- Gameplay: numPlayers, rounds, scoringMode, playOrder, playMode
-+-- Economy:  startCash, interest, freeTurns, freeMarket
-+-- Misc:     talkingTanks, soundEnabled, fallingTanks, impactDamage
++-- Graphics:  graphicsMode, screenWidth, screenHeight
++-- Physics:   gravity, viscosity, edgesExtend, suspendDirt, wind,
+|              changeWind, wallType
++-- Terrain:   landType, skyType, land1, land2, numPeaks, mtnPercent,
+|              randomLand, flattenPeaks
++-- Gameplay:  numPlayers, rounds, armsLevel, scoringMode, playOrder,
+|              playMode, hostileEnvironment, bombIcon, tunneling,
+|              uselessItems, teamMode, statusBar, explosionScale,
+|              tracePaths, extraDirt
++-- Economy:   startCash, interest, freeTurns, freeMarket, computersBuy
++-- Misc:      talkingTanks, talkProbability, soundEnabled,
+|              flySoundEnabled, fallingTanks, impactDamage
 
 game (game.js) -- runtime game state
 |
-+-- state:           current STATE enum value
-+-- round:           current round number (1-based)
-+-- currentPlayer:   active player index
-+-- turnOrder[]:     computed turn sequence per round
-+-- wind:            current horizontal wind force
-+-- guidedActive:    guidance weapon in flight
-+-- explosion:       { x, y, radius, frame, ... }
-+-- warQuote:        between-round quote text
++-- state:                current STATE enum value
++-- round:                current round number (1-based)
++-- currentPlayer:        active player index
++-- turnOrder[]:          computed turn sequence per round
++-- turnOrderIdx:         position within current turn order
++-- wind:                 current horizontal wind force
++-- guidedActive:         guided missile currently steering
++-- warQuote:             between-round quote text
++-- roundOverTimer:       frames displayed on round-over screen
++-- shopPlayerIdx:        index of player currently shopping
++-- aimQueue[]:           stored aims for SYNC_AIM/SYNC_FIRE mode
++-- syncPlayerIdx:        player aiming in sync mode
++-- aimTimer:             countdown for simultaneous aim phase
++-- hostileLightningX/Frames: hostile environment lightning state
++-- screenHideTarget:     target player index for "No Kibitzing"
++-- systemMenuOption/Actions/Confirm/PendingAction: F9 system menu
 
 players[] (tank.js) -- per-player state, 10 max
 |
-+-- index, name, color
-+-- x, y (world position)
-+-- angle, power (turret aiming)
++-- index, name
++-- x, y (center-x, ground-y on screen)
++-- angle (0=right, 90=up, 180=left), power (0-1000)
 +-- selectedWeapon (weapon index)
-+-- inventory[] (per-weapon ammo counts)
++-- inventory[] (per-weapon ammo counts, indexed by WPN.*)
 +-- alive, energy (HP 0-100)
-+-- cash, score, wins
-+-- activeShield, shieldEnergy
-+-- aiType (0=HUMAN, 1-8=computer)
-+-- falling, fallStartY, fallVelocity
-+-- deathAnimation { active, frame }
++-- cash, score, wins, earnedInterest
++-- activeShield (SHIELD_TYPE index), shieldEnergy
++-- aiType (0=HUMAN, 1-8=computer levels)
++-- falling, fallStartY, fallDamageAccum, parachuteDeployed
++-- team (0-based team index; default = player index)
 
 projectiles[] (physics.js) -- active projectile pool
 |
-+-- x, y, vx, vy
-+-- active, weaponIdx, attackerIdx
++-- active, x, y, vx, vy
++-- weaponIdx, attackerIdx
 +-- trail[] (position history for drawing)
-+-- guidanceType, magDeflection
-+-- mirvSplit, napalmParticle
++-- age (frames since launch)
++-- isSubWarhead, subRadius   (MIRV children)
++-- isNapalmParticle, napalmLife, isDirtParticle
++-- rolling, bounceCount      (roller behavior)
++-- hasSplit                  (MIRV already split)
++-- prevVy                    (apogee detection)
++-- superMagActive            (bypasses Mag Deflector)
 
 terrain (terrain.js) -- height array
   terrain[x] = Y position of ground at column x
+  ceilingTerrain[x] = Y position of ceiling (cavern mode)
 
-terrainBitmap (terrain.js) -- per-pixel collision bitmap
-  terrainBitmap[y * width + x] = color index (0 = sky)
+terrainBitmap (terrain.js) -- per-pixel collision/draw buffer
+  terrainBitmap[y * width + x] = palette color index (0 = sky)
 ```
 
 ## Rendering Pipeline
@@ -278,15 +309,18 @@ Collision detection uses pixel COLOR, not separate collision map:
   else --> sky (no collision)
 
 Palette regions:
-  VGA 0-79:    Player colors (8 per player, 10 players)
-  VGA 80-103:  Sky gradient (25 entries)
-  VGA 104:     Black separator
-  VGA 105-119: Reserved
-  VGA 120-149: Terrain gradient (30 entries)
-  VGA 150-169: UI palette (grays, highlight, shadow)
-  VGA 170-199: Fire/explosion palette (30 entries)
-  VGA 200-208: UI accent colors (shop, HUD)
-  VGA 240-255: System colors (white, laser, cursor)
+  VGA 0-79:    Player colors (8 per player × 10 players; PLAYER_COLOR_MAX=80)
+  VGA 80-104:  Sky gradient (SKY_PAL_START=80, SKY_PAL_COUNT=25; 104=unused)
+  VGA 105-119: Reserved / sky overlap
+  VGA 120-149: Terrain gradient (TERRAIN_PAL_START=120, TERRAIN_PAL_COUNT=30)
+  VGA 150-169: UI grays (status bars, HUD backgrounds)
+  VGA 170-199: Fire/explosion palette (FIRE_PAL_BASE=170, FIRE_PAL_COUNT=30)
+  VGA 200-208: UI drawing colors (UI_HIGHLIGHT=200 … UI_BRIGHT_BORDER=208)
+  VGA 209-251: Unused
+  VGA 252:     BLACK (solid black)
+  VGA 253:     LASER_GREEN
+  VGA 254:     LASER_WHITE
+  VGA 255:     Unused
 ```
 
 ## Event Flow

@@ -213,6 +213,55 @@ DS:0x568A,NAPALM_REG_DAMAGE_RADIUS: 25.0f — Regular Napalm damage check range
 DS:0x568E,NAPALM_REG_MAX_DAMAGE: 30.0f — Regular Napalm max damage at distance 0
 DS:0x1D60,EXPLOSION_DAMAGE_FALLOFF: 0.7 f64 — per-player damage attenuation (NOT napalm damping)
 
+# ---- Play Modes (play.cpp) ----
+DS:0x5188,PLAY_MODE: 0=Sequential 1=Simultaneous 2=Synchronous (PLAY_MODE= in SCORCH.CFG)
+0x30560,play_turn_handler: turret animation per mode; Sequential=smooth step; Simultaneous=skip anim; cmp [5188],1
+0x3063A,play_clear_fire_callbacks: Simultaneous mode — clears fire callback far ptr at player+0xAE/+0xB0 to NULL
+0x1D8EA,play_sync_fire_phase: Synchronous-specific fire handling (mode==2)
+0x29280,play_ai_type_dispatch: randomize Cyborg/Unknown AI type; DS:0x510E=1 flags simultaneous AI dispatch
+0x29505,play_ai_noise_params: noise budget switch by AI type (0-5 only); returns param for ai_inject_noise
+DS:0x510E,SIMULTANEOUS_AI_FLAG: set=1 by play_ai_type_dispatch in Simultaneous mode; affects AI targeting
+
+# ---- Score System (score.cpp, seg 0x30B2, file 0x37520) ----
+0x375E3,score_on_death: bounty +4000 (no teams) or +500 (teams) on kill; -2000 friendly fire; -1500 self-destruct
+0x37688,score_on_damage: weapon hit +30x / shield hit +2x; friendly fire -15x / -1x; self-hit = 0
+DS:0x5148,TEAMS_ENABLED: 0=teams disabled (no-team bonuses); non-zero=team mode active; gates score multipliers
+
+# ---- Guidance System ----
+DS:0x5186,HEAT_SEEK_THRESHOLD: heat guidance proximity = 40 pixels (NOT 60); ai_select_target trigger distance
+DS:0x321C,GUIDANCE_MIN_DIST_SQ: 0.001 (float64) — skip guidance correction if distSq < this (too close)
+DS:0x3224,GUIDANCE_CORRECTION_K: 10000.0 (float32) — continuous attraction multiplier; correction=K*dt/dist^0.75
+
+# ---- Tank rendering globals (icons.cpp) ----
+DS:0x5182,current_player_far_ptr_off: current player struct offset (lo word of far ptr at 5182:5184)
+DS:0x5184,current_player_far_ptr_seg: current player struct segment (hi word; les bx,[0x5182] loads this)
+DS:0xE344,current_player_idx_render: player index used during rendering (0-9)
+DS:0xE346,barrel_start_x: barrel attachment X calculated during tank draw
+DS:0xE348,barrel_start_y: barrel attachment Y calculated during tank draw
+
+# ---- Input System ----
+DS:0x5030,INPUT_MODE: 0=keyboard direct (default) 1=mouse 2=joystick; set via set_input_mode()
+DS:0x502E,KEYBOARD_BIOS_FLAG: 0=custom INT 9h handler (default) 1=BIOS INT 16h polling
+DS:0xD1BE,key_state_array: 128 words; 1=key pressed 0=released; indexed by scancode; used for arrow key polling
+DS:0xD0B8,last_scancode: most recent keyboard scan code from INT 9h handler
+DS:0xD0B2,modifier_flags: bit0=RShift bit1=LShift bit2=Ctrl bit3=Alt
+DS:0x5032,mouse_scancode_buf_head: mouse mode scancode circular buffer head index
+DS:0x5034,mouse_scancode_buf_tail: mouse mode scancode circular buffer tail index
+0x288A0,set_input_mode: sets DS:5030; mode 1 resets scancode buffer; mode 2 calls init_joystick(0x100,0,D1BE)
+
+# ---- Sound System (Fastgraph V4.02 / PC speaker) ----
+DS:0x519E,SOUND_ENABLED_FLAG: game-level sound on/off; distinct from DS:0xEF46 which is PC speaker device flag
+DS:0x50EE,FLIGHT_SOUNDS: FLY_SOUND config flag; enables per-frame in-flight sound effects
+DS:0x50F0,FLIGHT_SOUND_STATE: current flight sound state tracker
+0x010C81,fg_sound_on(freq_hz): programs 8253 PIT channel 2; divisor=1193277/freq; OR port 0x61 with 0x03
+0x010CB1,fg_sound_off: AND port 0x61 with 0xFC to disable speaker
+0x4C117,fg_sound_dispatch(freq,dur): checks DS:EF46; if 1=PC speaker: fg_sound_on, delay, fg_nosound
+0x4C143,fg_click(delay,count): toggles speaker bit1 N times
+0x4C177,fg_beep(dur_lo,dur_hi): click-based tone for duration
+0x4C1D8,fg_tone(start,end,step): frequency sweep from start to end Hz in step increments
+0x4C221,fg_sound(freq_hz): continuous PIT tone (no duration; call fg_nosound to stop)
+0x4C278,fg_nosound: stop speaker via AND port 0x61 with 0xFC (same hw as fg_sound_off; different call site)
+
 # ---- Play Order System ----
 0x2AE53,play_order_init: switch on DS:519C (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin,4=Sequential)
 0x2AE77,case 0 Random: fill order array sequentially then Fisher-Yates shuffle 50 swaps + random(2) start

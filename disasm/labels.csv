@@ -278,6 +278,55 @@ DS:0x5686,NAPALM_HOT_MAX_DAMAGE
 DS:0x568A,NAPALM_REG_DAMAGE_RADIUS
 DS:0x568E,NAPALM_REG_MAX_DAMAGE
 
+# ---- Play Modes (play.cpp) ----
+DS:0x5188,PLAY_MODE
+0x30560,play_turn_handler
+0x3063A,play_clear_fire_callbacks
+0x1D8EA,play_sync_fire_phase
+0x29280,play_ai_type_dispatch
+0x29505,play_ai_noise_params
+DS:0x510E,SIMULTANEOUS_AI_FLAG
+
+# ---- Score System (score.cpp, seg 0x30B2) ----
+0x375E3,score_on_death
+0x37688,score_on_damage
+DS:0x5148,TEAMS_ENABLED
+
+# ---- Guidance System constants ----
+DS:0x5186,HEAT_SEEK_THRESHOLD
+DS:0x321C,GUIDANCE_MIN_DIST_SQ
+DS:0x3224,GUIDANCE_CORRECTION_K
+
+# ---- Tank rendering DS vars (icons.cpp) ----
+DS:0x5182,current_player_far_ptr_off
+DS:0x5184,current_player_far_ptr_seg
+DS:0xE344,current_player_idx_render
+DS:0xE346,barrel_start_x
+DS:0xE348,barrel_start_y
+
+# ---- Input System ----
+DS:0x5030,INPUT_MODE
+DS:0x502E,KEYBOARD_BIOS_FLAG
+DS:0xD1BE,key_state_array
+DS:0xD0B8,last_scancode
+DS:0xD0B2,modifier_flags
+DS:0x5032,mouse_scancode_buf_head
+DS:0x5034,mouse_scancode_buf_tail
+0x288A0,set_input_mode
+
+# ---- Sound System ----
+DS:0x519E,SOUND_ENABLED_FLAG
+DS:0x50EE,FLIGHT_SOUNDS
+DS:0x50F0,FLIGHT_SOUND_STATE
+0x010C81,fg_sound_on
+0x010CB1,fg_sound_off
+0x4C117,fg_sound_dispatch
+0x4C143,fg_click
+0x4C177,fg_beep
+0x4C1D8,fg_tone
+0x4C221,fg_sound
+0x4C278,fg_nosound
+
 # ---- Play Order System (player.cpp) ----
 0x2AE53,play_order_init
 0x2AE77,play_order_case0_random
