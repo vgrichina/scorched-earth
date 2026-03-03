@@ -300,7 +300,7 @@ DS:0x3224,GUIDANCE_CORRECTION_K
 # ---- Tank rendering DS vars (icons.cpp) ----
 DS:0x5182,current_player_far_ptr_off
 DS:0x5184,current_player_far_ptr_seg
-DS:0xE344,current_player_idx_render
+DS:0xE344,hud_weapon_icon_idx
 DS:0xE346,barrel_start_x
 DS:0xE348,barrel_start_y
 

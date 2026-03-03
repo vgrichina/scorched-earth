@@ -235,7 +235,7 @@ DS:0x3224,GUIDANCE_CORRECTION_K: 10000.0 (float32) — continuous attraction mul
 # ---- Tank rendering globals (icons.cpp) ----
 DS:0x5182,current_player_far_ptr_off: current player struct offset (lo word of far ptr at 5182:5184)
 DS:0x5184,current_player_far_ptr_seg: current player struct segment (hi word; les bx,[0x5182] loads this)
-DS:0xE344,current_player_idx_render: player index used during rendering (0-9)
+DS:0xE344,hud_weapon_icon_idx: current player's selected weapon index (0-47), loaded from player_struct[+0x26] (extras.cpp 0x21A24); used as icon index in draw_icon_alive for HUD Row 1 weapon icon; NOT a player index
 DS:0xE346,barrel_start_x: barrel attachment X calculated during tank draw
 DS:0xE348,barrel_start_y: barrel attachment Y calculated during tank draw
 
@@ -307,3 +307,4 @@ DS:0xEF3A,FG_MAXY: fg_getmaxy() = screenH - 1 (max Y pixel coordinate)
 DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)
 0x44630,draw_flat_box(minx, miny, maxx, maxy): sunken 3D border (1px) using EF30/EF32/EF26/EF2E colors
 0x26245,draw_icon_dead: color=0xA9(169) fill=0; fill=0 draws color=|pixel_val|+base; icon 0 col3 row0=0x9D=-99 signed → skipped in alive(fill=1) but drawn in dead(fill=0)
+0x30F3F,sub-struct[+0x16] = player_icon_idx initialized to 0 here; never written elsewhere; all players use icon 0 always in draw_hud_basic (intentional — icon differentiates by color only)
