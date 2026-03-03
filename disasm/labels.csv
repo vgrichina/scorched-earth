@@ -73,6 +73,8 @@ DS:0x5068,FMT_WIND_ZERO
 0x1580D,shop_paint_callback
 0x3A0A9,setup_sky_ceiling_palette
 0x4569F,store_sky_base_index
+0x4C914,text_display
+0x2A630,ui_color_init
 0x261D7,draw_icon_alive
 0x26245,draw_icon_dead
 0x262B3,draw_icon_blank
@@ -109,7 +111,16 @@ DS:0x323E,FOUR_f64
 DS:0x3242,HALF_f64
 DS:0x3246,TWO_f64
 DS:0xED58,layout_mode
-DS:0xEF22,highlight_color
+DS:0xEF20,hud_color_EF20
+DS:0xEF22,hud_text_color
+DS:0xEF24,hud_dim_color
+DS:0xEF26,hud_white_color
+DS:0xEF28,hud_background_color
+DS:0xEF2A,hud_color_EF2A
+DS:0xEF2C,hud_deep_shadow_color
+DS:0xEF2E,hud_color_EF2E
+DS:0xEF30,hud_dark_shadow_color
+DS:0xEF32,hud_shadow_color
 DS:0x518E,HUD_Y
 DS:0xCEB8,player_struct_base
 DS:0xD568,tank_struct_base

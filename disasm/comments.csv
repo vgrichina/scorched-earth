@@ -37,7 +37,17 @@
 DS:0x515C,MAX_WIND: maximum wind speed (default 200; slider 5-500); per-turn clamp uses +-this
 DS:0x5190,MKT_SENSITIVITY: market price adjustment multiplier = 0.05 (float64); NOT air viscosity
 DS:0xED58,layout_mode: 0=spacious(25px rows) 1=compact(17px rows); same font both modes
-DS:0xEF22,highlight_color: UI highlight/selected-item color (pal 200 dynamic player color)
+0x2A630,ui_color_init: sets EF20=VGA162 EF22=EF2C=VGA152(black) EF24=VGA153(dim-gray) EF26=VGA155(white) EF28=EF2A=VGA151(light-gray) EF2E=VGA159 EF30=VGA158 EF32=VGA156; called at startup when DS:6E2C>=256
+DS:0xEF20,hud_color_EF20: VGA 162 (0xA2) — assigned at init 0x2A65A; role TBD
+DS:0xEF22,hud_text_color: VGA 152 (0x98)=(R=0,G=0,B=0)=BLACK — HUD text color (NOT per-player; fixed); set via store_sky_base_index(EF22) before text_display; exception: player NAME uses VGA 163 set per-player by fg_setrgb at 0x3030E
+DS:0xEF24,hud_dim_color: VGA 153 (0x99)=(R=30,G=30,B=30)=dim-gray — depleted/zero-count item text; used when item_count<=0
+DS:0xEF26,hud_white_color: VGA 155 (0x9B)=(R=63,G=63,B=63)=WHITE — 3D box top/left bevel highlight
+DS:0xEF28,hud_background_color: VGA 151 (0x97)=(R=45,G=45,B=45)=light-gray — HUD panel background fill
+DS:0xEF2A,hud_color_EF2A: VGA 151 same as EF28 at init; some border shade
+DS:0xEF2C,hud_deep_shadow_color: VGA 152=BLACK same as EF22 — bar interior background fill (empty portion of bar)
+DS:0xEF2E,hud_color_EF2E: VGA 159 (0x9F)=(R=55,G=55,B=55)=medium-light-gray — 3D box inner bevel
+DS:0xEF30,hud_dark_shadow_color: VGA 158 (0x9E)=(R=5,G=5,B=5)=near-black — 3D box deepest shadow (RIGHT edge)
+DS:0xEF32,hud_shadow_color: VGA 156 (0x9C)=(R=15,G=15,B=15)=very-dark-gray — 3D box shadow (BOTTOM edge)
 DS:0x518E,HUD_Y: HUD Y position
 DS:0xCEB8,player_struct_base: far ptr to player struct array; stride 0x6C (108 bytes)
 DS:0xD568,tank_struct_base: tank/sub struct array base; stride 0xCA (202 bytes)
