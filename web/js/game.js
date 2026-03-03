@@ -97,6 +97,7 @@ export const game = {
   // Play order system
   turnOrder: [],
   turnOrderIdx: 0,
+  playOrderLastFirstId: -1,  // EXE DS:0x51A4: tracks first player's index for Losers-First rotation (-1 = first round)
   // Sync play mode
   aimQueue: [],        // stored aims for sync mode
   syncPlayerIdx: 0,    // which player is aiming in sync mode
@@ -161,19 +162,41 @@ function computeTurnOrder() {
       }
       break;
     }
-    case 1:
-      // Losers-First: EXE shuffles + rotates start position per round.
-      // Approximation: sort by score ascending (lowest/losers first)
-      alive.sort((a, b) => players[a].score - players[b].score);
+    case 1: {
+      // Losers-First: EXE (0x2AF29) random-shuffles then rotates so a tracked player goes first
+      // DS:0x51A4: first round = random start; subsequent rounds = (lastFirstId+1) % totalPlayers
+      // (NOT score-sorted — the rotation advances by 1 player index each round)
+      for (let i = alive.length - 1; i > 0; i--) {
+        const j = random(i + 1);
+        [alive[i], alive[j]] = [alive[j], alive[i]];
+      }
+      let targetId;
+      if (game.playOrderLastFirstId < 0) {
+        targetId = alive[random(alive.length)];
+      } else {
+        targetId = (game.playOrderLastFirstId + 1) % players.length;
+        for (let attempts = 0; attempts < players.length; attempts++) {
+          if (alive.includes(targetId)) break;
+          targetId = (targetId + 1) % players.length;
+        }
+      }
+      const pos1 = alive.indexOf(targetId);
+      if (pos1 > 0) { const tail1 = alive.splice(0, pos1); alive.push(...tail1); }
+      game.playOrderLastFirstId = alive[0];
       break;
+    }
     case 2:
       // Winners-First: EXE sorts by score, fills in reverse (highest first)
       alive.sort((a, b) => players[b].score - players[a].score);
       break;
-    case 3:
-      // Round-Robin: EXE sorts by score, fills forward (lowest first)
+    case 3: {
+      // Round-Robin: EXE (0x2B0BB) sorts by score (lowest first), then random rotation per round
+      // DS:0xE4F4 = random(NUM_PLAYERS) each round — fresh random start, no per-round tracking
       alive.sort((a, b) => players[a].score - players[b].score);
+      const startPos = random(alive.length);
+      if (startPos > 0) { const tail3 = alive.splice(0, startPos); alive.push(...tail3); }
       break;
+    }
     default:
       // Sequential (4): already in index order — no modification
       break;
@@ -226,6 +249,7 @@ function advancePlayer() {
 // Called by main.js startGame to set up first round state (turn order, sync mode, wall type)
 export function initGameRound() {
   initMarket();  // Initialize market prices at game start (EXE: mkt_init_defaults)
+  game.playOrderLastFirstId = -1;  // EXE DS:0x51A4: reset to -1 (first round) on new game
   computeTurnOrder();
   if (game.turnOrder.length > 0) {
     game.currentPlayer = game.turnOrder[0];
