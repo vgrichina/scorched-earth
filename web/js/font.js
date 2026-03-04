@@ -305,8 +305,8 @@ function drawChar(ch, x, y, colorIndex) {
 
 // Draw a string at (x, y) with given palette color index
 // Returns the width in pixels
-// EXE: text_display at file 0x4C914 skips '~' (0x7E) hotkey markers
-// and underlines the next character (hotkey letter) at y+FONT_HEIGHT-1
+// EXE: text_display at file 0x4C914 (0x4C97E) SILENTLY SKIPS '~' (0x7E) — no underline drawn.
+// Web port draws a 1px underline under the next char after '~' as a web-only UX enhancement.
 export function drawText(x, y, str, colorIndex) {
   let cx = x;
   let underlineNext = false;
