@@ -6,7 +6,7 @@
 import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
 import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
-import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers } from './terrain.js';
+import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers, loadMTNFiles } from './terrain.js';
 import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
@@ -40,7 +40,7 @@ function updateCSSAspect() {
   document.documentElement.style.setProperty('--game-aspect', cssAspect.toFixed(4));
 }
 
-function init() {
+async function init() {
   const canvas = document.getElementById('screen');
   initFramebuffer(canvas);
   updateCSSAspect();
@@ -54,6 +54,9 @@ function init() {
 
   // EXE: main menu is the first screen (no separate title splash)
   game.state = STATE.CONFIG;
+
+  // Pre-load MTN terrain files (land type 3 — ScannedMountain class)
+  await loadMTNFiles();
 
   requestAnimationFrame(gameLoop);
 }

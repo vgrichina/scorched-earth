@@ -110,8 +110,110 @@ function generateVShaped(width, yStart, yEnd) {
   }
 }
 
+// ======================================================================
+// MTN TERRAIN FILE LOADER
+// EXE: ScannedMountain class, file 0x029AAE; descriptor table at DS:0x5F04
+// Format: 72-byte header + PCX-RLE nibble-packed 4bpp, column-major
+// Header: magic=MT\xBE\xEF, h=rows/col, x_start/x_end, n_colors=16, palette@0x18
+// Pixel data @0x48: byte>=0xC0 → run (count=b&0x3F, repeat next byte); byte<0xC0 → literal
+// High nibble = first pixel, low nibble = second pixel; index 0 = sky (transparent)
+// Height = first non-zero row from top per column; fraction 0=top, 1=bottom
+
+const MTN_FILENAMES = [
+  'ICE001.MTN', 'ICE002.MTN', 'ICE003.MTN',
+  'ROCK001.MTN', 'ROCK002.MTN', 'ROCK003.MTN', 'ROCK004.MTN',
+  'ROCK005.MTN', 'ROCK006.MTN', 'SNOW001.MTN',
+];
+
+// Array of parsed height maps: { xStart, xEnd, heights: Float32Array }
+const mtnHeightMaps = [];
+
+function parseMTNFile(buffer) {
+  const d = new Uint8Array(buffer);
+  if (d.length < 72) return null;
+  // Verify magic: 'MT' 0xBE 0xEF
+  if (d[0] !== 0x4D || d[1] !== 0x54 || d[2] !== 0xBE || d[3] !== 0xEF) return null;
+
+  const h       = d[6]  | (d[7]  << 8);  // rows per column
+  const xStart  = d[8]  | (d[9]  << 8);  // first encoded column
+  const xEnd    = d[10] | (d[11] << 8);  // last encoded column + 1
+  const numCols = xEnd - xStart;
+  if (numCols <= 0 || h <= 0) return null;
+
+  // Decode PCX-RLE into packed nibble bytes (column-major)
+  const bytesPerCol = Math.ceil(h / 2);
+  const totalBytes  = numCols * bytesPerCol;
+  const packed = new Uint8Array(totalBytes);
+  let outIdx = 0, i = 72;
+  while (outIdx < totalBytes && i < d.length) {
+    const b = d[i++];
+    if (b >= 0xC0) {
+      const count = b & 0x3F;
+      const val   = d[i++];
+      const end   = Math.min(outIdx + count, totalBytes);
+      while (outIdx < end) packed[outIdx++] = val;
+    } else {
+      packed[outIdx++] = b;
+    }
+  }
+
+  // Extract terrain height fraction for each column
+  // For column c, scan rows 0..h-1 and find first non-zero (non-sky) pixel
+  const heights = new Float32Array(numCols);
+  for (let c = 0; c < numCols; c++) {
+    const base = c * bytesPerCol;
+    let found = false;
+    for (let row = 0; row < h; row++) {
+      const nibble = (row & 1) === 0
+        ? (packed[base + (row >> 1)] >> 4) & 0xF
+        :  packed[base + (row >> 1)]       & 0xF;
+      if (nibble !== 0) {
+        heights[c] = row / h;
+        found = true;
+        break;
+      }
+    }
+    if (!found) heights[c] = 1.0;
+  }
+
+  return { xStart, xEnd, heights };
+}
+
+// Pre-load all MTN files into mtnHeightMaps[]. Called once at startup.
+export async function loadMTNFiles() {
+  for (const filename of MTN_FILENAMES) {
+    try {
+      const resp = await fetch(`earth/${filename}`);
+      if (!resp.ok) continue;
+      const parsed = parseMTNFile(await resp.arrayBuffer());
+      if (parsed) mtnHeightMaps.push(parsed);
+    } catch (_) { /* silently skip missing files */ }
+  }
+}
+
+// Apply a parsed MTN height map to the terrain[] array.
+// EXE: MTN data is 320px-wide; scale to current screen width.
+function applyMTNHeights(mtn, width, yStart, yEnd) {
+  const { xStart, xEnd, heights } = mtn;
+  const playH = yEnd - yStart;
+  const scale = width / 320;  // MTN columns are indexed in 320px space
+  for (let x = 0; x < width; x++) {
+    const mtnX = Math.floor(x / scale);
+    let frac;
+    if (mtnX < xStart)       frac = heights[0];
+    else if (mtnX >= xEnd)   frac = heights[heights.length - 1];
+    else                     frac = heights[mtnX - xStart];
+    terrain[x] = clamp(Math.round(yStart + frac * playH), yStart, yEnd - 1);
+  }
+}
+
 // Mountain terrain: sharp peaks with multiple overlaid random walk passes
 function generateMountain(width, yStart, yEnd) {
+  // EXE: MTN_PERCENT% chance of ScannedMountain class (default 20%)
+  if (mtnHeightMaps.length > 0 && random(100) < config.mtnPercent) {
+    applyMTNHeights(mtnHeightMaps[random(mtnHeightMaps.length)], width, yStart, yEnd);
+    return;
+  }
   // Start with high base
   for (let x = 0; x < width; x++) {
     terrain[x] = yEnd - 1;

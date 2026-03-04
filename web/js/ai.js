@@ -56,7 +56,6 @@ function getSpoilerNoise() {
 // Budget-driven harmonics with shot-number domain (not wall-clock).
 // DS constants: π=DS:0x322E, 2π=DS:0x3236, 4.0=DS:0x323E, 0.5=DS:0x3242, 2.0=DS:0x3246
 const NOISE_SHOT_RANGE = 90;  // angular range for budget calculation
-const POWER_NOISE_SCALE = 5;  // degrees-to-power-units scaling
 
 function generateHarmonics(noiseAmplitude) {
   const freq_base = Math.PI / (noiseAmplitude * 2);  // DS:0x322E / (amp*2)
@@ -145,55 +144,85 @@ function getEffectiveType(aiType) {
   return aiType;
 }
 
+// EXE: ai_compute_power (file 0x254E9-0x2589B)
+// Ballistic formula: v² = g_config * dx² / (2 * cos²(θ) * (dx*tan(θ) - dy))
+// EXE constants: DS:3214 (f32)=2.0, DS:3218 (f32)=50.0, DS:512A (f64)=0.2 (gravity default)
+// Web equivalent: g = GRAVITY_FACTOR * config.gravity = 400 * g_config
+// Scaling proof: v_exe * 50 = v_web * 2.5 (v_web = v_exe * 20, k = MAX_SPEED/1000 = 0.4)
+function computePowerForAngle(shooter, target, angleDeg) {
+  const dx = target.x - shooter.x;
+  const dy = -(target.y - shooter.y);  // positive = up (world coords)
+  const angleRad = angleDeg * Math.PI / 180;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const g = 400.0 * config.gravity;  // GRAVITY_FACTOR — must match physics.js
+  if (Math.abs(cosA) < 0.01 || Math.abs(dx) < 1) return 500;
+  const denom = 2 * cosA * cosA * (dx * sinA / cosA - dy);
+  if (denom <= 0) return 500;  // angle can't reach target at this geometry
+  const vSq = g * dx * dx / denom;
+  if (vSq <= 0) return 500;
+  return clamp(Math.round(Math.sqrt(vSq) * 1000 / 400), 50, 1000);  // 400 = MAX_SPEED
+}
+
 // Main AI entry: compute shot parameters
+// EXE architecture: harmonic scan selects angle; power computed analytically per angle.
+// All noise generators contribute to angle scanning (NOT split angle/power as in prior web port).
 export function aiComputeShot(player) {
   const effectiveType = getEffectiveType(player.aiType);
-  // Spoiler: random amplitudes per solve (EXE: random budget at 0x29564)
-  const noise = effectiveType === AI_TYPE.SPOILER
+  const noiseParams = effectiveType === AI_TYPE.SPOILER
     ? getSpoilerNoise()
     : (AI_NOISE[effectiveType] || AI_NOISE[AI_TYPE.MORON]);
 
-  // Select target: nearest alive enemy
   const target = selectTarget(player);
   if (!target) {
-    // No target — fire straight up
     aiState.targetAngle = 90;
     aiState.targetPower = 200;
     aiState.selectedWeapon = WPN.BABY_MISSILE;
     return aiState;
   }
 
-  // Select weapon based on AI type
   aiState.selectedWeapon = selectWeapon(player, target, effectiveType);
 
-  // Compute ideal angle and power using analytic ballistics
-  const solution = solveBallistic(player, target);
+  const dx = target.x - player.x;
+  // Valid hemisphere: toward target (EXE: min_angle determined by target direction)
+  const minAngle = dx >= 0 ? 0 : 90;
 
-  // EXE: scanning noise — shot-number domain, budget-driven harmonics
-  // Each noise param generates independent harmonic set; param count per AI type
-  // controls which aspects get noise (more params = wider noise)
-  // Sentient: empty noise array = perfect accuracy (no noise injection)
-  let angleNoise = 0;
-  let powerNoise = 0;
-
-  if (noise.length > 0) {
-    const noiseState = getNoiseState(player, noise);
+  if (noiseParams.length === 0) {
+    // Sentient: empty noise → perfect accuracy (EXE vtable corrupted, never reached)
+    // Best-effort: scan all valid angles, pick lowest error from power mid-range
+    const minA = dx >= 0 ? 1 : 91;
+    const maxA = dx >= 0 ? 89 : 179;
+    let bestAngle = minA + Math.round((maxA - minA) / 2);
+    let bestPower = 500;
+    let bestScore = Infinity;
+    for (let a = minA; a <= maxA; a++) {
+      const p = computePowerForAngle(player, target, a);
+      if (p >= 50 && p <= 1000) {
+        const score = Math.abs(p - 500);
+        if (score < bestScore) { bestScore = score; bestAngle = a; bestPower = p; }
+      }
+    }
+    aiState.targetAngle = bestAngle;
+    aiState.targetPower = bestPower;
+  } else {
+    // EXE: harmonic scan (ai_inject_noise → angle space exploration → ai_compute_power)
+    // base_angle: random start within valid hemisphere (EXE: min_angle + rand(shot_range))
+    // All generators summed → angle offset; power derived analytically for that angle.
+    const noiseState = getNoiseState(player, noiseParams);
     const shotNum = noiseState.shotNumber++;
 
-    // Angle noise: param[0] + param[2] if present (scaled by noise_amplitude)
-    angleNoise = evaluateHarmonics(noiseState.generators[0], shotNum) * noise[0] / 100;
-    if (noise.length >= 3) {
-      angleNoise += evaluateHarmonics(noiseState.generators[2], shotNum) * noise[2] / 100;
+    const baseAngle = minAngle + random(NOISE_SHOT_RANGE);
+    let angleOffset = 0;
+    for (let i = 0; i < noiseState.generators.length; i++) {
+      angleOffset += evaluateHarmonics(noiseState.generators[i], shotNum) * noiseParams[i] / 100;
     }
 
-    // Power noise: param[1] if present (no power noise for 1-param types like Shooter)
-    if (noise.length >= 2) {
-      powerNoise = evaluateHarmonics(noiseState.generators[1], shotNum) * noise[1] / 100 * POWER_NOISE_SCALE;
-    }
+    const angle = clamp(Math.round(baseAngle + angleOffset), 1, 179);
+    const power = computePowerForAngle(player, target, angle);
+
+    aiState.targetAngle = angle;
+    aiState.targetPower = clamp(power, 50, 1000);
   }
-
-  aiState.targetAngle = clamp(Math.round(solution.angle + angleNoise), 0, 180);
-  aiState.targetPower = clamp(Math.round(solution.power + powerNoise), 50, 1000);
 
   return aiState;
 }
@@ -242,134 +271,6 @@ function selectWeapon(player, target, aiType) {
   }
 
   return WPN.BABY_MISSILE;
-}
-
-// Analytic ballistic solver
-// EXE: shark.cpp solver at file 0x24F01-0x2610F
-// EXE: uses FPU math (INT 34h-3Dh Borland emulation), decoded in disasm/ai_solver_decoded.txt
-// EXE: player struct stride 0x6C (108 bytes), base at DS:CEB8
-// Computes angle + power to hit target, accounting for gravity and wind
-function solveBallistic(shooter, target) {
-  const dx = target.x - shooter.x;
-  const dy = -(target.y - shooter.y);  // positive = up in world coords
-
-  const dt = 0.02;  // must match physics.js DT
-  // EXE-derived: gravity = 2500 × G × k² = 400 × config.gravity (k=MAX_SPEED/1000)
-  const gravity = 400.0 * config.gravity;  // must match physics.js GRAVITY_FACTOR
-  const windAccel = game_wind() * 0.2;  // must match physics.js WIND_FACTOR (1.25 × k²)
-  const maxSpeed = 400;  // must match physics.js MAX_SPEED
-
-  // Effective horizontal distance accounting for wind
-  // Wind pushes projectile, so adjust target position
-  const dist = Math.sqrt(dx * dx + dy * dy);
-
-  // Direct angle to target
-  const directAngle = Math.atan2(dy, dx);
-
-  // Try a range of launch angles, pick best
-  let bestAngle = directAngle * 180 / Math.PI;
-  let bestPower = 500;
-  let bestError = Infinity;
-
-  // Search angles from high arc to direct
-  const angleStart = dx > 0 ? 20 : 100;
-  const angleEnd = dx > 0 ? 90 : 160;
-  const angleStep = 3;
-
-  for (let angleDeg = angleStart; angleDeg <= angleEnd; angleDeg += angleStep) {
-    const angleRad = angleDeg * Math.PI / 180;
-    const cosA = Math.cos(angleRad);
-    const sinA = Math.sin(angleRad);
-
-    if (Math.abs(cosA) < 0.01) continue;
-
-    // Time to reach target x: dx = vx*t + 0.5*wind*t^2
-    // Simplified: t ≈ dx / (vx + wind*t/2)
-    // First estimate without wind
-    // power = speed / maxSpeed * 1000
-    // vx = cos(a) * speed
-    // vy = sin(a) * speed
-    // At time t: x = vx*t + windAccel*t^2/2, y = vy*t - gravity*t^2/2
-
-    // From y equation: 0 = vy*t - g*t^2/2 - dy → t = (vy + sqrt(vy^2 - 2*g*dy)) / g
-    // From x equation: speed = dx / (cos(a) * t - windAccel*t^2/(2*speed... recursive))
-
-    // Iterative approach: guess power, simulate, refine
-    for (let powerGuess = 200; powerGuess <= 1000; powerGuess += 50) {
-      const speed = (powerGuess / 1000) * maxSpeed;
-      const vx = cosA * speed;
-      const vy = sinA * speed;
-
-      // Simulate trajectory to find where it lands near target x
-      let px = 0, py = 0, pvx = vx, pvy = vy;
-      let landed = false;
-      const maxSteps = 500;
-
-      for (let step = 0; step < maxSteps; step++) {
-        pvy -= gravity * dt;
-        pvx += windAccel * dt;
-        px += pvx * dt;
-        py += pvy * dt;  // world coords
-
-        // Check if we've passed the target x
-        if ((dx > 0 && px >= dx) || (dx < 0 && px <= dx)) {
-          const error = Math.abs(py - dy) + Math.abs(px - dx) * 0.5;
-          if (error < bestError) {
-            bestError = error;
-            bestAngle = angleDeg;
-            bestPower = powerGuess;
-          }
-          landed = true;
-          break;
-        }
-
-        // Gone too far vertically
-        if (py < dy - 200) break;
-      }
-    }
-  }
-
-  // Fine-tune around best found angle
-  for (let da = -3; da <= 3; da++) {
-    for (let dp = -50; dp <= 50; dp += 25) {
-      const angleDeg = bestAngle + da;
-      const power = bestPower + dp;
-      if (angleDeg < 0 || angleDeg > 180 || power < 50 || power > 1000) continue;
-
-      const angleRad = angleDeg * Math.PI / 180;
-      const speed = (power / 1000) * maxSpeed;
-      const vx = Math.cos(angleRad) * speed;
-      const vy = Math.sin(angleRad) * speed;
-
-      let px = 0, py = 0, pvx = vx, pvy = vy;
-      for (let step = 0; step < 500; step++) {
-        pvy -= gravity * dt;
-        pvx += windAccel * dt;
-        px += pvx * dt;
-        py += pvy * dt;
-
-        if ((dx > 0 && px >= dx) || (dx < 0 && px <= dx)) {
-          const error = Math.abs(py - dy) + Math.abs(px - dx) * 0.5;
-          if (error < bestError) {
-            bestError = error;
-            bestAngle = angleDeg;
-            bestPower = power;
-          }
-          break;
-        }
-        if (py < dy - 200) break;
-      }
-    }
-  }
-
-  return { angle: bestAngle, power: bestPower };
-}
-
-// Access game wind without circular dependency
-function game_wind() {
-  // Import at call time to avoid circular dependency
-  // game.wind is set by game.js
-  return _wind;
 }
 
 let _wind = 0;
