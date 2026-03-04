@@ -22,7 +22,7 @@ DS base: 0x4F38 (file 0x055D80)
   VGA 200              Tank hit marker pixel
   VGA 254              Napalm fire particle color
 
-CRITICAL CORRECTION: REVERSE_ENGINEERING.md previously stated tank colors
+CRITICAL CORRECTION: REVERSE.md previously stated tank colors
 at VGA 80-104 (0x50-0x68). This is WRONG. The correct range is VGA 0-79
 (0x00-0x4F), with 8 colors per player.
 

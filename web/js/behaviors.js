@@ -445,7 +445,7 @@ function bhvPopcorn(proj, weapon, hitResult) {
 
 // --- Guidance system: one-shot course correction during flight ---
 // EXE VERIFIED: extras.cpp 0x2263D — single-type, one-shot, consumed model.
-// See REVERSE_ENGINEERING.md "Guidance System" section for full EXE pseudocode.
+// See REVERSE.md "Guidance System" section for full EXE pseudocode.
 //
 // At fire time: selectGuidanceType() picks highest-priority guidance the player
 // has ammo for (Horz > Vert > Heat), decrements ammo, returns type constant.

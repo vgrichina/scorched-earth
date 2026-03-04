@@ -26,7 +26,7 @@ web/              Web reimplementation (pure HTML/CSS/JS, no dependencies)
 earth/            Original DOS game files (gitignored, see below)
 disasm/           Decoded disassembly and analysis intermediate files
   fpu_decode.py   Borland INT 34h-3Dh FPU instruction decoder
-REVERSE_ENGINEERING.md   Master RE document with all findings
+REVERSE.md   Master RE document with all findings
 ```
 
 ## Obtaining the Original Game Binary
@@ -45,7 +45,7 @@ The key file for RE work is `SCORCH.EXE` (Borland C++ 1993, MZ DOS format). Use 
 python3 disasm/fpu_decode.py earth/SCORCH.EXE 0x24F01 0x2610F -c -f
 ```
 
-See `REVERSE_ENGINEERING.md` for full binary layout, data structures, and decoded algorithms.
+See `REVERSE.md` for full binary layout, data structures, and decoded algorithms.
 
 ## Running Locally
 

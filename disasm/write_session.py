@@ -6,7 +6,7 @@ path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                      "re_loop_sessions", "20260224_114031_session_045.txt")
 
 lines = [
-    "Read session logs 043-045 and REVERSE_ENGINEERING.md Next Tasks.",
+    "Read session logs 043-045 and REVERSE.md Next Tasks.",
     "Top unchecked task: Full HUD/Menu/Shop fidelity re-audit (line 3430).",
     "Read HUD_MENU_COMPARISON.md (21 sections) + all 9 web UI files.",
     "",
@@ -25,14 +25,14 @@ lines = [
     "(dialog_alloc + add_item_list at seg 0x3F19) -- structural difference from",
     "web flat text overlay, accepted simplification.",
     "",
-    "Edit REVERSE_ENGINEERING.md -- mark audit task done, re-add self-replicating entry",
+    "Edit REVERSE.md -- mark audit task done, re-add self-replicating entry",
     "Edit HUD_MENU_COMPARISON.md -- add section 22 (no new discrepancies found)",
     "",
     "SESSION_SUMMARY: Full HUD/Menu/Shop fidelity re-audit (session 86) -- no new",
     "actionable discrepancies found; all fixes from sessions 76-85 verified correct;",
     "round-over scoring structural difference (EXE dialog widget system vs web flat",
     "text) documented as accepted simplification; Scores: label confirmed web-only;",
-    "DS:0x6063=Team Rankings found. Files: HUD_MENU_COMPARISON.md, REVERSE_ENGINEERING.md",
+    "DS:0x6063=Team Rankings found. Files: HUD_MENU_COMPARISON.md, REVERSE.md",
 ]
 
 with open(path, "w") as f:

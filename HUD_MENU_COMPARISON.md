@@ -324,7 +324,7 @@ All items found and fixed in session 78.
 | ~~Talk bubble X clamp hardcoded 320px~~ | **DONE** (talk.js — was `Math.min(318 - textWidth - 4, ...)`, now uses `config.screenWidth - 11 - textWidth`) |
 | ~~Talk bubble text truncation removed~~ | **DONE** (talk.js — EXE doesn't truncate, just clamps X; web had 35-char maxChars truncation) |
 | ~~Talk bubble X padding (2px → 3px left)~~ | **DONE** (talk.js — EXE has text at si, box at si-3 = 3px left padding; web had 2px; now matches EXE) |
-| ~~RE doc stale pseudocode at line 5385~~ | **DONE** (REVERSE_ENGINEERING.md — corrected "weapon_name" → "player_name" at E9DC and "wind display" → "fg_setrgb palette 163" matching HUD_MENU_COMPARISON section 1b resolution) |
+| ~~RE doc stale pseudocode at line 5385~~ | **DONE** (REVERSE.md — corrected "weapon_name" → "player_name" at E9DC and "wind display" → "fg_setrgb palette 163" matching HUD_MENU_COMPARISON section 1b resolution) |
 
 ---
 
@@ -1282,7 +1282,7 @@ call store_sky_base_index
 
 **Outer frame** (draw_3d_box at 0x3D56A): spans (0, 0, FG_MAXX, FG_MAXY) with fill = EF28 = VGA 151 = light gray (45,45,45)
 
-**Doc correction**: REVERSE_ENGINEERING.md terrain frame args previously said `(menu_right+1, 6, screen_height-37, screen_width-6)` — corrected to `(menu_right, 6, FG_MAXX-6, FG_MAXY-36)` (x2 was 1 off; removed off-by-1 FG_MAXX/screen_width confusion).
+**Doc correction**: REVERSE.md terrain frame args previously said `(menu_right+1, 6, screen_height-37, screen_width-6)` — corrected to `(menu_right, 6, FG_MAXX-6, FG_MAXY-36)` (x2 was 1 off; removed off-by-1 FG_MAXX/screen_width confusion).
 
 | Check | EXE | Web | Match |
 |-------|-----|-----|-------|

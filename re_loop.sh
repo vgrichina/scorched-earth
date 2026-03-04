@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$(dirname "$0")"
-remaining() { grep -c '^- \[ \]' REVERSE_ENGINEERING.md 2>/dev/null || true; }
+remaining() { grep -c '^- \[ \]' REVERSE.md 2>/dev/null || true; }
 mkdir -p re_loop_sessions
 RUN_TS=$(date '+%Y%m%d_%H%M%S')
 
@@ -36,27 +36,27 @@ for (( i=1; i<=MAX; i++ )); do
   PROMPT="Continue the Scorched Earth v1.50 reverse-engineering and web port project.
 
 Before picking a task:
-1. Read disasm/dead_ends.md for known investigation dead-ends (avoid repeating these).
+1. Read dead_ends.md for known investigation dead-ends (avoid repeating these).
 2. Read the 2-3 most recent STANDALONE session summaries in re_loop_sessions/ (format: YYYYMMDD_session_NNN.txt — NOT the verbose YYYYMMDD_HHMMSS_*.txt tool-call logs. Skim them to understand what was just investigated.
 
-Then read REVERSE_ENGINEERING.md '## Next Tasks' section. Pick the top $TASKS unchecked items (\`- [ ]\`).
+Then read REVERSE.md '## Next Tasks' section. Pick the top $TASKS unchecked items (\`- [ ]\`).
 
 Tasks fall into two categories:
 
 **RE investigation tasks** (disasm tools — dis.py is primary, plus ds_lookup.py, xref.py, struct_dump.py):
 1. Run 2-3 investigation tool calls.
-2. Immediately write findings to REVERSE_ENGINEERING.md.
+2. Immediately write findings to REVERSE.md.
 3. Repeat: a few more tool calls, then write again.
 4. Add new labels/symbols to disasm/labels.csv; add explanatory notes to disasm/comments.csv.
 Do not batch all investigation before writing — write after every few tool calls.
 
 **Web port fix tasks** (editing web/js/*.js files):
 1. Read the relevant web/js file first.
-2. Apply the fix described in REVERSE_ENGINEERING.md (binary addresses and values are already documented).
-3. Update REVERSE_ENGINEERING.md to note what was changed.
+2. Apply the fix described in REVERSE.md (binary addresses and values are already documented).
+3. Update REVERSE.md to note what was changed.
 No need to re-investigate the binary — all values are already documented.
 
-**If stuck**: If after 10 tool calls you have not made progress on an investigation, STOP. Add what you learned to disasm/dead_ends.md. Then break the stuck task into 2-3 smaller sub-tasks in REVERSE_ENGINEERING.md (e.g., 'Find function X callers using --callers mode', 'Trace code path Y from known label Z'). Mark the original task [x] with note 'Split into sub-tasks'. Move to the next task.
+**If stuck**: If after 10 tool calls you have not made progress on an investigation, STOP. Add what you learned to dead_ends.md. Then break the stuck task into 2-3 smaller sub-tasks in REVERSE.md (e.g., 'Find function X callers using --callers mode', 'Trace code path Y from known label Z'). Mark the original task [x] with note 'Split into sub-tasks'. Move to the next task.
 
 Mark task done (\`- [x]\`) once fully documented/implemented.
 End your final message with: SESSION_SUMMARY: <one line>
@@ -123,10 +123,10 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
       ' | tee "$LOG" &
   wait $!
 
-  SUMMARY=$(git diff REVERSE_ENGINEERING.md | grep '^+- \[x\]' | head -1 | sed 's/^+- \[x\] //' || true)
+  SUMMARY=$(git diff REVERSE.md | grep '^+- \[x\]' | head -1 | sed 's/^+- \[x\] //' || true)
   [[ -z "$SUMMARY" ]] && SUMMARY="session $i progress"
 
-  git add REVERSE_ENGINEERING.md web/ disasm/labels.csv disasm/comments.csv disasm/dead_ends.md
+  git add REVERSE.md web/ disasm/labels.csv disasm/comments.csv dead_ends.md
   if git diff --cached --quiet; then
     echo "No changes — retrying same task..."
     continue

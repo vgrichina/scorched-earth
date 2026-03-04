@@ -8,7 +8,7 @@ Goal: extract game mechanics, data structures, and algorithms for faithful reimp
 ## Key Files
 
 - `earth/SCORCH.EXE` — Original DOS binary (MZ format, 415,456 bytes, header=0x6A00)
-- `REVERSE_ENGINEERING.md` — Master document with all findings (weapons, AI, physics, shields, etc.)
+- `REVERSE.md` — Master document with all findings (weapons, AI, physics, shields, etc.)
 - `disasm/instruction_set_x86.py` — Complete x86 16-bit decoder with native FPU emulation (no subprocess)
 - `disasm/dis.py` — **Primary disassembler** — replaces r2+fpu_decode pipeline; loads labels/comments
 - `disasm/labels.csv` — Knowledge base: file_offset→name and DS:offset→name
@@ -171,6 +171,6 @@ Serve from project root: `python3 -m http.server 8090` → http://localhost:8090
 - File offsets are always hex with 0x prefix (e.g., 0x263F0)
 - DS offsets written as DS:XXXX (e.g., DS:CEB8)
 - Segment:offset pairs as SEG:OFF (e.g., 1E50:0001)
-- All findings go into REVERSE_ENGINEERING.md with section headers
+- All findings go into REVERSE.md with section headers
 - Mark resolved items with ~~strikethrough~~ in the Open Tasks section
 - Intermediate disassembly output goes in `disasm/` directory
