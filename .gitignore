@@ -9,5 +9,8 @@ build/
 # Python cache
 disasm/__pycache__/
 
+# Intermediate disassembly output (reproducible, not source)
+disasm/*.txt
+
 # RE loop session logs
 re_loop_sessions/
