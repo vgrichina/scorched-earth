@@ -23,7 +23,7 @@ import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
 import { checkShieldDeflection, applyShieldDamage } from './shields.js';
-import { playFireSound, playExplosionSound, playFlightSound, playLightningSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
+import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
 import { generateTerrain } from './terrain.js';
@@ -102,8 +102,7 @@ export const game = {
   aimQueue: [],        // stored aims for sync mode
   syncPlayerIdx: 0,    // which player is aiming in sync mode
   // Hostile environment
-  hostileLightningX: 0,
-  hostileLightningFrames: 0,
+
   // No Kibitzing
   screenHideTarget: -1,
   // System menu
@@ -825,34 +824,9 @@ export function gameTick() {
         // EXE: Erratic wall type resolves each turn
         if (config.wallType === WALL.ERRATIC) resolveRandomWallType();
 
-        // EXE: hostile environment — ~10% chance per turn of lightning or meteor
-        if (config.hostileEnvironment && random(100) < 10) {
-          if (random(2) === 0) {
-            // Lightning: random X column, damage tanks in range
-            const lx = random(config.screenWidth);
-            for (const p of players) {
-              if (p.alive && Math.abs(p.x - lx) <= 5) {
-                p.energy -= 20;
-                if (p.energy <= 0) {
-                  p.energy = 0;
-                  p.alive = false;
-                  startDeathAnimation(p);
-                  playDeathSound();
-                }
-              }
-            }
-            game.hostileLightningX = lx;
-            game.hostileLightningFrames = 8;
-            playLightningSound();
-          } else {
-            // Meteor: spawn projectile from top, Baby Missile, no attacker
-            clearProjectiles();
-            const mx = random(config.screenWidth);
-            launchProjectile(mx, 16, 270, 200, 2, -1);
-            game.state = STATE.FLIGHT;
-            break;
-          }
-        }
+        // EXE: HOSTILE_ENVIRONMENT (DS:0x513C) per-pixel damage is applied in physics.js
+        // stepSingleProjectile (file 0x3EB72) — not a turn-based event.
+        // No turn-level hostile event in EXE.
 
         game.turnCount++;
         if (advancePlayer()) {

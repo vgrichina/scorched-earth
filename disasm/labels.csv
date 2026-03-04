@@ -457,7 +457,7 @@ DS:0x62CC,scale_name_ptrs_bss
 0x444BB,draw_3d_box
 0x29564,spoiler_random_noise_setup
 DS:0x5150,current_player_ai_type_or_cond
-DS:0x5172,spoiler_noise_rand2
+DS:0x5172,FLATLAND
 DS:0x516E,spoiler_noise_rand100a
 DS:0x5170,spoiler_noise_rand100b
 0x2FBCA,compute_hud_layout_basic
@@ -607,3 +607,7 @@ DS:0xCC82,INTEREST_LABEL_X
 DS:0xCC84,INTEREST_BAR_X
 0x172C8,get_player_cash
 0x1736E,get_player_interest
+DS:0x51A2,BOMB_ICON
+DS:0x514E,BOMB_INVISIBLE_FLAG
+DS:0x513A,TUNNELLING
+DS:0x50FE,USELESS_ITEMS

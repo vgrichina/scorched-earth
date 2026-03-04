@@ -335,10 +335,13 @@ function generateCavern(width, yStart, yEnd) {
 
 // Main random walk algorithm
 // EXE: height generation kernel at file 0x29808, ranges.cpp
-// EXE: LAND1 controls flat chance (% momentum maintained), LAND2 controls slope
+// EXE: LAND1 controls flat chance (% momentum maintained), LAND2 controls bump chance
+// EXE: LandGenerator struct +0x0A=flat_chance, +0x0C=bump_chance, +0x0E=flatten_peaks
+// EXE: flatten_peaks (DS:5172=FLATLAND): suppresses walk_delta to 0 when |delta| > 3
 function generateRolling(width, yStart, yEnd) {
-  const flatChance = config.land1;   // default 20: % chance to maintain momentum
-  const bumpChance = config.land1;   // default 20: % chance to double delta
+  const flatChance = config.land1;         // default 20: % chance to maintain momentum
+  const bumpChance = config.land2;         // default 20: % chance to double delta
+  const flattenPeaks = config.flattenPeaks; // EXE: DS:5172=FLATLAND, struct+0x0E
 
   // Starting height: random within playfield
   let y = random(yEnd - yStart - 60) + yStart + 40;
@@ -355,6 +358,10 @@ function generateRolling(width, yStart, yEnd) {
         walkDelta *= 2;                     // {-2, 0, +2}
       }
     }
+
+    // EXE file 0x29849: if flatten_peaks and |delta| > 3, suppress to 0
+    if (flattenPeaks && (walkDelta < -3 || walkDelta > 3))
+      walkDelta = 0;
 
     y += walkDelta;
 

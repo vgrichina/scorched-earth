@@ -31,29 +31,40 @@ export function handleBehavior(proj, hitResult) {
   const weapon = WEAPONS[proj.weaponIdx];
   if (!weapon) return defaultResult(proj);
 
+  let result;
   switch (weapon.bhv) {
-    case BHV.STANDARD:  return bhvStandard(proj, weapon, hitResult);
-    case BHV.TRACER:    return bhvTracer(proj, weapon, hitResult);
-    case BHV.ROLLER:    return bhvRoller(proj, weapon, hitResult);
-    case BHV.BOUNCE:    return bhvBounce(proj, weapon, hitResult);
-    case BHV.MIRV:      return bhvMirv(proj, weapon, hitResult);
-    case BHV.NAPALM:    return bhvNapalm(proj, weapon, hitResult);
-    case BHV.DIRT:      return bhvDirt(proj, weapon, hitResult);
-    case BHV.TUNNEL:    return bhvTunnel(proj, weapon, hitResult);
-    case BHV.PLASMA:    return bhvPlasma(proj, weapon, hitResult);
-    case BHV.RIOT:      return bhvRiot(proj, weapon, hitResult);
-    case BHV.DISRUPTER: return bhvDisrupter(proj, weapon, hitResult);
-    case BHV.LIQUID:    return bhvLiquid(proj, weapon, hitResult);
-    case BHV.DIRT_CHARGE: return bhvDirtCharge(proj, weapon, hitResult);
+    case BHV.STANDARD:  result = bhvStandard(proj, weapon, hitResult); break;
+    case BHV.TRACER:    result = bhvTracer(proj, weapon, hitResult); break;
+    case BHV.ROLLER:    result = bhvRoller(proj, weapon, hitResult); break;
+    case BHV.BOUNCE:    result = bhvBounce(proj, weapon, hitResult); break;
+    case BHV.MIRV:      result = bhvMirv(proj, weapon, hitResult); break;
+    case BHV.NAPALM:    result = bhvNapalm(proj, weapon, hitResult); break;
+    case BHV.DIRT:      result = bhvDirt(proj, weapon, hitResult); break;
+    case BHV.TUNNEL:    result = bhvTunnel(proj, weapon, hitResult); break;
+    case BHV.PLASMA:    result = bhvPlasma(proj, weapon, hitResult); break;
+    case BHV.RIOT:      result = bhvRiot(proj, weapon, hitResult); break;
+    case BHV.DISRUPTER: result = bhvDisrupter(proj, weapon, hitResult); break;
+    case BHV.LIQUID:    result = bhvLiquid(proj, weapon, hitResult); break;
+    case BHV.DIRT_CHARGE: result = bhvDirtCharge(proj, weapon, hitResult); break;
     case BHV.NONE:
       // Funky Bomb special case (idx 7)
-      if (proj.weaponIdx === 7) return bhvFunky(proj, weapon, hitResult);
+      if (proj.weaponIdx === 7) { result = bhvFunky(proj, weapon, hitResult); break; }
       // Popcorn Bomb special case (idx 1)
-      if (proj.weaponIdx === 1) return bhvPopcorn(proj, weapon, hitResult);
-      return defaultResult(proj);
+      if (proj.weaponIdx === 1) { result = bhvPopcorn(proj, weapon, hitResult); break; }
+      result = defaultResult(proj); break;
     default:
-      return defaultResult(proj);
+      result = defaultResult(proj); break;
   }
+
+  // EXE: sub-warheads carry their own explosion radius (set at spawn time).
+  // Funky Bomb sub-bombs use (random(10)+15)×scale; MIRV/Death's Head handled in bhvMirv.
+  // For sub-warheads routed through a standard weapon handler (e.g. weaponIdx=2 Baby Missile),
+  // override the weapon's param-derived radius with the stored subRadius.
+  if (proj.isSubWarhead && proj.subRadius && result.explode && weapon.bhv === BHV.STANDARD) {
+    result = { ...result, radius: proj.subRadius };
+  }
+
+  return result;
 }
 
 // Called each physics step for in-flight behaviors (MIRV apogee, roller terrain-follow)
@@ -234,8 +245,10 @@ function bhvBounce(proj, weapon, hitResult) {
 // EXE spread formula: vx_offset = (i - (count+1)) * coeff (all negative, left-biased)
 // EXE: vy for sub-warheads is unchanged from parent (no angle math)
 function bhvMirv(proj, weapon) {
-  // If hit something before splitting, just explode
-  return { explode: true, radius: 20, spawn: [], dirtAdd: false, skipDamage: false };
+  // Sub-warheads carry their own subRadius (35 for Death's Head, 20 for MIRV)
+  // If hit before splitting, parent explodes at 20 (no sub-warhead radius stored)
+  const radius = (proj.isSubWarhead && proj.subRadius) ? proj.subRadius : 20;
+  return { explode: true, radius, spawn: [], dirtAdd: false, skipDamage: false };
 }
 
 function mirvFlightCheck(proj, weapon) {

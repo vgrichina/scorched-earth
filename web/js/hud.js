@@ -26,7 +26,7 @@
 //   Full mode:  Name + Power + Angle + PlayerName (struct+0xB6 name ptr) + Weapon
 //
 // EXE Row 2 layout (if [0x5142] != 0):
-//   Basic mode: Name + multi-player energy bar + Angle + multi-player angle bar
+//   Basic mode: 'Max:' + multi-player health bar + 'Shields:' + multi-player shield bar
 //   Full mode:  Name + 7 inventory widgets (fuel, items, shields, ammo bars)
 //
 // EXE draw_player_icon (0x261D7): generic icon renderer (both tank + weapon icons)
@@ -51,6 +51,7 @@ import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
 import { PLAYFIELD_TOP } from './terrain.js';
+import { SHIELD_CONFIG } from './shields.js';
 
 // Icon bitmap table — all 48 icons from EXE DS:0x3826 (stride 125 bytes)
 // Per icon: {t:pattern_type, w:width, h:height, px:[column-major pixels]}
@@ -251,13 +252,13 @@ export function drawHud(player, wind, round, opts) {
   // === Row 2 ===
 
   if (config.screenWidth <= 320) {
-    // --- Basic mode Row 2: multi-player energy + angle bars ---
-    // EXE: Row 2 label = player name (DS:0x2364 set to current player name)
-    drawText(LEFT, ROW2_Y, player.name + ':', baseColor);
+    // --- Basic mode Row 2: multi-player health + shields bars ---
+    // EXE: L1 label = "Max:" (DS:0x2364→DS:0x2EFA, static — no runtime writes)
+    drawText(LEFT, ROW2_Y, 'Max:', baseColor);
 
-    // EXE: multi-player comparison bar (same structure as Row 1 power bar)
-    // EXE: helper at 0x3959F reads struct+0xA2-0xA8 (energy/fuel metric)
-    // Web port: shows energy comparison (player.energy / 10 for 0-10px height)
+    // EXE: multi-player health bar
+    // EXE: helper at 0x3959F reads struct+0xA2-0xA8 = health/maxHealth*10
+    // Web port: player.energy (0-100) / 10 = equivalent 0-10 fill
     const barW = numP * 6;
     drawBarOutline(barX, ROW2_Y, barW, baseColor);
     drawBarFill(barX, ROW2_Y, barW, UI_DEEP_SHADOW);
@@ -267,23 +268,26 @@ export function drawHud(player, wind, round, opts) {
       drawBarColumn(barX, ROW2_Y, i, fillH, pColor);
     }
 
-    // EXE: "Angle:" label + multi-player angle bar
-    // EXE: helper at 0x39544, angle / 10 for column height (0-18 → 0-10px)
-    const angleLabelX = barX + BAR_RESERVED + AFTER_BAR_GAP;
-    drawText(angleLabelX, ROW2_Y, 'Angle:', baseColor);
-    const angleBarX = angleLabelX + measureText('Angle:');
-    if (angleBarX + barW < config.screenWidth - LEFT) {
-      drawBarOutline(angleBarX, ROW2_Y, barW, baseColor);
-      drawBarFill(angleBarX, ROW2_Y, barW, UI_DEEP_SHADOW);
+    // EXE: "Shields:" label + multi-player shield bar
+    // EXE: L2 label = "Shields:" (DS:0x2368→DS:0x2EFE, static)
+    // EXE: helper at 0x39544, compute_item_percentage = sub[0x96]*100/maxEnergy/10
+    const shieldsLabelX = barX + BAR_RESERVED + AFTER_BAR_GAP;
+    drawText(shieldsLabelX, ROW2_Y, 'Shields:', baseColor);
+    const shieldsBarX = shieldsLabelX + measureText('Shields:');
+    if (shieldsBarX + barW < config.screenWidth - LEFT) {
+      drawBarOutline(shieldsBarX, ROW2_Y, barW, baseColor);
+      drawBarFill(shieldsBarX, ROW2_Y, barW, UI_DEEP_SHADOW);
       for (let i = 0; i < numP && i < players.length; i++) {
-        const fillH = Math.floor(players[i].angle / 18);
+        const p = players[i];
+        const maxEnergy = (SHIELD_CONFIG[p.activeShield] || SHIELD_CONFIG[0]).energy || 1;
+        const fillH = Math.floor(p.shieldEnergy * 10 / maxEnergy);
         const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-        drawBarColumn(angleBarX, ROW2_Y, i, fillH, pColor);
+        drawBarColumn(shieldsBarX, ROW2_Y, i, fillH, pColor);
       }
     }
 
     // Wind text — not in EXE basic mode, added for gameplay usability
-    const windTextX = angleBarX + barW + 4;
+    const windTextX = shieldsBarX + barW + 4;
     if (windTextX + measureText('W:-20') < config.screenWidth - LEFT) {
       const windStr = wind === 0 ? 'W:0' : 'W:' + wind;
       drawText(windTextX, ROW2_Y, windStr, baseColor);

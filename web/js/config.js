@@ -73,7 +73,7 @@ export const config = {
   tracePaths: 0,         // EXE: permanent projectile trails
   extraDirt: 0,          // EXE: debris scatter from explosions
   playMode: 0,           // EXE: 0=Sequential, 1=Simultaneous, 2=Synchronous
-  hostileEnvironment: 1, // EXE: HOSTILE_ENVIRONMENT=On (random lightning/meteor events)
+  hostileEnvironment: 1, // EXE: HOSTILE_ENVIRONMENT=On (DS:0x513C) — 1 damage per tank pixel traversed by projectile
   talkProbability: 100,  // EXE: % chance of speech on fire/death
 
   // Economics

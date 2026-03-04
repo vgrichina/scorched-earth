@@ -122,18 +122,24 @@ function drawAllProjectiles() {
     }
 
     // Draw projectile head
+    // EXE: BOMB_ICON (DS:0x51A2): 0=Small(1px), 1=Big(5px cross), 2=Invisible(skip)
+    // EXE: DS:0x514E=BOMB_INVISIBLE_FLAG suppresses drawing in both draw functions
     const hx = Math.round(proj.x);
     const hy = Math.round(proj.y);
     if (hx >= 0 && hx < config.screenWidth && hy >= 0 && hy < config.screenHeight) {
       if (proj.isNapalmParticle) {
         setPixel(hx, hy, proj.isDirtParticle ? 145 : COLOR_HUD_HIGHLIGHT);
-      } else {
+      } else if (config.bombIcon !== 2) {
+        // Small (0): single white pixel; Big (1, default): 5-pixel cross
         setPixel(hx, hy, COLOR_HUD_HIGHLIGHT);
-        if (hx + 1 < config.screenWidth) setPixel(hx + 1, hy, FIRE_PAL_BASE + 19);
-        if (hx - 1 >= 0) setPixel(hx - 1, hy, FIRE_PAL_BASE + 19);
-        if (hy + 1 < config.screenHeight) setPixel(hx, hy + 1, FIRE_PAL_BASE + 19);
-        if (hy - 1 >= 0) setPixel(hx, hy - 1, FIRE_PAL_BASE + 19);
+        if (config.bombIcon !== 0) {
+          if (hx + 1 < config.screenWidth) setPixel(hx + 1, hy, FIRE_PAL_BASE + 19);
+          if (hx - 1 >= 0) setPixel(hx - 1, hy, FIRE_PAL_BASE + 19);
+          if (hy + 1 < config.screenHeight) setPixel(hx, hy + 1, FIRE_PAL_BASE + 19);
+          if (hy - 1 >= 0) setPixel(hx, hy - 1, FIRE_PAL_BASE + 19);
+        }
       }
+      // bombIcon===2: Invisible — draw nothing
     }
   }
 }
@@ -372,6 +378,10 @@ function gameLoop() {
   if (game.state === STATE.SCREEN_HIDE) {
     gameTick();
     fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
+    // EXE: dialog at 0x43080 (34ED:77B0), paint at 0x4304B — draws "NO KIBITZING!!" via draw_embossed_text
+    // EXE: no player name, no "press any key" in the dialog — web adds these for clarity
+    const nkW = measureText('NO KIBITZING!!');
+    drawTextShadow(Math.floor((config.screenWidth - nkW) / 2), 60, 'NO KIBITZING!!', COLOR_HUD_HIGHLIGHT, 0);
     const targetPlayer = players[game.screenHideTarget] || getCurrentPlayer();
     drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
     // EXE: "<<Press any key>>" (DS:0x5212) — consistent with round-over/game-over
@@ -391,8 +401,9 @@ function gameLoop() {
     // EXE: system menu uses full 3D dialog widget system (0x3F19:0x2577 add_item_list)
     // Same raised box + UI palette as shop/submenu dialogs
     const smOptions = SYSTEM_MENU_OPTIONS;
-    // EXE dialog system: +5px spacing at screenH >= 400 (same as submenus)
-    const rowH = config.screenHeight >= 400 ? 19 : 14;
+    // EXE: SI = 20 (FG_MAXY <= 200) or 24 (FG_MAXY > 200); web scales proportionally
+    // EXE condition FG_MAXY > 200 = screenHeight > 201 = screenHeight >= 202
+    const rowH = config.screenHeight >= 202 ? 24 : 20;
     // Auto-size dialog width based on content (matching menu.js submenu pattern)
     let maxW = measureText('System Menu');
     for (const opt of smOptions) maxW = Math.max(maxW, measureText(opt.label));
@@ -467,19 +478,7 @@ function gameLoop() {
   // Talking tanks speech bubble overlay
   drawSpeechBubble();
 
-  // Hostile environment: lightning bolt
-  if (game.hostileLightningFrames > 0) {
-    const lx = game.hostileLightningX || 0;
-    // Draw zigzag lightning bolt
-    let x = lx;
-    for (let y = PLAYFIELD_TOP; y < config.screenHeight; y += 3) {
-      x += Math.floor(Math.random() * 5) - 2;
-      vline(x, y, Math.min(y + 3, config.screenHeight - 1), COLOR_HUD_HIGHLIGHT);
-      if (x - 1 >= 0) setPixel(x - 1, y + 1, COLOR_HUD_TEXT);
-      if (x + 1 < config.screenWidth) setPixel(x + 1, y + 1, COLOR_HUD_TEXT);
-    }
-    game.hostileLightningFrames--;
-  }
+
 
   if (game.state === STATE.ROUND_OVER) {
     drawRoundOver();

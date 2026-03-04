@@ -192,14 +192,17 @@ const TAB_H   = 18;   // bottom tab bar height
 // Scrollbar: EXE dialog system (seg 0x3F19) — sunken track, raised thumb, arrow buttons
 const SB_W    = 12;   // scrollbar width (EXE: ~14px at 640, scaled proportionally)
 
-// Resolution-dependent row height: EXE adds 5px at screenH >= 400 (0x190)
-function getRowH() { return config.screenHeight >= 400 ? 18 : 13; }
+// EXE: constant 20px row stride (file 0x16219, no hi-res variation)
+function getRowH() { return 20; }
 
-// Items visible per page: EXE 14-15 rows; derive from available panel height
+// Items visible per page: EXE formula: stride=20, loop exits at FG_MAXY-20
+// listY = PANEL_Y+16 = 36; bottom margin = 20; TAB_H = 18 (web-only bottom tabs)
+// items = floor((screenH - TAB_H - 2 - 20 - listY) / 20) = floor((screenH-76)/20)
+// EXE cap is 44; web keeps 44 (no practical effect: 640×480 gives ~20)
 function getItemsPerPage() {
-  const panelH = config.screenHeight - PANEL_Y - TAB_H - 2;
-  const listH  = panelH - 15;   // 15px for column headers
-  return Math.min(15, Math.max(5, Math.floor(listH / getRowH())));
+  const listY = PANEL_Y + 16;
+  const bottom = config.screenHeight - TAB_H - 2 - 20;
+  return Math.min(44, Math.max(1, Math.floor((bottom - listY) / 20)));
 }
 
 // Open shop for a player

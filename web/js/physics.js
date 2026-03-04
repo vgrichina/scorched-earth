@@ -307,11 +307,32 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
 
     // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
     if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
+      // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
+      // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
+      // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
+      if (config.hostileEnvironment) {
+        const pIdx = Math.floor(pixel / 8);
+        const p = players[pIdx];
+        if (p && p.alive) {
+          p.energy = Math.max(0, p.energy - 1);
+          if (p.energy === 0) p.alive = false;
+        }
+        return 'flying';  // continue through tank body (EXE: return 0)
+      }
       return 'hit_tank';
     }
 
     // Terrain hit: pixel >= TERRAIN_THRESHOLD
     if (pixel >= TERRAIN_THRESHOLD) {
+      // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
+      // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75) per terrain hit;
+      // absorbed (no explosion) if speed² < MAG_ABSORB_THRESHOLD (2000).
+      // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
+      if (config.tunneling && !proj.heatTarget) {
+        const absorbed = applyMagDamping(proj);
+        if (absorbed) return 'offscreen';  // silently absorbed, no explosion
+        return 'flying';  // continue through terrain
+      }
       return 'hit_terrain';
     }
   }
