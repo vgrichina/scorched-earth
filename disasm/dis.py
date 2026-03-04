@@ -187,6 +187,133 @@ def load_comments(path):
 
 
 # ---------------------------------------------------------------------------
+# Label dtype loader (optional 3rd column in labels.csv)
+# ---------------------------------------------------------------------------
+
+def load_label_dtypes(path):
+    """
+    Return dict file_offset -> dtype for labels with an explicit 3rd column.
+    Supported dtype values: code (default), data/bytes, data/str,
+      data/ptr16, data/farptr, data/table:N
+    Entries without a 3rd column are omitted (caller treats them as 'code').
+    """
+    dtypes = {}
+    if not os.path.exists(path):
+        return dtypes
+    with open(path, newline='') as f:
+        for row in csv.reader(f):
+            if not row or row[0].strip().startswith('#'):
+                continue
+            if len(row) < 3:
+                continue
+            key   = _parse_addr_key(row[0])
+            dtype = row[2].strip()
+            if key and dtype and dtype != 'code':
+                kind, val = key
+                foff = ds_to_file(val) if kind == 'ds' else val
+                dtypes[foff] = dtype
+    return dtypes
+
+
+# ---------------------------------------------------------------------------
+# Data dump (for dtype-annotated labels)
+# ---------------------------------------------------------------------------
+
+def dump_data(exe, file_start, n_rows, dtype, labels):
+    """
+    Yield formatted dump lines for a known data region.
+    n_rows controls how many entries/rows to output.
+
+    Supported dtype values:
+      data/bytes      — raw hex, 8 bytes per row
+      data/str        — null-terminated strings, one per row
+      data/ptr16      — 2-byte DS-relative near pointers, one per row
+      data/farptr     — 4-byte far pointers (seg:off LE), one per row
+      data/table:N    — N bytes per entry, one entry per row with [idx]
+    """
+    pos = file_start
+
+    if dtype == 'data/str':
+        for _ in range(n_rows):
+            if pos >= len(exe):
+                break
+            row_start = pos
+            end = pos
+            while end < len(exe) and exe[end] != 0:
+                end += 1
+            s = exe[pos:end].decode('cp437', errors='replace')
+            ds_r = file_to_ds(row_start)
+            addr_s = f'DS:0x{ds_r:04X}' if ds_r is not None else f'0x{row_start:05X}'
+            yield f'  {addr_s}  {repr(s)}'
+            pos = end + 1
+
+    elif dtype == 'data/ptr16':
+        for idx in range(n_rows):
+            if pos + 2 > len(exe):
+                break
+            v = struct.unpack_from('<H', exe, pos)[0]
+            file_tgt = ds_to_file(v)
+            lbl = labels.get(file_tgt, '')
+            note = f'  -> {lbl}' if lbl else ''
+            ds_r = file_to_ds(pos)
+            addr_s = f'DS:0x{ds_r:04X}' if ds_r is not None else f'0x{pos:05X}'
+            yield f'  [{idx:3d}]  {addr_s}  DS:0x{v:04X}  (file 0x{file_tgt:05X}){note}'
+            pos += 2
+
+    elif dtype == 'data/farptr':
+        for idx in range(n_rows):
+            if pos + 4 > len(exe):
+                break
+            off = struct.unpack_from('<H', exe, pos)[0]
+            seg = struct.unpack_from('<H', exe, pos + 2)[0]
+            file_tgt = MZ_HEADER + seg * 16 + off
+            lbl = labels.get(file_tgt, '')
+            note = f'  -> {lbl}' if lbl else ''
+            ds_r = file_to_ds(pos)
+            addr_s = f'DS:0x{ds_r:04X}' if ds_r is not None else f'0x{pos:05X}'
+            yield f'  [{idx:3d}]  {addr_s}  {seg:04X}:{off:04X}  (file 0x{file_tgt:05X}){note}'
+            pos += 4
+
+    elif dtype.startswith('data/table:'):
+        try:
+            width = int(dtype.split(':')[1])
+        except (IndexError, ValueError):
+            width = 1
+        for idx in range(n_rows):
+            if pos + width > len(exe):
+                break
+            chunk = exe[pos:pos + width]
+            hex_s = ' '.join(f'{b:02X}' for b in chunk)
+            # Scalar annotation for small entries
+            if width == 1:
+                scalar = f'= {chunk[0]:3d}'
+            elif width == 2:
+                val = struct.unpack_from('<H', chunk, 0)[0]
+                lbl = labels.get(ds_to_file(val), '')
+                scalar = lbl if lbl else f'= {val}'
+            else:
+                scalar = ''
+            lbl_here = labels.get(pos, '')
+            note = f'  ; {lbl_here}' if lbl_here else (f'  ; {scalar}' if scalar else '')
+            ds_r = file_to_ds(pos)
+            addr_s = f'DS:0x{ds_r:04X}' if ds_r is not None else f'0x{pos:05X}'
+            yield f'  [{idx:3d}]  {addr_s}  {hex_s:<{width*3}}{note}'
+            pos += width
+
+    else:
+        # data/bytes or anything unrecognised — raw hex, 8 bytes per row
+        for _ in range(n_rows):
+            if pos >= len(exe):
+                break
+            chunk = exe[pos:min(pos + 8, len(exe))]
+            hex_s = ' '.join(f'{b:02X}' for b in chunk)
+            ds_r = file_to_ds(pos)
+            addr_s = f'DS:0x{ds_r:04X}' if ds_r is not None else f'0x{pos:05X}'
+            yield f'  {addr_s}  {hex_s}'
+            pos += len(chunk)
+
+
+# ---------------------------------------------------------------------------
 # DS variable name lookup
 # ---------------------------------------------------------------------------
 
@@ -242,18 +369,31 @@ def parse_start_addr(s):
 
 from instruction_set_x86 import decode
 
-def disassemble(data, file_start, n_lines, labels, comments, ds_labels):
+def disassemble(data, file_start, n_lines, labels, comments, ds_labels, dtypes=None):
     """
     Disassemble n_lines instructions starting at file_start.
     Yields formatted output lines.
-    """
-    pos = file_start
 
-    # Build a flat labels dict keyed by file offset (already done by load_labels)
-    # but decode() needs it for jump target annotation.
+    If a label carries a dtype (3rd column in labels.csv), the disassembler
+    switches to a data dump for that region instead of disassembling code.
+    Supported dtypes: data/bytes, data/str, data/ptr16, data/farptr, data/table:N
+    """
+    if dtypes is None:
+        dtypes = {}
+
+    pos = file_start
     label_lookup = labels
 
-    for _ in range(n_lines):
+    # If the starting address itself is a data label, dump instead of disassemble
+    dtype_here = dtypes.get(pos)
+    if dtype_here:
+        lbl = labels.get(pos, f'0x{pos:05X}')
+        yield ''
+        yield f'{lbl}:  ; [{dtype_here}]'
+        yield from dump_data(data, pos, n_lines, dtype_here, labels)
+        return
+
+    for lines_done in range(n_lines):
         if pos >= len(data):
             yield f'  0x{pos:05X}  ; <end of file>'
             break
@@ -261,6 +401,13 @@ def disassemble(data, file_start, n_lines, labels, comments, ds_labels):
         # --- Label line ---
         lbl = labels.get(pos)
         if lbl:
+            # If this mid-stream label is a data region, switch to data dump
+            dtype_mid = dtypes.get(pos)
+            if dtype_mid:
+                yield ''
+                yield f'{lbl}:  ; [{dtype_mid}]'
+                yield from dump_data(data, pos, n_lines - lines_done, dtype_mid, labels)
+                return
             yield ''
             yield f'{lbl}:'
 
@@ -344,6 +491,7 @@ def main():
     labels    = load_labels(LABELS_CSV)
     comments  = load_comments(COMMENTS_CSV)
     ds_labels = load_ds_labels(LABELS_CSV)
+    dtypes    = load_label_dtypes(LABELS_CSV)
 
     seg, off = file_to_segoff(file_start)
     ds_rel = file_to_ds(file_start)
@@ -351,7 +499,7 @@ def main():
     print(f'; 0x{file_start:05X}  {seg:04X}:{off:04X}{ds_str}  ({n_lines} instructions)')
     print()
 
-    for line in disassemble(data, file_start, n_lines, labels, comments, ds_labels):
+    for line in disassemble(data, file_start, n_lines, labels, comments, ds_labels, dtypes):
         print(line)
 
 

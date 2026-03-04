@@ -3480,6 +3480,26 @@ All located in `disasm/` directory:
 - [x] Audit 3D raised box drawing (draw_3d_box 0x444BB): **DONE** (session 120). **Args**: (minx, miny, dx, dy, fill_color) where dx=maxx-minx, dy=maxy-miny — relative offsets NOT absolute maxx/maxy (confirmed via caller at 0x2E16A pushing 100,100,140,65). **bH=2** (left/right always 2 vlines, no hi-res conditional). **bV=2 lo-res / 3 hi-res** (TOP/BOTTOM hlines: 2nd hline always drawn; 3rd hline conditional on `cmp [DS:0x6E28],3` at 0x44526/0x445B9). **Corner ownership**: hlines claim corners (TOP hline 1 spans x=si to si+dx inclusive); vlines skip corner rows (LEFT vline 1 at y1=di+1, y2=di+dy-1). **Fill rect asymmetric**: lo-res (minx+2, miny+2, minx+dx-2, miny+dy-2); hi-res (minx+2, miny+3, minx+dx-2, miny+dy-3) — separate hi-res check at 0x445E1. **Colors** (each edge uses one color for all its lines): LEFT=DS:EF26 (white), TOP=DS:EF2E (light gray), RIGHT=DS:EF30 (near-black), BOTTOM=DS:EF32 (dark gray). **Web port**: `drawBox3DRaised` in framebuffer.js correct ✓ — bH=2, bV=2/3, corner ownership, fill, edge colors all match. DS:0x6E28==3 ↔ screenHeight>=400 is equivalent. HUD_MENU_COMPARISON.md section 53 added.
 - [x] Audit flat box / sunken box drawing (draw_flat_box 0x44630): **DONE** (session 120). **Args**: (minx, miny, maxx, maxy) — ABSOLUTE coordinates (unlike draw_3d_box). 4 args (add sp, 0x0008 at callers). **No fill parameter** — EXE does not fill interior. **1px borders only** — one vline/hline per edge, no multi-pixel, no hi-res conditional. **Corner ownership** (each corner owned by a different edge, clockwise): TL=LEFT vline (y from miny to maxy-1), TR=TOP hline (x from minx+1 to maxx), BR=RIGHT vline (y from miny+1 to maxy), BL=BOTTOM hline (x from minx to maxx-1). **Colors** (reversed vs raised — dark top/left, light bottom/right = sunken): LEFT=DS:EF30 (near-black), TOP=DS:EF32 (dark gray), RIGHT=DS:EF26 (white), BOTTOM=DS:EF2E (light gray). Note: task description had Top/Left swapped; actual EXE has LEFT=EF30, TOP=EF32. **Web port**: `drawBox3DSunken` in framebuffer.js correct ✓ — 1px borders, corner ownership, colors all match. Web adds fill param for convenience (not a bug). HUD_MENU_COMPARISON.md section 54 added.
 
+#### Tooling — annotate labels.csv with dtype column
+These tasks add the optional 3rd column to labels.csv so that `dis.py` auto-renders
+data regions correctly instead of disassembling them as code. Run
+`python3 disasm/decode_tables.py DS:<addr> <count> <fmt>` to verify each table first,
+then add `,...,data/<type>` to the matching label row.
+
+- [ ] Annotate weapon struct table: `DS:0x11F6,weapon_struct_base,data/table:52` (60 entries × 52 bytes; verify with `decode_tables.py DS:0x11F6 60 struct:52:farptr,u16,u16,u16,s16,s16`)
+- [ ] Annotate config submenu label ptr table: `DS:0x2158,config_submenu_labels,data/farptr` (37 far ptrs to `~Label:` strings; verify with `decode_tables.py DS:0x2158 37 farptr`)
+- [ ] Annotate main menu item label ptr table: `DS:0x20C8,main_menu_labels,data/farptr` (11 far ptrs for Start/Players/Rounds/… buttons; verify with `decode_tables.py DS:0x20C8 11 farptr`)
+- [ ] Annotate sky mode name ptr table: `DS:0x621C,sky_name_ptrs,data/farptr` (8 entries: Plain/Shaded/Stars/Storm/Sunset/Cavern/Black/Random)
+- [ ] Annotate graphics mode table: `DS:0x6234,gfx_mode_table,data/table:16` (9 entries × 16 bytes; verify with `decode_tables.py DS:0x6234 9 struct:16:u16,u16,u16`)
+- [ ] Annotate AI type dispatch table: `DS:0x02E2,ai_vtable,data/farptr` (9 entries; verify with `decode_tables.py DS:0x02E2 9 farptr`)
+- [ ] Annotate wall type name ptr table: `DS:0x2784,wall_type_names,data/farptr` (8 entries: None/Wrap-around/Padded/…; verify with `decode_tables.py DS:0x2784 8 farptr`)
+- [ ] Annotate weapon behavior dispatch table: `DS:0x52A8,bhv_dispatch,data/farptr` (confirm size; verify with `decode_tables.py DS:0x52A8 20 farptr`)
+- [ ] Annotate UI color BSS block: `DS:0xEF20,ui_color_vars,data/table:2` (14 entries of u16 palette indices EF20–EF46; verify with `decode_tables.py DS:0xEF20 14 u16`)
+- [ ] Annotate known string constants: add `data/str` to DS labels for string literals that are currently disassembled as code — e.g. weapon names at DS:0x0000+, config key strings at DS:0x0408+, format strings at DS:0x57B2+
+- [ ] Annotate shield config table: `DS:0x616C,shield_config_table,data/table:10` (6 entries × 10 bytes; verify with `decode_tables.py DS:0x616C 6 struct:10:u16,u16,u16,u8,u8,u8`)
+- [ ] Annotate icon bitmap table: `DS:0x3826,icon_bitmaps,data/table:125` (48 icons × 125 bytes)
+- [ ] Annotate sub-category header strings in DS: `data/str` for shop group headers DS:0x2E5B (Parachutes), DS:0x2E67 (Triggers), DS:0x2E71 (Guidance), DS:0x2EEF (Inventory), DS:0x2EFE (Shields)
+
 #### Shop — component audits (session 107)
 - [ ] Audit shop main frame layout: Disassemble shop dialog_alloc call. Verify dialog is full-screen (0,0,FG_MAXX,FG_MAXY), left panel 200px (0xC8) wide, right info panel dimensions, overall 3D raised outer box. Update HUD_MENU_COMPARISON.md section.
 - [ ] Audit shop item list rendering: Verify row height (getRowH: 13 lo-res / 18 hi-res at screenH>=400), items per page formula (panelH / rowH capped at 15), selection highlight color (EF22 = player base color from paint callback 0x1580D). Update HUD_MENU_COMPARISON.md section.

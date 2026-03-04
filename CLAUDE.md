@@ -42,9 +42,14 @@ Output columns: `file_offset  SEG:OFF  raw_bytes  mnemonic  operands  ; comment/
 Add new findings here — they appear automatically in all future dis.py runs.
 
 ```
-# labels.csv format:  file_offset_hex,name   OR   DS:offset_hex,name
+# labels.csv format:  file_offset_hex,name[,dtype]   OR   DS:offset_hex,name[,dtype]
 0x25DE9,ai_inject_noise
 DS:0x515C,MAX_WIND
+
+# Optional 3rd column: dtype — makes dis.py render data instead of code at that address
+# Supported dtype values: data/bytes  data/str  data/ptr16  data/farptr  data/table:N
+DS:0x11F6,weapon_struct_base,data/table:52
+DS:0x2158,config_label_ptrs,data/farptr
 
 # comments.csv format:  file_offset_hex,comment   OR   DS:offset_hex,comment
 0x25DE9,ai_inject_noise: scanning architecture with harmonics
@@ -83,6 +88,18 @@ python3 disasm/strings_dump.py earth/SCORCH.EXE -r 0x2000 0x3000  # scan DS rang
 python3 disasm/struct_dump.py earth/SCORCH.EXE weapon -n 60   # all weapons
 python3 disasm/struct_dump.py earth/SCORCH.EXE glyph 65       # glyph for 'A'
 python3 disasm/struct_dump.py earth/SCORCH.EXE mode -n 9      # graphics modes
+
+# Raw byte-pattern search (hex string, any spacing)
+python3 disasm/search_bytes.py "8B 46 FC"                         # find all occurrences
+python3 disasm/search_bytes.py CD34 --context 8 --disasm          # with context + disasm
+python3 disasm/search_bytes.py "FF 1E" --disasm 12                # disasm 12 lines at each match
+
+# Universal struct/table decoder (generic, any format)
+python3 disasm/decode_tables.py DS:0x2158 37 farptr               # far-ptr table (config menu labels)
+python3 disasm/decode_tables.py DS:0x2158 10 farptr --follow      # + disassemble at each target
+python3 disasm/decode_tables.py DS:0xEF22 8 u16                   # raw u16 table
+python3 disasm/decode_tables.py DS:0x11F6 10 struct:52:ptr16,u16,u16,u16,s16,s16
+# formats: u8 s8 u16 s16 u32 ptr16 farptr b8 nullstr struct:<n>:<f,f,...>
 
 # Cross-reference finder (who reads/writes a DS variable? who calls a function?)
 python3 disasm/xref.py earth/SCORCH.EXE DS:0xED58 --code         # font selector refs
