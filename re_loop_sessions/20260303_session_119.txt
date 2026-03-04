@@ -1,0 +1,80 @@
+Session 119 — Audit System Menu (F9) Rendering
+================================================
+
+Task: Top unchecked item — Audit system menu (F9) rendering. Verify
+SYSTEM_MENU_OPTIONS list, item order, row height, confirmation texts.
+
+Investigation:
+--------------
+
+System menu function: file 0x3F4F8 (34ED:3C28).
+
+KEY FINDING: EXE system menu uses TWO-COLUMN layout; web port uses single column.
+
+Row height:
+- FG_MAXY > 200 → row_h = 24 (hi-res)
+- FG_MAXY ≤ 200 → row_h = 20 (lo-res)
+- Button y = row_h × row_num + 5
+- Web uses 14/19 (minor discrepancy)
+
+Left column (x=0x0A=10), buttons via 0x3F19:0x2A9B:
+1. "~Clear Screen" (DS:0x2B2E) → case 0
+2. "~Mass Kill" (DS:0x2B3C) → case 1
+3. "Reassign ~Players" (DS:0x2B63) → case 3
+4. "Reassign ~Teams" (DS:0x2B75) → case 7
+5. "~Sound:" spinner (DS:0x28AB via DS:0x2158) → 0x3F19:0x2F39; initial=SOUND_DEVICE[EF46]
+   (different widget type — sound device selector, stores result to DS:0xEF46 at 0x3F816)
+
+Right column (x=DI = max_left_width+0x0A), buttons via 0x3F19:0x2A9B:
+1. "Save ~Game" (DS:0x2B85) → case 5
+2. "~Restore Game" (DS:0x2B90) → case 6
+3. "~New Game" (DS:0x2B9E) → case 4
+4. "~Quit Game" (DS:0x2B47) → case 2
+
+Button callback architecture:
+- ALL buttons share callback 3891:00BA (= file 0x3F3CA = system_menu_btn_callback)
+- Dispatch via jmp [cs:bx+0x135] where CS=0x3891 at runtime
+- Jump table at 3891:0135 = file 0x3F445 (8 near-pointer entries)
+- Dialog callback: 3891:0145 (file 0x3F455) set as [dialog+0x14/0x16]
+
+Jump table cases (file 0x3F445):
+- case 0 → file 0x3F405 → calls 0x3FAA5 (clear_screen_handler)
+- case 1 → file 0x3F40C → calls 0x3F8D6 (mass_kill_handler)
+- case 2 → file 0x3F413 → calls 0x3F871 (quit_game_handler)
+- case 3 → file 0x3F41A → call far reassign_players (0x357B0)
+- case 4 → file 0x3F421 → calls 0x3F89C (new_game_handler)
+- case 5 → file 0x3F428 → call far 0x300B:0x04AB (save_game)
+- case 6 → file 0x3F42F → call far 0x300B:0x0686 (restore_game)
+- case 7 → file 0x3F436 → call far 0x3A4C:0x0646 (reassign_teams)
+
+Confirmation dialog (file 0x3F93B):
+- Shared confirm_dialog(text_far): measures text+button widths, creates dialog
+- Yes="~Yes" (DS:0x2BC0 via DS:0x2250/0x2252)
+- No="~No" (DS:0x2BC5 via DS:0x2254/0x2256)
+- Quit: "Do you want to quit?" (DS:0x2BC9 via DS:0x2258/0x225A)
+- New Game: "Do you really want to restart the game?" (DS:0x2BDE via DS:0x225C/0x225E)
+- Mass Kill: "Mass kill everyone?" (DS:0x2C06 via DS:0x2260/0x2262)
+
+"Do you want to retreat?" (DS:0x2BA8) exists at DS:0x224C in pointer table but is NOT
+referenced by any system menu button — not a system menu option.
+
+Clear Screen handler (0x3FAA5): scans terrain pixels in VGA range 110–119 (0x6E–0x77)
+and blanks them — removes crater/debris markings from play area.
+
+Web port comparison:
+- Item labels: all 8 match EXE strings ✓
+- Confirmation strings: all match ✓
+- Layout: web is single column (structural simplification, intentional)
+- Missing: "~Sound:" device spinner (EXE left col row 5)
+- Row height: web 14/19 vs EXE 20/24 (minor)
+- No critical bugs requiring fixes
+
+Files modified:
+- REVERSE_ENGINEERING.md (task 3479 marked [x])
+- HUD_MENU_COMPARISON.md (section 52 added)
+- disasm/labels.csv (system_menu_display 0x3F4F8, system_menu_btn_callback 0x3F3CA,
+  system_menu_dialog_callback 0x3F455, confirm_dialog 0x3F93B, clear_screen_handler 0x3FAA5,
+  mass_kill_handler 0x3F8D6, quit_game_handler 0x3F871, new_game_handler 0x3F89C,
+  all system menu strings DS:0x2B2E/0x2B3C/0x2B47/0x2B63/0x2B75/0x2B85/0x2B90/0x2B9E,
+  DS:0x2BC0/0x2BC5/0x2BC9/0x2BDE/0x2C06/0x2BA8)
+- disasm/comments.csv (annotations for above functions)

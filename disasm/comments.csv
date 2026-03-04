@@ -351,3 +351,10 @@ DS:0x6022,PLAYER_IS_COMPUTER: 0=Person, 1=Computer; toggled by computer_person_t
 DS:0x6DCA,submenu_item_count: number of items in current submenu; max 20 (cmp 0x14 at 0x3BA97 triggers error)
 DS:0x6B66,submenu_item_table: array of submenu item descriptors stride=0x44=68 bytes; item[+0x16/18]=label far ptr; DS:0x6E26=selected index
 DS:0x2158,submenu_label_ptrs: table of far ptrs to submenu item label strings; 37 entries (Sound 2 + Hardware 6 + Economics 5 + Landscape 4 + Physics 8 + PlayOptions 5 + Weapons 7)
+0x3F4F8,system_menu_display: F9 system menu; row_h=20(FG_MAXY<=200) or 24(>200); TWO-COLUMN layout; left col (x=10): Clear/Kill/Players/Teams/Sound; right col (x=DI): Save/Restore/New/Quit; dialog callback=3891:0145; btn callback=3891:00BA; jump table=3891:0135
+0x3F3CA,system_menu_btn_callback: callback for ALL system menu buttons; jump table [cs:bx+0x135] at CS=0x3891 (file 0x3F445); 8 cases 0-7 for Clear/Kill/Quit/Players/New/Save/Restore/Teams
+0x3F93B,confirm_dialog(text_far): displays yes/no confirmation dialog; measures text+button widths; Yes=DS:0x2BC0 "~Yes" No=DS:0x2BC5 "~No"; returns 1=yes 0=no
+0x3FAA5,clear_screen_handler: system menu case 0; scans terrain pixels in range VGA 110-119 (0x6E-0x77) and blanks them; clears craters/debris markings
+0x3F8D6,mass_kill_handler: system menu case 1; checks DS:0xE1E2 (non-zero=skip); shows "Mass kill everyone?" (DS:0x2C06); if yes sets DS:0xE1E2=1 calls 0x1A4A:0x0A90
+0x3F871,quit_game_handler: system menu case 2; shows "Do you want to quit?" (DS:0x2BC9); if yes calls far round_over_cleanup
+0x3F89C,new_game_handler: system menu case 4; checks DS:0x50F6 (non-zero=skip); shows "Do you really want to restart the game?" (DS:0x2BDE); if yes sets DS:0x50F6=1 calls 0x1A4A:0x0A90

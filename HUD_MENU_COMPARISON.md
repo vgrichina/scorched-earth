@@ -1028,3 +1028,580 @@ Result: terrain frame left x = `2*getBtnX() + BTN_W - 1`. Large mode (getBtnX=12
 | Terrain frame x (small mode, 320×200) | 89 | 90 (wrong) | 89 | ✓ |
 | Gap between buttons and terrain frame (large) | 11px | 5px | 11px | ✓ |
 | Gap between buttons and terrain frame (small) | 4px | 5px | 4px | ✓ |
+
+---
+
+### 43. Basic HUD Row 1 — icon draw sequence (session 110)
+
+**EXE icon loop (`draw_hud_basic` 0x2FEA4–0x2FEB8)**: Iterates ALL players (alive and dead alike) using the all-players iterator at 0x32166 (2B3B:03B6). Iterator formula: DS:D568 + i×0xCA for i=0..NUM_PLAYERS-1 (tank sub-struct pointer). No alive/dead filtering in the loop.
+
+**Per-player draw (file 0x2FE49–0x2FE79)**:
+1. Calls 3249:0662 → draws power-bar column at X=player_id×6+E9D6, Y=HUD_Y+1, height=power/100
+2. Reads icon_idx = [tank+0x16] = **always 0** (confirmed: player_init_substruct at 0x30F3F writes 0 and nothing else changes it)
+3. Reads color = [tank+0x1A] (player base palette color, set at init)
+4. Calls `draw_icon_alive` (0x261D7) with X=player_id×11+E9DA, Y=HUD_Y, icon=0, color=[tank+0x1A]
+
+**draw_icon_dead (0x26245) is NOT called from draw_hud_basic**: its 3 far-call callers are at 0x16903 (early segment) and 0x37B29/0x37B6E (ranges.cpp). The basic HUD always uses `draw_icon_alive` for all players. Dead icon color behavior (palette 169) is only used in other draw contexts (see section 34 for pixel-level detail).
+
+**No active player indicator dot**: no separate pixel/dot indicator exists in draw_hud_basic or its subroutines. The active player's icon cell is refreshed by `update_hud_row1` (0x307E8 / 28B9:1258) when the weapon changes or turn changes:
+- PLAY_MODE==1 (Simultaneous): clears cell (fillH background), redraws DS:E344 (current weapon icon) at player_id×11+E9DA with active player color
+- Other modes: clears weapon area (E9DE to FG_MAXX-5), draws weapon name text, draws weapon icon at E9DE
+
+**Web port status**: Already correct — no new discrepancies found. Prior section 34 documents the alive/dead pixel rendering differences. Icon 0 for all players is faithful to EXE behavior.
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| Icon used for each player | icon 0 ([tank+0x16]=0 always) | icon 0 | ✓ |
+| draw_icon_alive for alive players | flag=1, player color [tank+0x1A] | player color | ✓ |
+| draw_icon_dead for dead players | NOT called from basic HUD loop | uses UI_DARK_TEXT | n/a (different context) |
+| Active player indicator dot | not present | not present | ✓ |
+| Icon X spacing | player_id × 11px + E9DA | `px * 11` | ✓ |
+| update_hud_row1 weapon icon | DS:E344 at active-player cell | DS:E344 via hud.js | ✓ |
+
+---
+
+### 44. Basic HUD Row 2 — bar rendering (session 111)
+
+**EXE `draw_hud_basic` Row 2 (file 0x2FD37–0x2FE44)**: Only drawn if DS:0x5142 (STATUS_BAR) != 0.
+
+**Layout (`compute_hud_layout_basic` 0x2FBCA)**:
+- `E9E8 = 5` = E9D4 (Row 2 first label X, same as Row 1 player name X)
+- `E9EA = E9D6` (Row 2 first bar X = same column as power bar)
+- `E9EC = E9EA + 0x3E + 0x0A = E9D6 + 72` (Row 2 second label X)
+- `E9EE = E9EC + measureText("Shields") + measureText(": ")` (Row 2 second bar X)
+
+**Row 2 geometry**: outer draw_flat_box from (E9EA−1, HUD_Y+0x0C) to (E9EA+numP×6, HUD_Y+0x17) = **12px tall** (HUD_Y+12 to HUD_Y+23 inclusive). Inner fill HUD_Y+0x0D → HUD_Y+0x16 = **10px** tall.
+
+**bar_column helper (0x39482)**: 6px wide (X to X+5), 10px tall (Y_TOP to Y_TOP+9), fillH clamped 0–10, fills from bottom up. Background (EF2C) fills empty top portion; fill color fills bottom portion.
+
+**Row 2 labels (static, never changed at runtime)**:
+- Label 1: DS:0x2364 → DS:0x2EFA = **"Max"** → format "%s:" → draws **"Max:"** at (5, HUD_Y+12)
+- Label 2: DS:0x2368 → DS:0x2EFE = **"Shields"** → format "%s:" → draws **"Shields:"** at (E9EC, HUD_Y+12)
+
+**Row 2 per-player bars** (called in loop for each player):
+1. **Energy bar** at E9EA (helper 0x3959F `hud_draw_angle_bar_col`): reads `[sub+0xA2/A4]` (energy/health 32-bit value) divided by `[sub+0xA6/A8]` (max health 32-bit) × 10 → bar height 0–10
+2. **Shields bar** at E9EE (helper 0x39544 `hud_draw_item_bar_col`): calls `compute_item_percentage` = `floor(sub[0x96] × 100.0 / ptr[0x02]) / 10` where `sub[0x96]` = shield count (init 0 at 0x30EE7) and `sub[+0xC6/C8]` = SHIELD_CONFIG_PTR_ARRAY (init at 0x30EF5 from DS:0x61CC/61CE), `ptr[0x02]` = max shield count from weapon record
+
+**CORRECTION**: Prior sessions 83 and 97 incorrectly identified the second bar (E9EE) as an "angle" bar (formula angle/18). The label "Shields:" and the sub-struct init code (0x30EE7 and 0x30EF5) confirm it is a **shields inventory percentage** bar.
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| Row 2 outer box height | 12px (HUD_Y+0xC to HUD_Y+0x17) | `BAR_H+1=12` | ✓ |
+| Bar interior height | 10px (HUD_Y+0xD to HUD_Y+0x16) | `BAR_H-1=10` | ✓ |
+| Column width | 6px (X to X+5) | `colX to colX+5` | ✓ |
+| Fill direction | bottom-up | bottom-up | ✓ |
+| fillH clamp | 0–10 | `Math.min(fillH, BAR_H-1)` | ✓ |
+| Row 2 Y position | HUD_Y+0x0C=HUD_Y+12 | `ROW2_Y = HUD_Y+12` | ✓ |
+| Row 2 label 1 | **"Max:"** (static DS:0x2EFA) | `player.name + ':'` | ✗ **DISCREPANCY** |
+| Row 2 label 2 | **"Shields:"** (static DS:0x2EFE) | `'Angle:'` | ✗ **DISCREPANCY** |
+| First bar metric | energy/health ratio ×10 | `players[i].energy / 10` | ✓ (if `player.energy`=energy%) |
+| Second bar metric | shields inventory % / 10 | `players[i].angle / 18` | ✗ **DISCREPANCY** |
+
+### 45. HUD bars segment (seg 0x3249, base 0x38E90) — full audit (session 112)
+
+**Segment contents** (0x38E90 onwards, segment register 0x3249):
+
+Non-HUD functions also in this segment: large game-loop/turn-management function (0x38E9F), key-handler per player (0x3907E), fog-color setter (0x390E5), per-player action dispatcher (0x3918E), projectile-in-flight loop (0x39266), shield bit-plotting helpers (0x39628, 0x3968D), terrain-type cache flush (0x396FA), terrain_gen_main (0x3971F+).
+
+HUD bar functions:
+
+| Function | File offset | Description |
+|----------|-------------|-------------|
+| `bar_column` | 0x39482 | Primitive: 6px wide, 10px tall, fill bottom-up, clamped 0–10 |
+| `hud_draw_power_bar_col` | 0x394F2 | Power bar: reads `sub[+0x9E]`, height=`floor(power/100)`, X=`player_id×6+E9D6`, Y=`HUD_Y+1` |
+| `hud_draw_item_bar_col` | 0x39544 | Shields bar: calls `compute_item_percentage`, height=`result/10`, X=`player_id×6+E9EE`, Y=`HUD_Y+0xD`; checks DS:0x5142 guard |
+| `hud_draw_angle_bar_col` | 0x3959F | Energy/health bar: `floor(health×10/maxHealth)`, X=`player_id×6+E9EA`, Y=`HUD_Y+0xD`; checks DS:0x5142 guard |
+
+**Row 1 power bar geometry (draw_hud_basic 0x2FCA4–0x2FD36)**:
+- Outer box: `draw_flat_box(E9D6-1, HUD_Y, E9D6+numP×6, HUD_Y+11)` = **12px tall** (HUD_Y to HUD_Y+11)
+- Inner fill: `fillH(E9D6, HUD_Y+1, E9D6+numP×6-1, HUD_Y+10, EF2C)` = **10px** (HUD_Y+1 to HUD_Y+10)
+- `hud_draw_power_bar_col` calls `bar_column(E9D6+player_id×6, HUD_Y+1, floor(power/100), [tank+0x1A])`
+
+**STATUS_BAR flag (DS:0x5142) full guard chain**:
+- `draw_hud_basic` at 0x2FD37: if `[0x5142]==0` → jump to 0x2FE47 (skip **entire** Row 2 block)
+- `draw_hud_basic` at 0x2FE81: if `[0x5142]==0` → skip item+angle bar columns (but Row 2 box still drawn)
+- `hud_draw_item_bar_col` / `hud_draw_angle_bar_col` both also check `[0x5142]` internally
+
+Result: when STATUS_BAR=0, **Row 2 is not drawn at all** in basic mode.
+
+**bar_column fillH=0 case**: EXE fills the entire 6-wide column with EF2C background; web `drawBarColumn` returns early (`if (fillH <= 0) return`), relying on the preceding `drawBarFill` to have already painted the full bar interior with `UI_DEEP_SHADOW`. Visually identical since both EF2C and `UI_DEEP_SHADOW` are the same dark color.
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| Row 1 outer box | 12px (HUD_Y to HUD_Y+11) | `drawBarOutline(barX, HUD_Y)` → y to y+11 | ✓ |
+| Row 1 inner fill | 10px (HUD_Y+1 to HUD_Y+10) | `drawBarFill(barX, HUD_Y, barW, UI_DEEP_SHADOW)` rows y+1..y+10 | ✓ |
+| Column X stride | player_id × 6 + E9D6 | `barX + idx * 6` | ✓ |
+| Column fill rows | Y_TOP+10-fill … Y_TOP+9 | `barY+10, barY+9, …, barY+11-h` (same rows) | ✓ |
+| Power fill formula | `floor(sub[+0x9E] / 100)` | `Math.floor(players[i].power / 100)` | ✓ |
+| STATUS_BAR=Off → hide Row 2 | Row 2 completely skipped | Row 2 **always drawn** (config.statusBar not checked in hud.js) | ✗ **INTENTIONAL** |
+
+Note: The web hud.js comment explicitly documents the STATUS_BAR deviation: "Web port always draws expanded (both rows)." `config.statusBar` exists in config.js and is shown in the menu UI but has no effect on rendering — this is an intentional web-port design choice for usability.
+
+### 46. Wind Playfield Indicator — full disassembly audit (session 113)
+
+**EXE: `draw_wind_indicator` file 0x28F1D (seg 1F7F:2D2D)**
+
+Text content (formatted into DS:0xE05E buffer):
+- wind < 0: `sprintf("%s: %d", "Wind", abs(wind))` using DS:0x505A format, DS:0x2B04="Wind" far ptr → `"Wind: N"`
+- wind > 0: `sprintf("%s: %d", "Wind", wind)` using DS:0x5061 format, DS:0x2B04="Wind" far ptr → `"Wind: N"`
+- wind = 0: `sprintf("%s", "No Wind")` using DS:0x5068 format, DS:0x2B09="No Wind" far ptr → `"No Wind"`
+
+Position:
+- X = `DS:EF3E` (FG_MAXX) − textW − 20, stored to DS:D4E0
+- Y = `DS:EF40` (= PLAYFIELD_TOP) + 5, stored to DS:D4E2
+
+Color (adaptive, same logic for text pixels and arrow pixels):
+- Reads background pixel color at each draw point via fg_getpixel
+- If background color index is in [80, 104] (sky gradient palette range): use palette **87** (set by `fg_setrgb(87, 40, 40, 63)` at function start)
+- Otherwise: use palette **154** (0x9A)
+
+Arrow (when wind ≠ 0):
+- direction = sign(wind)
+- Rightward (wind > 0): arrowX = FG_MAXX − 15, direction = +1 → base at left, tip at right
+- Leftward (wind < 0): arrowX = WIND_DISPLAY_X − 5, direction = −1 → base at right, tip at left
+- Arrow center Y = PLAYFIELD_TOP + 10
+- Loop: col = 4 down to 0; for di = 0..col: draw pixel at (arrowX, centerY+di) and (arrowX, centerY−di); then arrowX += direction
+- Produces 5-column triangle, 9px→1px height, pointing in wind direction
+
+Text rendering mechanism: font module `text_display` (0x4589:0x0BD4) takes (char far* str, far ptr pixel_callback). Callback at file 0x28E43 (1F7F:2C53) adds DS:D4E0/D4E2 offsets and applies sky-adaptive color.
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| Text format | `"Wind: N"` / `"No Wind"` | `'Wind: ' + abs(wind)` / `'No Wind'` | ✓ |
+| Text X | `FG_MAXX − textW − 20` | `FG_MAXX − textW − 20` | ✓ |
+| Text Y | `PLAYFIELD_TOP + 5` | `PLAYFIELD_TOP + 5` | ✓ |
+| Arrow right X | `FG_MAXX − 15` | `FG_MAXX − 15` | ✓ |
+| Arrow left X | `WIND_DISPLAY_X − 5` | `x − 5` | ✓ |
+| Arrow center Y | `PLAYFIELD_TOP + 10` | `PLAYFIELD_TOP + 10` | ✓ |
+| Arrow shape | 5-col triangle col=4..0, col+1 pixel half-height | same loop | ✓ |
+| Color | Adaptive: palette 87 (sky) / 154 (other) | Always palette 154 | ✗ minor |
+
+Minor discrepancy: EXE dynamically picks between palette 87 (blueish, for drawing over sky gradient pixels 80–104) and 154 (standard) at each pixel. Web always uses palette 154. The difference is visible only when the wind text/arrow overlaps the sky area, which in practice occurs at high playfield. Low priority.
+
+### 47. HUD Color Variables DS:0xEF22–0xEF46 — full audit (session 114)
+
+**EXE: Init function at file 0x2A630 (icons.cpp) — called at startup**
+
+Color variable assignments (VGA DAC indices and their RGB values):
+- **DS:0xEF22** = VGA 152 = (R=0, G=0, B=0) = **BLACK** — HUD/UI text color and weapon icon color; NOT per-player (fixed)
+- **DS:0xEF24** = VGA 153 = (R=30, G=30, B=30) = dim gray — depleted/zero-ammo item text
+- **DS:0xEF26** = VGA 155 = (R=63, G=63, B=63) = **WHITE** — 3D box top/left bevel highlight
+- **DS:0xEF28** = VGA 151 = (R=45, G=45, B=45) = light gray — HUD panel background fill (= EF2A at init)
+- **DS:0xEF2A** = VGA 151 = same as EF28
+- **DS:0xEF2C** = VGA 152 = BLACK — bar interior background fill (same VGA entry as EF22)
+- **DS:0xEF2E** = VGA 159 = (R=55, G=55, B=55) = medium-light gray — 3D box inner bevel
+- **DS:0xEF30** = VGA 158 = (R=5, G=5, B=5) = near-black — 3D box deepest shadow edge
+- **DS:0xEF32** = VGA 156 = (R=15, G=15, B=15) = very dark gray — 3D box shadow edge
+- **DS:0xEF20** = VGA 162 — role TBD (assigned but not commonly referenced in HUD path)
+- **DS:0xEF3E** = FG_MAXX (screen width − 1) — not a color variable
+- **DS:0xEF40** = PLAYFIELD_TOP — not a color variable
+- **DS:0xEF46** = SOUND_DEVICE — not a color variable
+
+**text_display color mechanism (0x4589:0x0684):**
+`store_sky_base_index(n)` [file 0x4569F] sets DS:0x6E2A = n. `text_display` reads DS:0x6E2A at file 0x4C95C as the text color (VGA palette index). All text drawn through text_display uses DS:6E2A as the foreground color.
+
+**HUD text color sequence (draw_hud_basic 0x2FC84 / draw_hud_full 0x301B2):**
+1. `store_sky_base_index(EF22=152)` → DS:6E2A = 152 → **BLACK text** for player name label ("PlayerName:")
+2. No intervening color change → power "%4d", "Angle:", angle "%2d" all drawn in BLACK
+3. `store_sky_base_index(0xA3=163)` + `fg_setrgb(163, R, G, B)` sets VGA 163 = player's actual RGB
+4. player name text drawn in VGA 163 = **PLAYER COLOR**
+5. `store_sky_base_index(EF22=152)` resets → weapon icon + weapon name drawn in **BLACK**
+
+**EF24 active/depleted branching (draw_hud_full Row 2, file 0x30452 and 0x304C4):**
+```asm
+cmp [item_count], 0
+jle use_EF24         ; depleted → dim gray (VGA 153 = 30,30,30)
+push [EF22]          ; active → black (VGA 152 = 0,0,0)
+jmp done
+use_EF24:
+push [EF24]
+done:
+call store_sky_base_index
+; then call text_display → draws count text in EF22 or EF24
+```
+
+**Per-player colors (NOT via EF22):**
+- `[tank+0x1A]` = player base VGA index (player i = VGA i×8) — used for bar column fills and tank icons
+- VGA 163 (0xA3): set per player via `fg_setrgb(163, R, G, B)` from `tank[+0x1C/1E/20]` — used for player name text in draw_hud_full
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| EF22 (text color) | VGA 152 = BLACK (0,0,0) — fixed | Not used for text; web uses `player.index*8+4` | ✗ (intentional) |
+| EF24 (depleted) | VGA 153 = dim gray (30,30,30) | `UI_DARK_TEXT` (VGA 201) | ✓ equivalent |
+| EF26 (highlight) | VGA 155 = WHITE (63,63,63) | mapped to UI box highlight | ✓ equivalent |
+| EF28 (background) | VGA 151 = light gray (45,45,45) | `UI_BACKGROUND` (VGA 203) | ✓ equivalent |
+| EF2C (bar fill) | VGA 152 = BLACK | `UI_DEEP_SHADOW` (VGA 205) | ✓ equivalent |
+| Player name text | VGA 163 = player's actual RGB | `player.index*8+4` = player slot | ✓ equivalent |
+| Icon/bar color | `[tank+0x1A]` = VGA i×8 | `player.index*8+4` = VGA i×8+4 | ✓ equivalent |
+| Most HUD text | VGA 152 = BLACK | `player.index*8+4` = player color | ✗ (intentional) |
+
+**Intentional web divergence**: EXE draws most HUD text (labels, power, angle, weapon name) in VGA 152 = black against a light-gray HUD background. Web port draws ALL HUD text in the player's specific color for visual clarity. This is a known aesthetic divergence, not a bug.
+
+---
+
+### 48. Main menu button layout — full disassembly audit (session 115)
+
+**EXE `main_menu` (file 0x3D140 = 34ED:1870)**
+
+**Mode selection** (at 0x3D161): compares `FG_MAXY` with 200 (0xC8):
+- `FG_MAXY ≤ 200` → small/compact mode: DS:ED58=1, BTN_X=5, start_y=5, DS:ECD4=4, DS:ECD6=0
+- `FG_MAXY > 200` → large/spacious mode: DS:ED58=0, BTN_X=12, start_y=15, DS:ECD4=5, DS:ECD6=4
+
+**Row height table** at DS:0x6316:
+- DS:0x6316 = 25 (spacious, layout_mode=0)
+- DS:0x6318 = 17 (compact, layout_mode=1)
+
+**Button Y formula**: `y = row_height * row_index + start_y` (verified from multipliers at 0x3D266/0x3D2CC/0x3D30B etc.)
+
+**Controls in order** (call sequence in main_menu):
+
+| Row | Y (large) | Y (small) | Label | Type | Width |
+|:---:|:---------:|:---------:|-------|------|:-----:|
+| 0 | 15 | 5 | "~Start" | button (add_button) | 80 (explicit) |
+| 1 | 40 | 22 | "~Players:" | spinner (add_spinner) | auto |
+| 2 | 65 | 39 | "~Rounds:" | spinner (add_spinner) | auto |
+| 3 | 90 | 56 | "S~ound..." | button | auto |
+| 4 | 115 | 73 | "~Hardware..." | button | auto |
+| 5 | 140 | 90 | "~Economics..." | button | auto |
+| 6 | 165 | 107 | "Ph~ysics..." | button | auto |
+| 7 | 190 | 124 | "~Landscape..." | button | auto |
+| 8 | 215 | 141 | "Play Op~tions..." | button | auto |
+| 9 | 240 | 158 | "~Weapons..." | button | auto |
+| 10 | 265 | 175 | "Save ~Changes" | button | auto |
+
+**Left panel width (terrain frame x-origin)**:
+- Loop at 0x3D4D0: finds `max_right = max(control.field_0x4C)` = BTN_W-1 = 79 (largest button right edge, 0-indexed)
+- At 0x3D51C: `terrain_frame_x = dialog.x0 + max_right + BTN_X = BTN_X + 79 + BTN_X = 2×BTN_X + BTN_W - 1`
+- Large mode: 2×12+80-1 = **103**; Small mode: 2×5+80-1 = **89**
+
+**Terrain frame** (draw_flat_box at 0x3D593):
+- x1 = terrain_frame_x = 2×BTN_X+BTN_W-1
+- y1 = 6
+- x2 = FG_MAXX - 6
+- y2 = FG_MAXY - 36 (normal) or FG_MAXY - 50 (compact: copyright text too wide for right panel)
+
+**Outer frame** (draw_3d_box at 0x3D56A): spans (0, 0, FG_MAXX, FG_MAXY) with fill = EF28 = VGA 151 = light gray (45,45,45)
+
+**Doc correction**: REVERSE_ENGINEERING.md terrain frame args previously said `(menu_right+1, 6, screen_height-37, screen_width-6)` — corrected to `(menu_right, 6, FG_MAXX-6, FG_MAXY-36)` (x2 was 1 off; removed off-by-1 FG_MAXX/screen_width confusion).
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| BTN_X (large mode) | 12 | `getBtnX()=12` | ✓ |
+| BTN_X (small mode) | 5 | `getBtnX()=5` | ✓ |
+| BTN_W (Start button) | 80 | `BTN_W=80` | ✓ |
+| start_y (large) | 15 | `getStartY()=15` | ✓ |
+| start_y (small) | 5 | `getStartY()=5` | ✓ |
+| Row height (large) | 25 | `getRowH()=25` | ✓ |
+| Row height (small) | 17 | `getRowH()=17` | ✓ |
+| Terrain frame x1 | 2×BTN_X+BTN_W-1 | `getRightX()=2*getBtnX()+BTN_W-1` | ✓ (fixed session 106) |
+| Terrain frame y1 | 6 | 6 | ✓ |
+| Terrain frame x2 | FG_MAXX-6 | `FG_MAXX-6` | ✓ |
+| Terrain frame y2 | FG_MAXY-36 | `FG_MAXY-36` | ✓ |
+| ~Players:, ~Rounds: | spinner controls | spinner UI | ✓ |
+| Save ~Changes | button at row 10 | button present | ✓ |
+
+---
+
+## Section 49 — Main Menu Title Area Text Colors
+
+**Source**: `main_menu_right_panel` (file 0x3D59B), `draw_embossed_text` (file 0x4CEFD = 0x4589:0x0C6D)
+
+### draw_embossed_text (0x4589:0x0C6D = file 0x4CEFD)
+Draws text 5 times at successive diagonal offsets, each in a progressively brighter color, creating a 3D shadow effect. Signature: `draw_embossed_text(int x, int y, char far* str)`.
+
+| Layer | Offset | Color var | VGA idx | RGB | Role |
+|:-----:|:------:|-----------|:-------:|-----|------|
+| 1 | (0,0) | EF2C | 152 | (0,0,0) | Deep shadow |
+| 2 | (+1,+1) | EF32 | 156 | (15,15,15) | Dark shadow |
+| 3 | (+2,+2) | EF24 | 153 | (30,30,30) | Dim mid |
+| 4 | (+3,+3) | EF2A | 151 | (45,45,45) | Light mid |
+| 5 | (+4,+4) | EF26 | 155 | (63,63,63) | White surface |
+
+After return: DS:6E2A = EF26 = WHITE (last store_sky_base_index call).
+
+### Title area text elements
+
+| Element | String | Source | Color | Y (small/large) | Threshold |
+|---------|--------|--------|-------|:---------------:|-----------|
+| Game title | "Scorched Earth" | DS:0x269B via [DS:0x206C/0x206E] | Embossed (5-layer) | 2 / 11 | FG_MAXY < 200 |
+| Subtitle | "The Mother of All Games" | DS:0x26AA via [DS:0x2070/0x2072] | EF26 = WHITE (inherited) | 27 / 41 | FG_MAXY < 210 |
+| Edition | "Registered Version" | DS:0x63FD | EF26 = WHITE (inherited) | 52 / 71 | FG_MAXY < 210 |
+| Copyright (wide) | "Copyright (c) 1991-1995 Wendell Hicken" | DS:0x6415 | EF2C = BLACK | FG_MAXY−20 | fits in panel |
+| Copyright line 1 (narrow) | "Copyright (c) 1991-1995" | DS:0x643C | EF2C = BLACK | FG_MAXY−33 | too wide |
+| Copyright line 2 (narrow) | "Wendell Hicken" | DS:0x6454 | EF2C = BLACK | FG_MAXY−20 | too wide |
+| Version | "Version 1.50" | sprintf DS:0x6463+DS:0x31DD+DS:0x6469 | EF2C = BLACK | copyright_y−13 | — |
+
+Color switch: `store_sky_base_index(EF2C)` at file 0x3D786 — copyright and version use BLACK. No color switch between title and subtitle/registered — they inherit EF26=WHITE from last emboss layer.
+
+X-centering formula (all elements): `x = (FG_MAXX - right_panel_x - textWidth) / 2 + right_panel_x`
+Title special: EXE uses `embossCenterW = textWidth×2 + 4` as the "width" for centering (the `add ax,ax; add ax,4` at 0x3D6CF); web uses same formula.
+
+Copyright wide/narrow check (0x3D7C0): `FG_MAXX - right_panel_x - 10 >= textWidth` → single line; else → two lines.
+
+| Check | EXE | Web | Match |
+|-------|-----|-----|-------|
+| draw_embossed_text layer colors | EF2C→EF32→EF24→EF2A→EF26 | UI_DEEP_SHADOW→UI_BRIGHT_BORDER→UI_DARK_TEXT→UI_LIGHT_ACCENT→UI_DARK_BORDER | ✓ |
+| Subtitle color | EF26 = WHITE (inherited) | UI_DARK_BORDER = EF26 | ✓ |
+| "Registered Version" color | EF26 = WHITE (inherited) | UI_DARK_BORDER = EF26 | ✓ |
+| Copyright/Version color | EF2C = BLACK | UI_DEEP_SHADOW = EF2C | ✓ |
+| Title Y (small/large) | 2 / 11 (threshold FG_MAXY<200) | `isSmallMode()?2:11` | ✓ |
+| Subtitle Y (small/large) | 27 / 41 (threshold FG_MAXY<210) | `isSmallMode()?27:41` (threshold ≤200) | ✓ (standard resolutions only) |
+| Registered Y (small/large) | 52 / 71 (threshold FG_MAXY<210) | `isSmallMode()?52:71` (threshold ≤200) | ✓ (standard resolutions only) |
+| Copyright Y | FG_MAXY−20 = screenH−21 | `screenH−21` | ✓ |
+| Version Y | copyright_y−13 | `copyrightY−13` | ✓ |
+| Version string | sprintf("%s %s","Version","1.50") | "Version 1.50" | ✓ |
+
+---
+
+## Section 50 — Player Setup Screen Layout
+
+**Source**: `end_of_round_scoring` (file 0x33FC3 = 2CBF:09D3), `reassign_players` (file 0x357B0 = 2CBF:21C0), `add_widget_type9` (file 0x483F2 = 0x3F19:0x2862)
+
+### Key Finding: EXE Has No Pre-Game Player Setup Screen
+
+The EXE game flow is:
+
+```
+main_menu (0x3D140)
+  → equip_init (0x2B471)  [allocate player structs, load configs]
+  → terrain_gen            [generate landscape]
+  → game_round_loop (0x2A9FE)
+  → end_of_round_scoring (0x33FC3)  [player name/type editing happens HERE]
+  → repeat
+```
+
+There is no player setup dialog before the first round. Player names and AI types are configured **between rounds** via `end_of_round_scoring`, or during the game via the F9 system menu → "Reassign Players".
+
+### Player Name/Type Editing: end_of_round_scoring (file 0x33FC3)
+
+Between-rounds dialog uses widget type 9 (text input field). Three type-9 widgets per player row:
+
+| Call | Widget param | Callback | Purpose |
+|------|:------------:|----------|---------|
+| 1st  | 9  | 0x2CC4:0x0927 = file 0x33F67 | Computer/Person toggle; toggles DS:0x6022 (0=Person, 1=Computer) |
+| 2nd  | 32 | stub (returns 1) | Player name text input (max 32 chars) |
+| 3rd  | 13 | stub (returns 1) | Additional field (col width or aux data) |
+
+Dialog tabs: "~Players" (per-player name/type) and "~Teams".
+
+**Per-player callback** (file 0x352B7 = 2CBF:1CC7):
+- Loads player index from arg
+- Computes `tank_ptr = DS:0xD568 + player_idx × 0xCA` (tank struct stride = 0xCA)
+- Copies player name from `[tank+0xB6/+0xB8]` (far ptr to name string) into local buffer
+- Calls `0x3F19:0x5260` to populate dialog with player data
+
+### Player Name/Type Editing: Reassign Players (file 0x357B0 = 2CBF:21C0)
+
+Called from the F9 system menu. Shows one button per player (labeled "~1"…"~N"). Clicking opens a per-player name edit flow using the same dialog infrastructure.
+
+### Widget Type 9 Internal Structure (add_widget_type9 at file 0x483F2)
+
+Allocates 90-byte (0x5A) widget struct:
+
+| Offset | Size | Value | Meaning |
+|--------|------|-------|---------|
+| 0x00 | word | 9 | Widget type = text input |
+| 0x04/0x06 | far ptr | 0x3F19:0x17D0 | Default-text callback (stub; returns AX=1) |
+| 0x0C | word | param | Max chars or column param (9 / 32 / 13) |
+| 0x0E | word | group | Parent widget index (tab group) |
+| 0x48 | word | 1 | Flags |
+| 0x4A | word | 1 | Flags |
+| 0x4C | word | 0 | Flags |
+| 0x4E | word | 0 | Flags |
+| 0x52/0x54 | far ptr | callback | On-change / on-toggle callback |
+
+### No Color Selector
+
+No color selector widget was found in player setup dialogs. Player colors are assigned via the VGA palette at startup (player i = VGA base index i×8), not interactively chosen.
+
+### Web Port Comparison
+
+| Feature | EXE | Web port | Match |
+|---------|-----|----------|-------|
+| Pre-game player setup screen | NOT PRESENT | Present (dedicated screen) | Enhancement |
+| Player name editing location | Between-rounds dialog + F9 menu | Pre-game screen + Scoreboard | Intentional difference |
+| Name input field (chars) | param=32 (max 32 chars) | 12-char display width | Acceptable (names fit) |
+| Computer/Person toggle | DS:0x6022 toggle callback | Type cycling via L/R keys | Equivalent |
+| Color selector | Not in setup dialog | Not in setup screen | ✓ |
+| Tab key navigation | Handled by widget system | `handlePlayerSetupInput()` Tab key | ✓ |
+| Blinking cursor | Widget system (DS:6E2A text draw) | Implemented in `drawPlayerSetupScreen()` | ✓ |
+
+**Verdict**: The web port's pre-game player setup screen is an intentional UX enhancement. The EXE only permits name/type changes between rounds or via F9 during play. No discrepancy requiring a fix.
+
+---
+
+## Section 51 — Config Submenu Items: Labels, Order, Row Height (session 118)
+
+**Source**: Item label pointer table DS:0x2158–0x21E8 (37 entries × 4 bytes); submenu callback at file 0x3BA7F (34ED:01AF); row height at 0x3BA92.
+
+### Submenu Structure
+
+**37 total items** stored in a global label far-pointer table starting at DS:0x2158. Button params (from `main_menu` add_button calls at 0x3D2E7–0x3D48B):
+
+| Param | Button label | Items | First label DS offset |
+|-------|-------------|-------|----------------------|
+| 0 | S~ound... | 2 | DS:0x28AB |
+| 1 | ~Hardware... | 6 | DS:0x28C3 |
+| 2 | ~Economics... | 5 | DS:0x291F |
+| 3 | Ph~ysics... | 8 | DS:0x299A |
+| 4 | ~Landscape... | 4 | DS:0x296A |
+| 5 | Play Op~tions... | 5 (inferred) | DS:0x2A07 |
+| 6 | ~Weapons... | 7 (inferred) | DS:0x2A4B |
+
+Note: String table stores Landscape items (DS:0x296A) *before* Physics items (DS:0x299A), but button dispatch uses param 3=Physics, param 4=Landscape. The item descriptor dispatch table maps params to items independently of string order.
+
+### EXE Submenu Item Labels (all 37)
+
+**Sound** (items 0–1):
+1. `~Sound:` (DS:0x28AB)
+2. `~Flight Sounds:` (DS:0x28B3)
+
+**Hardware** (items 2–7):
+1. `~Graphics Mode:` (DS:0x28C3)
+2. `~Bios Keyboard` (DS:0x28D3)
+3. `~Small Memory` (DS:0x28E2)
+4. `~Mouse Enabled` (DS:0x28F0)
+5. `~Firing Delay:` (DS:0x28FF)
+6. `~Hardware Delay:` (DS:0x290E)
+
+**Economics** (items 8–12):
+1. `~Interest Rate:` (DS:0x291F)
+2. `~Cash at Start:` (DS:0x292F)
+3. `Computers ~Buy` (DS:0x293F) — values: Basic/Greedy/Erratic/Random (DS:0x2772–0x2787)
+4. `~Free Market` (DS:0x294E)
+5. `~Scoring Mode:` (DS:0x295B) — values: Standard/Corporate/Vicious (DS:0x27E0/27F1/27FB)
+
+**Landscape** (items 13–16):
+1. `~Bumpiness:` (DS:0x296A)
+2. `S~lope:` (DS:0x2976)
+3. `~Flatten Peaks` (DS:0x297E)
+4. `~Random Land` (DS:0x298D)
+
+**Physics** (items 17–24):
+1. `~Air Viscosity:` (DS:0x299A)
+2. `~Gravity:` (DS:0x29AA)
+3. `~Borders Extend:` (DS:0x29B4)
+4. `~Effect of Walls:` (DS:0x29C5) — values: None/Wrap-around/Padded/Rubber/Spring/Concrete/Random/Erratic
+5. `~Suspend Dirt:` (DS:0x29D7)
+6. `~Sky:` (DS:0x29E6)
+7. `~Max. Wind:` (DS:0x29EC)
+8. `~Changing Wind` (DS:0x29F8)
+
+**Play Options** (items 25–29, inferred from semantic grouping):
+1. `Ta~lking Tanks:` (DS:0x2A07)
+2. `~Attack File:` (DS:0x2A17) — DOS path to .WAV for attack sound
+3. `~Die File:` (DS:0x2A25) — DOS path to .WAV for death sound
+4. `Tanks ~Fall` (DS:0x2A30)
+5. `~Impact Damage` (DS:0x2A3C)
+
+**Weapons** (items 30–36, inferred from semantic grouping + web port confirmation):
+1. `~Arms Level:` (DS:0x2A4B)
+2. `~Bomb Icon:` (DS:0x2A58)
+3. `~Tunneling` (DS:0x2A64)
+4. `~Scale:` (DS:0x2A6F)
+5. `Trace ~Paths` (DS:0x2A77)
+6. `~Extra Dirt` (DS:0x2A84)
+7. `~Useless Items` (DS:0x2A90)
+
+### Row Height
+
+EXE submenu callback (file 0x3BA7F = 34ED:01AF):
+- `mov word [bp-0x0A], 0x000F` at 0x3BA92 — **unconditionally 15** for all screen sizes
+- No hi-res branch modifies row_height
+- Items render at y = 5, 20, 35, 50 … (n×15+5)
+
+Web: `getSubRowH()` returns 15 (lo-res) or **19** (screenH≥400) — intentional 4px hi-res enhancement.
+
+### Web Port Discrepancies
+
+| Submenu | EXE items | Web items | Discrepancy |
+|---------|-----------|-----------|-------------|
+| Sound | 2 (exact match) | 2 | ✓ |
+| Hardware | 6 | 9 | Web adds 3 non-EXE items: "Falling ~Delay:", "~Calibrate Joystick", "~Fast Computers" |
+| Economics | 5 (exact match) | 5 | ✓ |
+| Landscape | 4 | 6 | Web adds "Land ~Type:" (first!) and "~Percent Scanned Mountains:" — neither in EXE |
+| Physics | 8 (exact match) | 8 | ✓ |
+| Play Options | 5 | 16 | Web replaces ~Attack File:/~Die File: with "Talk ~Probability:"; adds Weapons items + ~Mode:, Play ~Order:, ~Teams:, ~Hostile Environment, Status ~Bar |
+| Weapons | 7 (exact match) | 7 | ✓ |
+| Row height | 15 always | 15/19 | Web uses 19 for hi-res (intentional) |
+
+**Non-EXE strings in web Hardware submenu**: "Falling ~Delay:", "~Calibrate Joystick", "~Fast Computers" — confirmed absent from EXE binary (full string scan returned 0 results).
+
+**Non-EXE strings in web Landscape submenu**: "Land ~Type:", "~Percent Scanned Mountains:" — confirmed absent from EXE binary.
+
+**Play Options note**: EXE items `~Attack File:` and `~Die File:` are file-path text inputs (DOS .WAV filenames for talking tanks), not spinners. Web replaces these with a `Talk ~Probability:` spinner — intentional web adaptation. The remaining Play Options extras (~Arms Level: through ~Useless Items, plus ~Mode:/Play ~Order:/~Teams:/~Hostile Environment/Status ~Bar) are all web-only additions.
+
+---
+
+## Section 52 — System Menu (F9) Rendering
+
+**EXE**: `system_menu_display` at file 0x3F4F8 (34ED:3C28). Accessed via F9 during game play.
+
+### Dialog Structure
+
+- Title: "System Menu" (DS:0x2B22), set via `0x3F19:0x2577` (set_dialog_title)
+- Dialog alloc: `0x3F19:0x00E2` with (0,0,0,0) → auto-sized, centered on screen
+- Dialog callback: 3891:0145 (file 0x3F455)
+- Button callback: all buttons share 3891:00BA (file 0x3F3CA) → jump table dispatch
+- Jump table: at 3891:0135 (file 0x3F445), 8 cases (0–7)
+
+### Row Height
+
+- **EXE**: `FG_MAXY > 200` → SI = 24; else SI = 20
+- Button y = SI × row_num + 5 (row_num = 1..4 for each column)
+- **Web**: `screenH >= 400` → rowH = 19; else rowH = 14
+- **Discrepancy**: EXE uses 20/24; web uses 14/19 (minor visual difference)
+
+### Layout — TWO-COLUMN
+
+EXE uses two side-by-side button columns. Web uses a single-column list.
+
+**Left column** (x = 0x0A = 10px):
+| Row | Label (EXE string) | DS offset | Jump case | Handler |
+|-----|-------------------|-----------|-----------|---------|
+| 1 | `~Clear Screen` | DS:0x2B2E | case 0 | file 0x3F405 → 0x3FAA5 (clears terrain debris) |
+| 2 | `~Mass Kill` | DS:0x2B3C | case 1 | file 0x3F40C → 0x3F8D6 (confirm + kill all) |
+| 3 | `Reassign ~Players` | DS:0x2B63 | case 3 | file 0x3F41A → far reassign_players 0x357B0 |
+| 4 | `Reassign ~Teams` | DS:0x2B75 | case 7 | file 0x3F436 → far 0x3A4C:0x0646 |
+| 5 | `~Sound:` *(spinner)* | DS:0x28AB | — | `0x3F19:0x2F39`; initial value = SOUND_DEVICE (DS:0xEF46) |
+
+Row 5 is a **sound device spinner** (different widget type via 0x3F19:0x2F39), not a button. On dialog close, selected value is stored back to DS:0xEF46 (0x3F816).
+
+**Right column** (x = DI = max_left_width + 0x0A):
+| Row | Label (EXE string) | DS offset | Jump case | Handler |
+|-----|-------------------|-----------|-----------|---------|
+| 1 | `Save ~Game` | DS:0x2B85 | case 5 | file 0x3F428 → far 0x300B:0x04AB |
+| 2 | `~Restore Game` | DS:0x2B90 | case 6 | file 0x3F42F → far 0x300B:0x0686 |
+| 3 | `~New Game` | DS:0x2B9E | case 4 | file 0x3F421 → 0x3F89C (confirm + restart) |
+| 4 | `~Quit Game` | DS:0x2B47 | case 2 | file 0x3F413 → 0x3F871 (confirm + quit) |
+
+### Confirmation Dialog (file 0x3F93B)
+
+All confirmations use a shared confirm_dialog function. Sizes dialog to fit message + ~Yes/~No buttons.
+
+| Action | Confirmation text | DS offset |
+|--------|------------------|-----------|
+| Quit Game | "Do you want to quit?" | DS:0x2BC9 (via DS:0x2258/0x225A) |
+| New Game | "Do you really want to restart the game?" | DS:0x2BDE (via DS:0x225C/0x225E) |
+| Mass Kill | "Mass kill everyone?" | DS:0x2C06 (via DS:0x2260/0x2262) |
+
+Yes button: "~Yes" (DS:0x2BC0 via DS:0x2250/0x2252)
+No button: "~No" (DS:0x2BC5 via DS:0x2254/0x2256)
+
+Note: "Do you want to retreat?" (DS:0x2BA8) exists in the binary but is **NOT** used in the system menu. It appears in the data pointer table at DS:0x224C but is not referenced by any system menu button.
+
+### Web Port Discrepancies
+
+| Feature | EXE | Web | Verdict |
+|---------|-----|-----|---------|
+| Layout | Two-column (5 left + 4 right) | Single column (8 items) | Structural simplification — intentional |
+| Sound device spinner | Yes (left col row 5, "~Sound:") | No | Missing — web has no sound device selection |
+| Row height | 20 (lo-res) / 24 (hi-res) | 14 / 19 | Minor visual discrepancy |
+| Item labels | See table above | All 8 labels match | ✓ |
+| Confirmation strings | "Do you want to quit?", "Do you really want to restart the game?", "Mass kill everyone?" | Same | ✓ |
+| Yes/No text | "~Yes", "~No" | "Y: Yes  N: No" prompt | Web keyboard-only adaptation |
+
+**Web item order** (single column): Clear Screen, Mass Kill, Quit Game, Reassign Players, Reassign Teams, Save Game, Restore Game, New Game.
+**EXE item order** (two-column): left col top-down Clear/Kill/Players/Teams/Sound; right col top-down Save/Restore/New/Quit.
+
+No critical bugs in web port SYSTEM_MENU_OPTIONS — all action labels and confirmation strings match EXE. The single-column layout and missing Sound spinner are intentional simplifications appropriate for a browser port.
