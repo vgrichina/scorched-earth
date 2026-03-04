@@ -116,7 +116,7 @@ DS:0x323E,FOUR_f64
 DS:0x3242,HALF_f64
 DS:0x3246,TWO_f64
 DS:0xED58,layout_mode
-DS:0xEF20,hud_color_EF20
+DS:0xEF20,hud_color_EF20,data/table:2
 DS:0xEF22,hud_text_color
 DS:0xEF24,hud_dim_color
 DS:0xEF26,hud_white_color
@@ -129,14 +129,14 @@ DS:0xEF32,hud_shadow_color
 DS:0x518E,HUD_Y
 DS:0xCEB8,player_struct_base
 DS:0xD568,tank_struct_base
-DS:0x11F6,weapon_struct_base
-DS:0x20C8,menu_string_table
+DS:0x11F6,weapon_struct_base,data/table:52
+DS:0x20C8,menu_string_table,data/farptr
 DS:0x519A,stack_limit
 DS:0x529E,sub_radius_table
 DS:0x52A2,sub_count_table
 DS:0x515C,max_wind
 DS:0x212C,menu_btn_string_table
-DS:0x3826,icon_bitmap_base
+DS:0x3826,icon_bitmap_base,data/table:125
 DS:0x70E4,font_glyph_data
 DS:0x6E2A,sky_gradient_base_index
 DS:0xDEA8,sky_ceiling_rgb_table
@@ -380,7 +380,7 @@ DS:0xEF40,SHIELD_DRAW_Y_MIN
 DS:0xEF38,SHIELD_DRAW_Y_MAX
 DS:0xEC7C,SHIELD_TANK_BBOX_PTR
 DS:0x57E2,PLAYER_COLOR_TABLE
-DS:0x616C,SHIELD_CONFIG_TABLE
+DS:0x616C,SHIELD_CONFIG_TABLE,data/table:10
 DS:0x61CC,SHIELD_CONFIG_PTR_ARRAY
 DS:0x61E4,SHIELD_COUNT
 DS:0x026A,SHIELD_DISPATCH_TABLE
@@ -475,7 +475,7 @@ DS:0x6022,PLAYER_IS_COMPUTER
 DS:0x6DCA,submenu_item_count
 DS:0x6B66,submenu_item_table
 DS:0x6E26,submenu_selected_idx
-DS:0x2158,submenu_label_ptrs
+DS:0x2158,submenu_label_ptrs,data/farptr
 DS:0x28AB,STR_SOUND_LABEL
 DS:0x28C3,STR_GRAPHICS_MODE_LABEL
 DS:0x291F,STR_INTEREST_RATE_LABEL
@@ -506,3 +506,11 @@ DS:0x2BC9,STR_QUIT_CONFIRM
 DS:0x2BDE,STR_NEWGAME_CONFIRM
 DS:0x2C06,STR_MASSKILL_CONFIRM
 DS:0x2BA8,STR_RETREAT_CONFIRM
+DS:0x02E2,ai_vtable,data/farptr
+DS:0x621C,sky_name_ptrs,data/farptr
+DS:0x6234,gfx_mode_table,data/table:16
+DS:0x2E5B,STR_PARACHUTES,data/str
+DS:0x2E67,STR_TRIGGERS,data/str
+DS:0x2E71,STR_GUIDANCE,data/str
+DS:0x2EEF,STR_INVENTORY,data/str
+DS:0x2EFE,STR_SHIELDS_HDR,data/str

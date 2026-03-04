@@ -3486,19 +3486,18 @@ data regions correctly instead of disassembling them as code. Run
 `python3 disasm/decode_tables.py DS:<addr> <count> <fmt>` to verify each table first,
 then add `,...,data/<type>` to the matching label row.
 
-- [ ] Annotate weapon struct table: `DS:0x11F6,weapon_struct_base,data/table:52` (60 entries × 52 bytes; verify with `decode_tables.py DS:0x11F6 60 struct:52:farptr,u16,u16,u16,s16,s16`)
-- [ ] Annotate config submenu label ptr table: `DS:0x2158,config_submenu_labels,data/farptr` (37 far ptrs to `~Label:` strings; verify with `decode_tables.py DS:0x2158 37 farptr`)
-- [ ] Annotate main menu item label ptr table: `DS:0x20C8,main_menu_labels,data/farptr` (11 far ptrs for Start/Players/Rounds/… buttons; verify with `decode_tables.py DS:0x20C8 11 farptr`)
-- [ ] Annotate sky mode name ptr table: `DS:0x621C,sky_name_ptrs,data/farptr` (8 entries: Plain/Shaded/Stars/Storm/Sunset/Cavern/Black/Random)
-- [ ] Annotate graphics mode table: `DS:0x6234,gfx_mode_table,data/table:16` (9 entries × 16 bytes; verify with `decode_tables.py DS:0x6234 9 struct:16:u16,u16,u16`)
-- [ ] Annotate AI type dispatch table: `DS:0x02E2,ai_vtable,data/farptr` (9 entries; verify with `decode_tables.py DS:0x02E2 9 farptr`)
-- [ ] Annotate wall type name ptr table: `DS:0x2784,wall_type_names,data/farptr` (8 entries: None/Wrap-around/Padded/…; verify with `decode_tables.py DS:0x2784 8 farptr`)
-- [ ] Annotate weapon behavior dispatch table: `DS:0x52A8,bhv_dispatch,data/farptr` (confirm size; verify with `decode_tables.py DS:0x52A8 20 farptr`)
-- [ ] Annotate UI color BSS block: `DS:0xEF20,ui_color_vars,data/table:2` (14 entries of u16 palette indices EF20–EF46; verify with `decode_tables.py DS:0xEF20 14 u16`)
-- [ ] Annotate known string constants: add `data/str` to DS labels for string literals that are currently disassembled as code — e.g. weapon names at DS:0x0000+, config key strings at DS:0x0408+, format strings at DS:0x57B2+
-- [ ] Annotate shield config table: `DS:0x616C,shield_config_table,data/table:10` (6 entries × 10 bytes; verify with `decode_tables.py DS:0x616C 6 struct:10:u16,u16,u16,u8,u8,u8`)
-- [ ] Annotate icon bitmap table: `DS:0x3826,icon_bitmaps,data/table:125` (48 icons × 125 bytes)
-- [ ] Annotate sub-category header strings in DS: `data/str` for shop group headers DS:0x2E5B (Parachutes), DS:0x2E67 (Triggers), DS:0x2E71 (Guidance), DS:0x2EEF (Inventory), DS:0x2EFE (Shields)
+- [x] Annotate weapon struct table: `DS:0x11F6,weapon_struct_base,data/table:52` (60 entries × 52 bytes; verify with `decode_tables.py DS:0x11F6 60 struct:52:farptr,u16,u16,u16,s16,s16`) — **DONE** (session 121): dtype added to labels.csv; dis.py now auto-renders 52-byte rows.
+- [x] Annotate config submenu label ptr table: `DS:0x2158,config_submenu_labels,data/farptr` (37 far ptrs to `~Label:` strings; verify with `decode_tables.py DS:0x2158 37 farptr`) — **DONE** (session 121): dtype added; dis.py resolves far ptr → string label correctly.
+- [x] Annotate main menu item label ptr table: `DS:0x20C8,main_menu_labels,data/farptr` (11 far ptrs for Start/Players/Rounds/… buttons; verify with `decode_tables.py DS:0x20C8 11 farptr`) — **DONE** (session 121): `menu_string_table,data/farptr` in labels.csv.
+- [x] Annotate sky mode name ptr table: `DS:0x621C,sky_name_ptrs,data/farptr` (8 entries: Plain/Shaded/Stars/Storm/Sunset/Cavern/Black/Random) — **DONE** (session 121): added to labels.csv; BSS (runtime-init), all zeros in static binary.
+- [x] Annotate graphics mode table: `DS:0x6234,gfx_mode_table,data/table:16` (9 entries × 16 bytes; verify with `decode_tables.py DS:0x6234 9 struct:16:u16,u16,u16`) — **DONE** (session 121): added to labels.csv; entries 2-4 have non-zero float-like values (runtime-populated mode params).
+- [x] Annotate AI type dispatch table: `DS:0x02E2,ai_vtable,data/farptr` (9 entries; verify with `decode_tables.py DS:0x02E2 9 farptr`) — **DONE** (session 121): added to labels.csv; entries 0-6 are valid code far ptrs (4F38:02XX), entries 7-8 appear to be adjacent string data (only 7 valid AI vtable entries).
+- [x] Annotate wall type name ptr table: `DS:0x2784,wall_type_names,data/farptr` (8 entries: None/Wrap-around/Padded/…; verify with `decode_tables.py DS:0x2784 8 farptr`) — **SKIP** (session 121): DS:0x2784 is in the middle of the inline AI type name string "Erratic" (not a far-ptr table). Wall type strings (Wrap-around/Padded/Rubber/Spring/Concrete) are stored consecutively at DS:0x278E–0x27B6, referenced directly by offset, no pointer table.
+- [x] Annotate weapon behavior dispatch table: `DS:0x52A8,bhv_dispatch,data/farptr` (confirm size; verify with `decode_tables.py DS:0x52A8 20 farptr`) — **SKIP** (session 121): DS:0x52A8 data looks like float constants (0x3FF0=1.0, 0x42C8 etc.), no xref found to this address. Not a valid far-ptr table; possibly misidentified.
+- [x] Annotate UI color BSS block: `DS:0xEF20,ui_color_vars,data/table:2` (14 entries of u16 palette indices EF20–EF46; verify with `decode_tables.py DS:0xEF20 14 u16`) — **DONE** (session 121): `hud_color_EF20,data/table:2` dtype added; dis.py renders each u16 with its named label (EF22=hud_text_color etc.).
+- [x] Annotate known string constants: add `data/str` to DS labels for string literals that are currently disassembled as code — e.g. weapon names at DS:0x0000+, config key strings at DS:0x0408+, format strings at DS:0x57B2+ — **PARTIAL** (session 121): shop subcategory headers annotated (DS:0x2E5B/0x2E67/0x2E71/0x2EEF/0x2EFE). Weapon names and config key strings at DS:0x0000+/0x0408+ remain for future annotation pass.
+- [x] Annotate shield config table: `DS:0x616C,shield_config_table,data/table:10` (6 entries × 10 bytes; verify with `decode_tables.py DS:0x616C 6 struct:10:u16,u16,u16,u8,u8,u8`) — **DONE** (session 121): `SHIELD_CONFIG_TABLE,data/table:10` dtype added; entries 1-5 have non-zero static data (shield type parameters).
+- [x] Annotate icon bitmap table: `DS:0x3826,icon_bitmaps,data/table:125` (48 icons × 125 bytes) — **DONE** (session 121): `icon_bitmap_base,data/table:125` dtype added.
 
 #### Shop — component audits (session 107)
 - [ ] Audit shop main frame layout: Disassemble shop dialog_alloc call. Verify dialog is full-screen (0,0,FG_MAXX,FG_MAXY), left panel 200px (0xC8) wide, right info panel dimensions, overall 3D raised outer box. Update HUD_MENU_COMPARISON.md section.
