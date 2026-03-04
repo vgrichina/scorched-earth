@@ -359,3 +359,5 @@ DS:0x2158,submenu_label_ptrs: table of far ptrs to submenu item label strings; 3
 0x3F8D6,mass_kill_handler: system menu case 1; checks DS:0xE1E2 (non-zero=skip); shows "Mass kill everyone?" (DS:0x2C06); if yes sets DS:0xE1E2=1 calls 0x1A4A:0x0A90
 0x3F871,quit_game_handler: system menu case 2; shows "Do you want to quit?" (DS:0x2BC9); if yes calls far round_over_cleanup
 0x3F89C,new_game_handler: system menu case 4; checks DS:0x50F6 (non-zero=skip); shows "Do you really want to restart the game?" (DS:0x2BDE); if yes sets DS:0x50F6=1 calls 0x1A4A:0x0A90
+0x15AF6,shopDialogBuild: human shop dialog creation; dialog_alloc(FG_MAXX,FG_MAXY,0,0) at 0x15B07=full-screen; left panel 200px=0xC8; res check cmp[FG_MAXY],0x190 at 0x15D37 → di=0/5 extra spacing; paint=0DBC:124D tick=0DBC:18F2 pal=0DBC:0874
+0x14E34,shop_palette_tick: shop palette animation; VGA 2 triangle wave (100-frame); VGA 8-11 accent 4-step rotation every 8 frames; VGA 14-18 gray gradient cycling every 2 frames

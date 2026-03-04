@@ -514,3 +514,10 @@ DS:0x2E67,STR_TRIGGERS,data/str
 DS:0x2E71,STR_GUIDANCE,data/str
 DS:0x2EEF,STR_INVENTORY,data/str
 DS:0x2EFE,STR_SHIELDS_HDR,data/str
+0x15AF6,shopDialogBuild
+0x14E34,shop_palette_tick
+DS:0x2E39,STR_UPDATE,data/str
+DS:0x2C3B,STR_SCORE_TAB,data/str
+DS:0x2C41,STR_WEAPONS_TAB,data/str
+DS:0x2C49,STR_MISC_TAB,data/str
+DS:0x2C57,STR_DONE_TAB,data/str
