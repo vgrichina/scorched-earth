@@ -47,9 +47,9 @@ const AI_NOISE = {
 
 // EXE: Spoiler AI uses random noise amplitudes per solve (not fixed [63,63,63]).
 // EXE: function at file 0x29564 generates: random(2)→DS:5172, random(100)→DS:516E, random(100)→DS:5170
-// Modeled here as three independent random(64) values per aiComputeShot call.
+// param[0]=angle amplitude (0 or 1 = nearly perfect), param[1]=power, param[2]=angle2 (both 0-99)
 function getSpoilerNoise() {
-  return [random(64), random(64), random(64)];
+  return [random(2), random(100), random(100)];
 }
 
 // EXE: ai_inject_noise (file 0x25DE9-0x2610F)

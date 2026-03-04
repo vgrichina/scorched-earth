@@ -249,16 +249,17 @@ function mirvFlightCheck(proj, weapon) {
     // EXE-verified: explosion radius per sub-warhead (DS:0x529E)
     const subRadius = weapon.param === 1 ? 35 : 20;
     // EXE-verified: spread is purely horizontal (vx offset only, vy unchanged)
-    // EXE formula: (i - (count+1)) * coeff; we use symmetric centering for JS
+    // EXE formula: vx_offset = (i - (count+1)) * coeff — all offsets negative (left-biased)
+    // MIRV:        offsets -300,-250,-200,-150,-100 relative to parent vx
+    // Death's Head: offsets -200,-180,...,-40 relative to parent vx
     const coeff = weapon.param === 1 ? 20 : 50;  // DS:0x52A6 values
-    const center = (subCount - 1) / 2;           // symmetric center index
     const spawn = [];
 
     for (let i = 0; i < subCount; i++) {
       spawn.push({
         x: proj.x,
         y: proj.y,
-        vx: proj.vx + (i - center) * coeff,
+        vx: proj.vx + (i - (subCount + 1)) * coeff,
         vy: proj.vy,  // EXE: vy unchanged
         weaponIdx: proj.weaponIdx,
         attackerIdx: proj.attackerIdx,

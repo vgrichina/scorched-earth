@@ -228,8 +228,8 @@ function handleWallCollision(proj) {
 
     case WALL.NONE:
     default:
-      // Fly off screen
-      if (proj.x < -50 || proj.x > w + 50) return 'offscreen';
+      // EXE: EDGES_EXTEND=75 (DS:0x5158, default 75px)
+      if (proj.x < -75 || proj.x > w + 75) return 'offscreen';
       return 'flying';
   }
 }
