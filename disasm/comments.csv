@@ -392,3 +392,6 @@ DS:0x6056,STR_SCORE_FMT="%d": score format string for Score tab; bare number no 
 DS:0xE05E,SPRINTF_BUF: temporary sprintf output buffer (Score tab formatting)
 DS:0xE342,SHOP_VIEWER_IDX: current viewing player index; if ==DS:5160 shows empty title
 DS:0x5160,SHOP_HOTSEAT_FLAG: hotseat viewer sentinel; E342==5160 means show empty Score title
+0x14E34,shop_palette_tick: shop palette animation; VGA 2 triangle wave (100-frame); VGA 8-11 accent 4-step rotation every 8 frames; VGA 14-18 gray gradient cycling every 2 frames
+DS:0x00EC,SHOP_ANIM_COUNTER: frame counter for shop palette animation; cycles 0..100 (period 101)
+DS:0x1F62,SHOP_ACCENT_TABLE: 5 entries×6 bytes; [0]=red(63,0,0) sparkle only; [1]=orange(63,32,10); [2]=magenta(63,0,63); [3]=crimson(63,12,12); [4]=rose(63,0,30)
