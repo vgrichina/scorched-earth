@@ -347,3 +347,7 @@ DS:0x515A,WIND_SPEED: current wind speed, signed int16; negative=leftward, posit
 0x357B0,reassign_players: F9 system menu → per-player button dialog; clicking opens name edit for that player
 0x33F67,computer_person_toggle_cb: toggles DS:0x6022 (0=Person 1=Computer); called by type-9 widget[0] with param=9
 DS:0x6022,PLAYER_IS_COMPUTER: 0=Person, 1=Computer; toggled by computer_person_toggle_cb at 0x33F67
+0x3BA7F,submenu_dialog_show: callback for all 7 submenu buttons (Sound/Hardware/Economics/Physics/Landscape/PlayOptions/Weapons); reads DS:0x6DCA (count) and DS:0x6B66 (item table stride=0x44); row_height=15 (unconditional at 0x3BA92)
+DS:0x6DCA,submenu_item_count: number of items in current submenu; max 20 (cmp 0x14 at 0x3BA97 triggers error)
+DS:0x6B66,submenu_item_table: array of submenu item descriptors stride=0x44=68 bytes; item[+0x16/18]=label far ptr; DS:0x6E26=selected index
+DS:0x2158,submenu_label_ptrs: table of far ptrs to submenu item label strings; 37 entries (Sound 2 + Hardware 6 + Economics 5 + Landscape 4 + Physics 8 + PlayOptions 5 + Weapons 7)
