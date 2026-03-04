@@ -361,3 +361,9 @@ DS:0x2158,submenu_label_ptrs: table of far ptrs to submenu item label strings; 3
 0x3F89C,new_game_handler: system menu case 4; checks DS:0x50F6 (non-zero=skip); shows "Do you really want to restart the game?" (DS:0x2BDE); if yes sets DS:0x50F6=1 calls 0x1A4A:0x0A90
 0x15AF6,shopDialogBuild: human shop dialog creation; dialog_alloc(FG_MAXX,FG_MAXY,0,0) at 0x15B07=full-screen; left panel 200px=0xC8; res check cmp[FG_MAXY],0x190 at 0x15D37 → di=0/5 extra spacing; paint=0DBC:124D tick=0DBC:18F2 pal=0DBC:0874
 0x14E34,shop_palette_tick: shop palette animation; VGA 2 triangle wave (100-frame); VGA 8-11 accent 4-step rotation every 8 frames; VGA 14-18 gray gradient cycling every 2 frames
+0x16219,shop_list_row_init: init item row Y/X positions; Y_start=[EF40]+17; stride=20px constant (no hi-res variation); loop exits at FG_MAXY-20<=si or di>=44; DS:CABE=items_per_page
+0x16826,shop_list_render: draw all visible items; loop di=startIdx..DS:CAC4; reads X=DS:CAC6+di*4 Y=DS:CAC8+di*4; icon at X+13 name at X+27 price at X+115; selection box draw_flat_box(X-2,Y-2,X+168,Y+13) color=EF22
+DS:0xCABE,SHOP_ITEMS_PER_PAGE: items visible per page; ~7 at 320x200 ~14 at 640x350 ~21 at 640x480; capped at 44
+DS:0xCABC,SHOP_SCROLLBAR_NEEDED: 1 if SHOP_ITEM_COUNT>SHOP_ITEMS_PER_PAGE else 0
+DS:0xCAC2,SHOP_SCROLL_OFFSET: first visible item absolute index (scroll position)
+DS:0xCAB6,SHOP_SELECTED_IDX: selected item absolute index
