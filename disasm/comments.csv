@@ -312,11 +312,12 @@ DS:0x57E2,player color RGB table: 10 players * 6 bytes (R,G,B words, VGA 6-bit)
 0x2253A,mag_deflector_apply_damping: vx/vy *= DS:1D54 (0.75); absorb if speed² < DS:1D58 (2000.0)
 DS:0x1D54,MAG_DAMP_COEFF = 0.75 (f32): Mag Deflector collision velocity damping factor
 DS:0x1D58,MAG_ABSORB_THRESHOLD = 2000.0 (f32): speed² below this → projectile absorbed
-0x444BB,draw_3d_box(minx, miny, maxx, maxy): raised 3D border (2px lo-res, 3px hi-res) using per-edge colors LEFT=EF26 TOP=EF2E RIGHT=EF30 BOTTOM=EF32
+0x444BB,draw_3d_box(minx, miny, dx, dy, fill): raised 3D border; dx=maxx-minx, dy=maxy-miny (relative, NOT absolute maxx/maxy); bH=2 always; bV=2 lo-res/3 hi-res (DS:6E28==3); fill rect (minx+2,miny+bV,maxx-2,maxy-bV); LEFT=EF26,TOP=EF2E,RIGHT=EF30,BOTTOM=EF32
 DS:0x1C7E,MAG_DAMPING_APPLIED_FLAG: set to 1 when Mag Deflector collision damping is applied
+DS:0x6E28,FG_PAGES: number of video pages (2=lo-res, 3=hi-res 640x480+); draw_3d_box checks ==3 for 3px top/bottom borders
 DS:0xEF3A,FG_MAXY: fg_getmaxy() = screenH - 1 (max Y pixel coordinate)
 DS:0xEF3E,FG_MAXX: fg_getmaxx() = screenW - 1 (max X pixel coordinate)
-0x44630,draw_flat_box(minx, miny, maxx, maxy): sunken 3D border (1px) using EF30/EF32/EF26/EF2E colors
+0x44630,draw_flat_box(minx, miny, maxx, maxy): sunken 3D border (1px, ABSOLUTE coords); no fill; TL=LEFT(EF30),TR=TOP(EF32),BR=RIGHT(EF26),BL=BOTTOM(EF2E); each corner owned by one edge
 0x26245,draw_icon_dead: color=0xA9(169) fill=0; fill=0 draws color=|pixel_val|+base; icon 0 col3 row0=0x9D=-99 signed → skipped in alive(fill=1) but drawn in dead(fill=0)
 0x30F3F,sub-struct[+0x16] = player_icon_idx initialized to 0 here; never written elsewhere; all players use icon 0 always in draw_hud_basic (intentional — icon differentiates by color only)
 0x2FBCA,compute_hud_layout_basic: E9D4=5; E9D6=5+max(measureText([220C])+8, measureText([2364])+measureText(":")); si=0x3E; barW=numP×6
