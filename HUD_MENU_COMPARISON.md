@@ -1605,3 +1605,936 @@ Note: "Do you want to retreat?" (DS:0x2BA8) exists in the binary but is **NOT** 
 **EXE item order** (two-column): left col top-down Clear/Kill/Players/Teams/Sound; right col top-down Save/Restore/New/Quit.
 
 No critical bugs in web port SYSTEM_MENU_OPTIONS — all action labels and confirmation strings match EXE. The single-column layout and missing Sound spinner are intentional simplifications appropriate for a browser port.
+
+## Section 53 — draw_3d_box: Raised 3D Border Drawing (session 120)
+
+**EXE**: `draw_3d_box` at file 0x444BB (34ED:8BEB). Args: `(minx, miny, dx, dy, fill_color)` where dx=maxx-minx, dy=maxy-miny (NOT absolute maxx/maxy). 5 far-call args (add sp, 0x000A at callers).
+
+### Border Widths
+
+| Property | EXE | Web (framebuffer.js) | Match? |
+|----------|-----|----------------------|--------|
+| LEFT/RIGHT (bH) | Always 2 vlines | bH = 2 (hardcoded) | ✓ |
+| TOP/BOTTOM lo-res (bV) | 2 hlines | bV = 2 (screenH < 400) | ✓ |
+| TOP/BOTTOM hi-res (bV) | 3 hlines when DS:0x6E28==3 | bV = 3 (screenH >= 400) | ✓ |
+
+### Corner Ownership
+
+- **hlines claim ALL corners** (TOP hline i spans x+i to x+w-1-i — reaches both sides)
+- **vlines skip corner rows** (LEFT vline i spans y+i+1 to y+h-2-i — skips top and bottom)
+- This prevents duplicate pixels at corners
+
+EXE code: LEFT vline 1 at y1=di+1, y2=di+dy-1 (skips row miny and row miny+dy); TOP hline 1 at x1=si, x2=si+dx (reaches both corner columns). ✓
+
+### Fill Rect Geometry
+
+- **Lo-res (bV=2)**: `fillRect(minx+2, miny+2, minx+dx-2, miny+dy-2)` = `(minx+bH, miny+bV, maxx-bH, maxy-bV)`
+- **Hi-res (bV=3)**: `fillRect(minx+2, miny+3, minx+dx-2, miny+dy-3)` = **asymmetric** (X inset=2, Y inset=3)
+- EXE hi-res uses two separate `cmp [0x6E28], 3` checks: one for 3rd hlines (0x44526/0x445B9), one for hi-res fill (0x445E1)
+
+Web: `fillRect(x+bH, y+bV, x+w-bH-1, y+h-bV-1)` — matches EXE when callers pass w=dx+1, h=dy+1 ✓
+
+### Edge Colors
+
+| Edge | EXE DS offset | Web constant | Color |
+|------|--------------|--------------|-------|
+| LEFT | DS:0xEF26 | UI_DARK_BORDER (202) | white (63,63,63) — highlight |
+| TOP | DS:0xEF2E | UI_LIGHT_BORDER (206) | light gray — highlight |
+| RIGHT | DS:0xEF30 | UI_MED_BORDER (207) | near-black — shadow |
+| BOTTOM | DS:0xEF32 | UI_BRIGHT_BORDER (208) | dark gray (15,15,15) — shadow |
+
+**Result**: Web implementation correct ✓. 14 callers of draw_3d_box in EXE.
+
+## Section 54 — draw_flat_box: Sunken 3D Border Drawing (session 120)
+
+**EXE**: `draw_flat_box` at file 0x44630 (34ED:8D60). Args: `(minx, miny, maxx, maxy)` — ABSOLUTE coordinates (unlike draw_3d_box which uses relative dx/dy). 4 far-call args (add sp, 0x0008 at callers). **No fill parameter** — callers fill interior separately.
+
+### Border Width
+
+**Always 1px** — one vline or hline per edge. No multi-pixel borders, no hi-res conditional. 25 callers confirmed via xref.
+
+### Corner Ownership (each corner claimed by a different edge)
+
+| Corner | Owner | EXE code |
+|--------|-------|----------|
+| TL (minx, miny) | LEFT vline | y1=miny (includes top row) |
+| TR (maxx, miny) | TOP hline | x2=maxx (reaches right column) |
+| BR (maxx, maxy) | RIGHT vline | y2=maxy (includes bottom row) |
+| BL (minx, maxy) | BOTTOM hline | x1=minx (reaches left column) |
+
+Each edge skips the corner it does NOT own:
+- LEFT (EF30): y from miny to maxy-1 (skips BL corner)
+- TOP (EF32): x from minx+1 to maxx (skips TL corner)
+- RIGHT (EF26): y from miny+1 to maxy (skips TR corner)
+- BOTTOM (EF2E): x from minx to maxx-1 (skips BR corner)
+
+### Edge Colors
+
+| Edge | EXE DS offset | Web constant | Color |
+|------|--------------|--------------|-------|
+| LEFT | DS:0xEF30 | UI_MED_BORDER (207) | near-black |
+| TOP | DS:0xEF32 | UI_BRIGHT_BORDER (208) | dark gray — sunken shadow |
+| RIGHT | DS:0xEF26 | UI_DARK_BORDER (202) | white — sunken highlight |
+| BOTTOM | DS:0xEF2E | UI_LIGHT_BORDER (206) | light gray |
+
+Reversed vs raised box: LEFT/TOP are dark (shadow), RIGHT/BOTTOM are light (highlight) → sunken appearance.
+
+**Result**: Web `drawBox3DSunken` in framebuffer.js matches EXE exactly ✓. Web adds fill parameter for convenience (EXE has no fill in draw_flat_box itself). Corner ownership, 1px borders, and edge colors all correct.
+
+---
+
+## Section 55 — Shop Main Frame Layout (session 122)
+
+### EXE Shop Dialog Architecture
+
+`shopDialogBuild` at file 0x15AF6 (seg 0x0F0B:0x0046). Called for human players; AI players take ai_shop_jump_table (0x1DF4D) path instead.
+
+**Dialog allocation** at 0x15B07–0x15B13:
+```
+push [FG_MAXY]       ; DS:EF3A — screen height (e.g. 199 lo-res, 399 hi-res)
+push [FG_MAXX]       ; DS:EF3E — screen width  (e.g. 319 lo-res, 639 hi-res)
+push 0x00            ; y_start = 0
+push 0x00            ; x_start = 0
+call far 0x3F19:0x00E2   ; dialog_alloc → full-screen modal
+```
+→ Full-screen dialog (0, 0, FG_MAXX, FG_MAXY) ✓
+
+**Three dialog callbacks** stored immediately after alloc:
+| Callback | Far ptr stored | File offset | Purpose |
+|----------|---------------|-------------|---------|
+| paint | 0x0DBC:0x124D | 0x1580D | shop_paint_callback: player color highlight |
+| palette | 0x0DBC:0x0874 | 0x14E34 | Palette animation tick |
+| tick | 0x0DBC:0x18F2 | (computed) | Per-frame tick |
+
+**Widget hierarchy** (created in shopDialogBuild):
+1. `add_widget_type9` (0x3F19:0x2862) — outer container (param 0x20)
+2. `0x3F19:0x3DFA` — scrollable item list widget (type 2), data at DS:0xCBA2, height = avg of two widths capped at 0xF0=240
+3. `add_widget_type9` — sub-widget (param 0x09)
+4. **Player-nav button A** (`0x3F19:0x2A9B`): x_start=0xC8=200, label=DS:0x1521 (runtime player name), callback=0x0DBC:0x0D29 (tab_dispatch), id=0xFD
+5. **Player-nav button B** (`0x3F19:0x2A9B`): x_start varies, same callback, id=0xFC
+6. More `add_widget_type9` widgets for scrollbar arrows/thumb
+7. **"~Update" button** (`0x3F19:0x2A9B`): x_start=di+0x32, label=DS:0x2E39, callback=0x0DBC:0x0A38, id=0
+8. **"~Inventory" button** (`0x3F19:0x2A9B`): x_start varies, label=DS:0x2EEF, id=0
+9. **"~Done" button** (`0x3F19:0x2A9B`): x_start=di×3+90, label via DS:0x2278→"~Done", callback=0x3F19:0x5C8D, id=0
+
+**Left panel width = 200px (0xC8)**: Player-nav buttons use `x_start=0xC8`, placing them immediately to the right of the 200px item list panel. Right info panel spans x=200 to FG_MAXX (no explicit 3D box — EXE leaves it as uncovered dialog background).
+
+**Resolution check** at 0x15D37:
+```
+cmp [FG_MAXY], 0x0190  ; 0x0190 = 400
+jge → di=5             ; hi-res: +5px extra vertical spacing
+     → di=0            ; lo-res: no extra
+```
+
+**Auto button height** (in `0x3F19:0x2A9B` at 0x4875B):
+```
+if [FG_MAXY] < 300: button_height = 17 (0x11)
+else:               button_height = 19 (0x13)
+```
+
+### Web Port Comparison
+
+| Feature | EXE | Web | Match? |
+|---------|-----|-----|--------|
+| Dialog scope | Full-screen (0,0,FG_MAXX,FG_MAXY) | `drawBox3DRaised(0,0,SW,SH,...)` | ✓ |
+| Left panel width | 200px (0xC8) | PANEL_W_MAX=200 | ✓ |
+| Left panel x_start | EXE auto-positions via dialog layout | PANEL_X=4 (web offset) | minor diff |
+| Left panel y_start | EXE auto-positions | PANEL_Y=20 (web offset) | minor diff |
+| Right panel 3D box | None in EXE (dialog background) | Web draws sunken right panel | web-only |
+| Resolution check | FG_MAXY >= 400 → +5px spacing | screenH >= 400 (same threshold) | ✓ |
+| Button height | FG_MAXY<300→17px, ≥300→19px | Similar | ✓ |
+| Player-nav buttons | Yes (prev/next player in shop) | Not implemented (simplified) | web omits |
+| Paint callback | 0x0DBC:0x124D | JS shopDraw() | ✓ |
+| Palette animation | 0x0DBC:0x0874 | tickAccentPalette() | ✓ |
+
+**Result**: Full-screen dialog confirmed ✓. 200px left panel confirmed ✓. EXE does NOT draw an explicit right-panel 3D box — only the item list (left panel) is a distinct widget; the right area is uncovered dialog background. Web port's right panel box is a web-only enhancement. No critical discrepancies requiring fixes.
+
+## Section 56 — Shop Item List Rendering (session 123)
+
+### EXE Item List Row Layout
+
+**Row position init** at file 0x16219 (function 0x1606C, called from `shopDialogBuild` → init flow):
+
+```asm
+; Setup: EF40=SHOP_LIST_Y_MIN (runtime widget top Y), EF42=SHOP_LIST_X_MIN (runtime widget left X)
+si = [EF40] + 17    ; first row Y position (17px from widget top)
+di = 0              ; item slot index
+loop:
+    [CAC6 + di*4] = [EF42] + 9    ; X position = list_left + 9px
+    [CAC8 + di*4] = si             ; Y position
+    si += 20                       ; STRIDE = 20px (constant, no hi-res variation)
+    di++
+    if (FG_MAXY - 20) <= si: break ; no room for another 20px row
+    if di >= 44: break             ; hard cap at 44 items
+[CABE] = di                        ; items per page
+```
+
+**Items per page at common resolutions** (assuming EF40≈20 for a typical shop layout):
+| Resolution | FG_MAXY | Items per page formula | Result |
+|------------|---------|----------------------|--------|
+| 320×200 | 200 | floor((200-20-37)/20) | ≈7 |
+| 640×350 | 350 | floor((350-20-37)/20) | ≈14 |
+| 640×480 | 480 | floor((480-20-37)/20) | ≈21 |
+
+**DS variables used by item list**:
+| Variable | DS offset | Meaning |
+|---------|-----------|---------|
+| SHOP_LIST_Y_MIN | DS:0xEF40 | Widget top Y (set at runtime by dialog system) |
+| SHOP_LIST_X_MIN | DS:0xEF42 | Widget left X (set at runtime) |
+| SHOP_ITEM_CAC6 | DS:0xCAC6 | Per-item X position array (4 bytes/slot) |
+| SHOP_ITEM_CAC8 | DS:0xCAC8 | Per-item Y position array (4 bytes/slot) |
+| SHOP_ITEM_COUNT | DS:0xCAC0 | Total visible items (after arms-level filter) |
+| SHOP_ITEMS_PER_PAGE | DS:0xCABE | Items per page (computed by init loop) |
+| SHOP_SCROLL_OFFSET | DS:0xCAC2 | Scroll position (first visible item abs. index) |
+| SHOP_LAST_VISIBLE | DS:0xCAC4 | Last visible item abs. index |
+| SHOP_SELECTED | DS:0xCAB6 | Selected item abs. index |
+| SHOP_PREV_SEL | DS:0xCAB4 | Previous selected item (for highlight update) |
+| SHOP_SCROLLBAR | DS:0xCABC | 1 = scrollbar needed (CAC0 > CABE), 0 = not |
+
+**Selection highlight box** (at 0x1629E, after `store_sky_base_index [EF22]`):
+```
+draw_flat_box(X-2, Y-2, X+168, Y+13)  ; 170px wide × 15px tall
+color: DS:EF22 = hud_text_color (= player highlight / base color)
+```
+
+**Item layout within each row** (from render loop at 0x16826):
+| Element | X offset from row X | Function |
+|---------|---------------------|----------|
+| Icon (blank or dead) | X + 13 | draw_icon_blank / draw_icon_dead |
+| Name text | X + 27 (0x1B) | text_display |
+| Price text | X + 115 (0x73) | text_display (formatted) |
+
+### Web Port Comparison
+
+| Feature | EXE | Web (shop.js) | Match? |
+|---------|-----|---------------|--------|
+| Row stride | **20px constant** (no hi-res variation) | `getRowH()`: 13 lo-res / 18 hi-res | **DISCREPANCY** |
+| Items per page formula | floor((FG_MAXY - EF40 - 37) / 20) | floor(listH / rowH) | **DISCREPANCY** |
+| Items per page max | 44 (hard cap) | 15 (web cap) | **DISCREPANCY** |
+| Items per page at 320×200 | ≈7 | ≈11 (13px rows) | different |
+| Items per page at 640×480 | ≈21 | 15 (capped) | different |
+| Selection highlight width | 170px (X-2 to X+168) | listRight - PANEL_X - 2 (≈170px) | ✓ |
+| Selection highlight height | 15px (Y-2 to Y+13) | rowH-1 (12 or 17px) | **DISCREPANCY** |
+| Selection color | DS:EF22 = player highlight color | baseColor (= player color) | ✓ |
+| Icon x-offset | +13px from row X | icon area left edge ≈ same | ✓ |
+| Name text x-offset | +27px | varies | approx ✓ |
+| Price text x-offset | +115px | price column | approx ✓ |
+
+**Result**: Row stride discrepancy confirmed — EXE uses 20px always; web port uses 13/18. Items-per-page formula differs (EXE derives from screen height dynamically; web port has simpler formula with 15-item cap). Selection color (EF22 = player highlight color) confirmed ✓. Web port's row layout is a reasonable approximation but not pixel-accurate to EXE geometry. The 15-item cap in the web port vs. EXE's 44-item cap means hi-res web shows fewer items than EXE would.
+
+---
+
+## Section 57 — Shop Miscellaneous Sub-Categories
+
+Source: `equip_init` (0x1D5D4), `find_weapon_by_name` (0x1D57B), `shop_cat_list_build` (0x14CC4), DS:0x2320 header table.
+
+### 57.1 Sub-Category Headers
+
+All 5 header strings confirmed in DS:0x2320 far-ptr table:
+
+| Header | DS address | String | Table entry |
+|--------|-----------|--------|-------------|
+| ~Guidance | DS:0x2E71 | "~Guidance" | entry 6 (DS:0x2338) |
+| ~Parachutes | DS:0x2E5B | "~Parachutes" | entry 4 (DS:0x2330) |
+| ~Triggers | DS:0x2E67 | "~Triggers" | entry 5 (DS:0x2334) |
+| Shields | DS:0x2EFE | "Shields" | entry 18 (DS:0x2368) |
+| ~Inventory | DS:0x2EEF | "~Inventory" | entry 16 (DS:0x2360) |
+
+### 57.2 Weapon Index Ranges
+
+`equip_init` calls `find_weapon_by_name` for each accessory and stores the runtime index in DS:D54A–D566.
+
+| Group | Weapon names | Approx indices | Web MISC_GROUPS |
+|-------|-------------|----------------|-----------------|
+| ~Guidance | Heat/Bal/Horz/Vert Guidance | 37–40 | [37,38,39,40] ✓ |
+| ~Parachutes | Lazy Boy, Parachute | 41–42 | [41,42] ✓ |
+| ~Triggers | Contact Trigger | 56 | [56] ✓ |
+| Shields | Shield…Super Mag | 46–52 | [46,47,48,49,50,51,52] ✓ |
+| ~Inventory | accessories/misc | 35,36,43–45,53–55 | [35,36,43,44,45,53,54,55] ✓ |
+
+### 57.3 Shop List Builder Logic
+
+`shop_cat_list_build(tab_flag, category_farptr)`:
+- Weapons tab (tab_flag=0): iterates weapon indices 0 .. DS:E4F0 (WPN_FIRST_ACCESSORY ≈ 35)
+- Misc tab (tab_flag≠0): iterates DS:E4F0 .. WEAPON_COUNT
+- Adds weapon if: `weapon.category_farptr == cat_farptr` AND `weapon.visible_flag != 0`
+- Called once per sub-category; EXE iterates linearly so order follows weapon array
+
+### 57.4 Label Corrections (session 120 errors corrected in session 124)
+
+| DS var | Old label (wrong) | Correct label |
+|--------|------------------|---------------|
+| DS:D564 | HUD_HEAVY_SHIELD_IDX | WPN_FUEL_TANK_IDX (≈55) |
+| DS:D566 | HUD_SUPER_MAG_IDX | WPN_CONTACT_TRIGGER_IDX (=56) |
+
+Heavy Shield index is at DS:D55E; Super Mag index is at DS:D560.
+
+### 57.5 EXE vs Web Port
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| ~Guidance header | DS:0x2E71 "~Guidance" | MISC_GROUPS[0].label | ✓ |
+| ~Parachutes header | DS:0x2E5B "~Parachutes" | MISC_GROUPS[1].label | ✓ |
+| ~Triggers header | DS:0x2E67 "~Triggers" | MISC_GROUPS[2].label | ✓ |
+| Shields header | DS:0x2EFE "Shields" (no ~) | MISC_GROUPS[3].label | ✓ |
+| ~Inventory header | DS:0x2EEF "~Inventory" | MISC_GROUPS[4].label | ✓ |
+| Guidance indices | 37–40 | [37,38,39,40] | ✓ |
+| Parachutes indices | 41–42 | [41,42] | ✓ |
+| Triggers indices | 56 | [56] | ✓ |
+| Shields indices | 46–52 | [46–52] | ✓ |
+| Inventory indices | 35,36,43–45,53–55 | [35,36,43,44,45,53,54,55] | ✓ |
+| Display order | DS:0x2320 table order | same order | ✓ |
+
+**Result**: Web port MISC_GROUPS accurately mirrors EXE sub-category structure — all 5 headers and weapon index ranges confirmed correct. No discrepancies requiring fixes.
+
+---
+
+## Section 58: Shop Score Tab (session 125)
+
+### 58.1 Dialog Setup
+
+- Score tab builds an auto-sized sub-dialog: `dialog_alloc(0, 0, 0, 0)` at file 0x3415A
+- Players are sorted by score before rendering via sort function at file 0x337C4 (in ranges.cpp, 2CBF:01D4)
+- Scoring mode flag: DS:0x50EA (0 = standard scoring off, non-zero = scoring mode on)
+
+### 58.2 Title: "Player Rankings"
+
+| Condition | Title shown |
+|-----------|-------------|
+| Scoring ON + normal viewer | "Player Rankings" (DS:0x6042) |
+| Scoring ON + hotseat viewer (DS:E342==DS:5160) | "" (empty, DS:0x6041) |
+| Scoring OFF + normal viewer | string from DS:0x20C4 far ptr |
+| Scoring OFF + hotseat viewer | "" (empty, DS:0x6040) |
+
+- Title widget: `add_widget(dialog, X=0, Y=5, text=ds:0x6042, widget_type=0x3F19:0x17D0)`
+- X=0 → full-width centered by dialog layout system
+
+### 58.3 Row Height
+
+```
+file 0x341F5:   cmp [DS:EF3A], 0x00DC    ; FG_MAXY vs 220
+                jge → row_height = 13
+                      row_height = 11
+```
+
+| FG_MAXY | Row height |
+|---------|------------|
+| < 220   | 11 px      |
+| ≥ 220   | 13 px      |
+
+### 58.4 Per-Row Layout
+
+For each player rank `si` (0-based, sorted by score):
+
+```
+Y = row_height × si + 25   (normal viewer)
+Y = row_height × si + 33   (hotseat viewer: DS:E342 == DS:5160)
+```
+
+| Column | X | Content | Format |
+|--------|---|---------|--------|
+| Rank | 10 (from dialog left) | `sprintf(DS:E05E, "#%d", rank+1)` | DS:0x6052 = "#%d" |
+| Name | 30 (from dialog left) | player name far ptr | player color |
+| Score | right-col (text-width computed) | `sprintf(DS:E05E, "%d", score)` | DS:0x6056 = "%d" |
+
+- If scoring mode ON (DS:0x50EA ≠ 0): extra scoring-rank data column shown between name and score
+- sprintf buffer: DS:0xE05E (temp render buffer)
+- Score format: bare "%d" — no "pts" or other suffix
+
+### 58.5 EXE vs Web Port
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| Row height formula | 11 if FG_MAXY<220 else 13 | `screenH>=220 ? 13 : 11` | ✓ |
+| Title "Player Rankings" | DS:0x6042 centered at Y=5 | centered via measureText | ✓ |
+| Rank format | "#%d" (DS:0x6052) | `'#' + (i+1)` | ✓ |
+| Score format | "%d" (DS:0x6056, bare number) | `String(p.score)` | ✓ |
+| Player name color | player palette | `PLAYER_PALETTE_STRIDE * idx + PLAYER_COLOR_FULL` | ✓ |
+| Sort order | score descending (0x337C4) | `getLeaderboard()` sorts b.score-a.score | ✓ |
+| Rank X | 10 from dialog | PANEL_X+3 | ~OK (dialog offset differs) |
+| Name X | 30 from dialog | PANEL_X+23 | ~OK |
+| Score X | computed from text widths | PANEL_X+panelW-90 | ~OK (right-side approx) |
+| Separator line | EXE: none (dialog bevel only) | hline at PANEL_Y+13 | web-only addition |
+| Empty title in hotseat | yes (DS:0x6040/0x6041 = "") | no (always shows title) | minor discrepancy |
+| Scoring mode bonus column | shown if DS:0x50EA ≠ 0 | not implemented | minor (rare feature) |
+
+**Result**: Web port Score tab is functionally correct. All key values (row height, title text, rank/score formats, sorting, player colors) are confirmed from EXE. Minor layout differences are within acceptable range. Web-only additions (hline separator) are reasonable UI improvements.
+
+---
+
+## Section 59: Shop Tab Buttons and Done Button (session 126)
+
+### 59.1 EXE Shop Layout (Clarified)
+
+The EXE's shop dialog (shopDialogBuild at file 0x15AF6) does **NOT** render horizontal bottom tab buttons for Score/Weapons/Miscellaneous. Instead:
+
+- **Left panel** (X=0..200): scrollable item list, player prev/next navigation buttons at X=200
+- **Right panel** (X=200..FG_MAXX): item info display, 3 vertical action buttons at X=250
+- **Category switching**: keyboard-driven (Left/Right arrows change category; no visual bottom tab strip)
+- **Keyboard hotkey widgets**: 4 type-9 widgets for Home/Up/End/Down list navigation (file 0x15CBB-0x15D2F)
+
+### 59.2 Right-Panel Action Buttons ("Tab-like" buttons)
+
+Three buttons are created at X=250, Y positions varying by screen resolution (di=0 lo-res, di=5 hi-res):
+
+| Button label | DS offset | Y (lo-res, di=0) | Y (hi-res, di=5) | User callback (file) |
+|---|---|---|---|---|
+| `~Update` | DS:0x2E39 | 50 | 55 | 0x14FF8 (0x0DBC:0x0A38) |
+| `~Inventory` | DS:0x2EEF | 70 | 80 | 0x1518A (0x0DBC:0x0BCA) |
+| `~Done` | DS:0x2C57 | 90 | 105 | 0x3F19:0x5C8D (dialog exit) |
+
+- Created via `0x3F19:0x2A9B` (file 0x4862B) — dialog button widget creator
+- **Auto-width**: `text_measure(label) + 12` px (confirmed at file 0x4871B: cmp [bp+0x0E],-1 → text_measure → +0x0C=12)
+- **Auto-height**: `FG_MAXY < 300 → 17px; FG_MAXY ≥ 300 → 19px` (confirmed at file 0x48755)
+- **Inter-button gap**: 70 - (50+17) = 3px (same gap as web port's tabPad gap of 3)
+- **3D rendering**: standard dialog widget system (seg 0x3F19) handles raised/sunken 3D boxes
+
+### 59.3 Tab Label Strings
+
+The strings "Score", "Weapons", "Miscellaneous" (DS:0x2C3B, DS:0x2C41, DS:0x2C49) are:
+- Used as **column headers** in the Score view rendering (icons.cpp at file 0x26792)
+- NOT used as visual button labels in shopDialogBuild
+- The category-switching via keyboard calls `shop_cat_list_build` (0x14CC4) with `DS:CAAB` (category index)
+
+### 59.4 EXE vs Web Port
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| Tab bar layout | Vertical right-panel buttons at X=250 | Horizontal bottom strip (Score\|Weapons\|Misc\|~Done) | Web redesign |
+| "~Update" button | Right panel at Y=50 | Not present (functionality inlined) | Web simplification |
+| "~Inventory" button | Right panel at Y=70 | Not present | Web simplification |
+| "~Done" button | Right panel at Y=90 | Bottom of screen, right-aligned | Different position |
+| Button height | 17px (FG_MAXY<300) / 19px (hi-res) | 16px (TAB_H-2=16) | 1px low in web |
+| Button width | `text_measure + 12` | `measureText + 12` (tabPad=6×2) | ✓ identical formula |
+| Inter-button gap | 3px | 3px | ✓ |
+| 3D raised/sunken | ✓ dialog widget system | ✓ drawBox3DRaised/Sunken | ✓ |
+| Category labels | Keyboard-only switching | Score/Weapons/Misc as visible tabs | Web adds visibility |
+
+**Result**: Web port's bottom tab bar is a UX redesign — more user-friendly but structurally different from EXE. The EXE uses vertical right-panel buttons ("~Update", "~Inventory", "~Done") not horizontal bottom tabs. Key EXE-confirmed values: button width = text+12 (✓), gap = 3px (✓), height = 17px vs web 16px (minor 1px discrepancy). No critical fixes needed.
+
+---
+
+## Section 60: Shop Sell Dialog (session 127)
+
+### 60.1 EXE Sell Dialog Structure
+
+`sell_dialog_build` at file **0x37CA0** (2CBF:46B0). Invoked from shop_inventory_callback (0x1518A) when user presses Backspace/Del on an owned item.
+
+- `dialog_alloc(0,0,0,0)` at 0x37CD8 → **auto-sized dialog** centered by dialog system
+- Palette callback: 0x0DBC:0x0874
+- Paint callback: **0x30F5:0x023F** (draws "Offer: $<amount>" dynamically)
+- Tick callback: 0x30F5:0x0110
+
+### 60.2 Widget Layout
+
+Widgets added via `0x3F19:0x2577` (add_text_widget), `0x3F19:0x2CD1` (spinner), `dialog_create_button` (file 0x4862B):
+
+| Widget | Content | DS string | X | Y |
+|--------|---------|-----------|---|---|
+| Text (title) | "Sell Equipment" | DS:0x2EB0 via DS:0x234C | 5 | 20 |
+| Text | weapon name (from weapon struct DS:0x11F6+idx×52) | — | 23 | 10 |
+| Text | "Amount in stock: N" (sprintf "%s: %d" → DS:0xE05E) | DS:0x2E87 via DS:0x2340 | 38 | 10 |
+| Spinner | "~Quantity to sell:" | DS:0x2E97 via DS:0x2344 | 53 | 10 |
+| Button | "~Accept" | DS:0x2EBF via DS:0x2350 | 10 | 85 |
+| Button | "~Reject" | DS:0x2EC7 via DS:0x2354 | 85 | ~Accept_bottom+10 |
+| Painted text | "Offer: $<amount>" | DS:0x2EAA via DS:0x2348 | dynamic | dynamic |
+
+- "~Accept" and "~Reject" at same Y=85 horizontal pair, X=10 and X=85 respectively
+- "~Reject" Y computed as ~Accept widget's bottom edge + 10 (same row, different X)
+- Keyboard type-9 widgets: 0x48 (End) and 0x50 (Down) for spinner navigation
+- Initial quantity: DS:0xEC6E = 1; weapon index: DS:0xEC76; result flag: DS:0xEC70
+
+### 60.3 Refund Formula — `compute_sell_refund` at file 0x37955 (2CBF:4365)
+
+```
+if DS:0x514A (FREE_MARKET) != 0:
+    DS:0x613C = DS:0x6144          ; overwrite factor with 0.65
+
+qty    = DS:0xEC6E                 ; quantity to sell
+price  = weapon_struct[idx] + 0x1A ; 32-bit weapon price (lo at +0x1A, hi at +0x1C)
+bundle = weapon_struct[idx] + 0x06 ; bundle size (u16)
+
+result = _ftol((qty x price x DS:0x613C) / bundle)
+```
+
+| Constant | DS offset | Value | Mode |
+|----------|-----------|-------|------|
+| SELL_FACTOR | DS:0x613C | 0.8 | normal |
+| SELL_FACTOR_MKT | DS:0x6144 | 0.65 | free market |
+| FREE_MARKET flag | DS:0x514A | 0 = normal, !=0 = free market | — |
+
+"Offer" text rendered in paint callback (0x30F5:0x023F, called from 0x379C0):
+- `call 0x3E50:0x00F0(refund)` → formatted_str (e.g. "10,000")
+- `sprintf(DS:0xE15E, "$%s", formatted_str)` → "$10,000"
+- `sprintf(DS:0xE05E, "%s: %s", "Offer", DS:0xE15E)` → "Offer: $10,000"
+- `call text_display(DS:0xE05E, ...)`
+
+### 60.4 EXE vs Web Port
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| Dialog size | Auto-sized (0,0,0,0) | Fixed 240×106 | Web approximation |
+| "Sell Equipment" title | DS:0x2EB0, widget X=5,Y=20 | drawText(dlgX+5, dlgY+3) | ✓ text matches |
+| Weapon name label | shown without "Description" label | shows "Description:" label | Web adds label |
+| "Amount in stock" | single formatted string "Amount in stock: N" | two-column label+value | Web splits into columns |
+| "~Quantity to sell:" | spinner widget (0x3F19:0x2CD1), range 1..owned | keyboard-controlled field | ✓ functional match |
+| "~Accept" button | DS:0x2EBF, callback 0x30F5:0x02BC | drawBox3DRaised + drawText | ✓ text matches |
+| "~Reject" button | DS:0x2EC7, callback 0x3F19:0x5C8D | drawBox3DRaised + drawText | ✓ text matches |
+| Button arrangement | X=10/X=85 same Y=85 (horizontal pair) | centered fixed 60×15 buttons | ~OK |
+| Offer display | paint callback: "Offer: $<amount>" | drawText('Offer') + '$'+offer | ✓ functional match |
+| Separator lines | none (dialog bevel only) | 3 hlines in layout | web-only addition |
+| Refund formula | _ftol((qty x price x factor) / bundle) | Math.floor(qty x price / bundle x factor) | ✓ equivalent |
+| factor=0.8 (DS:0x613C) | ✓ confirmed | config.freeMarket ? 0.65 : 0.8 | ✓ correct |
+| factor=0.65 (DS:0x6144) | ✓ confirmed | ✓ | ✓ correct |
+| FREE_MARKET flag | DS:0x514A | config.freeMarket | ✓ correct |
+
+**Result**: Web port sell dialog is functionally correct. Refund formula (factor 0.8/0.65, bundle division, floor) matches EXE exactly. Web adds "Description" row label, uses 2-column layout, and adds hline separators — all reasonable UI improvements. No critical fixes needed.
+
+---
+
+## Section 61 — Shop Scrollbar Widget
+
+**Task**: Audit shop scrollbar widget: Verify track/thumb/arrow sizing, 3D box bevel order for up-arrow, down-arrow, and thumb (all raised), drag behavior.
+**Session**: 128
+**Status**: RESOLVED — EXE has no track/thumb; web additions are acceptable UX enhancements
+
+### 61.1 EXE Scrollbar Architecture
+
+Scrollbar widget type=6 created by `0x4998A` (3F19:0x3DFA) at build time; widget indices stored:
+- DS:CAB2 = scrollbar container widget index
+- DS:CAAE = up-arrow button widget index
+- DS:CAB0 = down-arrow button widget index
+
+**Widget callback** (file 0x47360, seg 3F19:0x17D0):
+- Draws raised 3D outer container box via `draw_3d_box` with EF28 fill
+- Iterates child widgets, calling each widget's draw callback + activation dispatch
+
+**Arrow buttons** — standard button widgets (type=0x03):
+- Text = DS:0x0101 = `""` (empty string, 0 bytes) → auto-width = 0+12 = **12px** ✓ matches web SB_W=12
+- Height = 17px (FG_MAXY<300) / 19px (FG_MAXY≥300), same as all other shop buttons
+- Drawn as raised 3D boxes by dialog system (raised=inactive, sunken=active press)
+
+**Arrow glyphs** (painted separately in shop_paint_callback at 0x1580D → 0x154D2):
+- Called every paint cycle; checks DS:0xCABC (SHOP_SCROLLBAR_NEEDED)
+- If nonzero: draws pixel-level triangle arrow using individual `fg_setcolor + fg_point` calls
+- Glyph size: **7px wide × 5px tall** triangle
+- Colors: EF32 (UI_BRIGHT_BORDER, dark gray) = base/body, EF26 (UI_DARK_BORDER, white) = highlight pixel, EF30 (UI_MED_BORDER, near-black) = shadow pixel
+- If zero (scrollbar not needed): erases glyph region with EF24 (background color)
+
+**Track (between buttons)**: NOT drawn separately. The area between the two arrow buttons is simply the EF28-filled interior of the raised container box — no track box.
+
+**Thumb**: NOT rendered in EXE at all. There is no scroll position indicator/thumb widget.
+
+**Drag behavior**: N/A — no thumb = no drag. Arrow buttons and keyboard are the only input.
+
+### 61.2 Web Port vs EXE
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| Scrollbar width (SB_W) | 12px (empty text + 12) | `const SB_W = 12` | ✓ correct |
+| Arrow button height | 17px lo-res / 19px hi-res | uses SB_W for both dimensions | ~OK (square 12×12 vs EXE 12×17/19) |
+| Arrow glyph | 7×5 pixel triangle, manual setPixel | `setPixel` triangle ▲/▼ pattern | ✓ matches shape |
+| Arrow glyph colors | EF32/EF26/EF30 | UI palette colors | ✓ matches |
+| Arrow button 3D box | raised inactive / sunken on press | drawBox3DRaised() | ✓ correct |
+| Outer container | raised 3D box with EF28 fill | implicit from button layout | ~OK |
+| Track | none (container fill only) | drawBox3DSunken() | web-only addition |
+| Thumb | none | drawBox3DRaised() proportional thumb | web-only addition |
+| Drag behavior | none | scrollDrag/scrollDragY/scrollDragOff state machine | web-only enhancement |
+| Track click (page up/down) | none | click above/below thumb = page jump | web-only enhancement |
+| SCROLLBAR_NEEDED check | DS:0xCABC controls glyph visibility | always renders scrollbar | minor |
+
+**Result**: Web port scrollbar is a superset of the EXE behavior. The core mechanics (arrow button width 12px, glyph shape/colors, raised bevel for buttons) match the EXE. The track, thumb, and drag system are web-only UX enhancements. No fixes needed — the additions are all improvements over the EXE's minimal scrollbar.
+
+## Section 62 — Shop Palette Animation (session 129)
+
+EXE: `shop_palette_tick` at file 0x14E34 (0E43:0004). Called each shop timer tick.
+Web: `tickAccentPalette(frame)` in `web/js/palette.js:375`.
+
+### 62.1 Frame Counter (DS:0x00EC)
+
+```
+inc [0x00EC]              ; increment counter
+cmp ax, 100               ; if > 100:
+mov [0x00EC], 0           ; reset to 0
+```
+
+Counter cycles 1, 2, ..., 100, 0, 1, 2, ... (period 101 frames).
+Web: `const counter = frame % 101` where `shop.frame` increments each tick starting from 1. ✓
+
+### 62.2 Effect 1: VGA 2 — Triangle Pulse (every frame)
+
+```
+if counter < 50:  tri = counter          ; rising 0..49
+else:             tri = 100 - counter    ; falling 50..0
+R = tri * 63 / 50    (range 0..63)
+G = tri * 10 / 50    (range 0..10)
+B = 0
+set_palette(VGA=2, R, G, B)
+```
+
+Triangle wave peaks at counter=50 (tri=50, R=63, G=10). VGA entry 2 pulses from black→orange-red→black over 101 frames.
+
+Web: `setEntry(2, Math.floor(tri*63/50), Math.floor(tri*10/50), 0)` ✓
+
+### 62.3 Effect 2: VGA 8-11 — Accent 4-Step Rotation (every 8 frames)
+
+```
+if (counter & 7) != 0: skip (only acts when counter divisible by 8)
+si = ((counter >> 3) & 3) + 1    ; cycles {1,2,3,4}
+for VGA idx in [8, 9, 10, 11]:
+    set_palette(idx, ACCENT[si].R, ACCENT[si].G, ACCENT[si].B)
+    si++; if si > 4: si = 1
+```
+
+**Accent color table** at DS:0x1F62 (stride 6 bytes per entry, indices 0..4):
+| Index | Name | R | G | B | VGA 6-bit color |
+|-------|------|---|---|---|-----------------|
+| 0 | bright red | 63 | 0 | 0 | (not used in accent cycling, sparkle only) |
+| 1 | orange | 63 | 32 | 10 | warm orange |
+| 2 | magenta | 63 | 0 | 63 | hot pink/magenta |
+| 3 | dark red | 63 | 12 | 12 | crimson |
+| 4 | deep pink | 63 | 0 | 30 | rose/deep pink |
+
+Each frame that triggers (counter & 7 == 0), the 4 VGA entries 8-11 receive 4 consecutive accent colors in rotating order. The rotation advances by 1 accent entry every 8 frames.
+
+Web: ACCENT_COLORS table matches ✓, `if ((counter & 7) === 0)` guard ✓, si cycling 1..4 ✓
+
+### 62.4 Effect 3: VGA 14-18 — Gray Gradient Cycling (every 2 frames)
+
+```
+si_start = (counter >> 1) % 5 + 14    ; starting VGA index
+for k in [0, 1, 2, 3, 4]:
+    gray = GRAY_LEVELS[k] = {0, 15, 30, 45, 60}
+    set_palette(si_start + k (wrapping 14..18), gray, gray, gray)
+```
+
+All 5 VGA entries 14-18 are written every frame. Which entry gets which gray level rotates every 2 ticks, creating a moving shimmer effect.
+
+**Gray levels** (6-bit VGA): 0x00=0, 0x0F=15, 0x1E=30, 0x2D=45, 0x3C=60.
+
+Web: `Math.floor(counter / 2) % 5` start index ✓, GRAY_LEVELS `[0,15,30,45,60]` ✓
+
+### 62.5 Palette Flush
+
+After all 3 effects, EXE calls `[[0xEEFC]](0x00AA, 0x14)` — a Fastgraph palette-upload function to flush the updated entries to the VGA DAC.
+
+Web: `updatePalette32()` at end of `tickAccentPalette()` ✓
+
+### 62.6 EXE vs Web Port
+
+| Aspect | EXE | Web port | Status |
+|--------|-----|----------|--------|
+| Counter period | 101 (0..100) | `frame % 101` | ✓ correct |
+| VGA 2 pulse formula | R=tri×63/50, G=tri×10/50, B=0 | `Math.floor(tri*63/50)` etc. | ✓ correct |
+| VGA 2 period | 101 frames | same | ✓ correct |
+| VGA 8-11 trigger | counter & 7 == 0 | same | ✓ correct |
+| VGA 8-11 rotation | si = ((counter>>3)&3)+1 | same | ✓ correct |
+| Accent colors 1-4 | orange/magenta/crimson/rose | ACCENT_COLORS matches | ✓ correct |
+| VGA 14-18 start | (counter>>1)%5+14 | Math.floor(counter/2)%5 | ✓ correct |
+| Gray levels | 0,15,30,45,60 | [0,15,30,45,60] | ✓ correct |
+| Save/restore on enter/exit | saves VGA 2, 8-11, 14-18 | saveAccentPalette/restoreAccentPalette | ✓ correct |
+
+**Result**: Web port palette animation is a faithful implementation of all 3 EXE effects. No fixes needed.
+
+## Section 63 — Shop AI Auto-Purchase (session 130)
+
+**EXE**: `ai_shop_random_action` label within `shop_screen` at file 0x1DBB5. `random(0x0B)` → action 0-10. 12-case jump table at file 0x1DF4D (CS=0x171B, CS:0x039D). MTN re-roll: if DS:0x50D8 (is_castle_terrain) ≠ 0 AND action==8 → re-rolls (loops until non-8).
+
+**Jump table entries** (CS=0x171B, base file 0x1DBB0):
+
+| Case | File Offset | EXE Behavior | Web Port | Status |
+|------|------------|--------------|----------|--------|
+| 0 | 0x1DCCE | NO-OP: thinking_anim + draw_callback + sound(10,100) | aiBuyRandomWeapon → **break** | **FIXED** |
+| 1 | 0x1DCF5 | ai_buy_item_scroll(guidance=1, DS:0x1242, range) | buy weapon + guidance | ✓ |
+| 2 | 0x1DD0A | 2× ai_buy_item_scroll: no-guidance+0x1242, then guidance+0x1276 | buy weapon + accessory + guidance | ✓ |
+| 3 | 0x1DD37 | 3× ai_buy_item_scroll from DS:0x1242, 0x1276, 0x12AA | buy weapon + accessory + defense | ✓ |
+| 4 | 0x1DD95 | NO-OP: thinking_anim + funky_bomb_display + callback | break (no purchase) | ✓ |
+| 5 | 0x1DDB0 | ai_buy_shields (near call 0x1E0F3) | aiBuyRandomShield | ✓ |
+| 6 | 0x1DDC9 | buy_defense: stores ptr→DS:DD58, call 0x15A0:0x0081 | aiBuyRandomFromCategory(DEFENSE) | ✓ |
+| 7 | 0x1DDEE | NO-OP: shop_callback + show_summary (0x1D4F:0x0258) | break (no purchase) | ✓ |
+| 8 | 0x1DE12 | buy_guidance: call 0x252C:0x00C9 | aiBuyRandomFromCategory(GUIDANCE) | ✓ |
+| 9 | 0x1DE20 | buy_mountain_gear: call 3451:016F (shields.cpp 0x3B07F) | aiBuyRandomMountainGear | ✓ |
+| 10 | 0x1DE29 | sell if inventory>0: compute_percentage→erase_shield→ai_sell_dialog | aiSellRandom | ✓ |
+| 11 | 0x1DE59 | NO-OP: call 0x3BE7:0x000F (menu 0x4287F) + callback | default: break | ✓ |
+
+**MTN re-roll**: DS:0x50D8 = is_castle_terrain flag. EXE loops until non-8 (infinite retry possible); web re-rolls only once (minor discrepancy, P(double-8) = 1/121 ≈ 0.8%).
+
+**Key fix**: Case 0 was incorrectly mapped as "buy weapon" — EXE just does display animation with no purchase. Web port fixed to `break`.
+
+**Result**: Fixed case 0 (web incorrectly buying weapon). Cases 1-3, 5, 6, 8, 9, 10 all correct. Cases 4, 7, 11 correct no-ops. MTN re-roll logic functionally correct (minor loop vs single-retry difference).
+
+---
+
+## Section 64 — Shop Cash Display (session 131)
+
+**EXE**: `cash_display` at file 0x16A7E (1007:000E). Guarded by DS:0x5142 (STATUS_BAR≠0). Called from shop screen context.
+
+**Layout variables** (computed on first call, DS:0x00F0 flag triggers recalc):
+- `DS:0xCC7E` = 5 → X of "Cash Left:" label
+- `DS:0xCC80` = text_measure("Cash Left:") + 15 → X of cash bar column start
+- `DS:0xCC82` = CC80 + 72 → X of "Earned interest" label
+- `DS:0xCC84` = CC82 + text_measure("Earned interest") + 10 → X of interest bar column start
+
+**Labels drawn** via `text_display`:
+- "Cash Left:" (DS:0x2DDD, far ptr DS:0x22F8) at `(X=5, Y=HUD_Y+12)`
+- "Earned interest" (DS:0x2EDF, far ptr DS:0x235C) at `(X=CC82, Y=HUD_Y+12)`
+
+**Value display**: **Graphical bar chart only** (NOT text numbers):
+- Two `draw_flat_box` backgrounds: width = NUM_PLAYERS×6px, height = 11px (Y = HUD_Y+12 to HUD_Y+23)
+- Per player: `bar_column(X=CC80+player_order×6, Y=HUD_Y+13, fillH=0..10, color=player_color)` for cash; same with CC84 for interest
+- fillH = player_cash / max_cash_all_players × 10 (scaled to 0..10, clamped)
+- Player order: `tank_struct+0xA0` × 6px per column; each column 6px wide, 10px tall
+- Cash field: `player_struct+0xBE` (32-bit); Interest field: `player_struct+0xC2` (32-bit)
+- Cash getter: `get_player_cash` at file 0x172C8 (1089:0038); Interest getter: `get_player_interest` at file 0x1736E (1089:00DE)
+
+**Web port** (shop.js lines 784–795): Shows text in shop title bar at Y=4:
+- `"Cash Left: $${player.cash}"` right-aligned, color = COLOR_HUD_HIGHLIGHT
+- `"Earned interest: $${player.earnedInterest}"` shown only if > 0, color = UI_DARK_TEXT
+
+**Differences** (UX redesigns, not bugs):
+
+| Aspect | EXE | Web Port |
+|--------|-----|---------|
+| Display type | Graphical bar chart | Text string |
+| Y position | HUD_Y+12 = 17 (status bar) | Y=4 (shop title bar) |
+| Players shown | All players, colored bars | Current player only |
+| Value format | Bar height (relative, 0–10px) | `$NNN` integer |
+| Interest visibility | Always shown (may be 0-height bar) | Only if earnedInterest > 0 |
+| Label+value separation | Separate label + bar area | Combined `"Cash Left: $NNN"` |
+
+**Result**: No critical fixes needed. Web simplification is intentional UX redesign — text display is more readable for a browser game.
+
+## Section 65 — Font System: Glyph Format, Layout Mode, `~` Handling (session 133)
+
+### EXE: Font Module at file 0x4C290 (seg 0x4589)
+
+**Glyph data format** (DS:0x70E4–0x94EA, 161 glyphs, 12px tall proportional font):
+- 1 byte = width (in pixels)
+- width × 12 bytes = pixel data, row-major, byte-per-pixel (non-zero = draw, zero = transparent)
+- `font_init` (0x4C290): initializes all 256 char table entries to default glyph (DS:0x70E4, width=0), then overrides individual chars via `mov [char*4 - 0x0CA6], ptr` pattern
+- `text_display` (0x4C914): rendering loop `si=0..11` (rows), `di=0..width-1` (cols), `inc [bp-0x08]` walks pixel data flat; calls `fg_point` for non-zero pixels
+- Verified 'A' glyph at DS:0x775A: width=5, apex row 3 center, crossbar row 6 full, legs rows 7-9 outer cols
+
+**`~` (0x7E) handling in text_display** (0x4C97E):
+1. Compare char to 0x7E
+2. If `~`: optionally change text color (only when DS:0x6E2A==0x98 [selected item] AND DS:0x70E2≠0)
+3. JUMP directly to `inc [bp-0x04]` (advance string ptr) and loop — **no underline, no visual indicator**
+
+**`~` in text_measure** (0x4CE17, 0x4CE3B): `cmp di, 0x7E; jz skip` → contributes zero width
+
+**`@` (0x40) special escape in text_display** (0x4C9A5):
+- Reads next byte as a character code
+- Draws a 14×14 3D raised box at current X via `draw_3d_box` (34ED:3DAB)
+- Centers the character glyph inside the box
+- Used for keyboard button hints in dialogs (e.g., confirmation dialogs showing key letters in boxes)
+
+**DS:0xED58 layout_mode** — affects menu config dialog item spacing only:
+- Set at 0x3D169: `mov [0xED58], 1` (compact, 17px rows) for small screen mode
+- Set at 0x3D187: `mov [0xED58], 0` (spacious, 25px rows) for large screen mode
+- DS:0x6316 lookup table: `[0]=25, [1]=17` — read via `mov bx,[0xED58]; add bx,bx; mov ax,[bx+0x6316]`
+- Referenced 10× in menu module (seg 0x34ED) config dialog spacing — NOT in HUD rendering code
+- HUD uses FG_MAXY (screen resolution) for row positioning, not DS:0xED58
+
+### Web Port: font.js
+
+| Aspect | EXE | Web Port |
+|--------|-----|---------|
+| Glyph pixel format | byte-per-pixel (1 byte = 1 pixel) | bit-packed (1 byte = 8 pixels, MSB first) |
+| Storage | width byte + flat pixel array | WIDTHS[] + GLYPHS[] per-row packed |
+| `~` in drawText | Silently skipped, NO underline | Draws 1px underline under next char |
+| `~` in measureText | Zero width (skipped) | Zero width (skipped) ✓ |
+| `@` escape | Draws char in 3D box | Not handled (labels have `@` stripped) |
+| Layout spacing | DS:0xED58 → 17 or 25 px (menu only) | `getRowH() = isSmallMode() ? 17 : 25` ✓ |
+| Width+1 spacing | EXE: `inc ax; add si, ax` | Web: `return width + 1` ✓ |
+
+**Glyph data verified**: Web `GLYPHS[33*12]` for 'A' = `{0,0,0,0x20,0x50,0x88,0xF8,0x88,0x88,0x88,0,0}` matches EXE byte-per-pixel data at DS:0x775A exactly. Extraction by `decode_cp437_font.py` is correct.
+
+**Web `~` underline**: EXE does NOT underline the character after `~`. Web port does — this is a **web-only UX enhancement** that helps players identify keyboard shortcuts visually. The comment in font.js:308-309 incorrectly implied the EXE also underlines — corrected to reflect web-only nature.
+
+**Result**: Glyph rendering correct. Layout mode mapping correct. `~` underline is intentional web-only enhancement. `@` box-char escape not needed in web port. No fixes required.
+
+## Section 66 — Talk Bubble Rendering: display_talk_bubble (session 134)
+
+**EXE implementation**: `display_talk_bubble` at file 0x182FD (seg 0x118F:000D in comments.cpp). `draw_border` at file 0x1826C.
+
+### Guard Conditions
+
+`display_talk_bubble` checks 3 guards before rendering:
+1. `DS:0x5118` (TALKING_TANKS) != 0
+2. `DS:0x511A` (TALK_PROBABILITY) != 0
+3. `DS:0x50F0` (FLIGHT_SOUND_STATE) == 0 (no projectile in flight)
+
+If all pass, rolls `random(100) < TALK_PROBABILITY`. Validates text pointer via far call 0x0000:0x5902.
+
+### Box Geometry
+
+Parameters: far ptr to sub-struct (bp+0x06/08), text far ptr (bp+0x0A/0C).
+
+- **Text width** `di` = `text_measure(text_ptr)` via 0x4589:0x0B87 (font module)
+- **Text X** `si` = `sub[+0x0E] - floor(di/2)` (center text on tank X position)
+- **Text Y** = `sub[+0x10] - 19` (stored in `[bp-0x02]`)
+- **Box**: `(si-3, tankY-20)` to `(si+textWidth+2, tankY-7)` inclusive = **14px tall**
+- **X left clamp**: if `si < [EF42]+5` → `si = [EF42]+5` (i.e., `FG_MINX+5`)
+- **X right clamp**: if `si+textWidth > [EF3C]-10` → `si = [EF3C]-textWidth-11` (i.e., `FG_MAXX-textWidth-11`)
+
+### draw_border Color Scheme (file 0x1826C)
+
+```
+draw_border(x1=si-3, y1=tankY-20, x2=si+textWidth+2, y2=tankY-7):
+  color EF2C: left vline  x=x1, y=y1+1..y2-1
+  color EF2C: right vline x=x2, y=y1+1..y2-1
+  color EF2C: top hline   y=y1, x=x1+1..x2-1
+  color EF2C: bottom hline y=y2, x=x1+1..x2-1
+  color EF26: drect (x1+1, y1+1, x2-1, y2-1)  ← interior fill
+  (corners at 4 exact corner pixels are NOT drawn = transparent/background)
+```
+
+- `DS:0xEF2C` = `hud_deep_shadow_color` = VGA 205 = black → border edges + text
+- `DS:0xEF26` = `hud_white_color` = VGA 202 = white → interior fill
+
+Then `push [EF2C]; call store_sky_base_index` sets text foreground to black, then `call text_display(si, tankY-19, text)`.
+
+### Display Duration
+
+Background pixels saved (call 0x3ED0:0x000D), bubble drawn, then:
+- `push [DS:0x511C]; call talk_delay` — waits **TALK_DELAY ticks** via BIOS INT 1Ah timer
+- Default `TALK_DELAY` = 18 ticks ≈ **~1 second** at 18.2 Hz
+- Background restored (call 0x3ED0:0x01F4) — exact pixel restoration
+
+### Web Port Comparison (talk.js)
+
+| Aspect | EXE | Web Port |
+|--------|-----|---------|
+| Box origin | `(si-3, tankY-20)` | `(tx-3, ty-1)` where `ty = player.y-19` ✓ |
+| Box end | `(si+textW+2, tankY-7)` | `(tx+textW+2, ty+12)` = `ty+FONT_HEIGHT` ✓ |
+| Box height | 14px inclusive | 14px (by1=ty-1 to by2=ty+12) ✓ |
+| Text position | `(si, tankY-19)` | `(tx, ty)` ✓ |
+| Border color | EF2C = black | `UI_DEEP_SHADOW` (VGA 205) ✓ |
+| Fill color | EF26 = white | `UI_DARK_BORDER` (VGA 202) ✓ |
+| Text color | EF2C = black | `UI_DEEP_SHADOW` ✓ |
+| X centering | `tankX - floor(textW/2)` | `Math.round(bubble.x - textW/2)` = equivalent ✓ |
+| Left X clamp | `[EF42]+5` = 5 | `if tx < 5: tx = 5` ✓ |
+| Right X clamp | `[EF3C]-textW-11` | `FG_MAXX - textW - 11` ✓ |
+| Flight guard | DS:0x50F0 == 0 check | Not checked (web handles timing differently) |
+| Duration | TALK_DELAY ticks (~1s default) | 90 frames @ 60fps = **1.5s** |
+| Background | Pixel-exact save/restore | Overlay drawn every frame, auto-cleared |
+
+**Result**: Box geometry, colors, centering, and clamping all match EXE exactly. Two minor web-only adaptations: (1) no flight-in-progress guard (appropriate for web's event-driven model), (2) bubble stays 50% longer (1.5s vs ~1s default). No critical fixes required.
+
+## Section 67 — Round-Over Screen: end_of_round_scoring (session 135)
+
+**EXE implementation**: `end_of_round_scoring` at file 0x33FC3 (seg 2CBF:09D3, ranges.cpp). Called from play loop at file 0x2AA98. The round-over display uses TWO parts: (1) direct `text_display` call for winner/no-winner at the HUD bar, and (2) a modal score dialog built with the menu dialog widget system (seg 0x3F19).
+
+### Part 1: Winner Name Display (direct text_display)
+
+At file 0x33FF6–0x34110, the function fills the HUD bar and calls `text_display`:
+
+**Standard mode** (`DS:0x50EA` SCORING_MODE_FLAG == 0, `find_winner_and_display` at 0x340AF):
+- Loop over all players: track last alive player (`sub_struct[player].alive_flag` at struct+0x18 != 0) → `di`
+- If `di == -1` (no alive players):
+  - Color: `DS:0xEF22` (highlight color) via `store_sky_base_index`
+  - Text: far ptr DS:0x22A8/0x22AA → DS:0x2CE6 = **"No Winner"**
+- If winner found (di = winner index):
+  - Color: `sub_struct[di].color` (struct+0x1A, via `store_sky_base_index`)
+  - Text: **bare player name** from `sub_struct[di].name_farptr` (struct+0xB6/0xB8)
+- Position: `text_display(x=DS:E9DC, y=DS:518E=HUD_Y)` — runtime-computed HUD text X
+
+**No " wins!" suffix** — bare name only. (Fixed in web port session 85.)
+
+### Part 2: Score Dialog (dialog widget system)
+
+Built at `score_tab_dialog_build` (0x3415A) using `dialog_alloc` from 0x3F19:0x00E2:
+
+**Title** (based on hotseat/mode flags DS:E342 vs DS:5160):
+- Hotseat same player: DS:0x6040 = `"Player Rankings"`
+- Hotseat different player: DS:0x6041 = `"Team Rankings"`
+- Non-hotseat: DS:0x6042 = `"Player Rankings"`
+
+**Per-player rows** (loop si=0..NUM_PLAYERS-1):
+- Rank prefix: sprintf(E05E, DS:0x6052 = `"#%d"`, rank) → dialog text item
+- Row height: 11px if FG_MAXY < 220, else 13px (at 0x341F5)
+- Starting Y: +0x19 from dialog top (non-hotseat) or +0x21 (hotseat)
+
+**"Rounds remain" text** (inside dialog, non-last-viewer players only):
+- remaining = `DS:5160 (SHOP_HOTSEAT_FLAG) - DS:E342 (SHOP_VIEWER_IDX)`
+- If remaining == 1: strcpy(E05E, DS:0x2C2B = **`"1 round remains"`**)
+- If remaining > 1: itoa(remaining) → sprintf(E05E, DS:0x2C1A = **`"%s rounds remain"`**, str) → strcat `"."`
+- Added as dialog text item
+
+**"Rounds fought" text** (dialog paint callback at menu module 0x42D19, 34ED:744A):
+- sprintf(E05E, DS:0x3002 = **`"%d of %d rounds fought."`**, DS:E342=rounds_fought, DS:5160=total)
+- Rendered via `text_display` inside dialog widget paint callback
+
+**Any-key**: `dialog_run(dialog, mode=0)` at 0x3F19:0x045D waits for any keypress. `dialog_draw()` erases afterward.
+
+### Web Port Comparison (main.js `drawRoundOver()`)
+
+| Aspect | EXE | Web Port |
+|--------|-----|---------|
+| Winner name | `text_display(E9DC, HUD_Y)` in player color | `drawTextShadow(104, 60, name, playerColor, 0)` |
+| "No Winner" | `text_display(E9DC, HUD_Y)` in EF22 color | `drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0)` |
+| Winner suffix | None — bare name only ✓ | No suffix ✓ (fixed session 85) |
+| "Scores:" label | Not in EXE | Web-only addition |
+| Leaderboard display | Modal score dialog (0x3F19 widget system) | Flat text overlay |
+| Rank prefix "#N" | In dialog per player | Not shown on ROUND_OVER screen |
+| "N of M rounds fought." | Dialog paint callback (0x42D19) inside dialog | `drawTextShadow(60, 170, ...)` on screen |
+| "1 round remains" | Inside dialog (non-last-viewer only) | `drawTextShadow(60, 182, ...)` always shown |
+| "N rounds remain." | Inside dialog (non-last-viewer, N≥2) + "." appended | `drawTextShadow(60, 182, ...)` without "." |
+| "<<Press any key>>" | Handled by `dialog_run()` implicitly | `drawTextShadow(60, 194, '<<Press any key>>', ...)` |
+| Any-key input | `dialog_run()` any key | `consumeAnyKey()` ✓ (fixed session 80) |
+| War quote | In dialog (far ptr DS:0x2374/0x2376) | Wrapped text displayed ✓ (UX equivalent) |
+
+**Result**: Structurally the web uses flat text overlays vs EXE's modal dialog system — a known redesign for simplicity. All string content and any-key behavior already fixed in earlier sessions (80, 83, 85). One minor difference: web omits the trailing "." after "N rounds remain" (EXE appends "." via strcat). No critical fixes needed.
+
+---
+
+## Section 68 — Game-Over Screen: "Final Scoring" Dialog (session 136)
+
+### EXE Analysis
+
+`end_of_round_scoring` at file 0x33FC3 (2CBF:09D3). When `SHOP_VIEWER_IDX == SHOP_HOTSEAT_FLAG` (last viewer = last round), the same dialog built for "Player Rankings" gets the **Final Scoring** paint callback installed. Function call path: `end_of_round_scoring → 0x34430 → (jz when equal) → call 0x34F2F (Final Scoring setup) → dialog_run at 0x348F8`. After dialog: `round_over_cleanup` at file 0x2A95A shows text-mode "<<Press any key>>" via `fg_puts` + `fg_getkey`.
+
+**Dialog structure (same `dialog_alloc` as "Player Rankings"):**
+
+**Paint callback** (file 0x34CC6 = 2CC4:1686): Installed by Final Scoring setup function at 0x34F2F:
+- Draws **rainbow border**: palette cycling loop si=0xB3→0xDC, draws 4 edge lines (hline/vline) at increasing inset `di=1..N` — not a simple solid border, but an animated cycling color frame
+- Draws background fill via `[[EF04]](40, 180)` (clear_region)
+- Centers **"Final Scoring"** (DS:0x21EC/0x21EE = far ptr to DS:0x2A9F = `"Final Scoring"`) via `draw_embossed_text(centered_X, dialog_y+5, "Final Scoring")` at 0x4589:0x0C6D
+
+**Dialog title widget** (added at 0x341C7 via `0x3F19:0x2577`): standard dialog title — same as round-over:
+- Non-SCORING_MODE + last round: DS:0x6040 = **`"Player Rankings"`**
+- SCORING_MODE + last round: DS:0x6041 = **`"Team Rankings"`**
+
+**Per-player score rows** (loop at 0x3422D–0x3442C, si = sorted player index):
+- `score_sort_players` at 0x3413A sorts by score (descending)
+- Row Y: `rowH × si + 0x21` (Final Scoring mode) where rowH = 11px (FG_MAXY < 220) or 13px
+- Column 1 (rank): `sprintf(E05E, DS:0x6052="#%d", di)` → `"#1"`, `"#2"`, etc.
+- Column 2 (player name): far ptr from tank_struct+0xB6/0xB8 (widget at X+0x14)
+- Column 3 (team name, SCORING_MODE only): from team struct (widget further right)
+- Column 4 (score): `sprintf(E05E, DS:0x6056="%d", score)` → **bare integer, no suffix**
+- Column 5 (cash): `itoa(tank_struct+0xBA)` → `sprintf(E05E, DS:0x2759="$%s", cash_str)` → `"$1234"` format
+
+**Buttons** (added by setup function at 0x34F2F):
+- **"~Quit"** (DS:0x2378/0x237A → DS:0x2F29 = `"~Quit"`) — always present
+- **"New ~Game"** (DS:0x237C/0x237E → DS:0x2F2F = `"New ~Game"`) — always present
+- **"~Type"** (DS:0x2208/0x220A → DS:0x2AF2 = `"~Type"`) — only if `check_any_player_alive()` (0x34EDE) returns nonzero
+- **"~Players"** (DS:0x6096) — SCORING_MODE only; **"~Teams"** (DS:0x609F) — SCORING_MODE + non-computer only
+
+**Any-key**: `dialog_run()` at 0x3F19:0x045D — button press activates action (Quit/New Game/Type). After dialog closes, `round_over_cleanup` shows text-mode `"<<Press any key>>"` via `fg_puts(DS:0x5212)` at (0, 24) and waits via `fg_getkey(DS:0xC082)`.
+
+### Web Port Comparison (main.js `drawGameOver()`)
+
+| Aspect | EXE | Web Port |
+|--------|-----|----------|
+| Title style | `draw_embossed_text` + rainbow border paint callback | `drawTextShadow(96, 20, 'Final Scoring', ...)` |
+| Dialog title widget | "Player Rankings" / "Team Rankings" header in dialog | None |
+| Rainbow/animated border | Cycling palette 0xB3→0xDC, 4 inset edge lines | None |
+| Score format | Bare `"%d"` (no suffix) | `${p.score} pts` (adds " pts") |
+| Cash column | `"$XXX"` from tank_struct+0xBA (`"$%s"` format) | Not shown |
+| Wins column | Not shown in Final Scoring dialog | `${p.wins}W` (web-only) |
+| Rank prefix "#N" | In each row | Not shown on game-over screen |
+| Quit/New Game buttons | "~Quit" + "New ~Game" buttons (+ optional "~Type") | None — any-key returns to menu |
+| "<<Press any key>>" | Text-mode fg_puts after dialog closes | `drawTextShadow(60, 170, '<<Press any key>>', ...)` in overlay |
+| Any-key input | `dialog_run()` then `fg_getkey()` | `consumeAnyKey()` ✓ |
+
+**Result**: Structural redesign (flat overlay vs modal dialog with buttons) is an accepted web simplification. Content differences confirmed as web-only additions per session 87 analysis: "pts" suffix on scores, wins "W" column, omission of cash "$XXX" column. No fixes needed — the web's structural simplification is intentional. The "Final Scoring" text is shown ✓, "<<Press any key>>" is shown ✓, any-key works ✓.

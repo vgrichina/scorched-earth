@@ -94,7 +94,7 @@ Do not re-document already-covered addresses. Stop after $TASKS tasks."
 
   echo "$PROMPT" | claude -p \
     --output-format stream-json \
-    --max-turns 50 \
+    --max-turns 150 \
     --allowedTools "Bash(python3 disasm/dis.py*),Bash(python3 disasm/ds_lookup.py*),Bash(python3 disasm/xref.py*),Bash(python3 disasm/find_callers.py*),Bash(python3 disasm/struct_dump.py*),Bash(python3 disasm/strings_dump.py*),Bash(python3 disasm/decode_float64.py*),Bash(python3 disasm/seg_offset.py*),Bash(python3 disasm/icon_dump.py*),Bash(python3 disasm/palette_dump.py*),Bash(git add*),Bash(git commit*),Bash(git log*),Bash(git status*),Bash(git diff*),Read,Edit,Write,Glob,Grep" \
     | jq --unbuffered -r '
         if .type == "assistant" then

@@ -5,3 +5,9 @@ earth/
 v86/
 build_v86/
 build/
+
+# Python cache
+disasm/__pycache__/
+
+# RE loop session logs
+re_loop_sessions/
