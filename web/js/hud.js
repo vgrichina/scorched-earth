@@ -405,13 +405,16 @@ export function drawHud(player, wind, round, opts) {
     x += 20; // → EA02 (EXE: EA02 = EA00 + 20 at 0x3005D, not 25 like W2/W3 icons)
 
     // Widget 7 (0x3DD95): Heavy Shield energy, conditional on screen width
-    // EXE: check1 (0x31249) = inventory[D564=HeavyShield] * 10 + struct[0xAA]
+    // EXE: check1 (0x31249) = inventory[D564=FuelTank] * 10 + struct[+0xAA]
+    //   struct[+0xAA] = fractional fuel energy (0-9 per Fuel Tank unit, starts at 0)
+    //   Heavy Shield is powered by Fuel Tanks, NOT by the Heavy Shield count itself
     // EXE: check2 (0x3121E) = struct[0] > 1 (shield type active)
     // EXE: format "%3d" (DS:0x6479), display at [EA02]
     // EXE: skips if [EA02] == 0 (not enough screen width)
     if (x + measureText('999') < config.screenWidth - LEFT) {
-      const heavyCount = player.inventory ? (player.inventory[WPN.HEAVY_SHIELD] || 0) : 0;
-      const shieldTotal = heavyCount * 10 + (player.shieldEnergy || 0);
+      const fuelCount = player.inventory ? (player.inventory[WPN.FUEL_TANK] || 0) : 0;
+      const fuelEnergy = player.fuelEnergy || 0; // struct[+0xAA], 0-9 fractional per tank
+      const shieldTotal = fuelCount * 10 + fuelEnergy;
       const w7Color = shieldTotal > 0 ? baseColor : dimColor;
       drawText(x, ROW2_Y, String(shieldTotal).padStart(3), w7Color);
     }

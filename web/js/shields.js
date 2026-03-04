@@ -12,6 +12,7 @@ import { config } from './config.js';
 import { setPixel, getPixel } from './framebuffer.js';
 import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
+import { WPN } from './weapons.js';
 
 // EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-104 = 0x50-0x68)
 // EXE: shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (terrain)
@@ -87,11 +88,31 @@ export function applyShieldDamage(player, damage) {
   }
 }
 
+// EXE: Force Shield (weapon 50) deflects projectiles via specular reflection.
+// extras.cpp ~0x23469: atan2(hit_dy,hit_dx) → normal angle; atan2(vy,vx) → velocity angle;
+// delta = 2*(vel_angle - normal_angle); new_vel = rotate(-v, delta).
+// Equivalent to standard specular reflection: v' = v - 2*(v·n̂)*n̂
 // EXE: Mag Deflector deflection is handled in physics.js (in-flight magnetic field),
-// NOT via a per-hit shield check. Force/Heavy shields are not in the EXE config table.
-// This function is a stub — Mag Deflector deflection uses a separate code path.
+// NOT via a per-hit shield check.
 export function checkShieldDeflection(player, proj) {
-  return false;
+  if ((player.inventory[WPN.FORCE_SHIELD] || 0) <= 0) return false;
+
+  // Normal direction: from tank center to hit point
+  const cx = player.x;
+  const cy = player.y - 6;  // shield center = tank body center
+  const dx = proj.x - cx;
+  const dy = proj.y - cy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return false;  // hit at exact center — can't compute normal
+
+  // Standard specular reflection: v' = v - 2*(v·n̂)*n̂
+  const ux = dx / len;
+  const uy = dy / len;
+  const dot = proj.vx * ux + proj.vy * uy;
+  proj.vx = proj.vx - 2 * dot * ux;
+  proj.vy = proj.vy - 2 * dot * uy;
+
+  return true;
 }
 
 // Handle special shield effects on hit

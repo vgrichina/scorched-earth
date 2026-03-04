@@ -215,7 +215,9 @@ export const WPN = {
   PARACHUTE: 42,          // EXE: DS:D554
   BATTERY: 43,            // EXE: DS:D556
   MAG_DEFLECTOR: 45,      // EXE: DS:D558
-  HEAVY_SHIELD: 51,       // EXE: DS:D564
+  FORCE_SHIELD: 50,       // EXE: DS:D562 — deflects projectiles (extras.cpp atan2 reflection)
+  HEAVY_SHIELD: 51,       // EXE: DS:D55E (find_weapon_by_name("Heavy Shield"))
+  FUEL_TANK: 55,          // EXE: DS:D564 (find_weapon_by_name("Fuel Tank")) — powers Heavy Shield
   SUPER_MAG: 52,          // EXE: DS:D566
   LAST_WEAPON: 34,        // EXE: DS:D548 boundary
   FIRST_ACCESSORY: 35,    // EXE: DS:E4F0 boundary (set in equipInit at file 0x1D5D4)

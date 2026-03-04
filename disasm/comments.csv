@@ -59,9 +59,9 @@ DS:0x52A2,sub_count_table: [MIRV=5 DeathsHead=9] sub-warhead count by param
 0x3A0A9,setup_sky_ceiling_palette: if sky!=6 returns; sets VGA 110-149 from DS:DEA8 table; sets VGA 0-104 from DS:DD5E table (all black for Black sky); arg [bp+6]==0 = all-black variant
 DS:0x6E2A,sky_gradient_base_index: base VGA palette index for sky gradient = 0x50=80; used as color in hline/vline calls for terrain borders
 0x31D7F,compute_item_percentage: returns floor(struct[0x96]*100.0/ptr[0x02]) capped 1-99 unless exactly full=100; DS:0x5830=100.0f
-0x31249,check_heavy_shield_energy: returns inventory[D564=HeavyShield]*10 + struct[0xAA]; total shield energy
+0x31249,check_heavy_shield_energy: returns inventory[D564=FuelTank]*10 + struct[+0xAA]; total Heavy Shield energy (Heavy Shield is POWERED BY Fuel Tanks); struct[+0xAA]=fractional 0-9 per tank
 0x3121E,check_shield_type_active: returns 1 if struct[0] > 1 (active shield type); 0 if dead/none
-DS:0xD564,HUD_HEAVY_SHIELD_IDX: Heavy Shield weapon index (set by equipInit); used in Widget 7 energy calc
+DS:0xD564,WPN_FUEL_TANK_IDX: Fuel Tank weapon index (find_weapon_by_name("Fuel Tank")); ≈55; powers Heavy Shield energy in check_heavy_shield_energy
 DS:0xD566,HUD_SUPER_MAG_IDX: Super Mag weapon index (set by equipInit); used in Widget 6 icon
 DS:0x5830,FLOAT32_100: 100.0f constant used in percentage calculation at 0x31D7F
 
@@ -381,7 +381,7 @@ DS:0xD55C,WPN_FORCE_SHIELD_IDX: runtime index of "Force Shield"; ≈50
 DS:0xD55E,WPN_HEAVY_SHIELD_IDX: runtime index of "Heavy Shield"; =51
 DS:0xD560,WPN_SUPER_MAG_IDX: runtime index of "Super Mag"; ≈52
 DS:0xD562,WPN_AUTO_DEFENSE_IDX: runtime index of "Auto Defense"; ≈54
-DS:0xD564,WPN_FUEL_TANK_IDX: runtime index of "Fuel Tank"; ≈55 (CORRECTS session-120 mislabel HUD_HEAVY_SHIELD_IDX)
+DS:0xD564,WPN_FUEL_TANK_IDX: runtime index of "Fuel Tank"; ≈55; powers Heavy Shield in check_heavy_shield_energy via inventory[D564]*10+struct[+0xAA]
 DS:0xD566,WPN_CONTACT_TRIGGER_IDX: runtime index of "Contact Trigger"; =56 (CORRECTS session-120 mislabel HUD_SUPER_MAG_IDX)
 DS:0xE4F0,WPN_FIRST_ACCESSORY: index of first non-weapon accessory (radius=0 AND damage=0); runtime ≈35; divides Weapons tab (0..E4F0) from Misc tab (E4F0..WEAPON_COUNT)
 0x337C4,score_sort_players: sort player indices by score for Score tab display; near call from 0x3413A
