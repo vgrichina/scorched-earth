@@ -211,9 +211,12 @@ export function drawHud(player, wind, round, opts) {
       const ix = iconBaseX + i * ICON_SPACING;
       if (ix + 6 > config.screenWidth - LEFT) break;
       const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-      // EXE: draw_icon_alive (filled in player color) / draw_icon_dead (outline in palette 0xA9)
+      // EXE: draw_icon_alive (filled in player color) / draw_icon_dead (outline in palette 0xA9=169=UI_DARK_TEXT)
+      // EXE: icon index from tank sub-struct (stride 0xCA) +0x16 = always 0 (confirmed session 110/140)
+      //      draw_hud_basic reads from tank sub-struct (DS:D568+i*0xCA), NOT player struct (stride 0x6C)
+      //      tank_sub[+0x16] is always 0 (not weapon selection; weapon is in player_struct via DS:0x5182)
       const iconColor = p.alive ? pColor : UI_DARK_TEXT;
-      drawIcon(ix, HUD_Y, 0, iconColor); // icon 0 = player tank
+      drawIcon(ix, HUD_Y, 0, iconColor); // icon 0 = player tank (EXE: always 0 from tank sub-struct)
       if (i === player.index) {
         setPixel(ix + 2, HUD_Y + ICONS[0].h + 2, pColor);
       }

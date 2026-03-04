@@ -3561,6 +3561,9 @@ then add `,...,data/<type>` to the matching label row.
 - [x] Fix shop item list row stride: **DONE (session 137)**. Session 123 found EXE uses 20px constant stride (file 0x16219, no hi-res variation); web was using 13/18 (resolution-dependent). Items-per-page was also wrong (EXE derives from screen height dynamically with formula `floor((FG_MAXY - EF40 - 37) / 20)`, capped at 44; web had arbitrary 15-item cap). Fixed shop.js: `getRowH()` returns constant 20; `getItemsPerPage()` uses EXE-equivalent formula `floor((screenHeight - TAB_H - 2 - 20 - listY) / 20)` capped at 44. At 320×200: 6 items; at 640×480: 20 items. **Files**: web/js/shop.js
 - [x] Fix system menu row height: **DONE (session 137)**. Session 119 audit found EXE uses SI=20 (FG_MAXY ≤ 200) or SI=24 (FG_MAXY > 200); condition: `screenHeight >= 202`. Web had rowH = 14/19 (wrong threshold and values). Fixed main.js: `rowH = config.screenHeight >= 202 ? 24 : 20`. **Files**: web/js/main.js
 
+### RE Investigation (from session 140)
+- [x] Investigate basic mode Row 1 player icon index: **CONFIRMED icon=0 is correct (session 140)**. Two distinct structs exist: (1) **Tank sub-struct** (stride 0xCA=202B, base DS:D568) — accessed via `iter_all_players` (file 0x32166); `draw_hud_basic` (file 0x2FC84) iterates via this, reads [tank+0x16] = always 0. (2) **Player struct** (stride 0x6C=108B, base DS:CEB8, current via DS:0x5182) — play.cpp 0x30920 cycles weapon selection and stores into [player+0x16] = selected weapon index. `draw_icon_alive` call in draw_hud reads from tank sub-struct (+0x16=0), NOT player struct. Web port `drawIcon(ix, HUD_Y, 0, iconColor)` was already correct (icon 0 = tank). Session 110 had confirmed this finding. Also confirmed icons 42/43 have w=0 (blank) via icon_dump.py. Updated REVERSE.md "Remaining gaps" to mark shop palette animation stale entry as done.
+
 ### RE Investigation (from session 139)
 - [x] Fix MIRV sub-warhead explosion radius: **DONE (session 139)**. `bhvMirv()` in behaviors.js returned hardcoded `radius: 20` for all calls. This is correct for parent projectile (hits before splitting), but for sub-warheads spawned by `mirvFlightCheck`, each carries `proj.subRadius` set at spawn time (20 for MIRV, 35 for Death's Head, from DS:0x529E table). When sub-warheads landed, `handleBehavior()` dispatched to `bhvMirv()` which ignored `proj.subRadius` — Death's Head sub-explosions silently used 20px radius instead of 35px. **Fix**: `bhvMirv` now: `const radius = (proj.isSubWarhead && proj.subRadius) ? proj.subRadius : 20`. **Files**: web/js/behaviors.js.
 - [x] Fix Funky Bomb sub-warhead explosion radius: **DONE (session 139)**. Funky Bomb sub-bombs are spawned with `isSubWarhead: true, subRadius: Math.floor((random(10)+15)*scale)` (from EXE file 0x24B0C–0x24B23: `(random(10)+15) × EXPLOSION_SCALE`). Sub-bombs use `weaponIdx: 2` (Baby Missile, BHV.STANDARD, `param: 10`). On landing, `bhvStandard` returns `radius: weapon.param = 10`, ignoring `subRadius`. **Fix**: `handleBehavior()` now applies sub-warhead radius override after dispatch: if `proj.isSubWarhead && proj.subRadius && result.explode && weapon.bhv === BHV.STANDARD` → override result radius with `proj.subRadius`. This correctly gives sub-bombs their EXE-specified random radius instead of a constant 10. Popcorn sub-bombs also carry `subRadius: 10` but that happens to equal Baby Missile param so no behavioral change there. **Files**: web/js/behaviors.js.
@@ -5931,20 +5934,20 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 
 HIGH:
 - ~~Shop sell sub-dialog~~ — FIXED (sell factor 0.5→0.8/0.65; freeMarket config toggle added)
-- Shop palette animation missing (accent colors cycle indices 8-11 every 8 frames)
-- Full Row 2: 7 inventory widgets (icon + fill bar each) replaced by text approximations; no actual battery/parachute icons
+- ~~Shop palette animation missing~~ — FIXED (session 129: VGA 2 triangle wave, VGA 8-11 accent 4-step rotation entries 1-4, VGA 14-18 gray gradient; all verified against shop_palette_tick 0x14E34)
+- Full Row 2: 7 inventory widgets (icon + fill bar each) replaced by text approximations; icons 43(battery)/42(parachute) are blank (w=0) in EXE so no bitmap to implement; bars are web additions for usability
 - ~~Sunken box bevel order~~ — verified correct (outer edges match EF26/EE/30/32 mapping)
 
 MEDIUM:
 - ~~Full Row 1 weapon position~~ — FIXED (left-aligned at E9E0)
 - ~~Menu button X margin~~ — FIXED (5px small / 12px large)
 - ~~3D box hi-res borders~~ — already implemented (3px at screenH≥400)
-- Player icon bitmaps: need icon data extraction from DS:0x3826 (48 × 125 bytes)
+- ~~Player icon bitmaps~~ — CONFIRMED correct (session 110+140): icon=0 always (draw_hud_basic reads tank sub-struct DS:D568+i×0xCA, field +0x16=0; distinct from player struct 0x6C at DS:CEB8 where +0x16=weapon selection). Icons 42/43 are blank (w=0). No fix needed.
 - ~~Shop selection highlight~~ — FIXED (slot 3 = 80% brightness)
 - ~~Font double-quote zero width~~ — FIXED (WIDTHS[2]=3)
 
 LOW:
-- Full Row 2 widget icons: need icon data + exact inventory index mapping (DS:0xD548/D554/D556/D566)
+- ~~Full Row 2 widget icons~~ — icons 42(parachute)/43(battery)/52(SuperMag) all have width=0 in EXE (blank icons). Web bars are acceptable approximations. No further icon data needed.
 - ~~Wind display string: struct+0xB6 format unknown~~ — **RESOLVED**: struct+0xB6 is the **player name** far pointer, NOT wind. Wind is a separate playfield indicator (function 0x28F1D) with "Wind: N" + directional arrow. HUD E9DC now displays player name in player color.
 - HUD fuel display: ~~0-100% scale~~ — FIXED (now 0-1000 per mille, player.energy×10)
 - HUD battery count: ~~reads stale player.batteries~~ — FIXED (now reads inventory[43])

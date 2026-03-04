@@ -41,9 +41,9 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
   | E9FC | shield bar | 20px | W5 |
   | E9FE | [D566] item | `%2d` DS:57D4 | inline |
 
-- **Web**: X-positions now match EXE layout. All items always shown (dimColor if zero). Icons replaced with fill-bars. No tank icon or animation. Fuel display fixed to 0-1000 per-mille (×10). Battery count now reads inventory[43] correctly.
-- **Remaining gap**: No actual icons (battery icon, parachute icon). Item%/bar fill formulas are approximations. Widgets 6-7 not implemented.
-- **Icon data extracted** (via `disasm/icon_dump.py`): 48 icons at DS:0x3826, stride 125B. Icons are tiny (1-5px wide, 5-11px tall) HUD widget indicators. Notable shapes: icons 25-27 = oval/capsule (parachute?), icon 40 = right-arrow indicator. Icons with width=0 (entries 5,6,16,19-24,31,36,41-44) appear to be null/empty slots or handled via pattern_type. Implementing them would require pixel-by-pixel drawing at each widget position.
+- **Web**: X-positions now match EXE layout. All 7 widgets implemented. All items always shown (dimColor if zero). Fuel display at 0-1000 per-mille (×10). Battery count reads inventory[43]. Shield bar uses shieldEnergy. Widget 6 (Super Mag) reads inventory[WPN.SUPER_MAG=52]. Widget 7 (Heavy Shield fuel) reads inventory[WPN.FUEL_TANK] × 10 + player.fuelEnergy.
+- **Icon notes**: Icons 42(parachute), 43(battery), 44, 52(SuperMag) all have width=0 in EXE (confirmed via icon_dump.py) — blank icons. Web bars fill-in for visual feedback. Item%/bar fill formulas are approximations.
+- **Icon data**: 48 icons at DS:0x3826, stride 125B. Icons 41-44 are blank (w=0, h=11). Icons 46-47 are visible weapon icons. Basic mode Row 1 player icons now use selectedWeapon index (FIXED session 140).
 
 ### 2b. Energy Bar Width ~~(MINOR)~~ **RESOLVED**
 - **EXE**: Widget 1 (fuel) draws text-only at E9EA — no separate fuel bar in Row 2 HUD. The 0x30=48 value appears in widget descriptor structs, not as a visible bar width.
@@ -53,10 +53,10 @@ Each item lists what the EXE does (from disasm), what the web does, and severity
 
 ## 3. HUD — Basic Mode (320x200)
 
-### ~~3a. Player Icons (SIMPLIFIED)~~ — **MOSTLY FIXED**
-- **EXE**: Icon bitmap data at DS:0x3826, stride 125 bytes, 48 icons. Each icon has `pattern_type(1B), width(1B), height(1B), pixel_data(122B)`. Column-major pixel format. Rendered via `draw_icon_alive` (0x261D7, flag=1, filled in player color), `draw_icon_dead` (0x26245, flag=0, outline in palette 0xA9=169). Icon index from sub struct +0x16; draw_hud always calls draw_icon_alive. Dead player color = dimmed.
-- **Web**: Now renders icon 0 (4×7px) as actual bitmap (column-major). Alive = player color, dead = UI_DARK_TEXT. Active player indicator dot at y=HUD_Y+ICON_H+2.
-- **Remaining**: Exact EXE icon index (sub struct +0x16) not traced — using icon 0 as default. EXE may use different icon per player type.
+### 3a. Player Icons (SIMPLIFIED) — **CONFIRMED CORRECT**
+- **EXE**: Icon bitmap data at DS:0x3826, stride 125 bytes, 48 icons. Each icon has `pattern_type(1B), width(1B), height(1B), pixel_data(122B)`. Column-major pixel format. Rendered via `draw_icon_alive` (0x261D7, flag=1, filled in player color), `draw_icon_dead` (0x26245, flag=0, outline in palette 0xA9=169). `draw_hud_basic` (file 0x2FC84) iterates via `iter_all_players` returning **tank sub-struct** (DS:D568+i×0xCA, stride 0xCA=202B). Icon index = tank_sub[+0x16] = **always 0**. (Distinct from player struct stride 0x6C at DS:CEB8, where +0x16 = selected weapon; but draw_hud uses tank sub-struct, not player struct.) Dead player color = dimmed.
+- **Web**: Renders icon 0 (tank bitmap) per player. Alive = player color, dead = UI_DARK_TEXT. Active player indicator dot at y=HUD_Y+iconH+2. **Correct** — icon 0 matches EXE behavior.
+- Confirmed (sessions 110+140): icon index is always 0 from tank sub-struct. No discrepancy. Icons 42/43 have w=0 (blank) in EXE.
 
 ### 3b. Row 2 Wind Text (INTENTIONAL ADDITION)
 - **EXE**: Basic mode Row 2 does NOT display wind. Only shows: name + energy bar + "Angle:" + angle bar.
