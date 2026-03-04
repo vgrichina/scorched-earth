@@ -384,3 +384,11 @@ DS:0xD562,WPN_AUTO_DEFENSE_IDX: runtime index of "Auto Defense"; ≈54
 DS:0xD564,WPN_FUEL_TANK_IDX: runtime index of "Fuel Tank"; ≈55 (CORRECTS session-120 mislabel HUD_HEAVY_SHIELD_IDX)
 DS:0xD566,WPN_CONTACT_TRIGGER_IDX: runtime index of "Contact Trigger"; =56 (CORRECTS session-120 mislabel HUD_SUPER_MAG_IDX)
 DS:0xE4F0,WPN_FIRST_ACCESSORY: index of first non-weapon accessory (radius=0 AND damage=0); runtime ≈35; divides Weapons tab (0..E4F0) from Misc tab (E4F0..WEAPON_COUNT)
+0x337C4,score_sort_players: sort player indices by score for Score tab display; near call from 0x3413A
+0x3415A,score_tab_dialog_build: dialog_alloc(0,0,0,0)=auto-sized sub-dialog for Score tab
+0x341F5,score_tab_row_height: cmp [FG_MAXY], 0xDC → rowH=11 (<220) or 13 (>=220)
+DS:0x6052,STR_RANK_FMT="#%d": rank format string for Score tab sprintf
+DS:0x6056,STR_SCORE_FMT="%d": score format string for Score tab; bare number no suffix
+DS:0xE05E,SPRINTF_BUF: temporary sprintf output buffer (Score tab formatting)
+DS:0xE342,SHOP_VIEWER_IDX: current viewing player index; if ==DS:5160 shows empty title
+DS:0x5160,SHOP_HOTSEAT_FLAG: hotseat viewer sentinel; E342==5160 means show empty Score title
