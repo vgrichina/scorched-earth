@@ -299,10 +299,10 @@ function adjustSelectionPastHeader(dir) {
 // EXE: random(0x0B) selects action 0-10; case 11 = display inventory (fall-through)
 // EXE: if DS:0x50D8 (castle terrain) && action==8, re-roll (skip guidance in mountain mode)
 // EXE jump table at file 0x1DF4D:
-//   0: buy weapon + sell back       4: display money (no-op)    8: buy guidance
+//   0: NO-OP (thinking_anim+sound)  4: NO-OP (funky display)    8: buy guidance
 //   1: buy weapon + guidance         5: buy shields              9: buy mountain gear
 //   2: buy weapon + item + guidance  6: buy defense items       10: sell equipment
-//   3: buy weapon + item + accessory 7: show equipment (no-op)  11: display inventory (no-op)
+//   3: buy weapon + item + accessory 7: NO-OP (show equipment)  11: NO-OP (show inventory)
 export function aiAutoPurchase(player) {
   // EXE: random(0x0B) at file 0x1DCA4
   let action = random(11);
@@ -312,8 +312,7 @@ export function aiAutoPurchase(player) {
   }
 
   switch (action) {
-    case 0: // Buy weapon category + sell back
-      aiBuyRandomWeapon(player);
+    case 0: // NO-OP: thinking animation + draw callback + sound (EXE: file 0x1DCCE)
       break;
     case 1: // Buy weapon + guidance
       aiBuyRandomWeapon(player);
