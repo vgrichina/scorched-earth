@@ -43,6 +43,8 @@ def main():
                         help='Save emulator state to binary file on exit')
     parser.add_argument('--load-state', type=str, metavar='FILE',
                         help='Load emulator state from binary file (skip EXE loading)')
+    parser.add_argument('--timer', type=int, default=0, metavar='N',
+                        help='Fire INT 08h (timer tick) every N instructions (0=off)')
     args = parser.parse_args()
 
     # Resolve exe path relative to project root
@@ -177,7 +179,8 @@ def main():
     else:
         # Fast path using run_fast
         reason, result = run_fast(cpu, mem_obj, ports, int_handler, args.max_steps,
-                                  bp_set=bp_set if bp_set else None)
+                                  bp_set=bp_set if bp_set else None,
+                                  timer_period=args.timer)
         if reason == 'halted':
             print(f"CPU halted after {result} instructions")
         elif reason == 'breakpoint':

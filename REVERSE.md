@@ -5128,6 +5128,34 @@ Modes 320x240 through 360x480 use VGA "Mode X" — unchained 256-color planar mo
 
 ---
 
+## Timer ISR (INT 08h)
+
+Custom timer ISR installed at **file 0x41F90** (emu seg `3BC9:0000`).
+
+### Handler Logic
+1. Saves all registers, sets DS = 0x4F38
+2. Increments tick counter (DS:0xEE78)
+3. Decrements countdown (DS:0xEE74); if still >0, sends EOI (OUT 0x20, 0x20) and returns
+4. When countdown reaches 0: reloads from DS:0xEE76 (default 200), calls far pointer at DS:0xEE72:DS:0xEE70
+5. The far call pushes callback seg:off on stack and uses `call far` — callback is game-specific (palette animation, etc.)
+
+### DS Variables
+
+| Offset | Name | Type | Description |
+|--------|------|------|-------------|
+| 0xEE70 | timer_callback_off | word | Far pointer offset — called when countdown fires |
+| 0xEE72 | timer_callback_seg | word | Far pointer segment |
+| 0xEE74 | timer_countdown | word | Decremented each INT 08h; fires callback when 0 |
+| 0xEE76 | timer_reload | word | Value reloaded into countdown (default 200) |
+| 0xEE78 | timer_tick_count | word | Monotonic counter, incremented every INT 08h |
+
+### Notes
+- The reload value of 200 with standard 18.2 Hz PIT rate means the callback fires every ~11 seconds
+- The game likely reprograms the PIT to a faster rate, making the effective callback rate higher
+- Timer callback at `0050:0008` during title screen = old BIOS INT 08h chain (no palette work)
+
+---
+
 ## Keyboard & Input System (VERIFIED from disassembly)
 
 ### Input Architecture (VERIFIED)

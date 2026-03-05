@@ -73,8 +73,12 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
     return total
 
 
-def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None):
-    """Tight execution loop — merges step+dispatch to avoid function call overhead."""
+def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
+             timer_period=0):
+    """Tight execution loop — merges step+dispatch to avoid function call overhead.
+
+    timer_period: if >0, fire INT 08h every N instructions (simulates hardware timer).
+    """
     segs = cpu.segs
     data = mem.data
     dispatch = _DISPATCH
@@ -82,12 +86,27 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None):
     seg_pfx_set = _SEG_PFX_SET
     has_hooks = hooks is not None and len(hooks) > 0
     has_bp = bp_set is not None and len(bp_set) > 0
+    timer_counter = timer_period
 
     i = 0
     try:
         for i in range(max_steps):
             if cpu.halted:
                 return 'halted', i
+
+            # Hardware timer interrupt
+            if timer_period and timer_counter <= 0:
+                timer_counter = timer_period
+                if cpu.intf:
+                    vec_off = mem.read16(0x08 * 4)
+                    vec_seg = mem.read16(0x08 * 4 + 2)
+                    if vec_seg != 0 or vec_off != 0:
+                        _push16(cpu, mem, cpu.get_flags())
+                        _push16(cpu, mem, segs[1])
+                        _push16(cpu, mem, cpu.ip)
+                        segs[1] = vec_seg
+                        cpu.ip = vec_off
+            timer_counter -= 1
 
             ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 

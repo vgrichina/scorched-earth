@@ -398,3 +398,14 @@ DS:0x1F62,SHOP_ACCENT_TABLE: 5 entries×6 bytes; [0]=red(63,0,0) sparkle only; [
 DS:0x51A2,BOMB_ICON config: 0=Small, 1=Big(default), 2=Invisible — controls projectile icon during flight
 DS:0x513A,TUNNELLING config: 0=Off, 1=On(default) — weapons tunnel through terrain without exploding
 DS:0x50FE,USELESS_ITEMS config: 0=Off(default), 1=On — include joke/novelty weapons in shop
+
+# ---- Timer ISR (INT 08h at 3BC9:0000 emu / file 0x41F90) ----
+0x41F90,timer_isr: saves all regs, sets DS=4F38, decrements countdown, fires callback when 0
+DS:0xEE74,timer countdown — decremented each tick; when 0 fires callback and reloads from EE76
+DS:0xEE76,timer reload value (default 200) — copied to EE74 when countdown reaches 0
+DS:0xEE70,timer callback far pointer (offset) — called when countdown fires
+DS:0xEE72,timer callback far pointer (segment)
+DS:0xEE78,timer tick counter — incremented every INT 08h
+
+# ---- Keyboard ISR (INT 09h at 2256:012E emu / file 0x2898E) ----
+0x2898E,keyboard_isr: reads port 0x60 scancode; checks INPUT_MODE; stores to key table

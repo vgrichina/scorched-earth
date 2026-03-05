@@ -644,3 +644,14 @@ DS:0x50FE,USELESS_ITEMS
 0x4C8A7,text_measure
 0x4C304,text_display
 0x4C98D,draw_embossed_text
+
+# ---- Timer ISR (installed as INT 08h) ----
+0x41F90,timer_isr
+DS:0xEE74,timer_countdown
+DS:0xEE76,timer_reload
+DS:0xEE70,timer_callback_off
+DS:0xEE72,timer_callback_seg
+DS:0xEE78,timer_tick_count
+
+# ---- Keyboard ISR (installed as INT 09h) ----
+0x2898E,keyboard_isr
