@@ -128,16 +128,20 @@ class Memory:
         width, height = ports.get_resolution()
 
         if ports.mode_x:
-            # Mode X: interleaved planes. Address = pixel_x/4 + pixel_y * (width/4)
-            # Plane = pixel_x % 4
+            # Mode X: dump ALL VGA plane memory as a tall image showing all pages
+            # Each plane has VGA_PLANE_SIZE bytes; stride = width/4
             stride = width // 4
-            pixels = bytearray(width * height)
-            for y in range(height):
+            total_rows = self.VGA_PLANE_SIZE // stride
+            # Cap to something reasonable (e.g. 4 pages worth)
+            max_rows = min(total_rows, height * 4)
+            pixels = bytearray(width * max_rows)
+            for y in range(max_rows):
                 for x in range(width):
                     plane = x & 3
                     off = (x >> 2) + y * stride
                     if off < self.VGA_PLANE_SIZE:
                         pixels[y * width + x] = self.vga_planes[plane][off]
+            height = max_rows
         else:
             # Mode 13h: linear framebuffer at 0xA0000
             pixels = bytes(self.data[self.VGA_BASE:self.VGA_BASE + width * height])

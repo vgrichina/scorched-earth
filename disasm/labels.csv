@@ -624,3 +624,23 @@ DS:0x51A2,BOMB_ICON
 DS:0x514E,BOMB_INVISIBLE_FLAG
 DS:0x513A,TUNNELLING
 DS:0x50FE,USELESS_ITEMS
+
+# ---- Fastgraph VGA primitives (seg 3DDE in dis.py) ----
+0x44130,fg_setpixel_modex
+0x4415D,fg_setpixel_modex_2
+
+# ---- Menu module (34ED) ----
+0x3D140,main_menu
+0x3D56A,main_menu_draw_3d_box_call
+0x3D593,main_menu_draw_flat_box_call
+0x3D6F2,main_menu_draw_embossed_text_call
+
+# ---- Dialog system (seg 3F19 in emu) ----
+0x3F310,dialog_create_button
+0x48A96,dialog_draw_item
+0x48AC9,dialog_add_item
+
+# ---- Font module (seg 4589) ----
+0x4C8A7,text_measure
+0x4C304,text_display
+0x4C98D,draw_embossed_text

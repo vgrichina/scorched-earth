@@ -5038,7 +5038,7 @@ Note: Mode 4 (360x480) has FG mode 0 (text mode in Fastgraph) because it bypasse
 
 3. **Graphics init** (file 0x45413): Bounds-checks mode index, copies 11 function pointers from mode entry into dispatch table (DS:0xEEF4-0xEF1F), calls the per-mode `init_func`, reads resolution via `fg_getmaxx`/`fg_getmaxy`, computes scale factors from aspect ratio, sets clipping rectangle.
 
-4. **Mode-specific init**: Standard modes call `fg_setmode(fg_mode)`. The custom 360x480 mode (file 0x440EC) uses a two-step approach: sets VGA mode 0x12 (640x480x16) then 0x13 (320x200x256), disables chain-4, reprograms CRTC via 17 register pairs from table at DS:0x6840.
+4. **Mode-specific init**: Standard modes call `fg_setmode(fg_mode)`. The custom 360x480 mode (file 0x440EC) uses a two-step approach: sets VGA mode 0x12 (640x480x16) then 0x13 (320x200x256), disables chain-4 (seq reg 4 → 0x06), reprograms CRTC via 17 register pairs from table at DS:0x6840. **Confirmed by emulator**: seq_regs[4]=0x06, CRTC 0x01=0x59 (width=(0x59+1)*4=360), CRTC 0x13=0x2D (stride=45 words=90 bytes=360/4), CRTC 0x12=0xDF + overflow 0x3E → 480 visible lines. Pixel write at file 0x44130: `DI = x/4 + y*90`, plane selected via 16-bit OUT to port 3C4 (map mask = 1 << (x & 3)).
 
 ### Function Dispatch Table (DS:0xEEF4-0xEF1F)
 

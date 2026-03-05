@@ -79,6 +79,11 @@ class PortIO:
         return 0xFF
 
     def port_out(self, port, val):
+        # VGA 16-bit OUT to even index ports: low byte = index, high byte = data
+        if val > 0xFF and port in (0x3C4, 0x3CE, 0x3D4):
+            self.port_out(port, val & 0xFF)
+            self.port_out(port + 1, (val >> 8) & 0xFF)
+            return
         if port == 0x3C8:
             self._pal_write_idx = val & 0xFF
             self._pal_write_comp = 0
@@ -127,14 +132,20 @@ class PortIO:
         height = vde | ((overflow & 0x02) << 7) | ((overflow & 0x40) << 3)
         height += 1  # VDE is 0-based
 
-        # Horizontal: CRTC reg 0x01 (end horizontal display) + 1, * 8 pixels
+        # Horizontal: CRTC reg 0x01 (end horizontal display) + 1
+        # In Mode X each clock = 4 pixels (unchained), not 8
         hde = self.crtc_regs[0x01]
-        width = (hde + 1) * 8 if hde else 320
+        width = (hde + 1) * 4 if hde else 320
+
+        # Double-scan: CRTC reg 0x09 bit 7 — halves visible height
+        max_scan = self.crtc_regs[0x09]
+        if max_scan & 0x80:
+            height = (height + 1) // 2
 
         # Clamp to sane values
-        if width < 320 or width > 400:
+        if width < 160 or width > 400:
             width = 320
-        if height < 200 or height > 600:
+        if height < 100 or height > 600:
             height = 200
 
         return width, height
