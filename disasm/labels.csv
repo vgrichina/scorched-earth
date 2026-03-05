@@ -642,6 +642,18 @@ DS:0x50FE,USELESS_ITEMS
 0x439CB,fg_hline_clipped
 0x43A66,fg_hline_pixel_loop
 
+# ---- Fastgraph vtable init (populates DS:EEF4-EF18 from gfx mode entry) ----
+0x45413,fg_init_vtable
+DS:0xEEF4,fg_ptr_point
+DS:0xEEF8,fg_ptr_getpixel
+DS:0xEEFC,fg_ptr_setdacs
+DS:0xEF00,fg_ptr_getdacs
+DS:0xEF04,fg_ptr_drect
+DS:0xEF08,fg_ptr_setcolor_rgb
+DS:0xEF0C,fg_ptr_hline
+DS:0xEF10,fg_ptr_vline
+DS:0xEF14,fg_ptr_rect
+
 # ---- Dialog/widget system (seg 3F89 = file 0x45B19+) ----
 0x4609F,dialog_event_loop
 0x460C3,dialog_poll_input

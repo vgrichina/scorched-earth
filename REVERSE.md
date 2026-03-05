@@ -819,7 +819,14 @@ After menu buttons are created, the right side is rendered (starting at file 0x3
 
 2. **Terrain preview frame**: `draw_flat_box(menu_right, 6, FG_MAXX-6, FG_MAXY-36)` draws a sunken 3D frame for the terrain preview area. Height adjusts to `FG_MAXY-50` if the copyright text is too wide. (Note: draw_flat_box args are (x1, y1, x2, y2) — verified from file 0x3D58E-0x3D598.)
 
-3. **Terrain generation**: Called via 0x223A:0x083F, renders a live terrain preview inside the frame using current landscape settings.
+3. **Terrain generation**: Called via 0x223A:0x083F (file 0x295DF), renders a live terrain preview inside the frame using current landscape settings. This calls `terrain_gen_main` (0x3971F) which:
+   - Picks random terrain type 0-6 (rerolls castle type 5 when rendering menu preview)
+   - Sets sky palette entry 80 (0x50) via `fg_setrgb`
+   - Calls `store_sky_base_index(0x50)` to record the sky gradient start
+   - Each terrain type sets VGA palette entries 120-149 (terrain gradient) via `fg_setcolor_rgb` (DS:EF08) then flushes with `fg_setdacs` (DS:EEFC)
+   - After terrain gen, if terrain type != 6: `fg_setrgb(120, R, G, B)` from DS:0xDD4C-DD50
+
+   **Palette mapping**: Terrain code uses indices 0-29 in the palette buffer, flushed to VGA starting at entry 120 (0x78). So VGA 120=deepest underground, VGA 149=surface. The sky gradient (VGA 121-149) is the sunset gradient visible on the title screen.
 
 4. **Title text rendering** (centered in space right of menu panel):
 
@@ -3617,15 +3624,19 @@ Tank rendering in Scorched Earth v1.50 is implemented primarily in `icons.cpp` (
 
 ### Fastgraph Function Pointer Table (Indirect Calls)
 
+Populated by `fg_init_vtable` at file 0x45413, which reads from the selected graphics mode's submenu entry (stride 0x44, base DS:0x6B66). Each entry's fields at offsets +0x16..+0x3C provide the far pointers for the current video mode.
+
 | DS Offset | Function | Params | Cleanup | Description |
 |-----------|----------|--------|---------|-------------|
-| 0xEEF4 | `fg_point` wrapper | 3 words | 6 bytes | `point(x, y, color)` — draws single pixel |
-| 0xEEF8 | `fg_getpixel` wrapper | 2 words | 4 bytes | `getpixel(x, y)` — returns color in AX |
-| 0xEF04 | `fg_locate`/`fg_move` | 2 words | 4 bytes | Move cursor position |
-| 0xEF08 | `fg_setcolor` | 1 word | 2 bytes | Set drawing color |
-| 0xEF0C | `draw_hline` wrapper | 4 words | 8 bytes | `hline(minx, maxx, y, color)` — horizontal line |
-| 0xEF10 | `draw_vline` wrapper | 4 words | 8 bytes | `vline(x, miny, maxy, color)` — vertical line |
-| 0xEF14 | `fg_drect` wrapper | 5 words | 10 bytes | `drect(minx, miny, maxx, maxy, color)` — filled rectangle |
+| 0xEEF4 | `fg_point` | 3 words | 6 bytes | `point(x, y, color)` — draws single pixel |
+| 0xEEF8 | `fg_getpixel` | 2 words | 4 bytes | `getpixel(x, y)` — returns color in AX |
+| 0xEEFC | `fg_setdacs` | 2 words | 4 bytes | `setdacs(count, vga_start)` — flush palette buffer to VGA DAC |
+| 0xEF00 | `fg_getdacs` | 2 words | 4 bytes | `getdacs(count, vga_start)` — read VGA DAC to palette buffer |
+| 0xEF04 | `fg_drect` | 5 words | 10 bytes | `drect(minx, miny, maxx, maxy, color)` — filled rectangle |
+| 0xEF08 | `fg_setcolor_rgb` | 4 words | 8 bytes | `setcolor(index, R, G, B)` — set single palette buffer entry |
+| 0xEF0C | `fg_hline` | 4 words | 8 bytes | `hline(minx, maxx, y, color)` — horizontal line |
+| 0xEF10 | `fg_vline` | 4 words | 8 bytes | `vline(x, miny, maxy, color)` — vertical line |
+| 0xEF14 | `fg_rect` | 5 words | 10 bytes | `rect(minx, miny, maxx, maxy, color)` — rectangle outline |
 
 ### Key Global Variables
 
@@ -4962,16 +4973,19 @@ fg_setdacs(0, 104)  // blacks out VGA 0-103
 
 ### Fastgraph V4.02 Function Pointer Table
 
+Initialized by `fg_init_vtable` (file 0x45413) from gfx mode submenu entry (stride 0x44, base DS:0x6B66, fields +0x16..+0x3C).
+
 | DS Offset | Function | Purpose |
 |-----------|----------|---------|
-| DS:0xEEF4 | fg_getpixel | Read pixel color at (x,y) |
-| DS:0xEEF8 | fg_setpixel/fg_getmap | Set pixel / read bitmap |
-| DS:0xEEFC | fg_setdacs | Write palette buffer to VGA DAC |
-| DS:0xEF00 | fg_getdacs | Read VGA DAC to palette buffer |
-| DS:0xEF04 | fg_drect | Draw filled rectangle |
-| DS:0xEF08 | fg_setcolor | Set single palette buffer entry (index, R, G, B) |
-| DS:0xEF0C | fg_text | Draw text string |
-| DS:0xEF14 | fg_rect | Draw rectangle outline |
+| DS:0xEEF4 | fg_point | Draw pixel at (x, y, color) — 3 words, 6-byte cleanup |
+| DS:0xEEF8 | fg_getpixel | Read pixel color at (x,y) — 2 words, 4-byte cleanup |
+| DS:0xEEFC | fg_setdacs | Write palette buffer to VGA DAC — `setdacs(count, vga_start)` |
+| DS:0xEF00 | fg_getdacs | Read VGA DAC to palette buffer — `getdacs(count, vga_start)` |
+| DS:0xEF04 | fg_drect | Draw filled rectangle — 5 words, 10-byte cleanup |
+| DS:0xEF08 | fg_setcolor_rgb | Set single palette buffer entry — `setcolor(index, R, G, B)` 4 words, 8-byte cleanup |
+| DS:0xEF0C | fg_hline | Draw horizontal line — `hline(minx, maxx, y, color)` 4 words, 8-byte cleanup |
+| DS:0xEF10 | fg_vline | Draw vertical line — `vline(x, miny, maxy, color)` 4 words, 8-byte cleanup |
+| DS:0xEF14 | fg_rect | Draw rectangle outline — 5 words, 10-byte cleanup |
 
 Palette buffer at DS:0x6862 (256×3 = 768 bytes): `buffer[index*3] = R, [+1] = G, [+2] = B`.
 
