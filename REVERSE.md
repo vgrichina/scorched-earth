@@ -6147,3 +6147,40 @@ LOW:
 - Wikipedia: https://en.wikipedia.org/wiki/Scorched_Earth_(video_game)
 
 SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decoder + height extractor in terrain.js, async pre-load of all 10 .MTN files at startup in main.js, MTN_PERCENT roll in generateMountain()
+
+---
+
+## Open Tasks
+
+### Emulator — Player Dialog Navigation
+- **Blocker**: Player setup dialog has text field with focus; keyboard input goes to name field instead of activating Done button
+- Widget layout discovered via `mem_read.py --each-fp`:
+  - Widget 0: type=6 (button), hotkey=space, enabled=1
+  - Widget 1: type=1 (label), hotkey='d' (Done), **enabled=0**
+  - Widget 2: type=9, hotkey=Enter, **enabled=0**
+  - Widget 3: type=9, hotkey=Tab, enabled=1 (tab-stop group)
+  - Widget 4: type=6 (button), hotkey='i', enabled=1
+  - Widget 5: type=4, hotkey='n' (Name field), enabled=1
+- Done button and Enter handler start **disabled** — need to find what enables them
+- Dialog callback at 0x27570 runs during event loop, may enable/disable widgets
+- **Possible approaches**:
+  - Trace dialog callback to find when it enables widget 1 (Done)
+  - Force `DS:0x50F6` (dialog_exit_flag) = 1 to bypass dialog
+  - Implement mouse click emulation to click Done button coordinates
+
+### Emulator — Checkpoint Chain
+- `/tmp/scorch_menu_call2.state` — at call_main_menu (0x2A850), palette fixed
+- `/tmp/scorch_poll2.state` — dialog_poll_input (0x460C3), menu rendered
+- `/tmp/scorch_game_init.state` — after main_menu returns (S+Enter worked)
+- `/tmp/cp1.state` — Player 1 dialog shown, waiting for input ← **stuck here**
+- Next goal: get past both player dialogs → terrain gen → game start (0x2F830)
+
+### Dialog/Widget System RE
+- Widget struct partially mapped: type(+0), enabled(+2), draw_fn(+4), hotkey(+0C)
+- Widget types observed: 1=label, 4=text-like, 6=button, 8=text-input, 9=tab-group
+- Key dispatch flow: `dialog_poll_input` → `key_scancode_to_char` (0x4CFB3) → `dialog_key_dispatch` (0x46266) → widget hotkey loop → type-specific handler via jump table at CS:0x17BA
+- Tab ([bp-0x0C]=-1) and ESC ([bp-0x0C]=-2) are special-cased at `dialog_key_special` (0x463C2)
+
+### Web Reimplementation
+- Physics engine in `web/js/physics.js` — ongoing
+- Need to port: weapon damage, shield system, economy/shop, AI
