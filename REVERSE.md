@@ -1381,6 +1381,10 @@ The explosion code lives in code segment **0x1A4A** (file base 0x20EA0, ~11 KB).
 | ConfigLoader | 0x21D09 | Load 8 physics doubles from config |
 | CoordTransform | 0x21DD5 | Player-to-explosion offset + clamping |
 | CoreDamage | 0x22BDF | Core damage function (93 FPU calls, ~2.5 KB) |
+| terrain_scorch_pixel | 0x2BCC3 | Reads pixel; if ≤105 (terrain), replaces with random(5)+170 (scorched palette) |
+| terrain_scorch_column | 0x2BD07 | Random vertical scan ±random(9)-4 pixels, scorching terrain in a column |
+| terrain_scorch_ring | 0x2BD89 | Outer ring of scorched terrain around impact point |
+| explosion_erase_column | 0x40046 | Erases terrain pixels in vertical column (menu module seg) |
 
 **Explosion types** (tracked in DS:0xD0AC):
 - **Type 0**: Single blast — finds closest target, applies direct damage
@@ -1933,6 +1937,13 @@ a normalized direction vector, reading screen pixels via `fg_getpixel` to detect
 players. The gravity parameter is decremented by 1.0 each outer pass, scanning progressively
 flatter trajectory arcs. This brute-force approach is why the AI is called "shark" — it swims
 through the screen pixel by pixel until it finds the target.
+
+**Additional shark.cpp helper functions**:
+
+| Function | File Offset | Purpose |
+|----------|-------------|---------|
+| shark_elastic_wall_adjust | 0x38211 | Adjusts AI aim for elastic/wrap wall types. Checks ELASTIC (DS:0x5154) for values 3 (Spring) or 4 (Wrap). Tracks projectile approach: compares abs(target_dx) vs abs(barrel_dx), increments counter up to 90 (0x5A). If counter expires or misses >4 times, clears target pointer. |
+| shark_check_shield_flags | 0x38314 | Checks if target player has shield equipped. Returns weapon struct flags & 0x06 if shield energy > 0, else returns 0. Used by AI to decide targeting strategy. |
 
 ### AI Accuracy Parameters (VERIFIED)
 
@@ -3759,6 +3770,14 @@ Columns 4-7: Repeat the 3-pixel pattern (di-1, di, di+1) with x_step decrements
 - This creates a rounded cap shape that peaks at center (5px tall) and tapers to 1px at the starting edge
 
 The function spans from 0x2694C to 0x26AB2 (retf at 0x26AB2), 358 bytes.
+
+### Icons.cpp Utility Functions
+
+| Function | File Offset | Purpose |
+|----------|-------------|---------|
+| compute_distance | 0x2640F | Euclidean distance sqrt(dx²+dy²), truncated to int. Used by AI targeting and find_nearest_player. |
+| find_nearest_player | 0x26491 | Iterates all alive players, returns far pointer to nearest within max_dist threshold. Calls compute_distance per player. |
+| draw_tank_turret | 0x26527 | Draws tank barrel/turret with 3-line shadow effect using fg_hline. Uses hud colors EF2E (highlight), EF30 (dark shadow), EF2C (deep shadow). Reads barrel position from sub-struct +0x4E. |
 
 ### In-Game Tank Rendering — Pixel Table System
 

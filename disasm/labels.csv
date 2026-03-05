@@ -696,3 +696,34 @@ DS:0xEE78,timer_tick_count
 
 # ---- Keyboard ISR (installed as INT 09h) ----
 0x2898E,keyboard_isr
+
+# ---- icons.cpp geometry functions ----
+0x2640F,compute_distance
+0x26491,find_nearest_player
+0x26527,draw_tank_turret
+
+# ---- shark.cpp AI targeting helpers ----
+0x38211,shark_elastic_wall_adjust
+0x38314,shark_check_shield_flags
+
+# ---- AI weapon selection ----
+0x1900C,ai_auto_select_weapon
+
+# ---- Explosion terrain erase/scorch ----
+0x40046,explosion_erase_column
+0x2BCC3,terrain_scorch_pixel
+0x2BD07,terrain_scorch_column
+0x2BD89,terrain_scorch_ring
+
+# ---- Command-line argument parsing ----
+0x2A42D,parse_cmdline_and_init
+DS:0x51AA,STR_ASGARD,data/str
+DS:0x51B1,STR_FRONDHEIM,data/str
+DS:0x51BB,STR_RAGNAROK,data/str
+DS:0x51C4,STR_SCORCH_CFG,data/str
+DS:0x51FD,STR_VERSION_150,data/str
+DS:0x5202,STR_MAYHEM,data/str
+DS:0x5209,STR_NOFLOAT,data/str
+DS:0x6E64,GFX_MODE_FLAG
+DS:0x50F2,MAYHEM_FLAG
+DS:0x1C84,NOFLOAT_FLAG
