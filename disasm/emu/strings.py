@@ -1,7 +1,7 @@
 """String instruction execution: MOVS, STOS, LODS, CMPS, SCAS with REP."""
 
 
-def exec_string(op, cpu, mem, seg_override, rep_mode):
+def _h_string(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     """Execute string operation, handling REP prefix. Returns 1 (instruction length)."""
     src_seg = seg_override if seg_override is not None else 3  # DS
     segs = cpu.segs
@@ -74,3 +74,9 @@ def _string_once(op, cpu, mem, segs, regs, src_seg):
         b = mem.read16(((segs[0] << 4) + regs[7]) & 0xFFFFF)
         cpu.update_flags_sub(a, b, 16)
         regs[7] = (regs[7] + delta * 2) & 0xFFFF
+
+
+def register(table):
+    """Register string op handlers into the dispatch table."""
+    for op in (0xA4, 0xA5, 0xA6, 0xA7, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF):
+        table[op] = _h_string

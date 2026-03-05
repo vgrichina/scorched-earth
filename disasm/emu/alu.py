@@ -1,105 +1,31 @@
 """Arithmetic, logic, and shift instruction execution."""
 
 from .modrm import decode_modrm, compute_ea
+from .cpu import _PARITY_TABLE
 
-# ALU operation IDs (avoid string dispatch in hot path)
+# ALU operation IDs
 _ADD, _OR, _ADC, _SBB, _AND, _SUB, _XOR, _CMP = range(8)
 
-# Opcode → (alu_op_id, subop) for 0x00-0x3D range
-_ALU_DISPATCH = {}
+# Opcode → (alu_op_id, subop) for 0x00-0x3D range (tuple for O(1) lookup)
+_ALU_INFO = [None] * 256
 _ALU_BASES = ((0x00, _ADD), (0x08, _OR), (0x10, _ADC), (0x18, _SBB),
               (0x20, _AND), (0x28, _SUB), (0x30, _XOR), (0x38, _CMP))
 for _base, _alu_id in _ALU_BASES:
     for _sub in range(6):
-        _ALU_DISPATCH[_base + _sub] = (_alu_id, _sub)
+        _ALU_INFO[_base + _sub] = (_alu_id, _sub)
+_ALU_INFO = tuple(_ALU_INFO)
 
 # Group 1 reg field → alu op id
 _GRP1_OPS = (_ADD, _OR, _ADC, _SBB, _AND, _SUB, _XOR, _CMP)
 
-# Set of opcodes handled by exec_alu (for fast membership test in _dispatch)
-ALU_OPCODES = frozenset(_ALU_DISPATCH.keys()) | {
-    0x80, 0x81, 0x82, 0x83, 0xF6, 0xF7,
-    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
-    0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
-    0xFE, 0xD0, 0xD1, 0xD2, 0xD3, 0xC0, 0xC1,
-    0x98, 0x99, 0xA8, 0xA9, 0x84, 0x85,
-}
-
-
-def exec_alu(op, cpu, mem, seg_override, ip_phys):
-    """Execute ALU opcode. Returns instruction length."""
-
-    # ---- ALU reg/mem group: ADD OR ADC SBB AND SUB XOR CMP (0x00-0x3D) ----
-    entry = _ALU_DISPATCH.get(op)
-    if entry is not None:
-        alu_id, subop = entry
-        return _exec_alu_group(subop, alu_id, cpu, mem, seg_override, ip_phys)
-
-    # ---- Group 1: 0x80-0x83 (immediate ALU) --------------------------------
-    if op in (0x80, 0x81, 0x82, 0x83):
-        return _exec_grp1(op, cpu, mem, seg_override, ip_phys)
-
-    # ---- Group 3: 0xF6/0xF7 (TEST/NOT/NEG/MUL/IMUL/DIV/IDIV) -------------
-    if op in (0xF6, 0xF7):
-        return _exec_grp3(op, cpu, mem, seg_override, ip_phys)
-
-    # ---- INC/DEC r16: 0x40-0x4F -------------------------------------------
-    if 0x40 <= op <= 0x47:
-        idx = op - 0x40
-        old = cpu.regs[idx]
-        saved_cf = cpu.cf
-        cpu.update_flags_add(old, 1, 16)
-        cpu.cf = saved_cf
-        cpu.regs[idx] = (old + 1) & 0xFFFF
-        return 1
-
-    if 0x48 <= op <= 0x4F:
-        idx = op - 0x48
-        old = cpu.regs[idx]
-        saved_cf = cpu.cf
-        cpu.update_flags_sub(old, 1, 16)
-        cpu.cf = saved_cf
-        cpu.regs[idx] = (old - 1) & 0xFFFF
-        return 1
-
-    # ---- INC/DEC byte: 0xFE (Group 4) -------------------------------------
-    if op == 0xFE:
-        return _exec_grp4(cpu, mem, seg_override, ip_phys)
-
-    # ---- Shift/Rotate: 0xD0-0xD3, 0xC0-0xC1 (Group 2) --------------------
-    if op in (0xD0, 0xD1, 0xD2, 0xD3, 0xC0, 0xC1):
-        return _exec_grp2(op, cpu, mem, seg_override, ip_phys)
-
-    # ---- CBW/CWD -----------------------------------------------------------
-    if op == 0x98:  # CBW
-        al = cpu.get_reg8(0)
-        cpu.ax = al if al < 0x80 else al | 0xFF00
-        return 1
-    if op == 0x99:  # CWD
-        cpu.dx = 0xFFFF if cpu.ax & 0x8000 else 0x0000
-        return 1
-
-    # ---- TEST AL/AX, imm: 0xA8/0xA9 ----------------------------------------
-    if op == 0xA8:
-        cpu.update_flags_logic(cpu.get_reg8(0) & mem.data[ip_phys + 1], 8)
-        return 2
-    if op == 0xA9:
-        cpu.update_flags_logic(cpu.ax & (mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)), 16)
-        return 3
-
-    # ---- TEST r/m, r: 0x84-0x85 -------------------------------------------
-    if op == 0x84:
-        return _exec_test_rm_r(cpu, mem, seg_override, 8, ip_phys)
-    if op == 0x85:
-        return _exec_test_rm_r(cpu, mem, seg_override, 16, ip_phys)
-
-    return 0
+# Shift/rotate reg field constants
+_GRP2_SHL, _GRP2_SHR, _GRP2_SAR = 4, 5, 7
+_GRP2_ROL, _GRP2_ROR, _GRP2_RCL, _GRP2_RCR = 0, 1, 2, 3
 
 
 # -- Internal helpers --------------------------------------------------------
 
 def _get_rm_val(cpu, mem, mod, rm, disp, seg_override, width):
-    """Get value from r/m operand."""
     if mod == 3:
         return cpu.get_reg8(rm) if width == 8 else cpu.regs[rm]
     phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
@@ -107,7 +33,6 @@ def _get_rm_val(cpu, mem, mod, rm, disp, seg_override, width):
 
 
 def _set_rm_val(cpu, mem, mod, rm, disp, seg_override, width, val):
-    """Set value to r/m operand."""
     if mod == 3:
         if width == 8:
             cpu.set_reg8(rm, val)
@@ -122,7 +47,6 @@ def _set_rm_val(cpu, mem, mod, rm, disp, seg_override, width, val):
 
 
 def _do_alu(alu_id, cpu, dst, src, width):
-    """Perform ALU op, update flags, return result."""
     mask = 0xFFFF if width == 16 else 0xFF
     if alu_id == _ADD:
         r = cpu.update_flags_add(dst, src, width)
@@ -145,7 +69,6 @@ def _do_alu(alu_id, cpu, dst, src, width):
 
 
 def _exec_alu_group(subop, alu_id, cpu, mem, seg_override, ip_phys):
-    """Execute one of the 6 ALU sub-opcodes."""
     data = mem.data
 
     if subop == 4:  # AL, imm8
@@ -187,7 +110,6 @@ def _exec_alu_group(subop, alu_id, cpu, mem, seg_override, ip_phys):
 
 
 def _exec_grp1(op, cpu, mem, seg_override, ip_phys):
-    """Group 1: 0x80-0x83 — immediate ALU with ModR/M."""
     data = mem.data
     ml, mod, reg, rm, disp = decode_modrm(data, ip_phys + 1)
     alu_id = _GRP1_OPS[reg]
@@ -219,13 +141,7 @@ def _exec_grp1(op, cpu, mem, seg_override, ip_phys):
     return 1 + ml + 1
 
 
-# Shift/rotate operation table (indexed by reg field)
-_GRP2_SHL, _GRP2_SHR, _GRP2_SAR = 4, 5, 7
-_GRP2_ROL, _GRP2_ROR, _GRP2_RCL, _GRP2_RCR = 0, 1, 2, 3
-
-
 def _exec_grp2(op, cpu, mem, seg_override, ip_phys):
-    """Group 2: shifts/rotates."""
     data = mem.data
     ml, mod, reg, rm, disp = decode_modrm(data, ip_phys + 1)
 
@@ -275,7 +191,6 @@ def _exec_grp2(op, cpu, mem, seg_override, ip_phys):
     if count > 0:
         cpu.zf = 1 if val == 0 else 0
         cpu.sf = 1 if val & sign_bit else 0
-        from .cpu import _PARITY_TABLE
         cpu.pf = _PARITY_TABLE[val & 0xFF]
 
     _set_rm_val(cpu, mem, mod, rm, disp, seg_override, width, val)
@@ -283,11 +198,9 @@ def _exec_grp2(op, cpu, mem, seg_override, ip_phys):
 
 
 def _exec_grp3(op, cpu, mem, seg_override, ip_phys):
-    """Group 3: TEST/NOT/NEG/MUL/IMUL/DIV/IDIV."""
     width = 8 if op == 0xF6 else 16
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     val = _get_rm_val(cpu, mem, mod, rm, disp, seg_override, width)
-    mask = 0xFFFF if width == 16 else 0xFF
 
     if reg in (0, 1):  # TEST r/m, imm
         if width == 8:
@@ -301,6 +214,7 @@ def _exec_grp3(op, cpu, mem, seg_override, ip_phys):
             return 1 + ml + 2
 
     if reg == 2:  # NOT
+        mask = 0xFFFF if width == 16 else 0xFF
         _set_rm_val(cpu, mem, mod, rm, disp, seg_override, width, (~val) & mask)
         return 1 + ml
 
@@ -386,7 +300,6 @@ def _exec_grp3(op, cpu, mem, seg_override, ip_phys):
 
 
 def _exec_grp4(cpu, mem, seg_override, ip_phys):
-    """Group 4: INC/DEC byte (0xFE)."""
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     val = _get_rm_val(cpu, mem, mod, rm, disp, seg_override, 8)
     saved_cf = cpu.cf
@@ -399,9 +312,120 @@ def _exec_grp4(cpu, mem, seg_override, ip_phys):
     return 1 + ml
 
 
-def _exec_test_rm_r(cpu, mem, seg_override, width, ip_phys):
+# -- Handlers (standard dispatcher signature) --------------------------------
+
+def _h_alu_rm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    alu_id, subop = _ALU_INFO[op]
+    return _exec_alu_group(subop, alu_id, cpu, mem, seg_override, ip_phys)
+
+
+def _h_grp1(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_grp1(op, cpu, mem, seg_override, ip_phys)
+
+
+def _h_grp2(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_grp2(op, cpu, mem, seg_override, ip_phys)
+
+
+def _h_grp3(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_grp3(op, cpu, mem, seg_override, ip_phys)
+
+
+def _h_grp4(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_grp4(cpu, mem, seg_override, ip_phys)
+
+
+def _h_inc_r16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    idx = op - 0x40
+    old = cpu.regs[idx]
+    saved_cf = cpu.cf
+    cpu.update_flags_add(old, 1, 16)
+    cpu.cf = saved_cf
+    cpu.regs[idx] = (old + 1) & 0xFFFF
+    return 1
+
+
+def _h_dec_r16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    idx = op - 0x48
+    old = cpu.regs[idx]
+    saved_cf = cpu.cf
+    cpu.update_flags_sub(old, 1, 16)
+    cpu.cf = saved_cf
+    cpu.regs[idx] = (old - 1) & 0xFFFF
+    return 1
+
+
+def _h_cbw(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    al = cpu.regs[0] & 0xFF
+    cpu.regs[0] = al if al < 0x80 else al | 0xFF00
+    return 1
+
+
+def _h_cwd(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.regs[2] = 0xFFFF if cpu.regs[0] & 0x8000 else 0x0000
+    return 1
+
+
+def _h_test_al_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.update_flags_logic(cpu.get_reg8(0) & mem.data[ip_phys + 1], 8)
+    return 2
+
+
+def _h_test_ax_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.update_flags_logic(cpu.regs[0] & (mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)), 16)
+    return 3
+
+
+def _h_test_rm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
-    a = _get_rm_val(cpu, mem, mod, rm, disp, seg_override, width)
-    b = cpu.get_reg8(reg) if width == 8 else cpu.regs[reg]
-    cpu.update_flags_logic(a & b, width)
+    a = _get_rm_val(cpu, mem, mod, rm, disp, seg_override, 8)
+    cpu.update_flags_logic(a & cpu.get_reg8(reg), 8)
     return 1 + ml
+
+
+def _h_test_rm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+    a = _get_rm_val(cpu, mem, mod, rm, disp, seg_override, 16)
+    cpu.update_flags_logic(a & cpu.regs[reg], 16)
+    return 1 + ml
+
+
+# -- Registration ------------------------------------------------------------
+
+# Opcodes in the 0x00-0x3D ALU range
+_ALU_RM_OPCODES = set()
+for _base, _ in _ALU_BASES:
+    for _sub in range(6):
+        _ALU_RM_OPCODES.add(_base + _sub)
+
+
+def register(table):
+    """Register ALU handlers into the dispatch table."""
+    # ALU reg/mem (0x00-0x3D)
+    for op in _ALU_RM_OPCODES:
+        table[op] = _h_alu_rm
+    # Group 1 immediate (0x80-0x83)
+    for op in (0x80, 0x81, 0x82, 0x83):
+        table[op] = _h_grp1
+    # Group 2 shifts (0xD0-0xD3, 0xC0-0xC1)
+    for op in (0xD0, 0xD1, 0xD2, 0xD3, 0xC0, 0xC1):
+        table[op] = _h_grp2
+    # Group 3 (0xF6-0xF7)
+    table[0xF6] = _h_grp3
+    table[0xF7] = _h_grp3
+    # Group 4 INC/DEC byte (0xFE)
+    table[0xFE] = _h_grp4
+    # INC/DEC r16
+    for op in range(0x40, 0x48):
+        table[op] = _h_inc_r16
+    for op in range(0x48, 0x50):
+        table[op] = _h_dec_r16
+    # CBW/CWD
+    table[0x98] = _h_cbw
+    table[0x99] = _h_cwd
+    # TEST AL/AX, imm
+    table[0xA8] = _h_test_al_imm
+    table[0xA9] = _h_test_ax_imm
+    # TEST r/m, r
+    table[0x84] = _h_test_rm8
+    table[0x85] = _h_test_rm16
