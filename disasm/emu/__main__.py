@@ -45,6 +45,9 @@ def main():
                         help='Load emulator state from binary file (skip EXE loading)')
     parser.add_argument('--timer', type=int, default=0, metavar='N',
                         help='Fire INT 08h (timer tick) every N instructions (0=off)')
+    parser.add_argument('--keys', action='append', default=[], metavar='STEP:SC[:ASC]',
+                        help='Inject key at step N (e.g. 500000:1:27 = ESC at step 500k). '
+                        'SC=scancode, ASC=ascii (default 0). Can repeat.')
     args = parser.parse_args()
 
     # Resolve exe path relative to project root
@@ -140,6 +143,16 @@ def main():
             bp_set.add(phys)
             print(f"Breakpoint: file 0x{foff:05X} (phys 0x{phys:05X})")
 
+    # Parse scheduled key injections
+    scheduled_keys = {}  # step → (scancode, ascii)
+    for ks in args.keys:
+        parts = ks.split(':')
+        step_n = int(parts[0])
+        sc = int(parts[1]) if len(parts) > 1 else 0x1C  # Enter
+        asc = int(parts[2]) if len(parts) > 2 else 0
+        scheduled_keys[step_n] = (sc, asc)
+        print(f"Key injection: step {step_n} → scancode=0x{sc:02X} ascii=0x{asc:02X}")
+
     # Run
     print(f"\nExecuting (max {args.max_steps} steps)...")
 
@@ -180,7 +193,8 @@ def main():
         # Fast path using run_fast
         reason, result = run_fast(cpu, mem_obj, ports, int_handler, args.max_steps,
                                   bp_set=bp_set if bp_set else None,
-                                  timer_period=args.timer)
+                                  timer_period=args.timer,
+                                  scheduled_keys=scheduled_keys if scheduled_keys else None)
         if reason == 'halted':
             print(f"CPU halted after {result} instructions")
         elif reason == 'breakpoint':

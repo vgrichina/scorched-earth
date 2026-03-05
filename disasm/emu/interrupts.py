@@ -121,9 +121,10 @@ class InterruptHandler:
                 self.cpu.set_reg8(4, sc)  # AH = scancode
                 self.cpu.set_reg8(0, asc)  # AL = ASCII
             else:
-                # No key available — return ESC to unblock
-                self.cpu.set_reg8(4, 0x01)  # ESC scancode
-                self.cpu.set_reg8(0, 0x1B)  # ESC ASCII
+                # No key available — rewind IP to re-execute INT 16h (spin-wait)
+                # This allows timer interrupts to fire between iterations
+                self.cpu.ip = (self.cpu.ip - 2) & 0xFFFF  # back up over CD 16
+                return True
         elif ah == 0x01:  # Peek
             if self.key_queue:
                 sc, asc = self.key_queue[0]

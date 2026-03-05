@@ -74,10 +74,11 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
 
 
 def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
-             timer_period=0):
+             timer_period=0, scheduled_keys=None):
     """Tight execution loop — merges step+dispatch to avoid function call overhead.
 
     timer_period: if >0, fire INT 08h every N instructions (simulates hardware timer).
+    scheduled_keys: dict of step_number → (scancode, ascii) for key injection.
     """
     segs = cpu.segs
     data = mem.data
@@ -87,6 +88,7 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
     has_hooks = hooks is not None and len(hooks) > 0
     has_bp = bp_set is not None and len(bp_set) > 0
     timer_counter = timer_period
+    has_sched_keys = scheduled_keys is not None and len(scheduled_keys) > 0
 
     i = 0
     try:
@@ -107,6 +109,11 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
                         segs[1] = vec_seg
                         cpu.ip = vec_off
             timer_counter -= 1
+
+            # Scheduled key injection
+            if has_sched_keys and i in scheduled_keys:
+                sc, asc = scheduled_keys[i]
+                int_handler.push_key(sc, asc)
 
             ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 
