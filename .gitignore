@@ -14,3 +14,4 @@ disasm/*.txt
 
 # RE loop session logs
 re_loop_sessions/
+__pycache__/
