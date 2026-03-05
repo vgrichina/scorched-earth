@@ -2,6 +2,9 @@
 
 
 class CPU:
+    __slots__ = ('regs', 'segs', 'ip', 'cf', 'zf', 'sf', 'of', 'pf', 'af', 'df',
+                 'intf', 'tf', 'fpu_stack', 'fpu_top', 'fpu_sw', 'fpu_cw', 'halted')
+
     def __init__(self):
         # General-purpose (index matches R16 table: AX=0 CX=1 DX=2 BX=3 SP=4 BP=5 SI=6 DI=7)
         self.regs = [0] * 8

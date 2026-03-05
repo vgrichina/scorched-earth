@@ -93,352 +93,474 @@ def _pop16(cpu, mem):
     return val
 
 
-def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
-    """Dispatch single opcode. Returns instruction byte length (excluding prefixes)."""
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
+def _sign8(b):
+    """Sign-extend byte (0-255) to signed int."""
+    return b if b < 0x80 else b - 0x100
 
-    # ---- ALU range (delegated, guarded) ----
-    if op in ALU_OPCODES:
-        return exec_alu(op, cpu, mem, seg_override)
 
-    # ---- PUSH/POP segment: 06/07/0E/16/17/1E/1F ----
-    _SEG_PUSH = _SEG_PUSH_TABLE
-    _SEG_POP = _SEG_POP_TABLE
-    if op in _SEG_PUSH:
-        _push16(cpu, mem, cpu.segs[_SEG_PUSH[op]])
-        return 1
-    if op in _SEG_POP:
-        cpu.segs[_SEG_POP[op]] = _pop16(cpu, mem)
-        return 1
+def _sign16(w):
+    """Sign-extend word (0-65535) to signed int."""
+    return w if w < 0x8000 else w - 0x10000
 
-    # ---- PUSH/POP r16: 0x50-0x5F ----
-    if 0x50 <= op <= 0x57:
-        _push16(cpu, mem, cpu.regs[op - 0x50])
-        return 1
-    if 0x58 <= op <= 0x5F:
-        cpu.regs[op - 0x58] = _pop16(cpu, mem)
-        return 1
 
-    # ---- PUSH imm: 0x68 (imm16), 0x6A (imm8 sign-extended) ----
-    if op == 0x68:
-        _push16(cpu, mem, mem.read16(ip_phys + 1))
-        return 3
-    if op == 0x6A:
-        val = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        _push16(cpu, mem, val & 0xFFFF)
-        return 2
+# ---- Individual opcode handlers ----
+# Each takes (op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler)
+# Returns instruction byte length (0 if IP already set by jumps)
 
-    # ---- PUSHA/POPA: 0x60/0x61 ----
-    if op == 0x60:
-        tmp = cpu.sp
-        for i in range(8):
-            _push16(cpu, mem, cpu.regs[i] if i != 4 else tmp)
-        return 1
-    if op == 0x61:
-        for i in range(7, -1, -1):
-            v = _pop16(cpu, mem)
-            if i != 4:  # skip SP
-                cpu.regs[i] = v
-        return 1
+def _h_alu(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return exec_alu(op, cpu, mem, seg_override)
 
-    # ---- XCHG: 0x86-0x87, 0x90-0x97 ----
-    if op == 0x86 or op == 0x87:
-        return _exec_xchg(op, cpu, mem, seg_override)
-    if op == 0x90:
-        return 1  # NOP
-    if 0x91 <= op <= 0x97:
-        idx = op - 0x90
-        cpu.regs[0], cpu.regs[idx] = cpu.regs[idx], cpu.regs[0]
-        return 1
+def _h_push_seg(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    _push16(cpu, mem, cpu.segs[_SEG_PUSH_TABLE[op]])
+    return 1
 
-    # ---- MOV: 0x88-0x8E, 0xA0-0xA3, 0xB0-0xBF, 0xC6-0xC7 ----
-    if 0x88 <= op <= 0x8C or op == 0x8E:
-        return _exec_mov_modrm(op, cpu, mem, seg_override)
-    if 0xA0 <= op <= 0xA3:
-        return _exec_mov_acc_mem(op, cpu, mem, seg_override)
-    if 0xB0 <= op <= 0xB7:
-        cpu.set_reg8(op - 0xB0, mem.read8(ip_phys + 1))
-        return 2
-    if 0xB8 <= op <= 0xBF:
-        cpu.set_reg16(op - 0xB8, mem.read16(ip_phys + 1))
-        return 3
-    if op == 0xC6 or op == 0xC7:
-        return _exec_mov_imm(op, cpu, mem, seg_override)
+def _h_pop_seg(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.segs[_SEG_POP_TABLE[op]] = _pop16(cpu, mem)
+    return 1
 
-    # ---- LEA: 0x8D ----
-    if op == 0x8D:
-        ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
-        _, offset = compute_ea(cpu, mod, rm, disp, seg_override)
-        cpu.set_reg16(reg, offset)
-        return 1 + ml
+def _h_push_r16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    _push16(cpu, mem, cpu.regs[op - 0x50])
+    return 1
 
-    # ---- LES/LDS: 0xC4/0xC5 ----
-    if op == 0xC4 or op == 0xC5:
-        ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+def _h_pop_r16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.regs[op - 0x58] = _pop16(cpu, mem)
+    return 1
+
+def _h_push_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    _push16(cpu, mem, mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8))
+    return 3
+
+def _h_push_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    _push16(cpu, mem, _sign8(mem.data[ip_phys + 1]) & 0xFFFF)
+    return 2
+
+def _h_pusha(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    tmp = cpu.sp
+    for i in range(8):
+        _push16(cpu, mem, cpu.regs[i] if i != 4 else tmp)
+    return 1
+
+def _h_popa(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    for i in range(7, -1, -1):
+        v = _pop16(cpu, mem)
+        if i != 4:
+            cpu.regs[i] = v
+    return 1
+
+def _h_xchg(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_xchg(op, cpu, mem, seg_override)
+
+def _h_nop(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return 1
+
+def _h_xchg_ax(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    idx = op - 0x90
+    cpu.regs[0], cpu.regs[idx] = cpu.regs[idx], cpu.regs[0]
+    return 1
+
+def _h_mov_modrm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_mov_modrm(op, cpu, mem, seg_override)
+
+def _h_mov_acc(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_mov_acc_mem(op, cpu, mem, seg_override)
+
+def _h_mov_r8_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_reg8(op - 0xB0, mem.data[ip_phys + 1])
+    return 2
+
+def _h_mov_r16_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_reg16(op - 0xB8, mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8))
+    return 3
+
+def _h_mov_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_mov_imm(op, cpu, mem, seg_override)
+
+def _h_lea(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+    _, offset = compute_ea(cpu, mod, rm, disp, seg_override)
+    cpu.set_reg16(reg, offset)
+    return 1 + ml
+
+def _h_les_lds(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+    phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
+    cpu.set_reg16(reg, mem.read16(phys))
+    cpu.segs[0 if op == 0xC4 else 3] = mem.read16(phys + 2)
+    return 1 + ml
+
+def _h_pop_rm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+    val = _pop16(cpu, mem)
+    if mod == 3:
+        cpu.set_reg16(rm, val)
+    else:
         phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
-        cpu.set_reg16(reg, mem.read16(phys))
-        seg_idx = 0 if op == 0xC4 else 3  # ES or DS
-        cpu.segs[seg_idx] = mem.read16(phys + 2)
-        return 1 + ml
+        mem.write16(phys, val)
+    return 1 + ml
 
-    # ---- POP r/m: 0x8F ----
-    if op == 0x8F:
-        ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
-        val = _pop16(cpu, mem)
-        if mod == 3:
-            cpu.set_reg16(rm, val)
-        else:
-            phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
-            mem.write16(phys, val)
-        return 1 + ml
-
-    # ---- Jcc short: 0x70-0x7F ----
-    if 0x70 <= op <= 0x7F:
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        if _CC[op & 0xF](cpu):
-            cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        else:
-            cpu.ip = (cpu.ip + 2) & 0xFFFF
-        return 0  # IP already set
-
-    # ---- Jcc near (0F 80-8F): ----
-    if op == 0x0F:
-        op2 = mem.read8(ip_phys + 1)
-        if 0x80 <= op2 <= 0x8F:
-            disp = struct.unpack_from('<h', mem.data, ip_phys + 2)[0]
-            if _CC[op2 & 0xF](cpu):
-                cpu.ip = (cpu.ip + 4 + disp) & 0xFFFF
-            else:
-                cpu.ip = (cpu.ip + 4) & 0xFFFF
-            return 0
-        # MOVSX/MOVZX (0F B6/B7/BE/BF)
-        if op2 in (0xB6, 0xB7, 0xBE, 0xBF):
-            return _exec_movsx_zx(op2, cpu, mem, seg_override)
-        # Unknown 0F — skip 2 bytes
-        return 2
-
-    # ---- JMP/CALL/RET ----
-    if op == 0xE8:  # CALL near rel16
-        disp = struct.unpack_from('<h', mem.data, ip_phys + 1)[0]
-        _push16(cpu, mem, (cpu.ip + 3) & 0xFFFF)
-        cpu.ip = (cpu.ip + 3 + disp) & 0xFFFF
-        return 0
-    if op == 0xE9:  # JMP near rel16
-        disp = struct.unpack_from('<h', mem.data, ip_phys + 1)[0]
-        cpu.ip = (cpu.ip + 3 + disp) & 0xFFFF
-        return 0
-    if op == 0xEB:  # JMP short rel8
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
+def _h_jcc_short(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    disp = _sign8(mem.data[ip_phys + 1])
+    if _CC[op & 0xF](cpu):
         cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        return 0
-    if op == 0x9A:  # CALL FAR seg:off
-        off = mem.read16(ip_phys + 1)
-        seg = mem.read16(ip_phys + 3)
-        _push16(cpu, mem, cpu.segs[1])  # push CS
-        _push16(cpu, mem, (cpu.ip + 5) & 0xFFFF)  # push next IP
-        cpu.segs[1] = seg
-        cpu.ip = off
-        return 0
-    if op == 0xEA:  # JMP FAR seg:off
-        off = mem.read16(ip_phys + 1)
-        seg = mem.read16(ip_phys + 3)
-        cpu.segs[1] = seg
-        cpu.ip = off
-        return 0
-    if op == 0xC3:  # RET
-        cpu.ip = _pop16(cpu, mem)
-        return 0
-    if op == 0xC2:  # RET imm16
-        n = mem.read16(ip_phys + 1)
-        cpu.ip = _pop16(cpu, mem)
-        cpu.sp = (cpu.sp + n) & 0xFFFF
-        return 0
-    if op == 0xCB:  # RETF
-        cpu.ip = _pop16(cpu, mem)
-        cpu.segs[1] = _pop16(cpu, mem)
-        return 0
-    if op == 0xCA:  # RETF imm16
-        n = mem.read16(ip_phys + 1)
-        cpu.ip = _pop16(cpu, mem)
-        cpu.segs[1] = _pop16(cpu, mem)
-        cpu.sp = (cpu.sp + n) & 0xFFFF
-        return 0
+    else:
+        cpu.ip = (cpu.ip + 2) & 0xFFFF
+    return 0
 
-    # ---- Group 5 (0xFF): INC/DEC/CALL/JMP/PUSH ----
-    if op == 0xFF:
-        return _exec_grp5(cpu, mem, seg_override)
+def _h_0f(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    op2 = mem.data[ip_phys + 1]
+    if 0x80 <= op2 <= 0x8F:
+        disp = _sign16(mem.data[ip_phys + 2] | (mem.data[ip_phys + 3] << 8))
+        if _CC[op2 & 0xF](cpu):
+            cpu.ip = (cpu.ip + 4 + disp) & 0xFFFF
+        else:
+            cpu.ip = (cpu.ip + 4) & 0xFFFF
+        return 0
+    if op2 in (0xB6, 0xB7, 0xBE, 0xBF):
+        return _exec_movsx_zx(op2, cpu, mem, seg_override)
+    return 2
 
-    # ---- ENTER/LEAVE: 0xC8/0xC9 ----
-    if op == 0xC8:  # ENTER imm16, imm8
-        frame_size = mem.read16(ip_phys + 1)
-        nest = mem.read8(ip_phys + 3)
-        _push16(cpu, mem, cpu.bp)
-        cpu.bp = cpu.sp
-        if nest == 0:
-            cpu.sp = (cpu.sp - frame_size) & 0xFFFF
-        return 4
-    if op == 0xC9:  # LEAVE
-        cpu.sp = cpu.bp
-        cpu.bp = _pop16(cpu, mem)
-        return 1
+def _h_call_near(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    disp = _sign16(mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8))
+    _push16(cpu, mem, (cpu.ip + 3) & 0xFFFF)
+    cpu.ip = (cpu.ip + 3 + disp) & 0xFFFF
+    return 0
 
-    # ---- PUSHF/POPF: 0x9C/0x9D ----
-    if op == 0x9C:
+def _h_jmp_near(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    disp = _sign16(mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8))
+    cpu.ip = (cpu.ip + 3 + disp) & 0xFFFF
+    return 0
+
+def _h_jmp_short(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    disp = _sign8(mem.data[ip_phys + 1])
+    cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
+    return 0
+
+def _h_call_far(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    off = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
+    seg = mem.data[ip_phys + 3] | (mem.data[ip_phys + 4] << 8)
+    _push16(cpu, mem, cpu.segs[1])
+    _push16(cpu, mem, (cpu.ip + 5) & 0xFFFF)
+    cpu.segs[1] = seg
+    cpu.ip = off
+    return 0
+
+def _h_jmp_far(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    off = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
+    seg = mem.data[ip_phys + 3] | (mem.data[ip_phys + 4] << 8)
+    cpu.segs[1] = seg
+    cpu.ip = off
+    return 0
+
+def _h_ret(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.ip = _pop16(cpu, mem)
+    return 0
+
+def _h_ret_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    n = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
+    cpu.ip = _pop16(cpu, mem)
+    cpu.sp = (cpu.sp + n) & 0xFFFF
+    return 0
+
+def _h_retf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.ip = _pop16(cpu, mem)
+    cpu.segs[1] = _pop16(cpu, mem)
+    return 0
+
+def _h_retf_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    n = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
+    cpu.ip = _pop16(cpu, mem)
+    cpu.segs[1] = _pop16(cpu, mem)
+    cpu.sp = (cpu.sp + n) & 0xFFFF
+    return 0
+
+def _h_grp5(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_grp5(cpu, mem, seg_override)
+
+def _h_enter(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    frame_size = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
+    nest = mem.data[ip_phys + 3]
+    _push16(cpu, mem, cpu.bp)
+    cpu.bp = cpu.sp
+    if nest == 0:
+        cpu.sp = (cpu.sp - frame_size) & 0xFFFF
+    return 4
+
+def _h_leave(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.sp = cpu.bp
+    cpu.bp = _pop16(cpu, mem)
+    return 1
+
+def _h_pushf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    _push16(cpu, mem, cpu.get_flags())
+    return 1
+
+def _h_popf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_flags(_pop16(cpu, mem))
+    return 1
+
+def _h_sahf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ah = cpu.get_reg8(4)
+    cpu.cf = ah & 1
+    cpu.pf = (ah >> 2) & 1
+    cpu.af = (ah >> 4) & 1
+    cpu.zf = (ah >> 6) & 1
+    cpu.sf = (ah >> 7) & 1
+    return 1
+
+def _h_lahf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_reg8(4, cpu.cf | 2 | (cpu.pf << 2) | (cpu.af << 4) | (cpu.zf << 6) | (cpu.sf << 7))
+    return 1
+
+def _h_int3(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    int_handler.handle(3)
+    return 1
+
+def _h_int(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    int_num = mem.data[ip_phys + 1]
+    if 0x34 <= int_num <= 0x3E:
+        return exec_fpu_int(cpu, mem, seg_override)
+    cpu.ip = (cpu.ip + 2) & 0xFFFF
+    if not int_handler.handle(int_num):
         _push16(cpu, mem, cpu.get_flags())
-        return 1
-    if op == 0x9D:
-        cpu.set_flags(_pop16(cpu, mem))
-        return 1
+        _push16(cpu, mem, cpu.segs[1])
+        _push16(cpu, mem, cpu.ip)
+        vec_off = mem.read16(int_num * 4)
+        vec_seg = mem.read16(int_num * 4 + 2)
+        cpu.segs[1] = vec_seg
+        cpu.ip = vec_off
+    return 0
 
-    # ---- SAHF/LAHF: 0x9E/0x9F ----
-    if op == 0x9E:  # SAHF: load AH into flags
-        ah = cpu.get_reg8(4)
-        cpu.cf = (ah >> 0) & 1
-        cpu.pf = (ah >> 2) & 1
-        cpu.af = (ah >> 4) & 1
-        cpu.zf = (ah >> 6) & 1
-        cpu.sf = (ah >> 7) & 1
-        return 1
-    if op == 0x9F:  # LAHF
-        val = (cpu.cf | (1 << 1) | (cpu.pf << 2) | (cpu.af << 4)
-               | (cpu.zf << 6) | (cpu.sf << 7))
-        cpu.set_reg8(4, val)
-        return 1
+def _h_iret(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.ip = _pop16(cpu, mem)
+    cpu.segs[1] = _pop16(cpu, mem)
+    cpu.set_flags(_pop16(cpu, mem))
+    return 0
 
-    # ---- INT: 0xCC/0xCD/0xCF ----
-    if op == 0xCC:  # INT 3
-        int_handler.handle(3)
-        return 1
-    if op == 0xCD:
-        int_num = mem.read8(ip_phys + 1)
-        # Borland FPU: INT 34h-3Dh
-        if 0x34 <= int_num <= 0x3E:
-            return exec_fpu_int(cpu, mem, seg_override)
-        # Software interrupt
-        cpu.ip = (cpu.ip + 2) & 0xFFFF  # advance past INT xx before handling
-        if not int_handler.handle(int_num):
-            # Chain to IVT: push flags, CS, IP; jump to vector
-            _push16(cpu, mem, cpu.get_flags())
-            _push16(cpu, mem, cpu.segs[1])
-            _push16(cpu, mem, cpu.ip)
-            vec_off = mem.read16(int_num * 4)
-            vec_seg = mem.read16(int_num * 4 + 2)
-            cpu.segs[1] = vec_seg
-            cpu.ip = vec_off
-        return 0
-    if op == 0xCF:  # IRET
-        cpu.ip = _pop16(cpu, mem)
-        cpu.segs[1] = _pop16(cpu, mem)
-        cpu.set_flags(_pop16(cpu, mem))
-        return 0
+def _h_string(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return exec_string(op, cpu, mem, seg_override, rep_mode)
 
-    # ---- String ops: 0xA4-0xAF ----
-    if op in _STRING_OPS:
-        return exec_string(op, cpu, mem, seg_override, rep_mode)
+def _h_in_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_reg8(0, ports.port_in(mem.data[ip_phys + 1]))
+    return 2
 
-    # ---- IN/OUT: 0xE4-0xE7, 0xEC-0xEF ----
-    if op == 0xE4:
-        cpu.set_reg8(0, ports.port_in(mem.read8(ip_phys + 1)))
-        return 2
-    if op == 0xE5:
-        cpu.ax = ports.port_in(mem.read8(ip_phys + 1))
-        return 2
-    if op == 0xE6:
-        ports.port_out(mem.read8(ip_phys + 1), cpu.get_reg8(0))
-        return 2
-    if op == 0xE7:
-        ports.port_out(mem.read8(ip_phys + 1), cpu.ax)
-        return 2
-    if op == 0xEC:
-        cpu.set_reg8(0, ports.port_in(cpu.dx))
-        return 1
-    if op == 0xED:
-        cpu.ax = ports.port_in(cpu.dx)
-        return 1
-    if op == 0xEE:
-        ports.port_out(cpu.dx, cpu.get_reg8(0))
-        return 1
-    if op == 0xEF:
-        ports.port_out(cpu.dx, cpu.ax)
-        return 1
+def _h_in_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.ax = ports.port_in(mem.data[ip_phys + 1])
+    return 2
 
-    # ---- LOOP/JCXZ: 0xE0-0xE3 ----
-    if op == 0xE2:  # LOOP
-        cpu.cx = (cpu.cx - 1) & 0xFFFF
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        if cpu.cx != 0:
-            cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        else:
-            cpu.ip = (cpu.ip + 2) & 0xFFFF
-        return 0
-    if op == 0xE0:  # LOOPNZ
-        cpu.cx = (cpu.cx - 1) & 0xFFFF
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        if cpu.cx != 0 and cpu.zf == 0:
-            cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        else:
-            cpu.ip = (cpu.ip + 2) & 0xFFFF
-        return 0
-    if op == 0xE1:  # LOOPZ
-        cpu.cx = (cpu.cx - 1) & 0xFFFF
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        if cpu.cx != 0 and cpu.zf == 1:
-            cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        else:
-            cpu.ip = (cpu.ip + 2) & 0xFFFF
-        return 0
-    if op == 0xE3:  # JCXZ
-        disp = struct.unpack_from('b', mem.data, ip_phys + 1)[0]
-        if cpu.cx == 0:
-            cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
-        else:
-            cpu.ip = (cpu.ip + 2) & 0xFFFF
-        return 0
+def _h_out_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ports.port_out(mem.data[ip_phys + 1], cpu.get_reg8(0))
+    return 2
 
-    # ---- Flag ops ----
-    if op in _FLAG_OPS_TABLE:
-        name = _FLAG_OPS_TABLE[op]
-        if name == 'clc': cpu.cf = 0
-        elif name == 'stc': cpu.cf = 1
-        elif name == 'cmc': cpu.cf ^= 1
-        elif name == 'cld': cpu.df = 0
-        elif name == 'std': cpu.df = 1
-        return 1
+def _h_out_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ports.port_out(mem.data[ip_phys + 1], cpu.ax)
+    return 2
 
-    # ---- FWAIT: 0x9B ----
-    if op == 0x9B:
-        return 1
+def _h_in_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.set_reg8(0, ports.port_in(cpu.dx))
+    return 1
 
-    # ---- Native FPU: 0xD8-0xDF ----
-    if 0xD8 <= op <= 0xDF:
-        return exec_fpu_native(op, cpu, mem, seg_override)
+def _h_in_dx16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.ax = ports.port_in(cpu.dx)
+    return 1
 
-    # ---- XLAT: 0xD7 ----
-    if op == 0xD7:
-        addr = ((cpu.segs[seg_override if seg_override is not None else 3] << 4) +
-                ((cpu.bx + cpu.get_reg8(0)) & 0xFFFF)) & 0xFFFFF
-        cpu.set_reg8(0, mem.read8(addr))
-        return 1
+def _h_out_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ports.port_out(cpu.dx, cpu.get_reg8(0))
+    return 1
 
-    # ---- HLT: 0xF4 ----
-    if op == 0xF4:
-        cpu.halted = True
-        return 1
+def _h_out_dx16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    ports.port_out(cpu.dx, cpu.ax)
+    return 1
 
-    # ---- IMUL r16, r/m16, imm: 0x69/0x6B ----
-    if op == 0x69 or op == 0x6B:
-        return _exec_imul3(op, cpu, mem, seg_override)
+def _h_loop(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.regs[1] = cx = (cpu.regs[1] - 1) & 0xFFFF
+    disp = _sign8(mem.data[ip_phys + 1])
+    if cx != 0:
+        cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
+    else:
+        cpu.ip = (cpu.ip + 2) & 0xFFFF
+    return 0
 
-    # ---- INTO: 0xCE ----
-    if op == 0xCE:
-        if cpu.of:
-            int_handler.handle(4)
-        return 1
+def _h_loopnz(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.regs[1] = cx = (cpu.regs[1] - 1) & 0xFFFF
+    disp = _sign8(mem.data[ip_phys + 1])
+    if cx != 0 and cpu.zf == 0:
+        cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
+    else:
+        cpu.ip = (cpu.ip + 2) & 0xFFFF
+    return 0
 
-    # ---- AAM/AAD/DAA/DAS/AAA/AAS: rarely used, minimal stubs ----
-    if op in (0x27, 0x2F, 0x37, 0x3F, 0xD4, 0xD5):
-        return 2 if op in (0xD4, 0xD5) else 1
+def _h_loopz(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.regs[1] = cx = (cpu.regs[1] - 1) & 0xFFFF
+    disp = _sign8(mem.data[ip_phys + 1])
+    if cx != 0 and cpu.zf == 1:
+        cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
+    else:
+        cpu.ip = (cpu.ip + 2) & 0xFFFF
+    return 0
 
+def _h_jcxz(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    disp = _sign8(mem.data[ip_phys + 1])
+    if cpu.regs[1] == 0:
+        cpu.ip = (cpu.ip + 2 + disp) & 0xFFFF
+    else:
+        cpu.ip = (cpu.ip + 2) & 0xFFFF
+    return 0
+
+def _h_clc(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.cf = 0; return 1
+def _h_stc(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.cf = 1; return 1
+def _h_cmc(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.cf ^= 1; return 1
+def _h_cld(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.df = 0; return 1
+def _h_std(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.df = 1; return 1
+
+def _h_fwait(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return 1
+
+def _h_fpu(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return exec_fpu_native(op, cpu, mem, seg_override)
+
+def _h_xlat(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    addr = ((cpu.segs[seg_override if seg_override is not None else 3] << 4) +
+            ((cpu.regs[3] + (cpu.regs[0] & 0xFF)) & 0xFFFF)) & 0xFFFFF
+    cpu.set_reg8(0, mem.read8(addr))
+    return 1
+
+def _h_hlt(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    cpu.halted = True; return 1
+
+def _h_imul3(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return _exec_imul3(op, cpu, mem, seg_override)
+
+def _h_into(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    if cpu.of: int_handler.handle(4)
+    return 1
+
+def _h_stub1(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return 1
+def _h_stub2(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
+    return 2
+
+
+# ---- Build dispatch table (256 entries) ----
+_DISPATCH = [None] * 256
+
+# ALU opcodes
+for _op in ALU_OPCODES:
+    _DISPATCH[_op] = _h_alu
+
+# Segment push/pop
+for _op in _SEG_PUSH_TABLE: _DISPATCH[_op] = _h_push_seg
+for _op in _SEG_POP_TABLE: _DISPATCH[_op] = _h_pop_seg
+
+# PUSH/POP r16
+for _op in range(0x50, 0x58): _DISPATCH[_op] = _h_push_r16
+for _op in range(0x58, 0x60): _DISPATCH[_op] = _h_pop_r16
+
+_DISPATCH[0x68] = _h_push_imm16
+_DISPATCH[0x6A] = _h_push_imm8
+_DISPATCH[0x60] = _h_pusha
+_DISPATCH[0x61] = _h_popa
+_DISPATCH[0x86] = _h_xchg
+_DISPATCH[0x87] = _h_xchg
+_DISPATCH[0x90] = _h_nop
+for _op in range(0x91, 0x98): _DISPATCH[_op] = _h_xchg_ax
+
+# MOV
+for _op in range(0x88, 0x8D): _DISPATCH[_op] = _h_mov_modrm
+_DISPATCH[0x8E] = _h_mov_modrm
+for _op in range(0xA0, 0xA4): _DISPATCH[_op] = _h_mov_acc
+for _op in range(0xB0, 0xB8): _DISPATCH[_op] = _h_mov_r8_imm
+for _op in range(0xB8, 0xC0): _DISPATCH[_op] = _h_mov_r16_imm
+_DISPATCH[0xC6] = _h_mov_imm
+_DISPATCH[0xC7] = _h_mov_imm
+
+_DISPATCH[0x8D] = _h_lea
+_DISPATCH[0xC4] = _h_les_lds
+_DISPATCH[0xC5] = _h_les_lds
+_DISPATCH[0x8F] = _h_pop_rm
+
+# Jcc short
+for _op in range(0x70, 0x80): _DISPATCH[_op] = _h_jcc_short
+
+_DISPATCH[0x0F] = _h_0f
+_DISPATCH[0xE8] = _h_call_near
+_DISPATCH[0xE9] = _h_jmp_near
+_DISPATCH[0xEB] = _h_jmp_short
+_DISPATCH[0x9A] = _h_call_far
+_DISPATCH[0xEA] = _h_jmp_far
+_DISPATCH[0xC3] = _h_ret
+_DISPATCH[0xC2] = _h_ret_imm
+_DISPATCH[0xCB] = _h_retf
+_DISPATCH[0xCA] = _h_retf_imm
+_DISPATCH[0xFF] = _h_grp5
+
+_DISPATCH[0xC8] = _h_enter
+_DISPATCH[0xC9] = _h_leave
+_DISPATCH[0x9C] = _h_pushf
+_DISPATCH[0x9D] = _h_popf
+_DISPATCH[0x9E] = _h_sahf
+_DISPATCH[0x9F] = _h_lahf
+
+_DISPATCH[0xCC] = _h_int3
+_DISPATCH[0xCD] = _h_int
+_DISPATCH[0xCF] = _h_iret
+
+# String ops
+for _op in (0xA4, 0xA5, 0xA6, 0xA7, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF):
+    _DISPATCH[_op] = _h_string
+
+# I/O
+_DISPATCH[0xE4] = _h_in_imm8
+_DISPATCH[0xE5] = _h_in_imm16
+_DISPATCH[0xE6] = _h_out_imm8
+_DISPATCH[0xE7] = _h_out_imm16
+_DISPATCH[0xEC] = _h_in_dx8
+_DISPATCH[0xED] = _h_in_dx16
+_DISPATCH[0xEE] = _h_out_dx8
+_DISPATCH[0xEF] = _h_out_dx16
+
+# Loop
+_DISPATCH[0xE2] = _h_loop
+_DISPATCH[0xE0] = _h_loopnz
+_DISPATCH[0xE1] = _h_loopz
+_DISPATCH[0xE3] = _h_jcxz
+
+# Flags
+_DISPATCH[0xF8] = _h_clc
+_DISPATCH[0xF9] = _h_stc
+_DISPATCH[0xF5] = _h_cmc
+_DISPATCH[0xFC] = _h_cld
+_DISPATCH[0xFD] = _h_std
+
+_DISPATCH[0x9B] = _h_fwait
+for _op in range(0xD8, 0xE0): _DISPATCH[_op] = _h_fpu
+_DISPATCH[0xD7] = _h_xlat
+_DISPATCH[0xF4] = _h_hlt
+_DISPATCH[0x69] = _h_imul3
+_DISPATCH[0x6B] = _h_imul3
+_DISPATCH[0xCE] = _h_into
+
+# Stubs
+for _op in (0x27, 0x2F, 0x37, 0x3F): _DISPATCH[_op] = _h_stub1
+_DISPATCH[0xD4] = _h_stub2
+_DISPATCH[0xD5] = _h_stub2
+# CLI/STI are no-ops in emulator
+_DISPATCH[0xFA] = _h_nop
+_DISPATCH[0xFB] = _h_nop
+
+_DISPATCH = tuple(_DISPATCH)  # tuple for faster indexing
+
+
+def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
+    """Dispatch single opcode via table lookup."""
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
+    handler = _DISPATCH[op]
+    if handler is not None:
+        return handler(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler)
     raise RuntimeError(f"Unhandled opcode 0x{op:02X} at "
                        f"CS:IP={cpu.segs[1]:04X}:{cpu.ip:04X} "
                        f"(file 0x{ip_phys:05X})")
