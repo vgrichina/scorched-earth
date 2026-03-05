@@ -1,5 +1,8 @@
 """CPU state: 16-bit registers, segment registers, flags, FPU stack."""
 
+# Parity lookup table: 1 if even number of set bits in low byte
+_PARITY_TABLE = bytes(((bin(i).count('1') & 1) ^ 1) for i in range(256))
+
 
 class CPU:
     __slots__ = ('regs', 'segs', 'ip', 'cf', 'zf', 'sf', 'of', 'pf', 'af', 'df',
@@ -138,47 +141,50 @@ class CPU:
 
     # -- Flag update helpers --------------------------------------------------
 
-    @staticmethod
-    def _parity(val):
-        """Parity of low byte: 1 if even number of set bits."""
-        b = val & 0xFF
-        b ^= b >> 4
-        b ^= b >> 2
-        b ^= b >> 1
-        return (b & 1) ^ 1
-
     def update_flags_add(self, a, b, width=16):
-        mask = (1 << width) - 1
         result = (a + b) & 0xFFFFFFFF
-        r = result & mask
-        self.cf = 1 if result > mask else 0
+        if width == 16:
+            r = result & 0xFFFF
+            self.cf = 1 if result > 0xFFFF else 0
+            self.sf = 1 if r & 0x8000 else 0
+            self.of = 1 if (~(a ^ b) & (a ^ r)) & 0x8000 else 0
+        else:
+            r = result & 0xFF
+            self.cf = 1 if result > 0xFF else 0
+            self.sf = 1 if r & 0x80 else 0
+            self.of = 1 if (~(a ^ b) & (a ^ r)) & 0x80 else 0
         self.zf = 1 if r == 0 else 0
-        self.sf = 1 if r & (1 << (width - 1)) else 0
-        self.of = 1 if (~(a ^ b) & (a ^ r)) & (1 << (width - 1)) else 0
         self.af = 1 if (a ^ b ^ r) & 0x10 else 0
-        self.pf = self._parity(r)
+        self.pf = _PARITY_TABLE[r & 0xFF]
         return r
 
     def update_flags_sub(self, a, b, width=16):
-        mask = (1 << width) - 1
         result = a - b
-        r = result & mask
+        if width == 16:
+            r = result & 0xFFFF
+            self.sf = 1 if r & 0x8000 else 0
+            self.of = 1 if ((a ^ b) & (a ^ r)) & 0x8000 else 0
+        else:
+            r = result & 0xFF
+            self.sf = 1 if r & 0x80 else 0
+            self.of = 1 if ((a ^ b) & (a ^ r)) & 0x80 else 0
         self.cf = 1 if a < b else 0
         self.zf = 1 if r == 0 else 0
-        self.sf = 1 if r & (1 << (width - 1)) else 0
-        self.of = 1 if ((a ^ b) & (a ^ r)) & (1 << (width - 1)) else 0
         self.af = 1 if (a ^ b ^ r) & 0x10 else 0
-        self.pf = self._parity(r)
+        self.pf = _PARITY_TABLE[r & 0xFF]
         return r
 
     def update_flags_logic(self, result, width=16):
-        mask = (1 << width) - 1
-        r = result & mask
+        if width == 16:
+            r = result & 0xFFFF
+            self.sf = 1 if r & 0x8000 else 0
+        else:
+            r = result & 0xFF
+            self.sf = 1 if r & 0x80 else 0
         self.cf = 0
         self.of = 0
         self.zf = 1 if r == 0 else 0
-        self.sf = 1 if r & (1 << (width - 1)) else 0
-        self.pf = self._parity(r)
+        self.pf = _PARITY_TABLE[r & 0xFF]
         return r
 
     # -- FPU helpers ----------------------------------------------------------

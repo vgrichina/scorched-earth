@@ -12,7 +12,7 @@ from emu.cpu import CPU
 from emu.loader import load_exe, setup_ivt, setup_cpu
 from emu.ports import PortIO
 from emu.interrupts import InterruptHandler, EmuExit
-from emu.execute import step
+from emu.execute import step, run_fast
 
 
 def main():
@@ -128,45 +128,65 @@ def main():
 
     # Run
     print(f"\nExecuting (max {args.max_steps} steps)...")
-    try:
-        for i in range(args.max_steps):
-            if cpu.halted:
-                print(f"CPU halted after {i} instructions")
-                break
 
-            ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
-
-            if ip_phys in bp_set:
-                file_off = ip_phys - info['image_base'] + info['header_size']
-                print(f"\n*** Breakpoint hit at step {i}: "
-                      f"{cpu.segs[1]:04X}:{cpu.ip:04X} (file 0x{file_off:05X})")
-                print(cpu.dump())
-                # Dump stack
-                sp_phys = Memory.phys(cpu.segs[2], cpu.sp)
-                words = [mem_obj.read16(sp_phys + j*2) for j in range(8)]
-                print("Stack: " + " ".join(f"{w:04X}" for w in words))
-                break
-
-            if args.trace and trace_decode:
+    if args.trace and trace_decode:
+        # Slow path with per-instruction trace
+        try:
+            for i in range(args.max_steps):
+                if cpu.halted:
+                    print(f"CPU halted after {i} instructions")
+                    break
+                ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
+                if ip_phys in bp_set:
+                    file_off = ip_phys - info['image_base'] + info['header_size']
+                    print(f"\n*** Breakpoint hit at step {i}: "
+                          f"{cpu.segs[1]:04X}:{cpu.ip:04X} (file 0x{file_off:05X})")
+                    print(cpu.dump())
+                    sp_phys = Memory.phys(cpu.segs[2], cpu.sp)
+                    words = [mem_obj.read16(sp_phys + j*2) for j in range(8)]
+                    print("Stack: " + " ".join(f"{w:04X}" for w in words))
+                    break
                 try:
                     length, mn, op_str, _, _ = trace_decode(info['exe_data'], ip_phys)
                     print(f"  {cpu.segs[1]:04X}:{cpu.ip:04X}  {mn} {op_str}")
                 except Exception:
                     print(f"  {cpu.segs[1]:04X}:{cpu.ip:04X}  ???")
-
-            step(cpu, mem_obj, ports, int_handler, trace=args.trace)
-
-        else:
+                step(cpu, mem_obj, ports, int_handler, trace=True)
+            else:
+                print(f"Reached max steps ({args.max_steps})")
+        except EmuExit as e:
+            print(f"\nProgram exited with code {e.code} after execution")
+        except Exception as e:
+            print(f"\nError: {e}")
+            print(cpu.dump())
+            ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
+            raw = ' '.join(f'{mem_obj.data[ip_phys+j]:02X}' for j in range(8))
+            print(f"Bytes at CS:IP: {raw}")
+    else:
+        # Fast path using run_fast
+        reason, result = run_fast(cpu, mem_obj, ports, int_handler, args.max_steps,
+                                  bp_set=bp_set if bp_set else None)
+        if reason == 'halted':
+            print(f"CPU halted after {result} instructions")
+        elif reason == 'breakpoint':
+            ip_phys = result
+            file_off = ip_phys - info['image_base'] + info['header_size']
+            print(f"\n*** Breakpoint hit: "
+                  f"{cpu.segs[1]:04X}:{cpu.ip:04X} (file 0x{file_off:05X})")
+            print(cpu.dump())
+            sp_phys = Memory.phys(cpu.segs[2], cpu.sp)
+            words = [mem_obj.read16(sp_phys + j*2) for j in range(8)]
+            print("Stack: " + " ".join(f"{w:04X}" for w in words))
+        elif reason == 'exit':
+            print(f"\nProgram exited with code {result} after execution")
+        elif reason == 'error':
+            print(f"\nError: {result}")
+            print(cpu.dump())
+            ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
+            raw = ' '.join(f'{mem_obj.data[ip_phys+j]:02X}' for j in range(8))
+            print(f"Bytes at CS:IP: {raw}")
+        elif reason == 'max_steps':
             print(f"Reached max steps ({args.max_steps})")
-
-    except EmuExit as e:
-        print(f"\nProgram exited with code {e.code} after execution")
-    except Exception as e:
-        print(f"\nError: {e}")
-        print(cpu.dump())
-        ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
-        raw = ' '.join(f'{mem_obj.data[ip_phys+j]:02X}' for j in range(8))
-        print(f"Bytes at CS:IP: {raw}")
 
     # Dump screen if requested (even after error)
     if args.dump_screen:

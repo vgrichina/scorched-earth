@@ -9,97 +9,156 @@ from .strings import exec_string
 
 # Segment prefix byte → segment register index (ES=0 CS=1 SS=2 DS=3)
 _SEG_PFX = {0x26: 0, 0x2E: 1, 0x36: 2, 0x3E: 3}
+_SEG_PFX_SET = frozenset(_SEG_PFX.keys()) | {0xF0, 0xF2, 0xF3}
 
 # Condition code evaluation: Jcc opcode low nibble → lambda(cpu) → bool
 _SEG_PUSH_TABLE = {0x06: 0, 0x0E: 1, 0x16: 2, 0x1E: 3}
 _SEG_POP_TABLE = {0x07: 0, 0x17: 2, 0x1F: 3}
-_FLAG_OPS_TABLE = {0xF8: 'clc', 0xF9: 'stc', 0xFA: 'cli', 0xFB: 'sti',
-                   0xFC: 'cld', 0xFD: 'std', 0xF5: 'cmc'}
-_STRING_OPS = frozenset((0xA4, 0xA5, 0xA6, 0xA7, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF))
 
-_CC = {
-    0x0: lambda c: c.of == 1,       # JO
-    0x1: lambda c: c.of == 0,       # JNO
-    0x2: lambda c: c.cf == 1,       # JB/JC
-    0x3: lambda c: c.cf == 0,       # JNB/JNC
-    0x4: lambda c: c.zf == 1,       # JZ/JE
-    0x5: lambda c: c.zf == 0,       # JNZ/JNE
-    0x6: lambda c: c.cf == 1 or c.zf == 1,  # JBE/JNA
-    0x7: lambda c: c.cf == 0 and c.zf == 0,  # JA/JNBE
-    0x8: lambda c: c.sf == 1,       # JS
-    0x9: lambda c: c.sf == 0,       # JNS
-    0xA: lambda c: c.pf == 1,       # JP
-    0xB: lambda c: c.pf == 0,       # JNP
-    0xC: lambda c: c.sf != c.of,    # JL
-    0xD: lambda c: c.sf == c.of,    # JGE
-    0xE: lambda c: c.zf == 1 or c.sf != c.of,  # JLE
-    0xF: lambda c: c.zf == 0 and c.sf == c.of,  # JG
-}
+_CC = (
+    lambda c: c.of == 1,       # 0: JO
+    lambda c: c.of == 0,       # 1: JNO
+    lambda c: c.cf == 1,       # 2: JB/JC
+    lambda c: c.cf == 0,       # 3: JNB/JNC
+    lambda c: c.zf == 1,       # 4: JZ/JE
+    lambda c: c.zf == 0,       # 5: JNZ/JNE
+    lambda c: c.cf == 1 or c.zf == 1,  # 6: JBE/JNA
+    lambda c: c.cf == 0 and c.zf == 0,  # 7: JA/JNBE
+    lambda c: c.sf == 1,       # 8: JS
+    lambda c: c.sf == 0,       # 9: JNS
+    lambda c: c.pf == 1,       # A: JP
+    lambda c: c.pf == 0,       # B: JNP
+    lambda c: c.sf != c.of,    # C: JL
+    lambda c: c.sf == c.of,    # D: JGE
+    lambda c: c.zf == 1 or c.sf != c.of,  # E: JLE
+    lambda c: c.zf == 0 and c.sf == c.of,  # F: JG
+)
 
 
 def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
-    """Execute one instruction. Returns number of bytes consumed (IP already advanced)."""
+    """Execute one instruction. Returns number of bytes consumed."""
     segs = cpu.segs
     data = mem.data
     ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 
-    # Check hooks
     if hooks and ip_phys in hooks:
         hooks[ip_phys](cpu, mem)
 
-    # Consume prefixes — read directly from data[] (code is never in VGA range)
+    # Consume prefixes
     seg_override = None
-    rep_mode = 0  # 0=none, 1=REP/REPE, 2=REPNE
+    rep_mode = 0
     pfx_len = 0
-    while True:
-        b = data[ip_phys + pfx_len]
-        if b in _SEG_PFX:
+    b = data[ip_phys]
+    while b in _SEG_PFX_SET:
+        if b <= 0x3E:
             seg_override = _SEG_PFX[b]
-            pfx_len += 1
-        elif b == 0xF0:  # LOCK
-            pfx_len += 1
-        elif b == 0xF3:  # REP/REPE
+        elif b == 0xF3:
             rep_mode = 1
-            pfx_len += 1
-        elif b == 0xF2:  # REPNE
+        elif b == 0xF2:
             rep_mode = 2
-            pfx_len += 1
-        else:
-            break
+        pfx_len += 1
+        b = data[ip_phys + pfx_len]
 
-    op = data[ip_phys + pfx_len]
     save_ip = cpu.ip
     cpu.ip = (cpu.ip + pfx_len) & 0xFFFF
+    h_ip_phys = ip_phys + pfx_len
 
-    length = _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace)
+    handler = _DISPATCH[b]
+    if handler is None:
+        raise RuntimeError(f"Unhandled opcode 0x{b:02X} at "
+                           f"CS:IP={segs[1]:04X}:{cpu.ip:04X}")
+    length = handler(b, cpu, mem, h_ip_phys, seg_override, rep_mode, ports, int_handler)
+
     total = pfx_len + length
-    # Advance IP (if not already changed by a jump/call/ret)
     if cpu.ip == (save_ip + pfx_len) & 0xFFFF:
         cpu.ip = (save_ip + total) & 0xFFFF
     return total
 
 
+def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None):
+    """Tight execution loop — merges step+dispatch to avoid function call overhead.
+    Returns (reason, count) where reason is 'max_steps', 'halted', 'breakpoint', 'exit', or 'error'.
+    """
+    segs = cpu.segs
+    data = mem.data
+    dispatch = _DISPATCH
+    seg_pfx = _SEG_PFX
+    seg_pfx_set = _SEG_PFX_SET
+    has_hooks = hooks is not None and len(hooks) > 0
+    has_bp = bp_set is not None and len(bp_set) > 0
+
+    i = 0
+    try:
+        for i in range(max_steps):
+            if cpu.halted:
+                return 'halted', i
+
+            ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
+
+            if has_hooks and ip_phys in hooks:
+                hooks[ip_phys](cpu, mem)
+
+            if has_bp and ip_phys in bp_set:
+                return 'breakpoint', i
+
+            # Inline prefix parsing
+            seg_override = None
+            rep_mode = 0
+            pfx_len = 0
+            b = data[ip_phys]
+            while b in seg_pfx_set:
+                if b <= 0x3E:
+                    seg_override = seg_pfx[b]
+                elif b == 0xF3:
+                    rep_mode = 1
+                elif b == 0xF2:
+                    rep_mode = 2
+                pfx_len += 1
+                b = data[ip_phys + pfx_len]
+
+            save_ip = cpu.ip
+            cpu.ip = (cpu.ip + pfx_len) & 0xFFFF
+
+            handler = dispatch[b]
+            if handler is None:
+                raise RuntimeError(f"Unhandled opcode 0x{b:02X} at "
+                                   f"CS:IP={segs[1]:04X}:{cpu.ip:04X}")
+
+            length = handler(b, cpu, mem, ip_phys + pfx_len, seg_override, rep_mode, ports, int_handler)
+
+            total = pfx_len + length
+            if cpu.ip == (save_ip + pfx_len) & 0xFFFF:
+                cpu.ip = (save_ip + total) & 0xFFFF
+
+        return 'max_steps', max_steps
+
+    except EmuExit as e:
+        return 'exit', e.code
+    except Exception as e:
+        return 'error', e
+
+
 def _push16(cpu, mem, val):
-    cpu.sp = (cpu.sp - 2) & 0xFFFF
-    addr = ((cpu.segs[2] << 4) + cpu.sp) & 0xFFFFF
+    sp = (cpu.regs[4] - 2) & 0xFFFF
+    cpu.regs[4] = sp
+    addr = ((cpu.segs[2] << 4) + sp) & 0xFFFFF
     mem.data[addr] = val & 0xFF
     mem.data[addr + 1] = (val >> 8) & 0xFF
 
 
 def _pop16(cpu, mem):
-    addr = ((cpu.segs[2] << 4) + cpu.sp) & 0xFFFFF
+    sp = cpu.regs[4]
+    addr = ((cpu.segs[2] << 4) + sp) & 0xFFFFF
     val = mem.data[addr] | (mem.data[addr + 1] << 8)
-    cpu.sp = (cpu.sp + 2) & 0xFFFF
+    cpu.regs[4] = (sp + 2) & 0xFFFF
     return val
 
 
 def _sign8(b):
-    """Sign-extend byte (0-255) to signed int."""
     return b if b < 0x80 else b - 0x100
 
 
 def _sign16(w):
-    """Sign-extend word (0-65535) to signed int."""
     return w if w < 0x8000 else w - 0x10000
 
 
@@ -108,7 +167,7 @@ def _sign16(w):
 # Returns instruction byte length (0 if IP already set by jumps)
 
 def _h_alu(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return exec_alu(op, cpu, mem, seg_override)
+    return exec_alu(op, cpu, mem, seg_override, ip_phys)
 
 def _h_push_seg(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     _push16(cpu, mem, cpu.segs[_SEG_PUSH_TABLE[op]])
@@ -135,7 +194,7 @@ def _h_push_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handl
     return 2
 
 def _h_pusha(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    tmp = cpu.sp
+    tmp = cpu.regs[4]
     for i in range(8):
         _push16(cpu, mem, cpu.regs[i] if i != 4 else tmp)
     return 1
@@ -148,7 +207,7 @@ def _h_popa(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     return 1
 
 def _h_xchg(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_xchg(op, cpu, mem, seg_override)
+    return _exec_xchg(op, cpu, mem, seg_override, ip_phys)
 
 def _h_nop(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     return 1
@@ -159,32 +218,32 @@ def _h_xchg_ax(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler
     return 1
 
 def _h_mov_modrm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_mov_modrm(op, cpu, mem, seg_override)
+    return _exec_mov_modrm(op, cpu, mem, seg_override, ip_phys)
 
 def _h_mov_acc(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_mov_acc_mem(op, cpu, mem, seg_override)
+    return _exec_mov_acc_mem(op, cpu, mem, seg_override, ip_phys)
 
 def _h_mov_r8_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     cpu.set_reg8(op - 0xB0, mem.data[ip_phys + 1])
     return 2
 
 def _h_mov_r16_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    cpu.set_reg16(op - 0xB8, mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8))
+    cpu.regs[op - 0xB8] = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
     return 3
 
 def _h_mov_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_mov_imm(op, cpu, mem, seg_override)
+    return _exec_mov_imm(op, cpu, mem, seg_override, ip_phys)
 
 def _h_lea(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     _, offset = compute_ea(cpu, mod, rm, disp, seg_override)
-    cpu.set_reg16(reg, offset)
+    cpu.regs[reg] = offset & 0xFFFF
     return 1 + ml
 
 def _h_les_lds(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
-    cpu.set_reg16(reg, mem.read16(phys))
+    cpu.regs[reg] = mem.read16(phys)
     cpu.segs[0 if op == 0xC4 else 3] = mem.read16(phys + 2)
     return 1 + ml
 
@@ -192,7 +251,7 @@ def _h_pop_rm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler)
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     val = _pop16(cpu, mem)
     if mod == 3:
-        cpu.set_reg16(rm, val)
+        cpu.regs[rm] = val & 0xFFFF
     else:
         phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
         mem.write16(phys, val)
@@ -216,7 +275,7 @@ def _h_0f(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
             cpu.ip = (cpu.ip + 4) & 0xFFFF
         return 0
     if op2 in (0xB6, 0xB7, 0xBE, 0xBF):
-        return _exec_movsx_zx(op2, cpu, mem, seg_override)
+        return _exec_movsx_zx(op2, cpu, mem, seg_override, ip_phys)
     return 2
 
 def _h_call_near(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -258,7 +317,7 @@ def _h_ret(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
 def _h_ret_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     n = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
     cpu.ip = _pop16(cpu, mem)
-    cpu.sp = (cpu.sp + n) & 0xFFFF
+    cpu.regs[4] = (cpu.regs[4] + n) & 0xFFFF
     return 0
 
 def _h_retf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -270,24 +329,24 @@ def _h_retf_imm(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handle
     n = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
     cpu.ip = _pop16(cpu, mem)
     cpu.segs[1] = _pop16(cpu, mem)
-    cpu.sp = (cpu.sp + n) & 0xFFFF
+    cpu.regs[4] = (cpu.regs[4] + n) & 0xFFFF
     return 0
 
 def _h_grp5(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_grp5(cpu, mem, seg_override)
+    return _exec_grp5(cpu, mem, seg_override, ip_phys)
 
 def _h_enter(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     frame_size = mem.data[ip_phys + 1] | (mem.data[ip_phys + 2] << 8)
     nest = mem.data[ip_phys + 3]
-    _push16(cpu, mem, cpu.bp)
-    cpu.bp = cpu.sp
+    _push16(cpu, mem, cpu.regs[5])  # BP
+    cpu.regs[5] = cpu.regs[4]  # BP = SP
     if nest == 0:
-        cpu.sp = (cpu.sp - frame_size) & 0xFFFF
+        cpu.regs[4] = (cpu.regs[4] - frame_size) & 0xFFFF
     return 4
 
 def _h_leave(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    cpu.sp = cpu.bp
-    cpu.bp = _pop16(cpu, mem)
+    cpu.regs[4] = cpu.regs[5]  # SP = BP
+    cpu.regs[5] = _pop16(cpu, mem)  # BP = pop
     return 1
 
 def _h_pushf(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -344,7 +403,7 @@ def _h_in_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler
     return 2
 
 def _h_in_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    cpu.ax = ports.port_in(mem.data[ip_phys + 1])
+    cpu.regs[0] = ports.port_in(mem.data[ip_phys + 1]) & 0xFFFF
     return 2
 
 def _h_out_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -352,23 +411,23 @@ def _h_out_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handle
     return 2
 
 def _h_out_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    ports.port_out(mem.data[ip_phys + 1], cpu.ax)
+    ports.port_out(mem.data[ip_phys + 1], cpu.regs[0])
     return 2
 
 def _h_in_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    cpu.set_reg8(0, ports.port_in(cpu.dx))
+    cpu.set_reg8(0, ports.port_in(cpu.regs[2]))
     return 1
 
 def _h_in_dx16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    cpu.ax = ports.port_in(cpu.dx)
+    cpu.regs[0] = ports.port_in(cpu.regs[2]) & 0xFFFF
     return 1
 
 def _h_out_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    ports.port_out(cpu.dx, cpu.get_reg8(0))
+    ports.port_out(cpu.regs[2], cpu.get_reg8(0))
     return 1
 
 def _h_out_dx16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    ports.port_out(cpu.dx, cpu.ax)
+    ports.port_out(cpu.regs[2], cpu.regs[0])
     return 1
 
 def _h_loop(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -433,7 +492,7 @@ def _h_hlt(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     cpu.halted = True; return 1
 
 def _h_imul3(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    return _exec_imul3(op, cpu, mem, seg_override)
+    return _exec_imul3(op, cpu, mem, seg_override, ip_phys)
 
 def _h_into(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
     if cpu.of: int_handler.handle(4)
@@ -552,25 +611,14 @@ _DISPATCH[0xD5] = _h_stub2
 _DISPATCH[0xFA] = _h_nop
 _DISPATCH[0xFB] = _h_nop
 
-_DISPATCH = tuple(_DISPATCH)  # tuple for faster indexing
-
-
-def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
-    """Dispatch single opcode via table lookup."""
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
-    handler = _DISPATCH[op]
-    if handler is not None:
-        return handler(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler)
-    raise RuntimeError(f"Unhandled opcode 0x{op:02X} at "
-                       f"CS:IP={cpu.segs[1]:04X}:{cpu.ip:04X} "
-                       f"(file 0x{ip_phys:05X})")
+_DISPATCH = tuple(_DISPATCH)
 
 
 # -- Instruction helpers ----------------------------------------------------
 
-def _exec_mov_modrm(op, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
-    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+def _exec_mov_modrm(op, cpu, mem, seg_override, ip_phys):
+    data = mem.data
+    ml, mod, reg, rm, disp = decode_modrm(data, ip_phys + 1)
 
     if op == 0x88:  # MOV r/m8, r8
         val = cpu.get_reg8(reg)
@@ -580,9 +628,9 @@ def _exec_mov_modrm(op, cpu, mem, seg_override):
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             mem.write8(phys, val)
     elif op == 0x89:  # MOV r/m16, r16
-        val = cpu.get_reg16(reg)
+        val = cpu.regs[reg]
         if mod == 3:
-            cpu.set_reg16(rm, val)
+            cpu.regs[rm] = val
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             mem.write16(phys, val)
@@ -594,47 +642,47 @@ def _exec_mov_modrm(op, cpu, mem, seg_override):
             cpu.set_reg8(reg, mem.read8(phys))
     elif op == 0x8B:  # MOV r16, r/m16
         if mod == 3:
-            cpu.set_reg16(reg, cpu.get_reg16(rm))
+            cpu.regs[reg] = cpu.regs[rm]
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
-            cpu.set_reg16(reg, mem.read16(phys))
+            cpu.regs[reg] = mem.read16(phys)
     elif op == 0x8C:  # MOV r/m16, Sreg
         val = cpu.segs[reg & 3]
         if mod == 3:
-            cpu.set_reg16(rm, val)
+            cpu.regs[rm] = val
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             mem.write16(phys, val)
     elif op == 0x8E:  # MOV Sreg, r/m16
         if mod == 3:
-            cpu.segs[reg & 3] = cpu.get_reg16(rm)
+            cpu.segs[reg & 3] = cpu.regs[rm]
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             cpu.segs[reg & 3] = mem.read16(phys)
     return 1 + ml
 
 
-def _exec_mov_acc_mem(op, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
-    addr = mem.read16(ip_phys + 1)
-    seg = seg_override if seg_override is not None else 3  # DS default
+def _exec_mov_acc_mem(op, cpu, mem, seg_override, ip_phys):
+    data = mem.data
+    addr = data[ip_phys + 1] | (data[ip_phys + 2] << 8)
+    seg = seg_override if seg_override is not None else 3
     phys = ((cpu.segs[seg] << 4) + addr) & 0xFFFFF
     if op == 0xA0:
         cpu.set_reg8(0, mem.read8(phys))
     elif op == 0xA1:
-        cpu.ax = mem.read16(phys)
+        cpu.regs[0] = mem.read16(phys)
     elif op == 0xA2:
         mem.write8(phys, cpu.get_reg8(0))
     elif op == 0xA3:
-        mem.write16(phys, cpu.ax)
+        mem.write16(phys, cpu.regs[0])
     return 3
 
 
-def _exec_mov_imm(op, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
-    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+def _exec_mov_imm(op, cpu, mem, seg_override, ip_phys):
+    data = mem.data
+    ml, mod, reg, rm, disp = decode_modrm(data, ip_phys + 1)
     if op == 0xC6:  # MOV r/m8, imm8
-        imm = mem.read8(ip_phys + 1 + ml)
+        imm = data[ip_phys + 1 + ml]
         if mod == 3:
             cpu.set_reg8(rm, imm)
         else:
@@ -642,17 +690,17 @@ def _exec_mov_imm(op, cpu, mem, seg_override):
             mem.write8(phys, imm)
         return 1 + ml + 1
     else:  # 0xC7: MOV r/m16, imm16
-        imm = mem.read16(ip_phys + 1 + ml)
+        pos = ip_phys + 1 + ml
+        imm = data[pos] | (data[pos + 1] << 8)
         if mod == 3:
-            cpu.set_reg16(rm, imm)
+            cpu.regs[rm] = imm
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             mem.write16(phys, imm)
         return 1 + ml + 2
 
 
-def _exec_xchg(op, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
+def _exec_xchg(op, cpu, mem, seg_override, ip_phys):
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     width = 8 if op == 0x86 else 16
     if mod == 3:
@@ -661,9 +709,7 @@ def _exec_xchg(op, cpu, mem, seg_override):
             cpu.set_reg8(reg, b)
             cpu.set_reg8(rm, a)
         else:
-            a, b = cpu.get_reg16(reg), cpu.get_reg16(rm)
-            cpu.set_reg16(reg, b)
-            cpu.set_reg16(rm, a)
+            cpu.regs[reg], cpu.regs[rm] = cpu.regs[rm], cpu.regs[reg]
     else:
         phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
         if width == 8:
@@ -672,16 +718,15 @@ def _exec_xchg(op, cpu, mem, seg_override):
             cpu.set_reg8(reg, b)
             mem.write8(phys, a)
         else:
-            a = cpu.get_reg16(reg)
+            a = cpu.regs[reg]
             b = mem.read16(phys)
-            cpu.set_reg16(reg, b)
+            cpu.regs[reg] = b
             mem.write16(phys, a)
     return 1 + ml
 
 
-def _exec_grp5(cpu, mem, seg_override):
+def _exec_grp5(cpu, mem, seg_override, ip_phys):
     """Group 5 (0xFF): INC/DEC/CALL near/CALL far/JMP near/JMP far/PUSH."""
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
 
     if reg == 0:  # INC word
@@ -728,39 +773,41 @@ def _exec_grp5(cpu, mem, seg_override):
 
 def _get_rm16(cpu, mem, mod, rm, disp, seg_override):
     if mod == 3:
-        return cpu.get_reg16(rm)
+        return cpu.regs[rm]
     phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
     return mem.read16(phys)
 
 
 def _set_rm16(cpu, mem, mod, rm, disp, seg_override, val):
     if mod == 3:
-        cpu.set_reg16(rm, val)
+        cpu.regs[rm] = val & 0xFFFF
     else:
         phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
         mem.write16(phys, val)
 
 
-def _exec_imul3(op, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
-    ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
+def _exec_imul3(op, cpu, mem, seg_override, ip_phys):
+    data = mem.data
+    ml, mod, reg, rm, disp = decode_modrm(data, ip_phys + 1)
     src = _get_rm16(cpu, mem, mod, rm, disp, seg_override)
     if src >= 0x8000:
         src -= 0x10000
     if op == 0x69:
-        imm = struct.unpack_from('<h', mem.data, ip_phys + 1 + ml)[0]
+        pos = ip_phys + 1 + ml
+        w = data[pos] | (data[pos + 1] << 8)
+        imm = w if w < 0x8000 else w - 0x10000
         extra = 2
     else:  # 0x6B
-        imm = struct.unpack_from('b', mem.data, ip_phys + 1 + ml)[0]
+        b = data[ip_phys + 1 + ml]
+        imm = b if b < 0x80 else b - 0x100
         extra = 1
     result = src * imm
-    cpu.set_reg16(reg, result & 0xFFFF)
+    cpu.regs[reg] = result & 0xFFFF
     cpu.of = cpu.cf = 0 if -32768 <= result <= 32767 else 1
     return 1 + ml + extra
 
 
-def _exec_movsx_zx(op2, cpu, mem, seg_override):
-    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
+def _exec_movsx_zx(op2, cpu, mem, seg_override, ip_phys):
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 2)
     if op2 == 0xB6:  # MOVZX r16, r/m8
         if mod == 3:
@@ -768,7 +815,7 @@ def _exec_movsx_zx(op2, cpu, mem, seg_override):
         else:
             phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
             val = mem.read8(phys)
-        cpu.set_reg16(reg, val)
+        cpu.regs[reg] = val
     elif op2 == 0xBE:  # MOVSX r16, r/m8
         if mod == 3:
             val = cpu.get_reg8(rm)
@@ -777,11 +824,11 @@ def _exec_movsx_zx(op2, cpu, mem, seg_override):
             val = mem.read8(phys)
         if val >= 0x80:
             val |= 0xFF00
-        cpu.set_reg16(reg, val)
-    elif op2 == 0xB7:  # MOVZX r16, r/m16 (no-op extend)
+        cpu.regs[reg] = val
+    elif op2 == 0xB7:  # MOVZX r16, r/m16
         val = _get_rm16(cpu, mem, mod, rm, disp, seg_override)
-        cpu.set_reg16(reg, val)
-    elif op2 == 0xBF:  # MOVSX r16, r/m16 (no-op sign extend for 16→16)
+        cpu.regs[reg] = val
+    elif op2 == 0xBF:  # MOVSX r16, r/m16
         val = _get_rm16(cpu, mem, mod, rm, disp, seg_override)
-        cpu.set_reg16(reg, val)
+        cpu.regs[reg] = val
     return 2 + ml
