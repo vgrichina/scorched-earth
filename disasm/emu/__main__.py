@@ -148,8 +148,8 @@ def main():
     for ks in args.keys:
         parts = ks.split(':')
         step_n = int(parts[0])
-        sc = int(parts[1]) if len(parts) > 1 else 0x1C  # Enter
-        asc = int(parts[2]) if len(parts) > 2 else 0
+        sc = int(parts[1], 0) if len(parts) > 1 else 0x1C  # Enter
+        asc = int(parts[2], 0) if len(parts) > 2 else 0
         scheduled_keys[step_n] = (sc, asc)
         print(f"Key injection: step {step_n} → scancode=0x{sc:02X} ascii=0x{asc:02X}")
 

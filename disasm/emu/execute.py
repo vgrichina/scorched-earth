@@ -110,10 +110,18 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
                         cpu.ip = vec_off
             timer_counter -= 1
 
-            # Scheduled key injection
+            # Scheduled key injection: write directly to game's key buffer
             if has_sched_keys and i in scheduled_keys:
                 sc, asc = scheduled_keys[i]
                 int_handler.push_key(sc, asc)
+                # Write to game's DS:D0B8 (last_scancode) for custom ISR polling
+                ds_base = (cpu.segs[3] << 4) & 0xFFFFF
+                mem.write16(ds_base + 0xD0B8, sc & 0xFF)
+                # Also set key state in DS:D1BE array (word per scancode)
+                if sc < 0x80:
+                    mem.write16(ds_base + 0xD1BE + (sc & 0x7F) * 2, 1)
+                else:
+                    mem.write16(ds_base + 0xD1BE + (sc & 0x7F) * 2, 0)
 
             ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 

@@ -5063,15 +5063,91 @@ struct GraphicsMode {       // 68 bytes (0x44)
 
 Note: Mode 4 (360x480) has FG mode 0 (text mode in Fastgraph) because it bypasses Fastgraph's built-in mode handling and uses a custom CRTC programming path.
 
-### Initialization Sequence
+### Initialization Sequence (VERIFIED via emulator tracing)
 
-1. **Config parsing** (file 0x195F6): Reads `GRAPHICS_MODE` from `SCORCH.CFG`, loops through mode table comparing names, sets `selected_mode` index (DS:0x6E26).
+**`main()` = `parse_cmdline_and_init`** at file 0x2A42D (icons.cpp segment). Called from Borland C startup at file 0x06B3B.
 
-2. **Mode detection** (file 0x451E1): For SVGA modes (FG >= 24), calls `fg_testmode` to check VESA availability. Probes video pages 1-15. Shows error on failure.
+#### Borland C Runtime (file 0x06A00, ~1k steps)
+- INT 21h/30h: Get DOS version
+- INT 21h/35h ×13: Save original ISR vectors
+- INT 21h/25h ×12: Install Borland exception handlers (÷0, overflow, etc.)
+- INT 21h/4Ah: Initial heap resize
+- INT 11h: Equipment list query
+- INT 10h/0Fh, 10h/12h, 10h/08h: VGA detection
+- Initialize DS=0x4F38, BSS, static constructors
+- `call far main()` (0x06B3B → 0x2A42D)
 
-3. **Graphics init** (file 0x45413): Bounds-checks mode index, copies 11 function pointers from mode entry into dispatch table (DS:0xEEF4-0xEF1F), calls the per-mode `init_func`, reads resolution via `fg_getmaxx`/`fg_getmaxy`, computes scale factors from aspect ratio, sets clipping rectangle.
+#### main() Startup Steps
 
-4. **Mode-specific init**: Standard modes call `fg_setmode(fg_mode)`. The custom 360x480 mode (file 0x440EC) uses a two-step approach: sets VGA mode 0x12 (640x480x16) then 0x13 (320x200x256), disables chain-4 (seq reg 4 → 0x06), reprograms CRTC via 17 register pairs from table at DS:0x6840. **Confirmed by emulator**: seq_regs[4]=0x06, CRTC 0x01=0x59 (width=(0x59+1)*4=360), CRTC 0x13=0x2D (stride=45 words=90 bytes=360/4), CRTC 0x12=0xDF + overflow 0x3E → 480 visible lines. Pixel write at file 0x44130: `DI = x/4 + y*90`, plane selected via 16-bit OUT to port 3C4 (map mask = 1 << (x & 3)).
+| Step | Function | File Offset | Description |
+|-----:|----------|-------------|-------------|
+| 1 | **Cmdline parsing** | 0x2A42D | Check `ASGARD` env var; parse argv for mode name, `mayhem` (DS:50F2), `nofloat` (DS:1C84), config filename (default `scorch.cfg`) |
+| 2 | **Fastgraph VGA detect** | 0x4500D | `fg_init` — detect VGA adapter |
+| 3 | **Mode detect/probe** | 0x4BFBD | Test available SVGA modes, set mode_count (DS:6DCA) |
+| 4 | **Config file read** | 0x19455 (~step 66k) | Open SCORCH.CFG (INT 21h/3Dh), read 3 blocks, parse key=value pairs (GRAVITY, CASH, etc.), close file |
+| 5 | **RNG seed** | — | INT 21h/2Ah (date) + INT 21h/2Ch (time) → random seed |
+| 6 | **Mouse init** | — | INT 33h/00h: reset/detect mouse |
+| 7 | **Print banner** | — | INT 21h/40h: write `"Scorched Earth 1.50 Copyright (c) 1991-1995 Wendell Hicken"` to stdout |
+| 8 | **MTN file scan** | — | INT 21h/4Eh: find first `*.MTN` terrain file |
+| 9 | **Timer ISR install** | 0x41FF3 | Save old INT 08h, install custom timer ISR at 0x41F90 (countdown/callback system) |
+| 10 | **extras_init** | 0x20EAD | Initialize explosion/projectile subsystem |
+| 11 | **ranges_init** | 0x3362C | Initialize terrain generation + allocate terrain buffers (many INT 21h/4Ah) |
+| 12 | **Graphics init** | 0x45413 (~step 121k) | `fg_init_vtable`: copy 11 fn ptrs → dispatch table (DS:EEF4-EF1F) |
+| 13 | **Mode-X init** | 0x440EC (~step 121k) | Set VGA 12h→13h, disable chain-4, program 17 CRTC registers → 360×480×256 |
+| 14 | **Palette setup** | 0x2A630 | 25× `fg_setrgb` (INT 10h/10h): UI colors (black 0x98, dim 0x99, white 0x9B, shadow 0x9C, etc.) + fire/terrain palette |
+| 15 | **Input setup** | 0x2A61A | `swap_input_callback` + `init_keyboard` (custom INT 9h), check joystick, `widget_array_init` |
+| 16 | **Heap allocations** | — | INT 21h/4Ah ×33: player structs, terrain arrays, screen buffers |
+| 17 | **Main menu** | 0x2A850→0x3D140 (~step 126k) | `call far main_menu` — dialog system renders left panel + title area |
+| 18 | **font_init** | 0x4C290 (~step 127k) | Lazy init on first text render: build 256-entry glyph pointer table |
+
+#### Post-Menu Game Flow (file 0x2A855)
+
+After `main_menu` returns (user pressed `~Start` / hotkey 'S'), execution continues in `main()`:
+
+1. **Title area layout** (0x2A855): measure menu text width, compute title panel X offset, draw 3D box for title area
+2. **Sky + copyright** (0x2A8AC): `store_sky_base_index`, render copyright text via `text_display`
+3. **Config save** (0x2A8CD): near call to save current config
+4. **Check exit** (0x2A8D0): if DS:50F6 = 2 → skip to cleanup (Quit selected in menu)
+5. **Setup player palette** (0x2A913): `setup_player_palette` (0x2014:00D2→file 0x207D2), set shield draw bounds
+6. **Play round** (0x2A930): call game round function (0x0DBC:0306), then near call at 0x2A93E for round-over
+7. **Loop** (0x2A94E): if DS:50F6 ≠ 0, jump back to step 15 (input setup at 0x2A801); else call `round_over_cleanup` (0x2A95A) and return
+
+**Emulator note**: Key injection via direct DS:0xD0B8 write works — menu processes 'S' key (scancode 0x1F), exits dialog_run, and game proceeds through allocation + palette setup phases. Current blocker: Borland C runtime `fgets` at file 0x0BF62 during config save encounters corrupted return address (lands mid-instruction on `EB 66` jmp displacement).
+
+#### Config parsing (file 0x195F6)
+Reads `GRAPHICS_MODE` from `SCORCH.CFG`, loops through mode table comparing names, sets `selected_mode` index (DS:0x6E26).
+
+#### Mode detection (file 0x451E1)
+For SVGA modes (FG >= 24), calls `fg_testmode` to check VESA availability. Probes video pages 1-15. Shows error on failure.
+
+#### Graphics init (file 0x45413)
+Bounds-checks mode index, copies 11 function pointers from mode entry into dispatch table (DS:0xEEF4-0xEF1F), calls the per-mode `init_func`, reads resolution via `fg_getmaxx`/`fg_getmaxy`, computes scale factors from aspect ratio, sets clipping rectangle.
+
+#### Mode-specific init
+Standard modes call `fg_setmode(fg_mode)`. The custom 360x480 mode (file 0x440EC) uses a two-step approach: sets VGA mode 0x12 (640x480x16) then 0x13 (320x200x256), disables chain-4 (seq reg 4 → 0x06), reprograms CRTC via 17 register pairs from table at DS:0x6840. **Confirmed by emulator**: seq_regs[4]=0x06, CRTC 0x01=0x59 (width=(0x59+1)*4=360), CRTC 0x13=0x2D (stride=45 words=90 bytes=360/4), CRTC 0x12=0xDF + overflow 0x3E → 480 visible lines. Pixel write at file 0x44130: `DI = x/4 + y*90`, plane selected via 16-bit OUT to port 3C4 (map mask = 1 << (x & 3)).
+
+### Dialog System Input Flow (VERIFIED via emulator tracing)
+
+The main menu uses a dialog framework (segment 0x3F19). Input polling chain:
+
+1. **`dialog_event_loop`** (file 0x4609F): checks DS:50F6 (exit flag), then calls `dialog_poll_input`
+2. **`dialog_poll_input`** (file 0x460C3): `call far [[DS:6FF6]]` → indirect call to input poller
+3. **`poll_input_wrapper`** (file 0x28C0B): calls `get_key_input`, then dispatches through hotkey handler at 0x465A:0013
+4. **`get_key_input`** (file 0x28B31): routes by BIOS_FLAG (DS:502E) and INPUT_MODE (DS:5030):
+   - BIOS_FLAG=1: INT 16h polling (bioskey)
+   - INPUT_MODE=0 or 2: read DS:0xD0B8 (last scancode from custom INT 9h), check ≤0x7F (make code)
+   - INPUT_MODE=1: dequeue from 128-entry circular scancode buffer
+5. After getting scancode: calls through DS:0xD0B4 (input callback far ptr) if non-null
+
+| DS Offset | Name | Purpose |
+|-----------|------|---------|
+| DS:0x6FF6 | dialog_input_callback_ptr | Far ptr to input poll function (set to 2256:03AB = poll_input_wrapper) |
+| DS:0x6FF0 | dialog_pending_action | Non-zero = pending widget action, skip input polling |
+| DS:0x6FE8 | dialog_init_flag | Controls initial dialog draw vs update |
+| DS:0xD0B8 | last_scancode | Current scancode from INT 9h (make=0x00-0x7F, break=0x80-0xFF) |
+| DS:0xD0B2 | modifier_flags | Shift/Ctrl/Alt state (from BIOS 0040:0017) |
+| DS:0xD1BE | key_state_array | 128 words: scancode → 1=pressed, 0=released |
+| DS:0xD0B4 | input_callback_ptr | Far ptr to post-processing callback (hotkey dispatch) |
 
 ### Function Dispatch Table (DS:0xEEF4-0xEF1F)
 

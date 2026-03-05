@@ -24,6 +24,10 @@ class PortIO:
         self.gc_regs = [0] * 16
         self.gc_regs[4] = 0  # Read Map Select: plane 0
 
+        # Keyboard controller (port 0x60/0x61)
+        self.kbd_scancode = 0  # last scancode from port 0x60
+        self.kbd_queue = []    # pending scancodes to deliver
+
         # Mode tracking
         self.video_mode = 0x13  # default mode 13h
         self.mem = None  # set by __main__ for cache sync
@@ -82,6 +86,10 @@ class PortIO:
             return self._seq_index
         if port == 0x3D4:
             return self._crtc_index
+        if port == 0x60:
+            return self.kbd_scancode
+        if port == 0x61:
+            return 0x00  # keyboard controller status
         if port == 0x201:
             return 0x00  # Joystick: no buttons pressed, all axes done
         # All other ports: return 0xFF

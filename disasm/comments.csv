@@ -409,3 +409,15 @@ DS:0xEE78,timer tick counter — incremented every INT 08h
 
 # ---- Keyboard ISR (INT 09h at 2256:012E emu / file 0x2898E) ----
 0x2898E,keyboard_isr: reads port 0x60 scancode; checks INPUT_MODE; stores to key table
+# ---- Startup sequence (main → menu) ----
+0x2A42D,main(): parse cmdline (ASGARD/mayhem/nofloat/cfg), init subsystems, enter game loop
+0x19455,read_config_file: opens SCORCH.CFG, reads 3 blocks, parses key=value config
+0x20EAD,extras_init: explosion/projectile subsystem init (extras.cpp entry)
+0x3362C,ranges_init: terrain generation subsystem init + buffer allocations
+0x41FF3,timer_isr_install: saves old INT 08h, installs custom timer ISR (0x41F90)
+0x4500D,fg_detect_vga: Fastgraph VGA detection/init
+0x4BFBD,mode_detect_probe: probe available SVGA modes, set mode_count
+0x28B31,get_key_input: polls keyboard; BIOS_FLAG→INT16h, INPUT_MODE 0/2→DS:D0B8, mode 1→queue
+0x28C0B,poll_input_wrapper: calls get_key_input + processes via hotkey dispatch (0x465A:0013)
+# ---- Dialog system input flow ----
+DS:0xD1BE,key_state_array: 128 words, scancode→1=pressed/0=released (set by INT 9h ISR)

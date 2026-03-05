@@ -727,3 +727,12 @@ DS:0x5209,STR_NOFLOAT,data/str
 DS:0x6E64,GFX_MODE_FLAG
 DS:0x50F2,MAYHEM_FLAG
 DS:0x1C84,NOFLOAT_FLAG
+0x28B31,get_key_input
+0x28C0B,poll_input_wrapper
+0x19455,read_config_file
+0x20EAD,extras_init
+0x3362C,ranges_init
+0x41FF3,timer_isr_install
+0x4500D,fg_detect_vga
+0x4BFBD,mode_detect_probe
+DS:0xD1BE,key_state_array
