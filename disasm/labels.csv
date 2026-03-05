@@ -13,6 +13,9 @@
 0x3B8D0,menu_start
 0x4C290,font_start
 
+# ---- C runtime (seg 0015/0016) ----
+0x06B5A,_exit
+
 # ---- Known functions (file offsets) ----
 0x25DE9,ai_inject_noise
 0x24F01,ai_solver_start
@@ -363,9 +366,15 @@ DS:0x502E,KEYBOARD_BIOS_FLAG
 DS:0xD1BE,key_state_array
 DS:0xD0B8,last_scancode
 DS:0xD0B2,modifier_flags
+DS:0xD0B4,input_callback_ptr_off
+DS:0xD0B6,input_callback_ptr_seg
+DS:0xD0AE,old_int9_off
+DS:0xD0B0,old_int9_seg
 DS:0x5032,mouse_scancode_buf_head
 DS:0x5034,mouse_scancode_buf_tail
+0x28866,swap_input_callback
 0x288A0,set_input_mode
+0x28C53,init_keyboard
 
 # ---- Sound System ----
 DS:0x519E,SOUND_ENABLED_FLAG
@@ -625,9 +634,29 @@ DS:0x514E,BOMB_INVISIBLE_FLAG
 DS:0x513A,TUNNELLING
 DS:0x50FE,USELESS_ITEMS
 
-# ---- Fastgraph VGA primitives (seg 3DDE in dis.py) ----
+# ---- Fastgraph VGA primitives (seg 3DDE) ----
 0x44130,fg_setpixel_modex
-0x4415D,fg_setpixel_modex_2
+0x4415D,fg_getpixel_modex
+
+# ---- Fastgraph drawing library (seg 3CE0) ----
+0x439CB,fg_hline_clipped
+0x43A66,fg_hline_pixel_loop
+
+# ---- Dialog/widget system (seg 3F89 = file 0x45B19+) ----
+0x4609F,dialog_event_loop
+0x460C3,dialog_poll_input
+0x4BA83,dialog_process_widgets
+DS:0xF054,dialog_redraw_flag
+DS:0x6FF0,dialog_pending_action
+DS:0x6FF6,dialog_input_callback_ptr
+DS:0x50F6,dialog_exit_flag
+DS:0x7030,widget_array_ptr
+DS:0x7032,widget_count
+DS:0x6E42,dialog_mouse_flag
+DS:0x6FE8,dialog_init_flag
+
+# ---- Widget init (seg 4557 = 34ED overflow) ----
+0x4B879,widget_array_init
 
 # ---- Menu module (34ED) ----
 0x3D140,main_menu
