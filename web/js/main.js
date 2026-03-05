@@ -16,7 +16,7 @@ import { projectiles } from './physics.js';
 import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
-import { getLeaderboard } from './score.js';
+import { getLeaderboard, SCORE_MODE } from './score.js';
 import { menuTick, drawMainMenu, drawPlayerSetupScreen, playerSetup } from './menu.js';
 import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
@@ -254,10 +254,13 @@ function drawRoundOver() {
   const alive = players.filter(p => p.alive);
 
   // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead
-  if (alive.length === 1) {
-    drawTextShadow(104, 60, alive[0].name, alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
-  } else {
-    drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
+  // EXE: Vicious mode skips winner display entirely (guard at file 0x33FEC: cmp [DS:5188],1; jz skip)
+  if (config.scoringMode !== SCORE_MODE.VICIOUS) {
+    if (alive.length === 1) {
+      drawTextShadow(104, 60, alive[0].name, alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
+    } else {
+      drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
+    }
   }
 
   // Show scores

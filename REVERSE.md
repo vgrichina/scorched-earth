@@ -3579,8 +3579,8 @@ then add `,...,data/<type>` to the matching label row.
 - [ ] Fix Napalm fire impact explosion: `bhvNapalm()` behaviors.js line 326: change `explode: !isDirt` → `explode: false`, `radius: isDirt ? 0 : 5` → `radius: 0`. EXE does visual-only `fg_drect` flash, no actual explosion damage at impact.
 - [ ] Fix Dirt napalm particle color: behaviors.js `DIRT_NAPALM_COLOR = 130` → `80` (0x50). Also fix game.js cleanup: `cur === 130` → `cur === 80`.
 - [x] Round-over/game-over screen audit: **DONE**. Session 135 already covered the main structure. New details confirmed:
-  - **Vicious mode guard** (file 0x33FEC): `cmp [DS:5188], 1; jz` skips winner display entirely in Vicious mode, jumps directly to dialog build. Web should suppress winner name in Vicious mode.
-  - **"~Go" button** (DS:0x2F25): round-over "continue" button label confirmed as "~Go" (DS:0x2F25 = file 0x58CA5). Web uses "Continue" — minor label mismatch.
+  - **Vicious mode guard** (file 0x33FEC): `cmp [DS:5188], 1; jz` skips winner display entirely in Vicious mode. **FIXED**: `drawRoundOver()` now wraps winner/no-winner draw in `if (config.scoringMode !== SCORE_MODE.VICIOUS)`.
+  - **"~Go" button** (DS:0x2F25): round-over dialog dismiss button. Web equivalent is "<<Press any key>>" overlay text (DS:0x5212, already correct). No label mismatch.
   - **Final Scoring rainbow border** (file 0x34CC6): paint callback cycles palette entries 0xB3–0xDC, draws concentric inset colored frames. Web does not replicate this — visual-only, acceptable.
   - **Hotseat blank title**: when `DS:E342 == DS:5160` (last viewer = game over), title DS:0x6040 = "" (blank string), not "Player Rankings". Web always shows "Scores:" — acceptable structural deviation.
   - **Score column format**: bare `"%d"` integer (DS:0x6056), no suffix. Web matches.
