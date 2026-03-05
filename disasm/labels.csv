@@ -314,7 +314,7 @@ DS:0x5188,PLAY_MODE
 0x3063A,play_clear_fire_callbacks
 0x1D8EA,play_sync_fire_phase
 0x29280,play_ai_type_dispatch
-0x29505,play_ai_noise_params
+0x29505,set_ai_type_palette_color
 DS:0x510E,WRAP_ENABLED
 
 # ---- Score System (score.cpp, seg 0x30B2) ----

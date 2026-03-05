@@ -213,8 +213,11 @@ export function aiComputeShot(player) {
 
     const baseAngle = minAngle + random(NOISE_SHOT_RANGE);
     let angleOffset = 0;
+    // EXE: evaluates SUM(amp[i]*sin(freq[i]*(phase[i]+shotNum))) with NO extra scaling.
+    // noiseParams[i] values are AI type colors (palette RGB), not amplitude multipliers.
+    // Divide by generator count to normalize to EXE's single-generator amplitude (±~30°).
     for (let i = 0; i < noiseState.generators.length; i++) {
-      angleOffset += evaluateHarmonics(noiseState.generators[i], shotNum) * noiseParams[i] / 100;
+      angleOffset += evaluateHarmonics(noiseState.generators[i], shotNum) / noiseState.generators.length;
     }
 
     const angle = clamp(Math.round(baseAngle + angleOffset), 1, 179);

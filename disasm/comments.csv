@@ -228,8 +228,8 @@ DS:0x5188,PLAY_MODE: 0=Sequential 1=Simultaneous 2=Synchronous (PLAY_MODE= in SC
 0x30560,play_turn_handler: turret animation per mode; Sequential=smooth step; Simultaneous=skip anim; cmp [5188],1
 0x3063A,play_clear_fire_callbacks: Simultaneous mode — clears fire callback far ptr at player+0xAE/+0xB0 to NULL
 0x1D8EA,play_sync_fire_phase: Synchronous-specific fire handling (mode==2)
-0x29280,per_turn_fire_setup: copy DS:5156→DS:5154 (effective ELASTIC); resolve RANDOM/ERRATIC(6/7) via random(6); call play_ai_noise_params; set DS:510E=1 iff ELASTIC==1(WRAP) else 0
-0x29505,play_ai_noise_params: WALL TYPE switch (0-5 from DS:5154); NOT AI type; pushes noise vals + 0x9D then calls 0x456B:0x0005; called from per_turn_fire_setup and wall_random_resolve
+0x29280,per_turn_fire_setup: copy DS:5156→DS:5154 (effective AI type); resolve CYBORG/UNKNOWN(6/7) via random(6); call set_ai_type_palette_color (sets palette 157 to AI color); set DS:510E=1 iff type==1(WRAP) else 0
+0x29505,set_ai_type_palette_color: reads DS:5154 (AI type 0-5); calls fg_setrgb(0x9D=157, R, G, B) to set VGA palette entry 157 to AI-type color — NOT noise params! Values [50,23,63] are RGB colors. Moron→(50,50,50)=gray; Shooter→(63,63,23)=yellow; Spoiler→(63,63,63)=bright
 0x29564,spoiler_random_noise_setup: called when DS:5150 != 0; random(2)→DS:5172; random(100)→DS:516E; random(100)→DS:5170; Spoiler-specific random noise budget per solve
 DS:0x510E,WRAP_ENABLED: set=1 by per_turn_fire_setup when effective ELASTIC==1(WRAP); used by drawing/ray-cast routines to wrap x coords; NOT a playMode or AI flag
 
