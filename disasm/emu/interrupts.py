@@ -99,8 +99,42 @@ class InterruptHandler:
         elif ah == 0x08:  # Read character/attribute at cursor
             self.cpu.set_reg8(4, 0x07)  # AH = attribute (white on black)
             self.cpu.set_reg8(0, 0x20)  # AL = space
-        elif ah == 0x10:  # Palette
-            pass  # handled by port I/O
+        elif ah == 0x10:  # Palette / DAC functions
+            al = self.cpu.get_reg8(0)
+            if al == 0x10:  # Set individual DAC register
+                idx = self.cpu.bx & 0xFF
+                dh = (self.cpu.dx >> 8) & 0x3F
+                ch = self.cpu.get_reg8(5) & 0x3F  # CH
+                cl = self.cpu.get_reg8(4) & 0x3F   # CL — wait, CL is low byte of CX
+                # Actually: BX=color#, DH=red, CH=green, CL=blue
+                cl_val = self.cpu.cx & 0x3F
+                ch_val = (self.cpu.cx >> 8) & 0x3F
+                if self.ports:
+                    self.ports.palette[idx] = (dh, ch_val, cl_val)
+            elif al == 0x12:  # Set block of DAC registers
+                start = self.cpu.bx & 0xFFFF
+                count = self.cpu.cx & 0xFFFF
+                es = self.cpu.segs[0]  # ES
+                dx = self.cpu.dx & 0xFFFF
+                addr = (es << 4) + dx
+                if self.ports:
+                    for i in range(count):
+                        r = self.mem.data[(addr + i * 3) & 0xFFFFF] & 0x3F
+                        g = self.mem.data[(addr + i * 3 + 1) & 0xFFFFF] & 0x3F
+                        b = self.mem.data[(addr + i * 3 + 2) & 0xFFFFF] & 0x3F
+                        self.ports.palette[(start + i) & 0xFF] = (r, g, b)
+            elif al == 0x17:  # Read block of DAC registers
+                start = self.cpu.bx & 0xFFFF
+                count = self.cpu.cx & 0xFFFF
+                es = self.cpu.segs[0]
+                dx = self.cpu.dx & 0xFFFF
+                addr = (es << 4) + dx
+                if self.ports:
+                    for i in range(count):
+                        r, g, b = self.ports.palette[(start + i) & 0xFF]
+                        self.mem.data[(addr + i * 3) & 0xFFFFF] = r & 0x3F
+                        self.mem.data[(addr + i * 3 + 1) & 0xFFFFF] = g & 0x3F
+                        self.mem.data[(addr + i * 3 + 2) & 0xFFFFF] = b & 0x3F
         elif ah == 0x11:  # Font
             pass  # no-op
         elif ah == 0x12:  # Alternate function select (VGA)

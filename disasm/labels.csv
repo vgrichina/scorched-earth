@@ -666,6 +666,13 @@ DS:0x7030,widget_array_ptr
 DS:0x7032,widget_count
 DS:0x6E42,dialog_mouse_flag
 DS:0x6FE8,dialog_init_flag
+0x46266,dialog_key_dispatch
+0x463C2,dialog_key_special
+0x4CFB3,key_scancode_to_char
+0x4B854,get_shift_state
+0x49E59,button_activate
+0x47D53,text_input_handler
+DS:0x9910,scancode_map_table,data/table:2
 
 # ---- Widget init (seg 4557 = 34ED overflow) ----
 0x4B879,widget_array_init

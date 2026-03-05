@@ -421,3 +421,10 @@ DS:0xEE78,timer tick counter — incremented every INT 08h
 0x28C0B,poll_input_wrapper: calls get_key_input + processes via hotkey dispatch (0x465A:0013)
 # ---- Dialog system input flow ----
 DS:0xD1BE,key_state_array: 128 words, scancode→1=pressed/0=released (set by INT 9h ISR)
+0x46266,dialog_key_dispatch: got key in [bp-0x02], checks ESC(0x1B), loops widgets for hotkey match
+0x463C2,dialog_key_special: [bp-0x0C]==-1→Tab(cycle focus), -2→ESC(exit), else dispatch to widget type handler
+0x4CFB3,key_scancode_to_char: maps scancode→char via table at DS:9910; if uppercase+shift→toupper
+0x4B854,get_shift_state: returns shift/ctrl/alt bits in AL (bit 3=alt, others=shift)
+0x49E59,button_activate: activates button widget [bp-0x0C], calls callback if type==6
+0x47D53,text_input_handler: type 8 widget key handler, draws field and processes typed char
+0x352B7,per_player_dialog_callback: copies [tank+0xB6/B8](name far ptr) to local buf; calls 3F19:5260 to populate dialog

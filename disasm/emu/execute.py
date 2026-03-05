@@ -114,14 +114,30 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
             if has_sched_keys and i in scheduled_keys:
                 sc, asc = scheduled_keys[i]
                 int_handler.push_key(sc, asc)
-                # Write to game's DS:D0B8 (last_scancode) for custom ISR polling
                 ds_base = (cpu.segs[3] << 4) & 0xFFFFF
+                # Write to game's DS:D0B8 (last_scancode) for custom ISR polling
                 mem.write16(ds_base + 0xD0B8, sc & 0xFF)
                 # Also set key state in DS:D1BE array (word per scancode)
                 if sc < 0x80:
                     mem.write16(ds_base + 0xD1BE + (sc & 0x7F) * 2, 1)
                 else:
                     mem.write16(ds_base + 0xD1BE + (sc & 0x7F) * 2, 0)
+                # Mode 1: enqueue to circular scancode buffer (DS:5032=head, DS:5034=tail)
+                if sc < 0x80:
+                    tail = mem.read16(ds_base + 0x5034)
+                    head = mem.read16(ds_base + 0x5032)
+                    new_tail = (tail + 1) & 0x7F
+                    if new_tail != head:  # buffer not full
+                        mem.write16(ds_base + 0xD2BE + tail * 2, sc & 0xFF)
+                        # Set modifier: if ASCII is uppercase letter, set shift flag
+                        mod = 0x02 if (0x41 <= asc <= 0x5A) else 0  # left shift
+                        mem.write16(ds_base + 0xD3BE + tail * 2, mod)
+                        mem.write16(ds_base + 0x5034, new_tail)
+                    # Also set BIOS keyboard flags at 0x40:0x17
+                    if 0x41 <= asc <= 0x5A:  # uppercase letter
+                        mem.data[0x417] = 0x02  # left shift
+                    else:
+                        mem.data[0x417] = 0x00
 
             ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 
