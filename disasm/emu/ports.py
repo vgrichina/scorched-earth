@@ -26,6 +26,7 @@ class PortIO:
 
         # Mode tracking
         self.video_mode = 0x13  # default mode 13h
+        self.mem = None  # set by __main__ for cache sync
     @property
     def mode_x(self):
         """True if VGA is in unchained/planar mode (Mode X): seq reg 4 chain-4 bit cleared."""
@@ -41,12 +42,20 @@ class PortIO:
         """GC register 4: which plane is read."""
         return self.gc_regs[4] & 0x03
 
+    def _sync_mem(self):
+        """Push cached VGA state to Memory for fast path."""
+        if self.mem:
+            self.mem._mode_x = not (self.seq_regs[4] & 0x08)
+            self.mem._map_mask = self.seq_regs[2] & 0x0F
+            self.mem._read_plane = self.gc_regs[4] & 0x03
+
     def set_mode(self, mode):
         """Called by INT 10h AH=00 to reset VGA state."""
         self.video_mode = mode & 0x7F
         self.seq_regs[4] = 0x08  # reset to chained (mode 13h default)
         self.seq_regs[2] = 0x0F
         self.gc_regs[4] = 0
+        self._sync_mem()
 
     def port_in(self, port):
         if port == 0x3DA:
@@ -110,8 +119,8 @@ class PortIO:
         elif port == 0x3C5:
             idx = self._seq_index & 7
             self.seq_regs[idx] = val & 0xFF
-            # Detect Mode X: unchaining happens when seq reg 4 bit 3 (chain-4) is cleared
-            # seq reg 4 chain-4 bit tracked via mode_x property
+            if idx in (2, 4):
+                self._sync_mem()
         elif port == 0x3D4:
             self._crtc_index = val & 0xFF
         elif port == 0x3D5:
@@ -120,6 +129,8 @@ class PortIO:
             self._gc_index = val & 0xFF
         elif port == 0x3CF:
             self.gc_regs[self._gc_index & 0x0F] = val & 0xFF
+            if self._gc_index & 0x0F == 4:
+                self._sync_mem()
 
     def get_resolution(self):
         """Estimate screen resolution from CRTC registers."""

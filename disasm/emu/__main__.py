@@ -82,7 +82,7 @@ def main():
 
     # Set up I/O
     ports = PortIO()
-    mem_obj.ports = ports  # Wire up for Mode X planar VGA
+    ports.mem = mem_obj  # Wire up for Mode X planar VGA cache sync
     earth_dir = os.path.join(os.path.dirname(exe_path))
     int_handler = InterruptHandler(mem_obj, cpu, earth_dir, ports)
 

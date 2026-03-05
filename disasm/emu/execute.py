@@ -2,7 +2,7 @@
 
 import struct
 from .modrm import decode_modrm, compute_ea
-from .alu import exec_alu
+from .alu import exec_alu, ALU_OPCODES
 from .fpu import exec_fpu_int, exec_fpu_native
 from .interrupts import EmuExit
 from .strings import exec_string
@@ -11,6 +11,12 @@ from .strings import exec_string
 _SEG_PFX = {0x26: 0, 0x2E: 1, 0x36: 2, 0x3E: 3}
 
 # Condition code evaluation: Jcc opcode low nibble → lambda(cpu) → bool
+_SEG_PUSH_TABLE = {0x06: 0, 0x0E: 1, 0x16: 2, 0x1E: 3}
+_SEG_POP_TABLE = {0x07: 0, 0x17: 2, 0x1F: 3}
+_FLAG_OPS_TABLE = {0xF8: 'clc', 0xF9: 'stc', 0xFA: 'cli', 0xFB: 'sti',
+                   0xFC: 'cld', 0xFD: 'std', 0xF5: 'cmc'}
+_STRING_OPS = frozenset((0xA4, 0xA5, 0xA6, 0xA7, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF))
+
 _CC = {
     0x0: lambda c: c.of == 1,       # JO
     0x1: lambda c: c.of == 0,       # JNO
@@ -33,18 +39,20 @@ _CC = {
 
 def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
     """Execute one instruction. Returns number of bytes consumed (IP already advanced)."""
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    segs = cpu.segs
+    data = mem.data
+    ip_phys = ((segs[1] << 4) + cpu.ip) & 0xFFFFF
 
     # Check hooks
     if hooks and ip_phys in hooks:
         hooks[ip_phys](cpu, mem)
 
-    # Consume prefixes
+    # Consume prefixes — read directly from data[] (code is never in VGA range)
     seg_override = None
     rep_mode = 0  # 0=none, 1=REP/REPE, 2=REPNE
     pfx_len = 0
     while True:
-        b = mem.read8(ip_phys + pfx_len)
+        b = data[ip_phys + pfx_len]
         if b in _SEG_PFX:
             seg_override = _SEG_PFX[b]
             pfx_len += 1
@@ -59,9 +67,7 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
         else:
             break
 
-    op = mem.read8(ip_phys + pfx_len)
-    # Adjust ip_phys to point after prefixes for instruction decoding
-    # But cpu.ip still points to the start — we'll advance at the end
+    op = data[ip_phys + pfx_len]
     save_ip = cpu.ip
     cpu.ip = (cpu.ip + pfx_len) & 0xFFFF
 
@@ -75,27 +81,29 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
 
 def _push16(cpu, mem, val):
     cpu.sp = (cpu.sp - 2) & 0xFFFF
-    mem.write16(mem.phys(cpu.segs[2], cpu.sp), val & 0xFFFF)
+    addr = ((cpu.segs[2] << 4) + cpu.sp) & 0xFFFFF
+    mem.data[addr] = val & 0xFF
+    mem.data[addr + 1] = (val >> 8) & 0xFF
 
 
 def _pop16(cpu, mem):
-    val = mem.read16(mem.phys(cpu.segs[2], cpu.sp))
+    addr = ((cpu.segs[2] << 4) + cpu.sp) & 0xFFFFF
+    val = mem.data[addr] | (mem.data[addr + 1] << 8)
     cpu.sp = (cpu.sp + 2) & 0xFFFF
     return val
 
 
 def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
     """Dispatch single opcode. Returns instruction byte length (excluding prefixes)."""
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
 
-    # ---- ALU range (delegated) ----
-    alu_len = exec_alu(op, cpu, mem, seg_override)
-    if alu_len:
-        return alu_len
+    # ---- ALU range (delegated, guarded) ----
+    if op in ALU_OPCODES:
+        return exec_alu(op, cpu, mem, seg_override)
 
     # ---- PUSH/POP segment: 06/07/0E/16/17/1E/1F ----
-    _SEG_PUSH = {0x06: 0, 0x0E: 1, 0x16: 2, 0x1E: 3}
-    _SEG_POP = {0x07: 0, 0x17: 2, 0x1F: 3}
+    _SEG_PUSH = _SEG_PUSH_TABLE
+    _SEG_POP = _SEG_POP_TABLE
     if op in _SEG_PUSH:
         _push16(cpu, mem, cpu.segs[_SEG_PUSH[op]])
         return 1
@@ -325,7 +333,7 @@ def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
         return 0
 
     # ---- String ops: 0xA4-0xAF ----
-    if op in (0xA4, 0xA5, 0xA6, 0xA7, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF):
+    if op in _STRING_OPS:
         return exec_string(op, cpu, mem, seg_override, rep_mode)
 
     # ---- IN/OUT: 0xE4-0xE7, 0xEC-0xEF ----
@@ -388,10 +396,8 @@ def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
         return 0
 
     # ---- Flag ops ----
-    _FLAG_OPS = {0xF8: 'clc', 0xF9: 'stc', 0xFA: 'cli', 0xFB: 'sti',
-                 0xFC: 'cld', 0xFD: 'std', 0xF5: 'cmc'}
-    if op in _FLAG_OPS:
-        name = _FLAG_OPS[op]
+    if op in _FLAG_OPS_TABLE:
+        name = _FLAG_OPS_TABLE[op]
         if name == 'clc': cpu.cf = 0
         elif name == 'stc': cpu.cf = 1
         elif name == 'cmc': cpu.cf ^= 1
@@ -409,8 +415,8 @@ def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
 
     # ---- XLAT: 0xD7 ----
     if op == 0xD7:
-        addr = mem.phys(cpu.segs[seg_override if seg_override is not None else 3],
-                        (cpu.bx + cpu.get_reg8(0)) & 0xFFFF)
+        addr = ((cpu.segs[seg_override if seg_override is not None else 3] << 4) +
+                ((cpu.bx + cpu.get_reg8(0)) & 0xFFFF)) & 0xFFFFF
         cpu.set_reg8(0, mem.read8(addr))
         return 1
 
@@ -441,7 +447,7 @@ def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
 # -- Instruction helpers ----------------------------------------------------
 
 def _exec_mov_modrm(op, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
 
     if op == 0x88:  # MOV r/m8, r8
@@ -487,10 +493,10 @@ def _exec_mov_modrm(op, cpu, mem, seg_override):
 
 
 def _exec_mov_acc_mem(op, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     addr = mem.read16(ip_phys + 1)
     seg = seg_override if seg_override is not None else 3  # DS default
-    phys = mem.phys(cpu.segs[seg], addr)
+    phys = ((cpu.segs[seg] << 4) + addr) & 0xFFFFF
     if op == 0xA0:
         cpu.set_reg8(0, mem.read8(phys))
     elif op == 0xA1:
@@ -503,7 +509,7 @@ def _exec_mov_acc_mem(op, cpu, mem, seg_override):
 
 
 def _exec_mov_imm(op, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     if op == 0xC6:  # MOV r/m8, imm8
         imm = mem.read8(ip_phys + 1 + ml)
@@ -524,7 +530,7 @@ def _exec_mov_imm(op, cpu, mem, seg_override):
 
 
 def _exec_xchg(op, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     width = 8 if op == 0x86 else 16
     if mod == 3:
@@ -553,7 +559,7 @@ def _exec_xchg(op, cpu, mem, seg_override):
 
 def _exec_grp5(cpu, mem, seg_override):
     """Group 5 (0xFF): INC/DEC/CALL near/CALL far/JMP near/JMP far/PUSH."""
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
 
     if reg == 0:  # INC word
@@ -614,7 +620,7 @@ def _set_rm16(cpu, mem, mod, rm, disp, seg_override, val):
 
 
 def _exec_imul3(op, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 1)
     src = _get_rm16(cpu, mem, mod, rm, disp, seg_override)
     if src >= 0x8000:
@@ -632,7 +638,7 @@ def _exec_imul3(op, cpu, mem, seg_override):
 
 
 def _exec_movsx_zx(op2, cpu, mem, seg_override):
-    ip_phys = mem.phys(cpu.segs[1], cpu.ip)
+    ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 2)
     if op2 == 0xB6:  # MOVZX r16, r/m8
         if mod == 3:

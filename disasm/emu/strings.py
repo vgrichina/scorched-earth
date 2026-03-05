@@ -10,47 +10,47 @@ def exec_string(op, cpu, mem, seg_override, rep_mode):
         delta = -1 if cpu.df else 1
 
         if op == 0xA4:  # MOVSB
-            val = mem.read8(mem.phys(cpu.segs[src_seg], cpu.si))
-            mem.write8(mem.phys(cpu.segs[0], cpu.di), val)
+            val = mem.read8(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF)
+            mem.write8(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF, val)
             cpu.si = (cpu.si + delta) & 0xFFFF
             cpu.di = (cpu.di + delta) & 0xFFFF
         elif op == 0xA5:  # MOVSW
-            val = mem.read16(mem.phys(cpu.segs[src_seg], cpu.si))
-            mem.write16(mem.phys(cpu.segs[0], cpu.di), val)
+            val = mem.read16(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF)
+            mem.write16(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF, val)
             cpu.si = (cpu.si + delta * 2) & 0xFFFF
             cpu.di = (cpu.di + delta * 2) & 0xFFFF
         elif op == 0xAA:  # STOSB
-            mem.write8(mem.phys(cpu.segs[0], cpu.di), cpu.get_reg8(0))
+            mem.write8(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF, cpu.get_reg8(0))
             cpu.di = (cpu.di + delta) & 0xFFFF
         elif op == 0xAB:  # STOSW
-            mem.write16(mem.phys(cpu.segs[0], cpu.di), cpu.ax)
+            mem.write16(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF, cpu.ax)
             cpu.di = (cpu.di + delta * 2) & 0xFFFF
         elif op == 0xAC:  # LODSB
-            cpu.set_reg8(0, mem.read8(mem.phys(cpu.segs[src_seg], cpu.si)))
+            cpu.set_reg8(0, mem.read8(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF))
             cpu.si = (cpu.si + delta) & 0xFFFF
         elif op == 0xAD:  # LODSW
-            cpu.ax = mem.read16(mem.phys(cpu.segs[src_seg], cpu.si))
+            cpu.ax = mem.read16(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF)
             cpu.si = (cpu.si + delta * 2) & 0xFFFF
         elif op == 0xA6:  # CMPSB
-            a = mem.read8(mem.phys(cpu.segs[src_seg], cpu.si))
-            b = mem.read8(mem.phys(cpu.segs[0], cpu.di))
+            a = mem.read8(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF)
+            b = mem.read8(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF)
             cpu.update_flags_sub(a, b, 8)
             cpu.si = (cpu.si + delta) & 0xFFFF
             cpu.di = (cpu.di + delta) & 0xFFFF
         elif op == 0xA7:  # CMPSW
-            a = mem.read16(mem.phys(cpu.segs[src_seg], cpu.si))
-            b = mem.read16(mem.phys(cpu.segs[0], cpu.di))
+            a = mem.read16(((cpu.segs[src_seg] << 4) + cpu.si) & 0xFFFFF)
+            b = mem.read16(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF)
             cpu.update_flags_sub(a, b, 16)
             cpu.si = (cpu.si + delta * 2) & 0xFFFF
             cpu.di = (cpu.di + delta * 2) & 0xFFFF
         elif op == 0xAE:  # SCASB
             a = cpu.get_reg8(0)
-            b = mem.read8(mem.phys(cpu.segs[0], cpu.di))
+            b = mem.read8(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF)
             cpu.update_flags_sub(a, b, 8)
             cpu.di = (cpu.di + delta) & 0xFFFF
         elif op == 0xAF:  # SCASW
             a = cpu.ax
-            b = mem.read16(mem.phys(cpu.segs[0], cpu.di))
+            b = mem.read16(((cpu.segs[0] << 4) + cpu.di) & 0xFFFFF)
             cpu.update_flags_sub(a, b, 16)
             cpu.di = (cpu.di + delta * 2) & 0xFFFF
 

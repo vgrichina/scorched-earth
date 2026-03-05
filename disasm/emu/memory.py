@@ -19,25 +19,24 @@ class Memory:
         self.data = bytearray(self.SIZE)
         # 4 VGA planes for Mode X (each 64KB)
         self.vga_planes = [bytearray(self.VGA_PLANE_SIZE) for _ in range(4)]
-        # Reference to PortIO for map mask / read plane (set by __main__)
-        self.ports = None
-
-    def _is_vga(self, addr):
-        return self.VGA_BASE <= addr < self.VGA_END
+        # Cached VGA state (updated by PortIO.port_out via notify)
+        self._mode_x = False
+        self._map_mask = 0x0F
+        self._read_plane = 0
 
     # -- byte/word/dword reads ------------------------------------------------
 
     def read8(self, addr):
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
-            off = addr - self.VGA_BASE
-            return self.vga_planes[self.ports.read_plane][off]
+        if addr >= 0xA0000 and self._mode_x:
+            return self.vga_planes[self._read_plane][addr - 0xA0000]
         return self.data[addr]
 
     def read16(self, addr):
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
-            return self.read8(addr) | (self.read8(addr + 1) << 8)
+        if addr >= 0xA0000 and self._mode_x:
+            off = addr - 0xA0000
+            return self.vga_planes[self._read_plane][off] | (self.vga_planes[self._read_plane][off + 1] << 8)
         return self.data[addr] | (self.data[addr + 1] << 8)
 
     def read32(self, addr):
@@ -54,19 +53,20 @@ class Memory:
 
     def write8(self, addr, val):
         addr &= 0xFFFFF
-        val &= 0xFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
-            off = addr - self.VGA_BASE
-            mask = self.ports.map_mask
-            for plane in range(4):
-                if mask & (1 << plane):
-                    self.vga_planes[plane][off] = val
+        if addr >= 0xA0000 and self._mode_x:
+            off = addr - 0xA0000
+            mask = self._map_mask
+            planes = self.vga_planes
+            if mask & 1: planes[0][off] = val & 0xFF
+            if mask & 2: planes[1][off] = val & 0xFF
+            if mask & 4: planes[2][off] = val & 0xFF
+            if mask & 8: planes[3][off] = val & 0xFF
         else:
-            self.data[addr] = val
+            self.data[addr] = val & 0xFF
 
     def write16(self, addr, val):
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
+        if addr >= 0xA0000 and self._mode_x:
             self.write8(addr, val & 0xFF)
             self.write8(addr + 1, (val >> 8) & 0xFF)
         else:
@@ -75,7 +75,7 @@ class Memory:
 
     def write32(self, addr, val):
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
+        if addr >= 0xA0000 and self._mode_x:
             self.write8(addr, val & 0xFF)
             self.write8(addr + 1, (val >> 8) & 0xFF)
             self.write8(addr + 2, (val >> 16) & 0xFF)
@@ -94,7 +94,7 @@ class Memory:
     def load_bytes(self, addr, data):
         """Copy bytes into memory at addr."""
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
+        if addr >= 0xA0000 and self._mode_x:
             for i, b in enumerate(data):
                 self.write8(addr + i, b)
         else:
@@ -104,7 +104,7 @@ class Memory:
     def read_bytes(self, addr, n):
         """Read n bytes from memory."""
         addr &= 0xFFFFF
-        if self.ports and self.ports.mode_x and self._is_vga(addr):
+        if addr >= 0xA0000 and self._mode_x:
             return bytes(self.read8(addr + i) for i in range(n))
         return bytes(self.data[addr:addr + n])
 
