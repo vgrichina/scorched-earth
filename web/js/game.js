@@ -697,8 +697,8 @@ export function gameTick() {
               if (napResult.napalmFirePixels) {
                 for (const fp of napResult.napalmFirePixels) {
                   const cur = getPixel(fp.x, fp.y);
-                  if (cur === 254 || cur === 130) {  // fire or dirt napalm color
-                    setPixel(fp.x, fp.y, napResult.isDirt ? 130 : 0);  // dirt stays, fire erased to sky
+                  if (cur === 254 || cur === 80) {  // fire or dirt napalm color (EXE: 0x50=80)
+                    setPixel(fp.x, fp.y, napResult.isDirt ? 80 : 0);  // dirt stays, fire erased to sky
                   }
                 }
               }

@@ -322,8 +322,8 @@ function bhvNapalm(proj, weapon) {
     active: true,
   }];
 
-  // Fire mode: small initial explosion; Dirt mode: no explosion
-  return { explode: !isDirt, radius: isDirt ? 0 : 5, spawn, dirtAdd: false, skipDamage: isDirt };
+  // EXE: visual-only fg_drect flash on fire impact, NO real explosion damage
+  return { explode: false, radius: 0, spawn, dirtAdd: false, skipDamage: isDirt };
 }
 
 // --- Dirt Adding (0x0009): inverse crater, fill circle with terrain ---
@@ -602,7 +602,7 @@ export function applyGuidance(proj) {
 const NAPALM_STEPS_PER_FRAME = 20;  // steps per game frame (EXE runs all 1000 synchronously)
 const NAPALM_MAX_STEPS = 1000;      // EXE: frame_counter > 1000 → overflow
 const FIRE_COLOR = 254;              // VGA 254 — fire pixel (DS:E702 = 0xFE)
-const DIRT_NAPALM_COLOR = 130;       // mid-terrain palette for dirt deposition
+const DIRT_NAPALM_COLOR = 80;        // EXE: DS:E702=0x50=80 for dirt particle pixels
 
 // check_direction(x, y) — EXE at file 0x2DFCC
 // Returns: 0 = terrain below (drop), -1 = go left, +1 = go right, 2 = erode upward

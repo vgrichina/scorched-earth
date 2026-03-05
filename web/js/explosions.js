@@ -83,17 +83,18 @@ export function addDirt(cx, cy, radius) {
   }
 }
 
-// Add a vertical dirt tower from impact point upward
-export function addDirtTower(cx, cy, height) {
-  const width = 3;
+// Add a vertical dirt tower from impact point
+// EXE: file 0x2DF00 — ±45px wide, dy=-30 (above) to +20 (below) from impact
+export function addDirtTower(cx, cy, _height) {
+  const width = 45;  // EXE: ±45px horizontal
   const W = config.screenWidth;
   for (let dx = -width; dx <= width; dx++) {
     const x = cx + dx;
     if (x < 0 || x >= W) continue;
-    for (let dy = 0; dy < height; dy++) {
-      const y = cy - dy;
+    for (let dy = -30; dy <= 20; dy++) {  // EXE: top=-30, bottom=+20 from impact
+      const y = cy + dy;
       if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
-      if (!terrainBitmap[y * W + x]) {
+      if (!terrainBitmap[y * W + x]) {  // only fill empty pixels (EXE: pixel < 170)
         const palIdx = TERRAIN_PAL_START + Math.floor(Math.max(0, Math.min(TERRAIN_PAL_COUNT - 1, (config.screenHeight - 1 - y) * (TERRAIN_PAL_COUNT - 1) / (config.screenHeight - PLAYFIELD_TOP))));
         terrainBitmap[y * W + x] = palIdx;
         setPixel(x, y, palIdx);
