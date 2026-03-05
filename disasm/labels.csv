@@ -322,6 +322,19 @@ DS:0x510E,WRAP_ENABLED
 0x37688,score_on_damage
 DS:0x5148,TEAMS_ENABLED
 
+# ---- Physics runtime DS variables (set by setup_physics_constants, used by sim_step) ----
+DS:0xCEAC,dt
+DS:0xCE9C,gravity_step
+DS:0xCEA4,wind_step
+DS:0x5178,viscosity_factor
+DS:0x5140,FIRE_DELAY
+DS:0x1C86,mips_count_lo
+DS:0x1C88,mips_count_hi
+DS:0x1C78,fire_pending_flag
+DS:0xCE9A,sim_warhead_count
+DS:0xCE96,sim_current_player_idx
+0x23298,outer_sim_loop
+
 # ---- AI compute_power constants (file 0x254E9-0x2589B) ----
 0x254E9,ai_compute_power
 0x2589C,ai_wind_correction

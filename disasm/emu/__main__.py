@@ -29,6 +29,15 @@ def main():
                         help='Print each instruction as it executes')
     parser.add_argument('--trace-ints', action='store_true',
                         help='Print INT calls')
+    parser.add_argument('--dump-screen', type=str, metavar='FILE.png',
+                        help='Dump VGA framebuffer to PNG on exit')
+    parser.add_argument('--stdout', type=str, metavar='FILE',
+                        help='Redirect DOS stdout (handle 1) to file')
+    parser.add_argument('--stderr', type=str, metavar='FILE',
+                        help='Redirect DOS stderr (handle 2) to file')
+    parser.add_argument('--break', dest='breakpoints', action='append', default=[],
+                        metavar='ADDR', help='Break at address (file offset 0xNNNNN, '
+                        'or SEG:OFF in emulator space). Can repeat.')
     args = parser.parse_args()
 
     # Resolve exe path relative to project root
@@ -73,8 +82,15 @@ def main():
 
     # Set up I/O
     ports = PortIO()
+    mem_obj.ports = ports  # Wire up for Mode X planar VGA
     earth_dir = os.path.join(os.path.dirname(exe_path))
-    int_handler = InterruptHandler(mem_obj, cpu, earth_dir)
+    int_handler = InterruptHandler(mem_obj, cpu, earth_dir, ports)
+
+    # Redirect DOS stdout/stderr to files if requested
+    if args.stdout:
+        int_handler._files[1] = open(args.stdout, 'wb')
+    if args.stderr:
+        int_handler._files[2] = open(args.stderr, 'wb')
 
     # Heap starts after image + some space for stack
     stack_end = Memory.phys(info['entry_ss'], info['entry_sp']) + 0x1000
@@ -94,6 +110,22 @@ def main():
         except ImportError:
             pass
 
+    # Parse breakpoints → set of physical addresses
+    bp_set = set()
+    for bp_str in args.breakpoints:
+        if ':' in bp_str:
+            # SEG:OFF — emulator physical address
+            seg_s, off_s = bp_str.split(':')
+            phys = int(seg_s, 16) * 16 + int(off_s, 16)
+            bp_set.add(phys)
+            print(f"Breakpoint: {seg_s}:{off_s} (phys 0x{phys:05X})")
+        else:
+            # File offset → convert to emulator physical
+            foff = int(bp_str, 16)
+            phys = foff - info['header_size'] + info['image_base']
+            bp_set.add(phys)
+            print(f"Breakpoint: file 0x{foff:05X} (phys 0x{phys:05X})")
+
     # Run
     print(f"\nExecuting (max {args.max_steps} steps)...")
     try:
@@ -102,8 +134,20 @@ def main():
                 print(f"CPU halted after {i} instructions")
                 break
 
+            ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
+
+            if ip_phys in bp_set:
+                file_off = ip_phys - info['image_base'] + info['header_size']
+                print(f"\n*** Breakpoint hit at step {i}: "
+                      f"{cpu.segs[1]:04X}:{cpu.ip:04X} (file 0x{file_off:05X})")
+                print(cpu.dump())
+                # Dump stack
+                sp_phys = Memory.phys(cpu.segs[2], cpu.sp)
+                words = [mem_obj.read16(sp_phys + j*2) for j in range(8)]
+                print("Stack: " + " ".join(f"{w:04X}" for w in words))
+                break
+
             if args.trace and trace_decode:
-                ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
                 try:
                     length, mn, op_str, _, _ = trace_decode(info['exe_data'], ip_phys)
                     print(f"  {cpu.segs[1]:04X}:{cpu.ip:04X}  {mn} {op_str}")
@@ -123,10 +167,35 @@ def main():
         ip_phys = Memory.phys(cpu.segs[1], cpu.ip)
         raw = ' '.join(f'{mem_obj.data[ip_phys+j]:02X}' for j in range(8))
         print(f"Bytes at CS:IP: {raw}")
-        raise
+
+    # Dump screen if requested (even after error)
+    if args.dump_screen:
+        w, h = ports.get_resolution()
+        mode_desc = f"Mode X {w}x{h}" if ports.mode_x else f"Mode 13h {w}x{h}"
+        mem_obj.dump_screen_png(args.dump_screen, ports)
+        print(f"\nScreen dumped to {args.dump_screen} ({mode_desc})")
 
     print("\nFinal state:")
     print(cpu.dump())
+
+    # Disassemble at current CS:IP
+    try:
+        from instruction_set_x86 import decode
+        ip_phys = mem_obj.phys(cpu.segs[1], cpu.ip)
+        # Map to file offset: ip_phys - image_base + header_size
+        file_off = ip_phys - info['image_base'] + info['header_size']
+        print(f"\nCode at CS:IP {cpu.segs[1]:04X}:{cpu.ip:04X} (file 0x{file_off:05X}):")
+        pos = file_off
+        for _ in range(10):
+            try:
+                length, mn, op_str, is_fpu, ds_ref = decode(info['exe_data'], pos)
+                raw = ' '.join(f'{info["exe_data"][pos+i]:02X}' for i in range(length))
+                print(f"  0x{pos:05X}  {raw:<24s}  {mn} {op_str}")
+                pos += length
+            except Exception:
+                break
+    except ImportError:
+        pass
 
 
 if __name__ == '__main__':

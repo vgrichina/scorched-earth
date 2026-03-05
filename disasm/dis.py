@@ -339,12 +339,13 @@ def load_ds_labels(path):
 # Address parser (command-line arg)
 # ---------------------------------------------------------------------------
 
-def parse_start_addr(s):
+def parse_start_addr(s, emu_seg=False):
     """
     Parse command-line address:
       '0x20EA0' or '20EA0'  → file offset
       'DS:0x1234'            → DS offset → file offset
       'SEG:OFF' hex pair     → file offset
+    If emu_seg=True, subtract EMU_SEG_OFFSET from SEG before mapping.
     Returns file offset as int.
     """
     s = s.strip()
@@ -358,6 +359,8 @@ def parse_start_addr(s):
         seg_s, off_s = s.split(':', 1)
         seg = int(seg_s, 16)
         off = int(off_s, 16)
+        if emu_seg:
+            seg -= EMU_SEG_OFFSET
         return MZ_HEADER + seg * 16 + off
 
     return int(s, 16)
@@ -463,14 +466,22 @@ def disassemble(data, file_start, n_lines, labels, comments, ds_labels, dtypes=N
 # Main
 # ---------------------------------------------------------------------------
 
+EMU_SEG_OFFSET = 0x70  # emulator loads image at seg 0x0070
+
+
 def main():
     args = sys.argv[1:]
     if not args or args[0] in ('-h', '--help'):
         print(__doc__)
         sys.exit(0)
 
+    # Check for --emu-seg flag (subtract 0x70 from SEG:OFF segments)
+    emu_seg = '--emu-seg' in args
+    if emu_seg:
+        args.remove('--emu-seg')
+
     try:
-        file_start = parse_start_addr(args[0])
+        file_start = parse_start_addr(args[0], emu_seg=emu_seg)
     except (ValueError, IndexError) as e:
         print(f'Error parsing address: {args[0]!r} — {e}', file=sys.stderr)
         sys.exit(1)

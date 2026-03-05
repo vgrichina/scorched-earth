@@ -144,7 +144,7 @@ def _dispatch(op, cpu, mem, ports, int_handler, seg_override, rep_mode, trace):
         return 1
 
     # ---- MOV: 0x88-0x8E, 0xA0-0xA3, 0xB0-0xBF, 0xC6-0xC7 ----
-    if 0x88 <= op <= 0x8E:
+    if 0x88 <= op <= 0x8C or op == 0x8E:
         return _exec_mov_modrm(op, cpu, mem, seg_override)
     if 0xA0 <= op <= 0xA3:
         return _exec_mov_acc_mem(op, cpu, mem, seg_override)

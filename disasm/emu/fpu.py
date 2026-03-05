@@ -24,17 +24,23 @@ def exec_fpu_int(cpu, mem, seg_override):
         _exec_d9_reg(cpu, d9_byte)
         return 4
 
-    # Normal ESC: CD 34..3C modrm [disp]
+    # Normal ESC: CD 34..3B modrm [disp]
+    # INT 3Ch is special: CD 3C [ESC_byte] modrm [disp] (FWAIT-prefixed)
     _INT_TO_ESC = {
         0x34: 0xD8, 0x35: 0xD9, 0x36: 0xDA, 0x37: 0xDB,
         0x38: 0xDC, 0x39: 0xDD, 0x3A: 0xDE, 0x3B: 0xDF,
-        0x3C: 0xD8,
     }
-    base_op = _INT_TO_ESC[int_num]
-    ds_seg = 3 if int_num == 0x3C else seg_override  # DS override for 0x3C
 
+    if int_num == 0x3C:
+        # CD 3C [D8-DF] modrm [disp...] — FWAIT + ESC instruction
+        base_op = mem.read8(ip_phys + 2)
+        ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 3)
+        _exec_esc(cpu, mem, base_op, mod, reg, rm, disp, seg_override)
+        return 3 + ml
+
+    base_op = _INT_TO_ESC[int_num]
     ml, mod, reg, rm, disp = decode_modrm(mem.data, ip_phys + 2)
-    _exec_esc(cpu, mem, base_op, mod, reg, rm, disp, ds_seg)
+    _exec_esc(cpu, mem, base_op, mod, reg, rm, disp, seg_override)
     return 2 + ml
 
 

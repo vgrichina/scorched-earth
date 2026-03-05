@@ -1,4 +1,4 @@
-"""VGA port I/O handlers: palette, vsync, sequencer stubs."""
+"""VGA port I/O handlers: palette, sequencer, CRTC, GC, vsync."""
 
 
 class PortIO:
@@ -9,6 +9,44 @@ class PortIO:
         self._pal_read_idx = 0
         self._pal_read_comp = 0
         self._vsync_toggle = 0
+
+        # VGA Sequencer (port 0x3C4/0x3C5)
+        self._seq_index = 0
+        self.seq_regs = [0] * 8  # 8 sequencer registers
+        self.seq_regs[2] = 0x0F  # Map Mask: all planes enabled by default
+
+        # VGA CRTC (port 0x3D4/0x3D5)
+        self._crtc_index = 0
+        self.crtc_regs = [0] * 64
+
+        # VGA Graphics Controller (port 0x3CE/0x3CF)
+        self._gc_index = 0
+        self.gc_regs = [0] * 16
+        self.gc_regs[4] = 0  # Read Map Select: plane 0
+
+        # Mode tracking
+        self.video_mode = 0x13  # default mode 13h
+    @property
+    def mode_x(self):
+        """True if VGA is in unchained/planar mode (Mode X): seq reg 4 chain-4 bit cleared."""
+        return not (self.seq_regs[4] & 0x08)
+
+    @property
+    def map_mask(self):
+        """Sequencer register 2: which planes are written."""
+        return self.seq_regs[2] & 0x0F
+
+    @property
+    def read_plane(self):
+        """GC register 4: which plane is read."""
+        return self.gc_regs[4] & 0x03
+
+    def set_mode(self, mode):
+        """Called by INT 10h AH=00 to reset VGA state."""
+        self.video_mode = mode & 0x7F
+        self.seq_regs[4] = 0x08  # reset to chained (mode 13h default)
+        self.seq_regs[2] = 0x0F
+        self.gc_regs[4] = 0
 
     def port_in(self, port):
         if port == 0x3DA:
@@ -25,20 +63,29 @@ class PortIO:
                 self._pal_read_comp = 0
                 self._pal_read_idx = (self._pal_read_idx + 1) & 0xFF
             return val
+        if port == 0x3C5:
+            return self.seq_regs[self._seq_index & 7]
+        if port == 0x3D5:
+            return self.crtc_regs[self._crtc_index & 0x3F]
+        if port == 0x3CF:
+            return self.gc_regs[self._gc_index & 0x0F]
+        if port == 0x3C4:
+            return self._seq_index
+        if port == 0x3D4:
+            return self._crtc_index
+        if port == 0x201:
+            return 0x00  # Joystick: no buttons pressed, all axes done
         # All other ports: return 0xFF
         return 0xFF
 
     def port_out(self, port, val):
         if port == 0x3C8:
-            # Set palette write index
             self._pal_write_idx = val & 0xFF
             self._pal_write_comp = 0
         elif port == 0x3C7:
-            # Set palette read index
             self._pal_read_idx = val & 0xFF
             self._pal_read_comp = 0
         elif port == 0x3C9:
-            # Write palette RGB component
             idx = self._pal_write_idx
             r, g, b = self.palette[idx]
             comp = self._pal_write_comp
@@ -53,4 +100,41 @@ class PortIO:
             if self._pal_write_comp >= 3:
                 self._pal_write_comp = 0
                 self._pal_write_idx = (self._pal_write_idx + 1) & 0xFF
-        # 0x3C4/0x3C5, 0x3CE/0x3CF, 0x3D4/0x3D5: silently ignored
+        elif port == 0x3C4:
+            self._seq_index = val & 0xFF
+        elif port == 0x3C5:
+            idx = self._seq_index & 7
+            self.seq_regs[idx] = val & 0xFF
+            # Detect Mode X: unchaining happens when seq reg 4 bit 3 (chain-4) is cleared
+            # seq reg 4 chain-4 bit tracked via mode_x property
+        elif port == 0x3D4:
+            self._crtc_index = val & 0xFF
+        elif port == 0x3D5:
+            self.crtc_regs[self._crtc_index & 0x3F] = val & 0xFF
+        elif port == 0x3CE:
+            self._gc_index = val & 0xFF
+        elif port == 0x3CF:
+            self.gc_regs[self._gc_index & 0x0F] = val & 0xFF
+
+    def get_resolution(self):
+        """Estimate screen resolution from CRTC registers."""
+        if not self.mode_x:
+            return 320, 200  # Standard mode 13h
+
+        # Mode X: read CRTC vertical display end (reg 0x12) + overflow (reg 0x07)
+        vde = self.crtc_regs[0x12]
+        overflow = self.crtc_regs[0x07]
+        height = vde | ((overflow & 0x02) << 7) | ((overflow & 0x40) << 3)
+        height += 1  # VDE is 0-based
+
+        # Horizontal: CRTC reg 0x01 (end horizontal display) + 1, * 8 pixels
+        hde = self.crtc_regs[0x01]
+        width = (hde + 1) * 8 if hde else 320
+
+        # Clamp to sane values
+        if width < 320 or width > 400:
+            width = 320
+        if height < 200 or height > 600:
+            height = 200
+
+        return width, height
