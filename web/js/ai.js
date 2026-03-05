@@ -218,7 +218,28 @@ export function aiComputeShot(player) {
     }
 
     const angle = clamp(Math.round(baseAngle + angleOffset), 1, 179);
-    const power = computePowerForAngle(player, target, angle);
+
+    // Wind compensation: estimate wind drift and adjust target.x
+    // Skip if wind opposes shot direction (EXE behavior: only correct when wind aids)
+    // Wind displacement = 0.5 * wind_accel * t², wind_accel = WIND_FACTOR * wind = 0.2 * wind
+    // Flight time t ≈ |dx| / (cos(angle) * power * MAX_SPEED/1000)
+    // We estimate power without wind first, then use it to derive flight time.
+    const WIND_FACTOR_AI = 0.2;  // matches physics.js WIND_FACTOR
+    const MAX_SPEED_AI = 400;    // matches physics.js MAX_SPEED
+    let windTarget = target;
+    if (_wind !== 0 && Math.sign(dx) === Math.sign(_wind)) {
+      const cosA = Math.cos(angle * Math.PI / 180);
+      if (Math.abs(cosA) > 0.01) {
+        const rawPwr = computePowerForAngle(player, target, angle);
+        const hVel = cosA * (rawPwr / 1000) * MAX_SPEED_AI;
+        if (hVel > 0.1) {
+          const flightTime = Math.abs(dx) / hVel;
+          const windDisp = 0.5 * WIND_FACTOR_AI * _wind * flightTime * flightTime;
+          windTarget = { x: target.x - windDisp, y: target.y };
+        }
+      }
+    }
+    const power = computePowerForAngle(player, windTarget, angle);
 
     aiState.targetAngle = angle;
     aiState.targetPower = clamp(power, 50, 1000);
