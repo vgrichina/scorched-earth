@@ -6180,7 +6180,8 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 
 ### Web Reimplementation — Match Traced EXE Flow
 
-Reference screenshots from emulator trace (boot → menu → player setup → shop → gameplay):
+Reference screenshots from emulator trace (boot → menu → player setup → shop → gameplay).
+**Every task below must be cross-checked against EXE disassembly AND v86 emulator execution (including pixel-level screenshots) before marking done.** Compare web port output side-by-side with EXE screenshots to confirm fidelity — do not mark done based on code review alone.
 
 #### 1. Main Menu (`/tmp/menu.state`)
 - [x] Split-panel layout with terrain preview
@@ -6188,42 +6189,42 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] 3D beveled boxes, dialog system
 
 #### 2. Player Setup Dialog (`/tmp/after_s.state`, `/tmp/after_a.state`)
-- [ ] Player N (of M) title bar
-- [ ] Name text field (focused, accepts typed characters)
-- [ ] AI type selector (Human/Cyborg/etc)
-- [ ] Done button (enables only when name is non-empty)
-- [ ] Tab-order: Name field → Done button (Enter cycles focus)
-- [ ] Sequential: show dialog for each player in order
+- [ ] Player N (of M) title bar — **verify: disasm + v86 screenshot**
+- [ ] Name text field (focused, accepts typed characters) — **verify: disasm + v86 screenshot**
+- [ ] AI type selector (Human/Cyborg/etc) — **verify: disasm + v86 screenshot**
+- [ ] Done button (enables only when name is non-empty) — **verify: disasm + v86 screenshot**
+- [ ] Tab-order: Name field → Done button (Enter cycles focus) — **verify: disasm + v86 screenshot**
+- [ ] Sequential: show dialog for each player in order — **verify: disasm + v86 screenshot**
 
 #### 3. Weapons Shop (`/tmp/after_p2done.state`)
-- [ ] Full-screen modal dialog per player
-- [ ] Header: player name, "Cash $1,000,000", "10 rounds remain", "Earned interest"
-- [ ] "Cash Left:" bar with colored fill
-- [ ] Scrollable weapon list: qty, icon, name, price/max (e.g. "99 ➜ Baby Missile $400/10")
-- [ ] Right-side buttons: Update, Inventory, Done (with ~ hotkey underlines)
-- [ ] Weapon icons next to each row (small colored glyphs)
-- [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
-- [ ] Tab buttons at bottom: Score, Weapons, Miscellaneous, Done
-- [ ] Buy/sell on click; qty spinners
-- [ ] Interest calculation on earned cash between rounds
+- [ ] Full-screen modal dialog per player — **verify: disasm + v86 screenshot**
+- [ ] Header: player name, "Cash $1,000,000", "10 rounds remain", "Earned interest" — **verify: disasm + v86 screenshot**
+- [ ] "Cash Left:" bar with colored fill — **verify: disasm + v86 screenshot**
+- [ ] Scrollable weapon list: qty, icon, name, price/max (e.g. "99 ➜ Baby Missile $400/10") — **verify: disasm + v86 screenshot**
+- [ ] Right-side buttons: Update, Inventory, Done (with ~ hotkey underlines) — **verify: disasm + v86 screenshot**
+- [ ] Weapon icons next to each row (small colored glyphs) — **verify: disasm + v86 screenshot**
+- [ ] Sparkle/palette animation on shop open (cosmetic, low priority) — **verify: disasm + v86 screenshot**
+- [ ] Tab buttons at bottom: Score, Weapons, Miscellaneous, Done — **verify: disasm + v86 screenshot**
+- [ ] Buy/sell on click; qty spinners — **verify: disasm + v86 screenshot**
+- [x] Interest calculation on earned cash between rounds: **VERIFIED** (session 145). EXE formula at file 0x17804: `earned = floor(player.cash * DS:0x5190)` where DS:0x5190=interest_rate (float64, 0.30 default from SCORCH.CFG). Per-player bignum cash (+0xBE) loaded, FPU multiplied by rate, `_ftol`, added back via bignum add. Web port score.js `applyInterest()`: `floor(cash * config.interest / 100)` with config.interest=30 → identical result. Called once at round transition before shop. No discrepancy.
 
 #### 4. Terrain Generation + Tank Placement (`/tmp/shop2_d.png`, `/tmp/shop2_d2.png`)
 - [x] Sky gradient (blue top → lighter bottom)
 - [x] Terrain profile with smooth curves
 - [x] Tank placement on terrain surface
-- [ ] Progressive terrain draw (columns left-to-right, visible during generation)
+- [x] Progressive terrain draw (columns left-to-right, visible during generation): **DONE** (session 145). Added TERRAIN_REVEAL state to game.js. After generateTerrain(), enters reveal state with terrainRevealCol=0, advances ~5 cols/frame (screenWidth/60). drawTerrain() in terrain.js accepts optional maxCol parameter. main.js renders sky + partial terrain during reveal. Transitions to AIM/SYNC_AIM when complete. EXE: drawColumn at file 0x29720 called per column from random walk kernel.
 
 #### 5. In-Game HUD (`/tmp/game_playing.state`)
 - [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon
 - [x] Second row: "Max: NNNN" + player status icons (shield/parachute/etc)
 - [x] "No Wind" / wind indicator
-- [ ] Player turn indicator (colored name/icon in HUD matching EXE layout)
-- [ ] Exact EXE HUD spacing and font positioning (compare pixel-level with traced screenshot)
+- [ ] Player turn indicator (colored name/icon in HUD matching EXE layout) — **verify: disasm + v86 screenshot**
+- [ ] Exact EXE HUD spacing and font positioning (compare pixel-level with traced screenshot) — **verify: disasm + v86 screenshot**
 
 #### 6. Game Flow Sequence (end-to-end)
 - [x] Menu → Start triggers game
-- [ ] Menu → Player setup dialogs (one per player) → Shop (one per player) → Terrain → Play
-- [ ] Current web skips player setup dialogs (auto-names) — need to add
-- [ ] Current web skips shop (auto-equips) — need interactive shop before round
-- [ ] Round-end → next round shop → terrain regen → play (full round cycle)
-- [ ] "NO KIBITZING!!" screen between player shops (hotseat anti-peek)
+- [ ] Menu → Player setup dialogs (one per player) → Shop (one per player) → Terrain → Play — **verify: disasm + v86 screenshot**
+- [ ] Current web skips player setup dialogs (auto-names) — need to add — **verify: disasm + v86 screenshot**
+- [ ] Current web skips shop (auto-equips) — need interactive shop before round — **verify: disasm + v86 screenshot**
+- [ ] Round-end → next round shop → terrain regen → play (full round cycle) — **verify: disasm + v86 screenshot**
+- [ ] "NO KIBITZING!!" screen between player shops (hotseat anti-peek) — **verify: disasm + v86 screenshot**

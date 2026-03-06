@@ -81,6 +81,7 @@ export const STATE = {
   SYNC_FIRE: 'sync_fire',     // EXE: synchronous mode — batch launch
   SCREEN_HIDE: 'screen_hide', // EXE: "No Kibitzing" screen between human turns
   SYSTEM_MENU: 'system_menu', // EXE: F9 system menu
+  TERRAIN_REVEAL: 'terrain_reveal', // EXE: progressive left-to-right terrain draw
 };
 
 export const game = {
@@ -297,15 +298,10 @@ function startNewRound() {
     game.currentPlayer = game.turnOrder[0];
   }
 
-  // EXE: synchronous/simultaneous play mode — all players aim then all fire at once
-  if (config.playMode >= 1) {
-    game.aimQueue = [];
-    game.syncPlayerIdx = 0;
-    game.aimTimer = config.playMode === 1 ? 600 : 0;
-    game.state = STATE.SYNC_AIM;
-  } else {
-    game.state = STATE.AIM;
-  }
+  // EXE: progressive terrain draw — columns sweep left-to-right during generation
+  // EXE drawColumn at file 0x29720 called per column from random walk kernel
+  game.terrainRevealCol = 0;
+  game.state = STATE.TERRAIN_REVEAL;
 }
 
 // EXE: MOUSE_RATE (DS:0x6BF8) = 0.50 default — scales mouse delta to angle/power
@@ -904,6 +900,25 @@ export function gameTick() {
         }
       }
       startNewRound();
+      break;
+    }
+
+    case STATE.TERRAIN_REVEAL: {
+      // EXE: progressive terrain draw — columns left-to-right, ~5 columns per frame
+      const revealSpeed = Math.max(4, Math.floor(config.screenWidth / 60));
+      game.terrainRevealCol += revealSpeed;
+      if (game.terrainRevealCol >= config.screenWidth) {
+        game.terrainRevealCol = config.screenWidth;
+        // Transition to gameplay
+        if (config.playMode >= 1) {
+          game.aimQueue = [];
+          game.syncPlayerIdx = 0;
+          game.aimTimer = config.playMode === 1 ? 600 : 0;
+          game.state = STATE.SYNC_AIM;
+        } else {
+          game.state = STATE.AIM;
+        }
+      }
       break;
     }
 

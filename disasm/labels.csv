@@ -123,7 +123,7 @@ DS:0x515C,MAX_WIND
 DS:0x633C,wind_min_f
 DS:0x6348,wind_max_f
 DS:0x5180,wind_int_tmp
-DS:0x5190,MKT_SENSITIVITY
+DS:0x5190,INTEREST_RATE
 DS:0x0408,viscosity_max_f
 DS:0x040C,viscosity_div_f
 DS:0x637C,viscosity_div_f2

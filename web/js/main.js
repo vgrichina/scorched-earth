@@ -450,6 +450,18 @@ function gameLoop() {
     return;
   }
 
+  // EXE: progressive terrain reveal — draw sky + partial terrain sweep
+  if (game.state === STATE.TERRAIN_REVEAL) {
+    gameTick();
+    drawSky();
+    drawTerrain(game.terrainRevealCol);
+    // Draw tanks only for revealed columns
+    drawAllTanks();
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
   // 1. Redraw clean world FIRST (no HUD) so gameTick reads clean pixels
   redrawWorld();
 
@@ -510,7 +522,7 @@ const GAMEPLAY_STATES = new Set([
   STATE.AIM, STATE.FLIGHT, STATE.EXPLOSION, STATE.FALLING,
   STATE.NEXT_TURN, STATE.ROUND_OVER, STATE.SHOP, STATE.ROUND_SETUP,
   STATE.GAME_OVER, STATE.SYNC_AIM, STATE.SYNC_FIRE,
-  STATE.SCREEN_HIDE, STATE.SYSTEM_MENU,
+  STATE.SCREEN_HIDE, STATE.SYSTEM_MENU, STATE.TERRAIN_REVEAL,
 ]);
 
 // H key: toggle sound (gameplay only — not during menu/name entry)

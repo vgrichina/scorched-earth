@@ -445,10 +445,11 @@ function buildTerrainBitmap() {
 // Draw terrain from per-pixel bitmap (preserves crater holes, tunnels, etc.)
 // EXE: drawColumn at file 0x29720, setTerrainPixel at file 0x3AB39
 // EXE: palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
-export function drawTerrain() {
+export function drawTerrain(maxCol) {
+  const xLimit = maxCol !== undefined ? Math.min(maxCol, WIDTH) : WIDTH;
   for (let y = PLAYFIELD_TOP; y < HEIGHT; y++) {
     const base = y * WIDTH;
-    for (let x = 0; x < WIDTH; x++) {
+    for (let x = 0; x < xLimit; x++) {
       const color = terrainBitmap[base + x];
       if (color) {
         setPixel(x, y, color);
