@@ -112,6 +112,9 @@ DS:0x231C,PTR_NO_KIBITZING,data/farptr
 0x2120A,weapon_fire_dispatch
 0x21397,set_damage_type_for_leapfrog
 0x21603,create_projectile
+0x228DB,draw_small_bomb
+0x22A14,draw_big_bomb
+0x23FD3,setup_explosion_palette_loop
 0x21A80,sim_step
 0x21C56,apply_viscosity
 0x21EFD,wall_bounce_coeff_select
@@ -122,6 +125,9 @@ DS:0x231C,PTR_NO_KIBITZING,data/farptr
 0x23298,outer_sim_loop
 0x246E0,funky_bomb_handler
 0x2476B,draw_explosion_expanding
+0x43690,bresenham_circle_fill
+0x4364A,circle_scanline_4mirror
+0x4344C,circle_scanline_draw
 0x247BA,sound_impact_random_tone
 0x24894,funky_bomb_spawn_sub_bombs
 0x24CBF,terrain_hit_traversal_func
