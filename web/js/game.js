@@ -93,6 +93,7 @@ export const game = {
   nextTurnTimer: 0,
   aiActive: false,
   shopPlayerIdx: 0,
+  initialShop: false,  // EXE: first shop before round 1 (no terrain regen after)
   warQuote: '',
   roundOverTimer: 0,
   // Play order system
@@ -260,6 +261,16 @@ export function initGameRound() {
     resolveRandomWallType();
   }
 
+  // EXE: initial shop before round 1 — each player buys weapons/defenses
+  game.initialShop = true;
+  game.shopPlayerIdx = 0;
+  const rl = config.rounds;
+  openShop(0, rl);
+  game.state = STATE.SHOP;
+}
+
+// Transition from shop to gameplay (called after initial shop or between-round shop)
+function enterPlayState() {
   if (config.playMode >= 1) {
     // Both Simultaneous (1) and Synchronous (2) use SYNC_AIM/SYNC_FIRE
     game.aimQueue = [];
@@ -880,7 +891,13 @@ export function gameTick() {
         if (game.shopPlayerIdx >= players.length) {
           // All players done shopping
           closeShop();
-          game.state = STATE.ROUND_SETUP;
+          if (game.initialShop) {
+            // EXE: after initial shop, go straight to play (terrain already generated)
+            game.initialShop = false;
+            enterPlayState();
+          } else {
+            game.state = STATE.ROUND_SETUP;
+          }
         } else {
           const rl = config.rounds - game.round + 1;
           openShop(game.shopPlayerIdx, rl);

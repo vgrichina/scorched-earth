@@ -154,7 +154,7 @@ function drawBarFill(x, y, fill, color) {
 }
 
 // Draw a per-player column inside a multi-player bar
-// EXE: helper at file 0x394F2 — fills 6px-wide column from bottom up
+// EXE: bar_column at file 0x39482 — fills 6px-wide column from bottom up
 function drawBarColumn(barX, barY, idx, fillH, color) {
   const colX = barX + idx * 6;
   if (fillH <= 0) return;
