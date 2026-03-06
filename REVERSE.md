@@ -6178,6 +6178,52 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 - Key dispatch flow: `dialog_poll_input` → `key_scancode_to_char` (0x4CFB3) → `dialog_key_dispatch` (0x46266) → widget hotkey loop → type-specific handler via jump table at CS:0x17BA
 - Tab ([bp-0x0C]=-1) and ESC ([bp-0x0C]=-2) are special-cased at `dialog_key_special` (0x463C2)
 
-### Web Reimplementation
-- Physics engine in `web/js/physics.js` — ongoing
-- Need to port: weapon damage, shield system, economy/shop, AI
+### Web Reimplementation — Match Traced EXE Flow
+
+Reference screenshots from emulator trace (boot → menu → player setup → shop → gameplay):
+
+#### 1. Main Menu (`/tmp/menu.state`)
+- [x] Split-panel layout with terrain preview
+- [x] Menu items with ~ hotkey markers
+- [x] 3D beveled boxes, dialog system
+
+#### 2. Player Setup Dialog (`/tmp/after_s.state`, `/tmp/after_a.state`)
+- [ ] Player N (of M) title bar
+- [ ] Name text field (focused, accepts typed characters)
+- [ ] AI type selector (Human/Cyborg/etc)
+- [ ] Done button (enables only when name is non-empty)
+- [ ] Tab-order: Name field → Done button (Enter cycles focus)
+- [ ] Sequential: show dialog for each player in order
+
+#### 3. Weapons Shop (`/tmp/after_p2done.state`)
+- [ ] Full-screen modal dialog per player
+- [ ] Header: player name, "Cash $1,000,000", "10 rounds remain", "Earned interest"
+- [ ] "Cash Left:" bar with colored fill
+- [ ] Scrollable weapon list: qty, icon, name, price/max (e.g. "99 ➜ Baby Missile $400/10")
+- [ ] Right-side buttons: Update, Inventory, Done (with ~ hotkey underlines)
+- [ ] Weapon icons next to each row (small colored glyphs)
+- [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
+- [ ] Tab buttons at bottom: Score, Weapons, Miscellaneous, Done
+- [ ] Buy/sell on click; qty spinners
+- [ ] Interest calculation on earned cash between rounds
+
+#### 4. Terrain Generation + Tank Placement (`/tmp/shop2_d.png`, `/tmp/shop2_d2.png`)
+- [x] Sky gradient (blue top → lighter bottom)
+- [x] Terrain profile with smooth curves
+- [x] Tank placement on terrain surface
+- [ ] Progressive terrain draw (columns left-to-right, visible during generation)
+
+#### 5. In-Game HUD (`/tmp/game_playing.state`)
+- [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon
+- [x] Second row: "Max: NNNN" + player status icons (shield/parachute/etc)
+- [x] "No Wind" / wind indicator
+- [ ] Player turn indicator (colored name/icon in HUD matching EXE layout)
+- [ ] Exact EXE HUD spacing and font positioning (compare pixel-level with traced screenshot)
+
+#### 6. Game Flow Sequence (end-to-end)
+- [x] Menu → Start triggers game
+- [ ] Menu → Player setup dialogs (one per player) → Shop (one per player) → Terrain → Play
+- [ ] Current web skips player setup dialogs (auto-names) — need to add
+- [ ] Current web skips shop (auto-equips) — need interactive shop before round
+- [ ] Round-end → next round shop → terrain regen → play (full round cycle)
+- [ ] "NO KIBITZING!!" screen between player shops (hotseat anti-peek)
