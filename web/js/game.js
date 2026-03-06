@@ -906,7 +906,8 @@ export function gameTick() {
     }
 
     case STATE.TERRAIN_REVEAL: {
-      // EXE: progressive terrain draw — columns left-to-right, ~5 columns per frame
+      // EXE: height_random_walk (0x29808) draws ALL columns in tight loop, no frame sync.
+      // Visual reveal is just CPU speed. We approximate ~1s total at 60fps.
       const revealSpeed = Math.max(4, Math.floor(config.screenWidth / 60));
       game.terrainRevealCol += revealSpeed;
       if (game.terrainRevealCol >= config.screenWidth) {

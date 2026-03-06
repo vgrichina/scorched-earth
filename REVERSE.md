@@ -3005,6 +3005,25 @@ return refund;
 
 **Intermediate files**: `disasm/cavern_shop_analysis.txt`
 
+### Buy Weapon Logic (buy_weapon at file 0x14924, session 149)
+
+Max quantity per weapon: **99** (0x63). Buy flow:
+1. If `inventory[wpn] >= 99` → reject (play error sound 0x28/0xC8)
+2. If `cash < price` → reject (error sound)
+3. Deduct full price from cash, add full bundle to inventory
+4. Increment `weapon[wpn].soldQty` (DS:bx+0x1214) for free market tracking
+5. **Overflow refund**: if `inventory[wpn] > 99`:
+   - `excess = inventory[wpn] - 99`
+   - Clip inventory to 99
+   - Refund `floor(excess * price / bundle)` back to cash
+6. Special: first parachute (DS:D554) buy → set player+0x28 (hasParachute flag)
+
+Sell refund formula (compute_sell_refund at file 0x37955):
+```
+refund = floor(qty × price × SELL_FACTOR / bundle)
+SELL_FACTOR = 0.80 (normal) or 0.65 (free market, DS:0x6144)
+```
+
 ### Shop Palette Animation (file 0x14E34, VERIFIED)
 
 Function `palette_tick` at file 0x14E34 (seg 0x0DBC:0x0874). Called as a shop dialog callback. Uses frame counter at DS:0x00EC (0..100, wrapping). Three animation effects:
@@ -6232,7 +6251,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Shop tabs vs buttons** — **FIXED** (session 148). Removed bottom tab bar. Tab selectors now on right side as raised/sunken buttons, matching EXE type9 widget layout.
 - [ ] Weapon icons: EXE draws small colored glyphs inline with each row. Verify web icon rendering matches pixel size and color.
 - [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
-- [ ] Buy/sell mechanics: **disasm** equip.cpp buy/sell logic — verify click regions, qty increment/decrement, max-buy limits match web
+- [x] Buy/sell mechanics: **disasm** equip.cpp buy/sell logic — max qty 99 cap + overflow refund added to web (session 149). EXE buy_weapon (0x14924): reject if qty>=99, deduct price, add bundle, if qty>99 clip to 99 and refund floor(excess*price/bundle). Sell factor: 0.8 normal, 0.65 free market — web was correct. Sell formula: floor(qty*price*factor/bundle) — web was correct.
 - [x] Shop scrollbar: EXE shows scrollbar on weapon list right edge. Web has matching 3D scrollbar with arrow buttons + proportional thumb. **VERIFIED** (session 148).
 - [x] Interest calculation on earned cash between rounds: **VERIFIED** (session 145). EXE formula at file 0x17804: `earned = floor(player.cash * DS:0x5190)` where DS:0x5190=interest_rate (float64, 0.30 default from SCORCH.CFG). Per-player bignum cash (+0xBE) loaded, FPU multiplied by rate, `_ftol`, added back via bignum add. Web port score.js `applyInterest()`: `floor(cash * config.interest / 100)` with config.interest=30 → identical result. Called once at round transition before shop. No discrepancy.
 
@@ -6243,7 +6262,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Progressive terrain draw (columns left-to-right, visible during generation): **DONE** (session 145).
 - [ ] **Pixel audit**: compare `/tmp/shop2_d.png` (terrain after shop) vs web — sky gradient color ramp, terrain fill color, terrain edge smoothness. EXE sky is deep blue→lighter blue gradient; verify web gradient endpoints match EXE palette entries.
 - [ ] **Pixel audit**: tank sprite rendering — compare EXE tank shape/colors at various angles vs web. Use emu to capture tank at known angle, compare pixel-level.
-- [ ] **Disasm**: terrain reveal speed — EXE drawColumn called per-column from random walk. Web does ~screenWidth/60 cols/frame. Verify EXE reveal is per-column-per-frame or batched.
+- [x] **Disasm**: terrain reveal speed (session 150). EXE height_random_walk (0x29808) calls drawColumn in a tight loop with NO frame sync/delay — draws all columns as fast as CPU allows. Direction alternates per generator pass (+1 or -1). Web's `screenWidth/60` cols/frame at 60fps ≈ 1s total reveal is a faithful approximation. No change needed.
 
 #### 5. In-Game HUD (`/tmp/game_playing.state`)
 - [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon

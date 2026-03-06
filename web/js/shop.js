@@ -118,6 +118,27 @@ function trackPurchase(weaponIdx) {
   }
 }
 
+// EXE buy logic (buy_weapon at file 0x14924):
+// 1. If qty >= 99 → reject  2. If can't afford → reject
+// 3. Deduct price, add bundle  4. If qty > 99 → clip to 99, refund excess
+const MAX_WEAPON_QTY = 99; // EXE: 0x63
+function buyWeapon(player, weaponIdx) {
+  if (player.inventory[weaponIdx] >= MAX_WEAPON_QTY) return false;
+  const price = getWeaponPrice(weaponIdx);
+  if (player.cash < price) return false;
+  const bundle = WEAPONS[weaponIdx].bundle;
+  player.cash -= price;
+  player.inventory[weaponIdx] += bundle;
+  trackPurchase(weaponIdx);
+  // EXE overflow refund (0x14A83): if qty > 99, refund excess proportionally
+  if (player.inventory[weaponIdx] > MAX_WEAPON_QTY) {
+    const excess = player.inventory[weaponIdx] - MAX_WEAPON_QTY;
+    player.inventory[weaponIdx] = MAX_WEAPON_QTY;
+    player.cash += Math.floor(excess * price / bundle);
+  }
+  return true;
+}
+
 // Per-round market update (EXE: mkt_update at file 0x2BB5E)
 // Called at end of each round when FREE_MARKET is enabled
 export function mktUpdate() {
@@ -375,10 +396,7 @@ function aiBuyRandomWeapon(player) {
   }
   if (available.length === 0) return;
   const idx = available[random(available.length)];
-  const price = getWeaponPrice(idx);
-  player.cash -= price;
-  player.inventory[idx] += WEAPONS[idx].bundle;
-  trackPurchase(idx);
+  buyWeapon(player, idx);
 }
 
 // Helper: buy 1 bundle of a random affordable item from a category
@@ -396,10 +414,7 @@ function aiBuyRandomFromCategory(player, category) {
   }
   if (available.length === 0) return;
   const idx = available[random(available.length)];
-  const price = getWeaponPrice(idx);
-  player.cash -= price;
-  player.inventory[idx] += WEAPONS[idx].bundle;
-  trackPurchase(idx);
+  buyWeapon(player, idx);
 }
 
 // Helper: buy 1 bundle of a random affordable shield (idx 46-52)
@@ -417,10 +432,7 @@ function aiBuyRandomShield(player) {
   }
   if (available.length === 0) return;
   const idx = available[random(available.length)];
-  const price = getWeaponPrice(idx);
-  player.cash -= price;
-  player.inventory[idx] += WEAPONS[idx].bundle;
-  trackPurchase(idx);
+  buyWeapon(player, idx);
 }
 
 // Helper: buy mountain gear — fuel tank (55) or battery (43)
@@ -433,10 +445,7 @@ function aiBuyRandomMountainGear(player) {
   });
   if (available.length === 0) return;
   const idx = available[random(available.length)];
-  const price = getWeaponPrice(idx);
-  player.cash -= price;
-  player.inventory[idx] += WEAPONS[idx].bundle;
-  trackPurchase(idx);
+  buyWeapon(player, idx);
 }
 
 // Helper: sell a random inventory item
@@ -576,12 +585,7 @@ export function shopTick(player) {
   if (consumeKey('Enter') || consumeKey('Space')) {
     const item = shop.items[shop.selectedItem];
     if (item && !item.isHeader) {
-      const price = getWeaponPrice(item.idx);
-      if (player.cash >= price) {
-        player.cash -= price;
-        player.inventory[item.idx] += item.weapon.bundle;
-        trackPurchase(item.idx);
-      }
+      buyWeapon(player, item.idx);
     }
   }
 
@@ -724,12 +728,7 @@ function handleItemListClick(player, mx, my, listY, rowH) {
     if (clickedRow === shop.selectedItem) {
       const item = shop.items[shop.selectedItem];
       if (item && !item.isHeader) {
-        const price = getWeaponPrice(item.idx);
-        if (player.cash >= price) {
-          player.cash -= price;
-          player.inventory[item.idx] += item.weapon.bundle;
-          trackPurchase(item.idx);
-        }
+        buyWeapon(player, item.idx);
       }
     } else {
       shop.selectedItem = clickedRow;
