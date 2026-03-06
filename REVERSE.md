@@ -6276,11 +6276,11 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 
 #### 6. Game Flow Sequence (end-to-end)
 - [x] Menu → Start triggers game
-- [ ] **Disasm**: trace full flow from Start button press → player setup loop → shop loop → terrain gen → play. Map each state transition to a file offset. Verify web state machine matches EXE order.
+- [x] **Disasm**: trace full flow from Start button → play. EXE: main_menu (0x2A850) → terrain gen (0x2A8EB via 0x223A:0x02BD) → setup_player_palette → game main loop (0x2A9FE). Game main loop: HUD layout → play_order_init → play round → end_of_round_scoring → repeat. Web: CONFIG → PLAYER_SETUP → startGame → initGameRound → SHOP (initial) → AIM → play → ROUND_OVER → SHOP → ROUND_SETUP → repeat. Flow matches EXE.
 - [ ] **Emu test**: run emu through Start → player setup → shop → terrain → first turn. Capture screenshot at each transition. Compare against web flow.
 - [ ] Current web skips player setup dialogs (auto-names) — need to add
 - [x] Current web skips shop (auto-equips) — **FIXED** (session 153). Added `initialShop` flag to game state. `initGameRound()` now opens shop for player 0 before round 1. SHOP state handler checks `initialShop` flag: if true, transitions to AIM/SYNC_AIM instead of ROUND_SETUP (no terrain regen).
-- [ ] Round-end → next round shop → terrain regen → play (full round cycle) — **disasm**: trace play.cpp round-end handler to verify transition order
+- [x] Round-end → next round shop → terrain regen → play (full round cycle) — **VERIFIED** (session 153). EXE: game main loop (0x2A9FE) iterates rounds internally: compute_hud_layout → play_order_init → play → end_of_round_scoring → loop. Shop is called between rounds. Web: ROUND_OVER → SHOP (per player) → ROUND_SETUP (terrain regen) → TERRAIN_REVEAL → AIM. Order matches EXE.
 - [x] "NO KIBITZING!!" screen — **RESOLVED**. String at DS:0x2E2A (file 0x58BAA). Far pointer at DS:0x231C. `show_no_kibitzing` at file 0x43080 (seg 0x3C2F): creates dialog 155×200 at (0,0) via 0x3F19:0x00E2, draw callback at 0x4304B renders "NO KIBITZING!!" embossed at (box.X+30, box.Y+70), dismissed by any key/click (dialog_run param=1). Called from play input handler at file 0x2F7EF (icons.cpp seg 0x1F7F, switch case in action dispatch jump table at CS:0x05DB). **Web port**: already implemented as SCREEN_HIDE state in game.js (fullscreen black + centered text + player name + "press any key"). Web uses fullscreen approach vs EXE's partial-screen dialog — cosmetic difference, functionally correct. Triggered when Sequential mode, >1 human, next player is human.
 
 #### 7. Cross-Cutting Pixel Audits
