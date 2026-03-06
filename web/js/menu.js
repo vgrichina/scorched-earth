@@ -758,8 +758,8 @@ export function drawPlayerSetupScreen() {
   // Centered raised dialog box
   boxRaised(lay.dlgX, lay.dlgY, lay.dlgW, lay.dlgH);
 
-  // Title: "Player N of M" centered in dialog, in player color
-  const titleStr = `Player ${idx + 1} of ${config.numPlayers}`;
+  // Title: "Player N (of M)" centered in dialog, in player color
+  const titleStr = `Player ${idx + 1} (of ${config.numPlayers})`;
   const titleX = lay.dlgX + Math.floor((lay.dlgW - measureText(titleStr)) / 2);
   drawText(titleX, lay.dlgY + 5, titleStr, baseColor);
   hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, lay.dlgY + 17, UI_MED_BORDER);

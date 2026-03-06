@@ -6183,48 +6183,69 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 Reference screenshots from emulator trace (boot → menu → player setup → shop → gameplay).
 **Every task below must be cross-checked against EXE disassembly AND v86 emulator execution (including pixel-level screenshots) before marking done.** Compare web port output side-by-side with EXE screenshots to confirm fidelity — do not mark done based on code review alone.
 
-#### 1. Main Menu (`/tmp/menu.state`)
+#### 1. Main Menu (`/tmp/menu.state`, `/tmp/menu.png`)
 - [x] Split-panel layout with terrain preview
 - [x] Menu items with ~ hotkey markers
 - [x] 3D beveled boxes, dialog system
+- [ ] **Pixel audit**: compare `/tmp/menu.png` vs web screenshot — check button widths, text alignment, terrain panel proportions, border colors, font spacing. EXE buttons are left-aligned with fixed width; verify web matches.
+- [ ] **Pixel audit**: menu title "Scorched Earth" + "The Mother of All Games" — verify font, color, position against EXE
+- [ ] **Pixel audit**: "Version 1.50" + copyright footer positioning — verify against EXE
 
 #### 2. Player Setup Dialog (`/tmp/after_s.state`, `/tmp/after_a.state`)
-- [ ] Player N (of M) title bar — **verify: disasm + v86 screenshot**
-- [ ] Name text field (focused, accepts typed characters) — **verify: disasm + v86 screenshot**
-- [ ] AI type selector (Human/Cyborg/etc) — **verify: disasm + v86 screenshot**
-- [ ] Done button (enables only when name is non-empty) — **verify: disasm + v86 screenshot**
-- [ ] Tab-order: Name field → Done button (Enter cycles focus) — **verify: disasm + v86 screenshot**
-- [ ] Sequential: show dialog for each player in order — **verify: disasm + v86 screenshot**
+- [x] Player N (of M) title bar — **VERIFIED** (session 146). EXE: `"Player 1 (of 2)"` via sprintf DS:0x500E + DS:0x31E5. Web fixed to match.
+- [x] Name text field (focused, accepts typed characters) — **VERIFIED** (session 146). EXE: `"Name:"` label + sunken input + cursor. Web matches.
+- [ ] AI type selector — **DISCREPANCY** (session 146). EXE uses **two clickable icons** at bottom-left (Human=person icon, Computer=monitor icon), NOT a text spinner. Web incorrectly uses `~Type:` text label + spinner. Needs rework to icon-based selector.
+- [ ] Done button — **DISCREPANCY** (session 146). EXE has a visible raised **"Done" button** at bottom-right of dialog. Web has no Done button, only Enter key. Need to add visible Done button.
+- [ ] Player color icon row — **MISSING** (session 146). EXE shows a row of 8 colored icon squares below the name field (player color selectors). Web has no equivalent. Need to add.
+- [x] Tab-order: Name field → Done button (Enter cycles focus) — **VERIFIED** (session 146). DS:0xD0AC tracks focus. Web Tab/arrows cycle fields.
+- [x] Sequential: show dialog for each player in order — **VERIFIED** (session 146). Web iterates playerSetupIndex 0..numPlayers-1.
+- [ ] Dialog background — **DISCREPANCY** (session 146). EXE draws dialog as popup over the red gradient main menu background. Web draws full-screen raised box, hiding the gradient. Fix: skip full-screen boxRaised, draw dialog directly over existing menu.
 
-#### 3. Weapons Shop (`/tmp/after_p2done.state`)
-- [ ] Full-screen modal dialog per player — **verify: disasm + v86 screenshot**
-- [ ] Header: player name, "Cash $1,000,000", "10 rounds remain", "Earned interest" — **verify: disasm + v86 screenshot**
-- [ ] "Cash Left:" bar with colored fill — **verify: disasm + v86 screenshot**
-- [ ] Scrollable weapon list: qty, icon, name, price/max (e.g. "99 ➜ Baby Missile $400/10") — **verify: disasm + v86 screenshot**
-- [ ] Right-side buttons: Update, Inventory, Done (with ~ hotkey underlines) — **verify: disasm + v86 screenshot**
-- [ ] Weapon icons next to each row (small colored glyphs) — **verify: disasm + v86 screenshot**
-- [ ] Sparkle/palette animation on shop open (cosmetic, low priority) — **verify: disasm + v86 screenshot**
-- [ ] Tab buttons at bottom: Score, Weapons, Miscellaneous, Done — **verify: disasm + v86 screenshot**
-- [ ] Buy/sell on click; qty spinners — **verify: disasm + v86 screenshot**
+#### 3. Weapons Shop (`/tmp/after_p2done.state`, `/tmp/after_shop1.png`)
+- [ ] **Pixel audit**: compare `/tmp/after_shop1.png` vs web shop — full layout comparison: header bar, weapon list, button panel, icon sizes, row heights, scrollbar
+- [ ] Header layout: EXE shows player name icon "A" top-left, "Cash: $1,000,000" centered, "10 rounds remain" top-right, "Cash Left:" bar below with colored fill + "Earned interest" label. Compare exact positions/colors vs web.
+- [ ] Weapon list rows: EXE format is `qty icon_glyph weapon_name $price/max` — verify web row layout matches column widths, icon placement, text alignment
+- [ ] Right-side buttons: EXE has "~Update", "~Inventory", "~Done" as raised 3D buttons. Verify web button style, size, position match.
+- [ ] Weapon icons: EXE draws small colored glyphs inline with each row. Verify web icon rendering matches pixel size and color.
+- [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
+- [ ] Tab buttons: EXE screenshot doesn't show bottom tabs on Weapons page — **disasm**: trace equip.cpp tab system to verify if tabs exist or if Score/Weapons/Misc are right-side buttons
+- [ ] Buy/sell mechanics: **disasm** equip.cpp buy/sell logic — verify click regions, qty increment/decrement, max-buy limits match web
+- [ ] Shop scrollbar: EXE shows scrollbar on weapon list right edge. Verify web has matching scrollbar or scroll behavior.
 - [x] Interest calculation on earned cash between rounds: **VERIFIED** (session 145). EXE formula at file 0x17804: `earned = floor(player.cash * DS:0x5190)` where DS:0x5190=interest_rate (float64, 0.30 default from SCORCH.CFG). Per-player bignum cash (+0xBE) loaded, FPU multiplied by rate, `_ftol`, added back via bignum add. Web port score.js `applyInterest()`: `floor(cash * config.interest / 100)` with config.interest=30 → identical result. Called once at round transition before shop. No discrepancy.
 
 #### 4. Terrain Generation + Tank Placement (`/tmp/shop2_d.png`, `/tmp/shop2_d2.png`)
 - [x] Sky gradient (blue top → lighter bottom)
 - [x] Terrain profile with smooth curves
 - [x] Tank placement on terrain surface
-- [x] Progressive terrain draw (columns left-to-right, visible during generation): **DONE** (session 145). Added TERRAIN_REVEAL state to game.js. After generateTerrain(), enters reveal state with terrainRevealCol=0, advances ~5 cols/frame (screenWidth/60). drawTerrain() in terrain.js accepts optional maxCol parameter. main.js renders sky + partial terrain during reveal. Transitions to AIM/SYNC_AIM when complete. EXE: drawColumn at file 0x29720 called per column from random walk kernel.
+- [x] Progressive terrain draw (columns left-to-right, visible during generation): **DONE** (session 145).
+- [ ] **Pixel audit**: compare `/tmp/shop2_d.png` (terrain after shop) vs web — sky gradient color ramp, terrain fill color, terrain edge smoothness. EXE sky is deep blue→lighter blue gradient; verify web gradient endpoints match EXE palette entries.
+- [ ] **Pixel audit**: tank sprite rendering — compare EXE tank shape/colors at various angles vs web. Use emu to capture tank at known angle, compare pixel-level.
+- [ ] **Disasm**: terrain reveal speed — EXE drawColumn called per-column from random walk. Web does ~screenWidth/60 cols/frame. Verify EXE reveal is per-column-per-frame or batched.
 
 #### 5. In-Game HUD (`/tmp/game_playing.state`)
 - [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon
 - [x] Second row: "Max: NNNN" + player status icons (shield/parachute/etc)
 - [x] "No Wind" / wind indicator
 - [ ] Player turn indicator (colored name/icon in HUD matching EXE layout) — **verify: disasm + v86 screenshot**
-- [ ] Exact EXE HUD spacing and font positioning (compare pixel-level with traced screenshot) — **verify: disasm + v86 screenshot**
+- [ ] **Pixel audit**: HUD row heights, text Y positions, column alignment — use emu to capture HUD at known state, overlay with web screenshot. Key values: DS:0x518E (HUD_Y), DS:0xED58 (font layout selector 0=spacious/1=compact). Verify web uses correct row spacing for both modes.
+- [ ] **Pixel audit**: HUD background color bar — EXE fills HUD area with DS:0xEF28 (hud_background_color). Verify web color index matches.
+- [ ] **Pixel audit**: power/angle bar fill columns — EXE uses hud_bars module (seg 0x3249). Verify web bar width, fill color, position match.
+- [ ] **Disasm**: HUD weapon icon — verify icon index selection, position relative to weapon name text. EXE draws icon from DS:0x3826 icon table; check web uses same icon index per weapon.
 
 #### 6. Game Flow Sequence (end-to-end)
 - [x] Menu → Start triggers game
-- [ ] Menu → Player setup dialogs (one per player) → Shop (one per player) → Terrain → Play — **verify: disasm + v86 screenshot**
-- [ ] Current web skips player setup dialogs (auto-names) — need to add — **verify: disasm + v86 screenshot**
-- [ ] Current web skips shop (auto-equips) — need interactive shop before round — **verify: disasm + v86 screenshot**
-- [ ] Round-end → next round shop → terrain regen → play (full round cycle) — **verify: disasm + v86 screenshot**
-- [ ] "NO KIBITZING!!" screen between player shops (hotseat anti-peek) — **verify: disasm + v86 screenshot**
+- [ ] **Disasm**: trace full flow from Start button press → player setup loop → shop loop → terrain gen → play. Map each state transition to a file offset. Verify web state machine matches EXE order.
+- [ ] **Emu test**: run emu through Start → player setup → shop → terrain → first turn. Capture screenshot at each transition. Compare against web flow.
+- [ ] Current web skips player setup dialogs (auto-names) — need to add
+- [ ] Current web skips shop (auto-equips) — need interactive shop before round
+- [ ] Round-end → next round shop → terrain regen → play (full round cycle) — **disasm**: trace play.cpp round-end handler to verify transition order
+- [ ] "NO KIBITZING!!" screen — **disasm**: find string, trace caller, verify timing (how long displayed, what triggers dismiss)
+
+#### 7. Cross-Cutting Pixel Audits
+- [ ] **Font rendering**: compare EXE proportional font glyphs (DS:0x70E4, 161 chars, 12px tall) pixel-for-pixel against web font module. Render alphabet in both, diff.
+- [ ] **3D box styles**: compare EXE raised/sunken box border colors (highlight, shadow, face) against web boxRaised/boxSunken. EXE uses palette indices; verify web maps to same RGB values.
+- [ ] **Palette accuracy**: dump full EXE VGA palette (256 colors), compare against web palette array. Any drift compounds across all rendering.
+- [x] **Player color gradient** — **DISCREPANCY FOUND** (session 146). EXE setup_player_palette (0x285A2) assigns ALL non-special slots (0,1,2,3,4,6) the SAME color: `base_color * 8 / 10` (80% brightness, stored in tank struct +0x1C/+0x1E/+0x20 at player.cpp 0x326EA). Slot 5 = white (63,63,63), slot 7 = grey (30,30,30). Terrain type 6 (Cavern) = all black. Web WRONG: uses `base * (s+1) / 5` creating 5 different brightness levels (20%/40%/60%/80%/100%). **Fix**: slots 0-4,6 should all be `floor(base * 8 / 10)`, slot 5 = white, slot 7 = grey.
+- [ ] **Dialog framework**: EXE generic dialog (icons.cpp seg 0x1F7F) has specific margin/padding constants. Extract and compare against web dialog layout code.
+- [ ] **Explosion rendering**: capture EXE explosion frame sequence via emu, compare radius/color/pattern against web explosion. Key: extras.cpp explosion functions.
+- [ ] **Projectile trail**: EXE draws projectile trail dots. Verify web trail spacing, color, and fade behavior match.

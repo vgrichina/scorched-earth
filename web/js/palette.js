@@ -74,27 +74,26 @@ export function setPaletteRgb(index, r, g, b) {
 
 // --- Player colors (VGA 0-79): 10 players × 8 gradient slots ---
 // EXE: tank color gradient setup at file 0x28540 (icons.cpp)
-// EXE: slots 0-3 = dark→light body/dome, slot 4 = full color, slot 5 = white flash,
-//   slot 6 = base repeat, slot 7 = grey smoke
+// EXE: setup_player_palette (0x285A2) — slots 0-4,6 all get same color: base*8/10
+//   slot 5 = white(63,63,63), slot 7 = grey(30,30,30)
+//   Color stored in tank struct +0x1C/+0x1E/+0x20 at player.cpp 0x326EA
 export function setupPlayerPalette() {
   for (let p = 0; p < 10; p++) {
     const [br, bg, bb] = PLAYER_COLORS[p];
     const base = p * 8;
+    // EXE: base_color * 8 / 10 (integer division, 80% brightness)
+    const r80 = Math.floor(br * 8 / 10);
+    const g80 = Math.floor(bg * 8 / 10);
+    const b80 = Math.floor(bb * 8 / 10);
 
-    // Slots 0-3: darkest to light (base * (n+1) / 5)
-    for (let s = 0; s < 4; s++) {
-      setEntry(base + s,
-        Math.floor(br * (s + 1) / 5),
-        Math.floor(bg * (s + 1) / 5),
-        Math.floor(bb * (s + 1) / 5)
-      );
+    // Slots 0-4: all same 80% color
+    for (let s = 0; s < 5; s++) {
+      setEntry(base + s, r80, g80, b80);
     }
-    // Slot 4: full base color
-    setEntry(base + 4, br, bg, bb);
     // Slot 5: white flash
     setEntry(base + 5, 63, 63, 63);
-    // Slot 6: base color (repeat)
-    setEntry(base + 6, br, bg, bb);
+    // Slot 6: same 80% color
+    setEntry(base + 6, r80, g80, b80);
     // Slot 7: grey smoke
     setEntry(base + 7, 30, 30, 30);
   }
