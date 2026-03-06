@@ -192,6 +192,22 @@ class InterruptHandler:
     def _int21(self):
         ah = self.cpu.get_reg8(4)
 
+        if ah == 0x07:  # Direct char input without echo (blocking)
+            if self.key_queue:
+                sc, asc = self.key_queue.popleft()
+                self.cpu.set_reg8(0, asc)  # AL = character
+            else:
+                # Spin-wait: rewind IP to re-execute INT 21h
+                self.cpu.ip = (self.cpu.ip - 2) & 0xFFFF
+            return True
+
+        if ah == 0x0B:  # Check stdin status
+            if self.key_queue:
+                self.cpu.set_reg8(0, 0xFF)  # AL = FFh = input available
+            else:
+                self.cpu.set_reg8(0, 0x00)  # AL = 00h = no input
+            return True
+
         if ah == 0x1A:  # Set DTA
             self._dta_seg = self.cpu.segs[3]  # DS
             self._dta_off = self.cpu.dx

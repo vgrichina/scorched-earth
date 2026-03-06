@@ -743,3 +743,9 @@ DS:0x1C84,NOFLOAT_FLAG
 0x4500D,fg_detect_vga
 0x4BFBD,mode_detect_probe
 DS:0xD1BE,key_state_array
+DS:0xC960,fg_key_available
+DS:0xC961,fg_key_char
+0x10693,fg_kbhit
+0x10557,fg_readkey
+0x4B827,fg_intkey
+0x273D9,dialog_validate_all_names

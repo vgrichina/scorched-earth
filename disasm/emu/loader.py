@@ -33,8 +33,9 @@ def load_exe(path, mem):
     image_size -= header_size
     image_data = exe[header_size:header_size + image_size]
 
-    # Load segment: PSP at load_seg, image at load_seg + 0x10
-    load_seg = 0x0060  # PSP paragraph
+    # Load segment: env at 0x0060, PSP at 0x0080, image at 0x0090
+    # IVT IRET stubs occupy 0x0500-0x05FF; env must not overlap.
+    load_seg = 0x0080  # PSP paragraph
     image_seg = load_seg + 0x10  # image starts one segment (256 bytes) after PSP
     image_base = image_seg << 4  # physical address
 
@@ -60,7 +61,7 @@ def load_exe(path, mem):
     # PSP:0x02 = top of memory segment
     mem.write16(psp_base + 0x02, 0x9FFF)
     # PSP:0x2C = environment segment (point to a small empty env block)
-    env_seg = 0x0050
+    env_seg = 0x0060  # phys 0x600, above IVT stubs (0x500-0x5FF)
     mem.write16(psp_base + 0x2C, env_seg)
     # Write empty environment at env_seg (double NUL = end of env)
     env_base = env_seg << 4

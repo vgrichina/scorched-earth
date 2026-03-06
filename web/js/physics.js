@@ -89,12 +89,12 @@ function applyMagDeflection(proj) {
   }
 }
 
-// EXE: collision velocity damping at 0x2251A
-// When projectile hits near a Mag Deflector player and attacker has no Super Mag:
-// velocity *= 0.75, absorb if speed² < 2000
-// EXE: DS:1D54 = 0.75 (damping coefficient), DS:1D58 = 2000.0 (absorption threshold)
+// EXE: velocity damping constants (shared by Mag Deflector defense and TUNNELLING)
+// DS:1D54 = 0.75 (damping coefficient), DS:1D58 = 2000.0 (absorption threshold in EXE units)
+// Web threshold: 2000 × k²=0.16 = 320 (terrain tunneling uses this scaled value inline)
+// applyMagDamping uses raw 2000 for Mag Deflector tank defense (separate mechanic, needs audit)
 const MAG_DAMP_COEFF = 0.75;
-const MAG_ABSORB_THRESHOLD = 2000.0;
+const MAG_ABSORB_THRESHOLD = 2000.0;  // EXE units; terrain tunneling uses 320 (scaled)
 
 export function applyMagDamping(proj) {
   if (proj.superMagActive) return false;  // Super Mag bypasses damping
@@ -325,13 +325,17 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     // Terrain hit: pixel >= TERRAIN_THRESHOLD
     if (pixel >= TERRAIN_THRESHOLD) {
       // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
-      // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75) per terrain hit;
-      // absorbed (no explosion) if speed² < MAG_ABSORB_THRESHOLD (2000).
+      // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
+      // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
+      // EXE: if speedSq <  DS:1D58 (2000) → same as normal terrain hit (detonate, create crater)
+      // Web threshold: 2000 × k²=0.16 = 320 (velocities scaled by k=MAX_SPEED/1000=0.4)
       // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
       if (config.tunneling && !proj.heatTarget) {
-        const absorbed = applyMagDamping(proj);
-        if (absorbed) return 'offscreen';  // silently absorbed, no explosion
-        return 'flying';  // continue through terrain
+        proj.vx *= MAG_DAMP_COEFF;
+        proj.vy *= MAG_DAMP_COEFF;
+        const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
+        if (speedSq < 320) return 'hit_terrain';  // too slow → detonate (EXE 2000 × k²)
+        return 'flying';  // fast enough → tunnel through
       }
       return 'hit_terrain';
     }

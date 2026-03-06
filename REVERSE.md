@@ -6152,28 +6152,22 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 
 ## Open Tasks
 
-### Emulator — Player Dialog Navigation
-- **Blocker**: Player setup dialog has text field with focus; keyboard input goes to name field instead of activating Done button
-- Widget layout discovered via `mem_read.py --each-fp`:
-  - Widget 0: type=6 (button), hotkey=space, enabled=1
-  - Widget 1: type=1 (label), hotkey='d' (Done), **enabled=0**
-  - Widget 2: type=9, hotkey=Enter, **enabled=0**
-  - Widget 3: type=9, hotkey=Tab, enabled=1 (tab-stop group)
-  - Widget 4: type=6 (button), hotkey='i', enabled=1
-  - Widget 5: type=4, hotkey='n' (Name field), enabled=1
-- Done button and Enter handler start **disabled** — need to find what enables them
-- Dialog callback at 0x27570 runs during event loop, may enable/disable widgets
-- **Possible approaches**:
-  - Trace dialog callback to find when it enables widget 1 (Done)
-  - Force `DS:0x50F6` (dialog_exit_flag) = 1 to bypass dialog
-  - Implement mouse click emulation to click Done button coordinates
+### Emulator — Player Dialog Navigation — RESOLVED
+- **Fixed**: Implemented INT 9 (IRQ 1) key delivery in emulator instead of direct buffer writes
+- **Root cause 1**: Fastgraph uses INT 21h AH=07/0Bh for keyboard, not INT 16h — added both to emulator
+- **Root cause 2**: IVT IRET stubs at 0x500 were overwritten by env segment program name ("SCORCH.EXE") — fixed by moving env to 0x600, PSP to 0x800, image to 0x900
+- **Key sequence**: type letter → Enter (focus Done) → Enter (activate Done)
+- Done button enables when name field is non-empty (validation at 0x273D9)
+- Fastgraph keyboard: DS:C960 (flag), DS:C961 (char) — filled by Fastgraph INT 9 or DOS fallback
+- Game INT 9 handler at file 0x2898E: reads port 0x60, checks DS:5030 (INPUT_MODE), mode 1 → circular buffer (DS:D2BE/D3BE), mode 2 → key-down table (DS:D1BE)
 
-### Emulator — Checkpoint Chain
-- `/tmp/scorch_menu_call2.state` — at call_main_menu (0x2A850), palette fixed
-- `/tmp/scorch_poll2.state` — dialog_poll_input (0x460C3), menu rendered
-- `/tmp/scorch_game_init.state` — after main_menu returns (S+Enter worked)
-- `/tmp/cp1.state` — Player 1 dialog shown, waiting for input ← **stuck here**
-- Next goal: get past both player dialogs → terrain gen → game start (0x2F830)
+### Emulator — Checkpoint Chain (updated)
+- `/tmp/menu.state` — main menu idle, dialog_poll_input loop
+- `/tmp/after_s.state` — Player 1 dialog, name field focused
+- `/tmp/after_a.state` — Player 1 dialog, "A" typed in name
+- `/tmp/after_2enter.state` — Player 2 dialog (Player 1 done)
+- `/tmp/after_p2done.state` — **Weapons shop screen** (both players done, game started)
+- Key injection recipe: `--keys STEP:SC:ASC` with make/break pairs (0x80+sc for release)
 
 ### Dialog/Widget System RE
 - Widget struct partially mapped: type(+0), enabled(+2), draw_fn(+4), hotkey(+0C)
