@@ -168,9 +168,10 @@ function drawBarColumn(barX, barY, idx, fillH, color) {
 // Draw the full HUD into the framebuffer
 // EXE: draw_hud() at file 0x2FC84, draw_hud_full() at file 0x301B2
 export function drawHud(player, wind, round, opts) {
-  // EXE: [EF22] = player's base color (set via fg_setcolor before each draw)
-  // EXE: palette 163 = also player's color (fg_setrgb at 0x3030E)
+  // EXE: [EF22] = VGA 152 = black (UI_DEEP_SHADOW) — used for most HUD text
+  // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
   const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const hudTextColor = UI_DEEP_SHADOW; // EXE: [EF22] = VGA 152 = black
   // EXE: [EF24] = dim text color for depleted/zero-ammo items
   const dimColor = UI_DARK_TEXT;
   const numP = Math.min(config.numPlayers, players.length);
@@ -190,13 +191,13 @@ export function drawHud(player, wind, round, opts) {
   fillRect(LEFT, HUD_Y, config.screenWidth - LEFT - 1, ROW2_Y + BAR_H + 1, UI_BACKGROUND);
 
   // === Row 1 ===
-  // EXE: sprintf(buf, "%s:", name) then fg_text at (5, HUD_Y) in [EF22]
-  drawText(LEFT, HUD_Y, player.name + ':', baseColor);
+  // EXE: sprintf(buf, "%s:", name) then fg_text at (5, HUD_Y) in [EF22] = VGA 152 = black
+  drawText(LEFT, HUD_Y, player.name + ':', hudTextColor);
 
   if (config.screenWidth <= 320) {
     // --- Basic mode Row 1: multi-player power bar + icons (EXE: draw_hud 0x2FC84) ---
     const barW = numP * 6;
-    drawBarOutline(barX, HUD_Y, barW, baseColor);
+    drawBarOutline(barX, HUD_Y, barW, hudTextColor);
     drawBarFill(barX, HUD_Y, barW, UI_DEEP_SHADOW);
     // EXE: per-player power columns (helper 0x394F2), height = power/100
     for (let i = 0; i < numP && i < players.length; i++) {
@@ -223,33 +224,33 @@ export function drawHud(player, wind, round, opts) {
     }
   } else {
     // --- Full mode Row 1: all text (EXE: draw_hud_full 0x301B2) ---
-    // EXE: all text drawn in [EF22] = player color
+    // EXE: most text drawn in [EF22] = VGA 152 = black; player name at E9DC in palette 163
     let x = barX;
     // EXE: sprintf(buf, "%4d", player.power) at [E9D6]
-    drawText(x, HUD_Y, String(player.power).padStart(4), baseColor);
+    drawText(x, HUD_Y, String(player.power).padStart(4), hudTextColor);
     x += barWidth;
     // EXE: sprintf("%s:", "Angle") at DS:0x57BA formats "Angle:" → drawn at E9D8
     // E9DA = E9D8 + measureText("Angle") + 8 (advance uses "Angle" width, not "Angle:")
-    drawText(x, HUD_Y, 'Angle:', baseColor);
+    drawText(x, HUD_Y, 'Angle:', hudTextColor);
     x += measureText('Angle') + 8; // EXE: E9DA = E9D8 + measureText("Angle") + 8
     // EXE: sprintf(buf, "%2d", player.angle) at [E9DA] — DS:0x57BE = "%2d"
-    drawText(x, HUD_Y, String(player.angle).padStart(2), baseColor);
+    drawText(x, HUD_Y, String(player.angle).padStart(2), hudTextColor);
     x += measureText('99  '); // EXE: DS:0x577E = "99  " (2 digits + 2 spaces)
     // EXE: fg_setrgb(0xA3, R, G, B) sets palette 163 = player color
     // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws PLAYER NAME in palette 163
     // struct+0xB6 is a far pointer to the player name string (not wind!)
     const nameX = x;  // E9DC — player name x position
-    drawText(nameX, HUD_Y, player.name, baseColor);
+    drawText(nameX, HUD_Y, player.name, baseColor); // player name in player's color
     // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
     // EXE: E9E0 = E9DE + 15 → weapon text position
     const wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
     // EXE: draw_player_icon([E9DE], HUD_Y, wpn_idx) — draws selected weapon's icon
     if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
-      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon, baseColor);
+      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon, hudTextColor);
     }
     const wpnX = wpnIconX + 15; // E9E0 = E9DE + 15
     const wpnFull = ammo === -1 ? weaponName : ammo + ': ' + weaponName;
-    drawText(wpnX, HUD_Y, wpnFull, baseColor);
+    drawText(wpnX, HUD_Y, wpnFull, hudTextColor);
   }
 
   // === Row 2 ===
@@ -257,13 +258,13 @@ export function drawHud(player, wind, round, opts) {
   if (config.screenWidth <= 320) {
     // --- Basic mode Row 2: multi-player health + shields bars ---
     // EXE: L1 label = "Max:" (DS:0x2364→DS:0x2EFA, static — no runtime writes)
-    drawText(LEFT, ROW2_Y, 'Max:', baseColor);
+    drawText(LEFT, ROW2_Y, 'Max:', hudTextColor);
 
     // EXE: multi-player health bar
     // EXE: helper at 0x3959F reads struct+0xA2-0xA8 = health/maxHealth*10
     // Web port: player.energy (0-100) / 10 = equivalent 0-10 fill
     const barW = numP * 6;
-    drawBarOutline(barX, ROW2_Y, barW, baseColor);
+    drawBarOutline(barX, ROW2_Y, barW, hudTextColor);
     drawBarFill(barX, ROW2_Y, barW, UI_DEEP_SHADOW);
     for (let i = 0; i < numP && i < players.length; i++) {
       const fillH = Math.floor(players[i].energy / 10);
@@ -275,10 +276,10 @@ export function drawHud(player, wind, round, opts) {
     // EXE: L2 label = "Shields:" (DS:0x2368→DS:0x2EFE, static)
     // EXE: helper at 0x39544, compute_item_percentage = sub[0x96]*100/maxEnergy/10
     const shieldsLabelX = barX + BAR_RESERVED + AFTER_BAR_GAP;
-    drawText(shieldsLabelX, ROW2_Y, 'Shields:', baseColor);
+    drawText(shieldsLabelX, ROW2_Y, 'Shields:', hudTextColor);
     const shieldsBarX = shieldsLabelX + measureText('Shields:');
     if (shieldsBarX + barW < config.screenWidth - LEFT) {
-      drawBarOutline(shieldsBarX, ROW2_Y, barW, baseColor);
+      drawBarOutline(shieldsBarX, ROW2_Y, barW, hudTextColor);
       drawBarFill(shieldsBarX, ROW2_Y, barW, UI_DEEP_SHADOW);
       for (let i = 0; i < numP && i < players.length; i++) {
         const p = players[i];
@@ -293,7 +294,7 @@ export function drawHud(player, wind, round, opts) {
     const windTextX = shieldsBarX + barW + 4;
     if (windTextX + measureText('W:-20') < config.screenWidth - LEFT) {
       const windStr = wind === 0 ? 'W:0' : 'W:' + wind;
-      drawText(windTextX, ROW2_Y, windStr, baseColor);
+      drawText(windTextX, ROW2_Y, windStr, hudTextColor);
     }
   } else {
     // --- Full mode Row 2: inventory widgets (EXE: draw_hud_full 0x301B2) ---
@@ -312,7 +313,7 @@ export function drawHud(player, wind, round, opts) {
     //   E9FA = E9F8+m("100% ") → W5 (0x3DC94): shield count ("%d") [DS:6476]
     //   E9FC = E9FA+m("99 ")   → W5: shield bar (20px)
     //   E9FE = E9FC+20          → inline: [D566] item ("%2d") [DS:57D4]
-    drawText(LEFT, ROW2_Y, player.name + ':', baseColor);
+    drawText(LEFT, ROW2_Y, player.name + ':', hudTextColor);
 
     const countFieldW = measureText('99 ');    // DS:579B / 579F / 57A9
     const pctFieldW   = measureText('100% ');  // DS:57A3
@@ -321,7 +322,7 @@ export function drawHud(player, wind, round, opts) {
     // EXE: shows 0-1000 (per mille). Web: player.energy = 0-100%, so multiply by 10.
     let x = barX; // E9EA
     const fuelVal = Math.max(0, Math.min(1000, Math.round((player.energy || 0) * 10)));
-    const fuelColor = fuelVal > 0 ? baseColor : dimColor;
+    const fuelColor = fuelVal > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(fuelVal).padStart(4), fuelColor);
     x += barWidth; // → E9EC
 
@@ -329,7 +330,7 @@ export function drawHud(player, wind, round, opts) {
     // EXE: clears area, formats "%2d" count, calls draw_icon_alive(E9EE, ROW2_Y, D556=43, color)
     // Icon 43 (battery) has width=0 in EXE — blank icon. Web port adds fill bar for usability.
     const batCount = (player.inventory && player.inventory[43]) || 0;
-    const batColor = batCount > 0 ? baseColor : dimColor;
+    const batColor = batCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(batCount).padStart(2), batColor);
     x += countFieldW; // → E9EE
     // EXE: draw_icon_alive(x, ROW2_Y, 43, color) — icon 43 is blank (w=0)
@@ -343,7 +344,7 @@ export function drawHud(player, wind, round, opts) {
     // Inline (draw_hud_full 0x303CC): parachute count at E9F0, format "%2d" [DS:57D0]
     // EXE: inventory[D554=42] = parachute count
     const paraCount = player.inventory ? (player.inventory[42] || 0) : 0;
-    const paraColor = paraCount > 0 ? baseColor : dimColor;
+    const paraColor = paraCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(paraCount).padStart(2), paraColor);
     x += countFieldW; // → E9F2
 
@@ -360,7 +361,7 @@ export function drawHud(player, wind, round, opts) {
     // Widget 4 (0x3DB30): item display at E9F4, weapon icon at E9F6, % at E9F8
     // EXE: clears E9F4 to E9FA-1, shows count text, draws weapon icon, shows percentage
     const itemCount = ammo === -1 ? 0 : Math.max(0, ammo || 0);
-    const itemColor = (ammo === -1 || itemCount > 0) ? baseColor : dimColor;
+    const itemColor = (ammo === -1 || itemCount > 0) ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(Math.min(99, itemCount)), itemColor);
     x += countFieldW; // → E9F6
     // EXE: draw_icon_alive(E9F6, ROW2_Y, item_index, color) — draws selected weapon icon
@@ -389,7 +390,7 @@ export function drawHud(player, wind, round, opts) {
     // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), icon/bar at E9FC
     // EXE: clears E9FA to E9FE-1, shows shield type info + bar
     const shieldCount = player.shieldEnergy || 0;
-    const shieldColor = shieldCount > 0 ? baseColor : dimColor;
+    const shieldColor = shieldCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(Math.min(99, shieldCount)), shieldColor);
     x += countFieldW; // → E9FC
     // EXE: draws shield icon or bar (20px area). Web port: bar fill.
@@ -401,7 +402,7 @@ export function drawHud(player, wind, round, opts) {
     // Inline (draw_hud_full 0x303CC): Super Mag count at E9FE, format "%2d" [DS:57D4]
     // EXE: inventory[D566=52] = Super Mag count
     const magCount = player.inventory ? (player.inventory[WPN.SUPER_MAG] || 0) : 0;
-    const magColor = magCount > 0 ? baseColor : dimColor;
+    const magColor = magCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(magCount).padStart(2), magColor);
     x += countFieldW; // → EA00
 
@@ -422,19 +423,19 @@ export function drawHud(player, wind, round, opts) {
       const fuelCount = player.inventory ? (player.inventory[WPN.FUEL_TANK] || 0) : 0;
       const fuelEnergy = player.fuelEnergy || 0; // struct[+0xAA], 0-9 fractional per tank
       const shieldTotal = fuelCount * 10 + fuelEnergy;
-      const w7Color = shieldTotal > 0 ? baseColor : dimColor;
+      const w7Color = shieldTotal > 0 ? hudTextColor : dimColor;
       drawText(x, ROW2_Y, String(shieldTotal).padStart(3), w7Color);
     }
   }
 
   // Guided missile indicator (gameplay feature, not from EXE HUD)
   if (opts && opts.guided) {
-    drawText(afterBarX, ROW2_Y, 'GUIDED', baseColor);
+    drawText(afterBarX, ROW2_Y, 'GUIDED', hudTextColor);
   }
 
   // Simultaneous mode aim timer
   if (opts && opts.aimTimer > 0) {
-    drawText(afterBarX, ROW2_Y, 'T:' + opts.aimTimer, baseColor);
+    drawText(afterBarX, ROW2_Y, 'T:' + opts.aimTimer, hudTextColor);
   }
 }
 

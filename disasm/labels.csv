@@ -18,6 +18,9 @@
 # ---- Known functions (file offsets) ----
 # ---- Market system (SCORCH.MKT) ----
 # ---- Menu module (34ED) ----
+0x43080,show_no_kibitzing
+0x4304B,draw_no_kibitzing_text
+DS:0x231C,PTR_NO_KIBITZING,data/farptr
 # ---- Module entry points (code segment starts) ----
 # ---- Physics runtime DS variables (set by setup_physics_constants, used by sim_step) ----
 # ---- Play Modes (play.cpp) ----

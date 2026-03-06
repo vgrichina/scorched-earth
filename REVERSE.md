@@ -916,7 +916,7 @@ All colors are stored as palette indices set at runtime via `fg_setrgb` calls at
 
 | DS Offset | Palette Index | RGB (6-bit) | RGB (8-bit) | Role in 3D UI | Used In |
 |:---------:|:-------------:|:-----------:|:-----------:|---------------|---------|
-| DS:0xEF22 | dynamic (player) | player color | — | Bright highlight | Menu selection, HUD text; initially = EF2C |
+| DS:0xEF22 | 0x98 (152) = EF2C | (0,0,0) | (0,0,0) | **Black text** | HUD text, menu selection; static = EF2C, NOT per-player |
 | DS:0xEF24 | 0x99 (153) | (30,30,30) | (120,120,120) | Dark text / mid shadow | 3D title layer 3, unselected text |
 | DS:0xEF26 | 0x9B (155) | **(63,63,63)** | **(255,255,255)** | **Outer highlight (WHITE)** | Raised box outer TL, title layer 5, sunken box bottom |
 | DS:0xEF28 | 0x97 (151) | (45,45,45) | (180,180,180) | Background fill | Screen clear, box interiors; initially = EF2A |
@@ -6268,11 +6268,11 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon
 - [x] Second row: "Max: NNNN" + player status icons (shield/parachute/etc)
 - [x] "No Wind" / wind indicator
-- [ ] Player turn indicator (colored name/icon in HUD matching EXE layout) — **verify: disasm + v86 screenshot**
+- [x] Player turn indicator (session 151). EXE: HUD text uses DS:EF22=VGA 152=**black** for all text. Player name at E9DC uses palette 163 = player's RGB (fg_setrgb at 0x3030E from struct+0x1C/1E/20). Web was drawing all HUD text in player color — fixed to use UI_DEEP_SHADOW (black) for text, baseColor only for player name at E9DC.
 - [ ] **Pixel audit**: HUD row heights, text Y positions, column alignment — use emu to capture HUD at known state, overlay with web screenshot. Key values: DS:0x518E (HUD_Y), DS:0xED58 (font layout selector 0=spacious/1=compact). Verify web uses correct row spacing for both modes.
-- [ ] **Pixel audit**: HUD background color bar — EXE fills HUD area with DS:0xEF28 (hud_background_color). Verify web color index matches.
+- [x] **Pixel audit**: HUD background color bar — **VERIFIED**. DS:0xEF28 = DS:0xEF2A = VGA 151 = RGB(45,45,45). Set by ui_color_init at 0x2A630. Web port uses UI_BACKGROUND (palette 203) = (45,45,45) in palette.js:293 and constants.js:42. Values match exactly. No fix needed.
 - [ ] **Pixel audit**: power/angle bar fill columns — EXE uses hud_bars module (seg 0x3249). Verify web bar width, fill color, position match.
-- [ ] **Disasm**: HUD weapon icon — verify icon index selection, position relative to weapon name text. EXE draws icon from DS:0x3826 icon table; check web uses same icon index per weapon.
+- [x] **Disasm**: HUD weapon icon — **VERIFIED**. draw_hud_full (0x30330): pushes DS:EF22 (color=VGA152=black), DS:E344 (weapon index 0-47), DS:518E (HUD_Y), DS:E9DE (X position) → calls draw_icon_alive. Icon index = weapon index directly, NOT a separate mapping. Position E9DE = E9DC + measureText("M"×15) + 2. Web port hud.js:246 computes `wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2` and passes weapon index to drawIcon. Both match EXE exactly. No fix needed.
 
 #### 6. Game Flow Sequence (end-to-end)
 - [x] Menu → Start triggers game
@@ -6281,11 +6281,11 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [ ] Current web skips player setup dialogs (auto-names) — need to add
 - [ ] Current web skips shop (auto-equips) — need interactive shop before round
 - [ ] Round-end → next round shop → terrain regen → play (full round cycle) — **disasm**: trace play.cpp round-end handler to verify transition order
-- [ ] "NO KIBITZING!!" screen — **disasm**: find string, trace caller, verify timing (how long displayed, what triggers dismiss)
+- [x] "NO KIBITZING!!" screen — **RESOLVED**. String at DS:0x2E2A (file 0x58BAA). Far pointer at DS:0x231C. `show_no_kibitzing` at file 0x43080 (seg 0x3C2F): creates dialog 155×200 at (0,0) via 0x3F19:0x00E2, draw callback at 0x4304B renders "NO KIBITZING!!" embossed at (box.X+30, box.Y+70), dismissed by any key/click (dialog_run param=1). Called from play input handler at file 0x2F7EF (icons.cpp seg 0x1F7F, switch case in action dispatch jump table at CS:0x05DB). **Web port**: already implemented as SCREEN_HIDE state in game.js (fullscreen black + centered text + player name + "press any key"). Web uses fullscreen approach vs EXE's partial-screen dialog — cosmetic difference, functionally correct. Triggered when Sequential mode, >1 human, next player is human.
 
 #### 7. Cross-Cutting Pixel Audits
 - [ ] **Font rendering**: compare EXE proportional font glyphs (DS:0x70E4, 161 chars, 12px tall) pixel-for-pixel against web font module. Render alphabet in both, diff.
-- [ ] **3D box styles**: compare EXE raised/sunken box border colors (highlight, shadow, face) against web boxRaised/boxSunken. EXE uses palette indices; verify web maps to same RGB values.
+- [x] **3D box styles**: **VERIFIED**. EXE draw_3d_box (0x444BB): LEFT=EF26(VGA155=63,63,63), TOP=EF2E(VGA159=55,55,55), RIGHT=EF30(VGA158=5,5,5), BOTTOM=EF32(VGA156=15,15,15). Web boxRaised passes UI_DARK_BORDER(202=63,63,63), UI_LIGHT_BORDER(206=55,55,55), UI_MED_BORDER(207=5,5,5), UI_BRIGHT_BORDER(208=15,15,15). All 4 edges match. Sunken box (draw_flat_box 0x44630) has reversed bevel with 1px border — web drawBox3DSunken matches. No fix needed.
 - [ ] **Palette accuracy**: dump full EXE VGA palette (256 colors), compare against web palette array. Any drift compounds across all rendering.
 - [x] **Player color gradient** — **DISCREPANCY FOUND** (session 146). EXE setup_player_palette (0x285A2) assigns ALL non-special slots (0,1,2,3,4,6) the SAME color: `base_color * 8 / 10` (80% brightness, stored in tank struct +0x1C/+0x1E/+0x20 at player.cpp 0x326EA). Slot 5 = white (63,63,63), slot 7 = grey (30,30,30). Terrain type 6 (Cavern) = all black. Web WRONG: uses `base * (s+1) / 5` creating 5 different brightness levels (20%/40%/60%/80%/100%). **Fix**: slots 0-4,6 should all be `floor(base * 8 / 10)`, slot 5 = white, slot 7 = grey.
 - [ ] **Dialog framework**: EXE generic dialog (icons.cpp seg 0x1F7F) has specific margin/padding constants. Extract and compare against web dialog layout code.
