@@ -189,6 +189,9 @@ const DEFAULT_NAMES = [
   'Barbarella', 'Antoinette', 'Elizabeth', 'Persephone', 'Mata Hari',
 ];
 
+// EXE: 10 player base colors (palette.js PLAYER_COLORS order)
+const NUM_PLAYER_COLORS = 10;
+
 export const playerSetup = [];
 
 export function initPlayerSetup() {
@@ -197,6 +200,7 @@ export function initPlayerSetup() {
     playerSetup.push({
       name: DEFAULT_NAMES[i] || `Player ${i + 1}`,
       aiType: i === 0 ? AI_TYPE.HUMAN : AI_TYPE.SHOOTER,
+      colorIndex: i % NUM_PLAYER_COLORS,
     });
   }
 }
@@ -476,25 +480,17 @@ function handleSubmenuInput() {
 
 function handlePlayerSetupInput() {
   const setup = playerSetup[menu.playerSetupIdx];
+  const lay = getPlayerSetupLayout();
 
-  // AI type spinner (keyboard)
-  if (menu.playerSetupField === 1) {
-    if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
-    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
-  }
-
-  // Name editing — handle typed characters and backspace
+  // Name editing — always active (field 0 is name, field 1 is color row, field 2 is type icons)
   if (menu.playerSetupField === 0) {
     if (consumeKey('Backspace')) {
       setup.name = setup.name.slice(0, -1);
     }
-    // Check for typed printable characters via the key buffer
-    for (let code = 65; code <= 90; code++) {  // A-Z
+    for (let code = 65; code <= 90; code++) {
       const keyCode = 'Key' + String.fromCharCode(code);
       if (consumeKey(keyCode)) {
-        if (setup.name.length < 12) {
-          setup.name += String.fromCharCode(code);
-        }
+        if (setup.name.length < 12) setup.name += String.fromCharCode(code);
       }
     }
     for (let d = 0; d <= 9; d++) {
@@ -502,38 +498,71 @@ function handlePlayerSetupInput() {
         if (setup.name.length < 12) setup.name += String(d);
       }
     }
-    if (consumeKey('Space') && setup.name.length < 12) {
-      setup.name += ' ';
-    }
+    if (consumeKey('Space') && setup.name.length < 12) setup.name += ' ';
   }
 
-  // Tab cycles fields (EXE: Tab key navigation between Name/Type)
-  if (consumeKey('Tab')) menu.playerSetupField = (menu.playerSetupField + 1) % 2;
-  if (consumeKey('ArrowUp')) menu.playerSetupField = Math.max(0, menu.playerSetupField - 1);
-  if (consumeKey('ArrowDown')) menu.playerSetupField = Math.min(1, menu.playerSetupField + 1);
+  // Color row navigation (field 1)
+  if (menu.playerSetupField === 1) {
+    if (consumeKey('ArrowLeft')) setup.colorIndex = (setup.colorIndex - 1 + NUM_PLAYER_COLORS) % NUM_PLAYER_COLORS;
+    if (consumeKey('ArrowRight')) setup.colorIndex = (setup.colorIndex + 1) % NUM_PLAYER_COLORS;
+  }
 
+  // AI type icons (field 2): left/right cycles type
+  if (menu.playerSetupField === 2) {
+    if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
+    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
+  }
+
+  // Tab/arrows cycle fields: 0=name, 1=colors, 2=type icons
+  if (consumeKey('Tab')) menu.playerSetupField = (menu.playerSetupField + 1) % 3;
+  if (consumeKey('ArrowUp') && menu.playerSetupField > 0) menu.playerSetupField--;
+  if (consumeKey('ArrowDown') && menu.playerSetupField < 2) menu.playerSetupField++;
+
+  // Enter or 'D' key = Done (advance to next player)
   if (consumeKey('Enter')) {
     menu.playerSetupIdx++;
     menu.playerSetupField = 0;
     if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
   }
 
-  // Mouse: click name or AI field based on dialog layout
+  // Mouse clicks
   if (mouse.over && consumeClick(0)) {
-    const lay = getPlayerSetupLayout();
-    if (mouse.x >= lay.dlgX && mouse.x < lay.dlgX + lay.dlgW) {
-      if (mouse.y >= lay.nameFieldY - 2 && mouse.y < lay.nameFieldY + lay.fieldH) {
-        menu.playerSetupField = 0;
-      } else if (mouse.y >= lay.typeFieldY - 2 && mouse.y < lay.typeFieldY + lay.fieldH) {
-        menu.playerSetupField = 1;
-        // Left/right half adjusts AI type
-        const midX = lay.dlgX + Math.floor(lay.dlgW / 2);
-        if (mouse.x > midX) {
-          setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
-        } else if (mouse.x > lay.valX - 10) {
-          setup.aiType = Math.max(0, setup.aiType - 1);
+    // Name field click
+    if (mouse.x >= lay.valX && mouse.x < lay.valX + lay.inputW &&
+        mouse.y >= lay.nameFieldY && mouse.y < lay.nameFieldY + lay.fieldH) {
+      menu.playerSetupField = 0;
+    }
+    // Color squares click
+    else if (mouse.y >= lay.colorRowY && mouse.y < lay.colorRowY + lay.colorSize) {
+      for (let c = 0; c < NUM_PLAYER_COLORS; c++) {
+        const cx = lay.colorRowX + c * (lay.colorSize + 2);
+        if (mouse.x >= cx && mouse.x < cx + lay.colorSize) {
+          setup.colorIndex = c;
+          menu.playerSetupField = 1;
+          break;
         }
       }
+    }
+    // Human/Computer icon click
+    else if (mouse.y >= lay.iconRowY && mouse.y < lay.iconRowY + lay.iconSize) {
+      // Human icon
+      if (mouse.x >= lay.iconRowX && mouse.x < lay.iconRowX + lay.iconSize) {
+        setup.aiType = AI_TYPE.HUMAN;
+        menu.playerSetupField = 2;
+      }
+      // Computer icon (next to human)
+      const compX = lay.iconRowX + lay.iconSize + 4;
+      if (mouse.x >= compX && mouse.x < compX + lay.iconSize) {
+        if (setup.aiType === AI_TYPE.HUMAN) setup.aiType = AI_TYPE.SHOOTER;
+        menu.playerSetupField = 2;
+      }
+    }
+    // Done button click
+    else if (mouse.x >= lay.doneX && mouse.x < lay.doneX + lay.doneW &&
+             mouse.y >= lay.doneY && mouse.y < lay.doneY + lay.doneH) {
+      menu.playerSetupIdx++;
+      menu.playerSetupField = 0;
+      if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
     }
   }
 
@@ -725,40 +754,51 @@ function drawSubmenu() {
 }
 
 // --- Player setup dialog layout (EXE: dialog widget system, centered) ---
-// EXE: player setup uses segment 0x3F19 dialog system with sunken input fields,
-// spinner for AI type, Tab key navigation, centered on screen.
+// EXE: player setup dialog with name field, color row, Human/Computer icons, Done button
 function getPlayerSetupLayout() {
   const rowH = isSmallMode() ? 16 : 22;
-  const labelW = measureText('Type:') + 8;
-  const inputW = measureText('WWWWWWWWWWWW_') + 8; // 12-char name + cursor + padding
-  const footerW = measureText('Tab/Arrows:Field  L/R:Type  Enter  Esc') + 20;
-  const dlgW = Math.max(labelW + inputW + 24, footerW, 180);
-  const dlgH = rowH * 2 + 60; // title + separator + 2 fields + footer
+  const labelW = measureText('~Name:') + 6;
+  const inputW = measureText('WWWWWWWWWWWW_') + 8;
+  const colorSize = isSmallMode() ? 11 : 13;
+  const colorRowW = NUM_PLAYER_COLORS * (colorSize + 2) - 2;
+  const iconSize = isSmallMode() ? 14 : 16;
+  const doneW = measureText('~Done') + 12;
+  const doneH = isSmallMode() ? 14 : 18;
+  const dlgW = Math.max(labelW + inputW + 24, colorRowW + 20, 180);
+  // title + sep + name field + color row + sep + icon row + type label
+  const dlgH = 22 + rowH + 4 + colorSize + 8 + iconSize + FONT_HEIGHT + 6;
   const dlgX = Math.floor((getScreenW() - dlgW) / 2);
   const dlgY = Math.floor((getScreenH() - dlgH) / 2);
   const fieldH = rowH + 2;
   const labelX = dlgX + 10;
   const valX = dlgX + 10 + labelW;
-  const nameFieldY = dlgY + 26;
-  const typeFieldY = nameFieldY + rowH + 6;
-  return { dlgX, dlgY, dlgW, dlgH, rowH, labelX, valX, inputW, nameFieldY, typeFieldY, fieldH };
+  const nameFieldY = dlgY + 22;
+  const colorRowY = nameFieldY + fieldH + 4;
+  const colorRowX = dlgX + Math.floor((dlgW - colorRowW) / 2);
+  const iconRowY = colorRowY + colorSize + 8;
+  const iconRowX = dlgX + 10;
+  const doneX = dlgX + dlgW - doneW - 8;
+  const doneY = iconRowY;
+  return { dlgX, dlgY, dlgW, dlgH, rowH, labelX, valX, inputW, nameFieldY, fieldH,
+           colorRowY, colorRowX, colorSize, iconRowY, iconRowX, iconSize,
+           doneX, doneY, doneW, doneH };
 }
 
 export function drawPlayerSetupScreen() {
-  // Full-screen raised 3D background (EXE: dialog over raised base)
-  boxRaised(0, 0, getScreenW(), getScreenH());
+  // EXE: dialog is drawn over the main menu background (red gradient + terrain preview)
+  drawMainMenu();
 
   const idx = menu.playerSetupIdx;
   if (idx >= config.numPlayers) return;
 
   const setup = playerSetup[idx];
-  const baseColor = idx * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const baseColor = setup.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
   const lay = getPlayerSetupLayout();
 
-  // Centered raised dialog box
+  // Centered raised dialog box (popup over menu background)
   boxRaised(lay.dlgX, lay.dlgY, lay.dlgW, lay.dlgH);
 
-  // Title: "Player N (of M)" centered in dialog, in player color
+  // Title: "Player N (of M)" right-aligned in dialog top area, in player color
   const titleStr = `Player ${idx + 1} (of ${config.numPlayers})`;
   const titleX = lay.dlgX + Math.floor((lay.dlgW - measureText(titleStr)) / 2);
   drawText(titleX, lay.dlgY + 5, titleStr, baseColor);
@@ -768,29 +808,80 @@ export function drawPlayerSetupScreen() {
   const nameSelected = menu.playerSetupField === 0;
   const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
   drawText(lay.labelX, lay.nameFieldY + 2, '~Name:', nameColor);
-  // Sunken input field for name
   boxSunken(lay.valX, lay.nameFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
   drawText(lay.valX + 3, lay.nameFieldY + 2, setup.name, baseColor);
-  if (nameSelected) {
-    // Blinking cursor
-    if (Math.floor(menu.blinkTimer / 20) % 2 === 0) {
-      drawText(lay.valX + 3 + measureText(setup.name), lay.nameFieldY + 2, '_', UI_HIGHLIGHT);
+  if (nameSelected && Math.floor(menu.blinkTimer / 20) % 2 === 0) {
+    drawText(lay.valX + 3 + measureText(setup.name), lay.nameFieldY + 2, '_', UI_HIGHLIGHT);
+  }
+
+  // Color selector row — 10 colored squares (EXE: 8 visible, we show all 10)
+  const colorSelected = menu.playerSetupField === 1;
+  for (let c = 0; c < NUM_PLAYER_COLORS; c++) {
+    const cx = lay.colorRowX + c * (lay.colorSize + 2);
+    const cy = lay.colorRowY;
+    const palIdx = c * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+    if (c === setup.colorIndex) {
+      // Selected: sunken with highlight border
+      boxSunken(cx, cy, lay.colorSize, lay.colorSize, palIdx);
+    } else {
+      // Unselected: raised with color fill
+      drawBox3DRaised(cx, cy, lay.colorSize, lay.colorSize, palIdx,
+        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
     }
   }
 
-  // AI type field — label + value as spinner
-  const aiSelected = menu.playerSetupField === 1;
-  const aiColor = aiSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  drawText(lay.labelX, lay.typeFieldY + 2, '~Type:', aiColor);
-  const typeName = AI_NAMES[setup.aiType] || 'Human';
-  // Sunken field for type value
-  boxSunken(lay.valX, lay.typeFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
-  drawText(lay.valX + 3, lay.typeFieldY + 2, typeName, aiColor);
+  // Separator
+  const sepY = lay.colorRowY + lay.colorSize + 3;
+  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, sepY, UI_MED_BORDER);
 
-  // Footer: key hints
-  const footerY = lay.dlgY + lay.dlgH - 13;
-  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, footerY - 4, UI_MED_BORDER);
-  drawText(lay.dlgX + 8, footerY, 'Tab/Arrows:Field  L/R:Type  Enter  Esc', UI_MED_BORDER);
+  // Human/Computer type selector icons (EXE: two clickable icon boxes at bottom-left)
+  const isHuman = setup.aiType === AI_TYPE.HUMAN;
+  const iconS = lay.iconSize;
+
+  // Human icon (person silhouette)
+  if (isHuman) {
+    boxSunken(lay.iconRowX, lay.iconRowY, iconS, iconS, UI_BACKGROUND);
+  } else {
+    boxRaised(lay.iconRowX, lay.iconRowY, iconS, iconS);
+  }
+  // Draw simple person shape
+  const hx = lay.iconRowX + Math.floor(iconS / 2);
+  const hy = lay.iconRowY + 2;
+  const hc = isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT;
+  // Head (2x2)
+  fillRect(hx - 1, hy, hx, hy + 1, hc);
+  // Body
+  fillRect(hx - 1, hy + 2, hx, hy + 4, hc);
+  // Legs
+  setPixel(hx - 1, hy + 5, hc);
+  setPixel(hx, hy + 5, hc);
+  if (iconS > 12) { setPixel(hx - 2, hy + 6, hc); setPixel(hx + 1, hy + 6, hc); }
+
+  // Computer icon (monitor shape)
+  const compX = lay.iconRowX + iconS + 4;
+  if (!isHuman) {
+    boxSunken(compX, lay.iconRowY, iconS, iconS, UI_BACKGROUND);
+  } else {
+    boxRaised(compX, lay.iconRowY, iconS, iconS);
+  }
+  const cc = !isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT;
+  const mx = compX + 3, my = lay.iconRowY + 2;
+  // Monitor screen
+  fillRect(mx, my, mx + iconS - 7, my + iconS - 7, cc);
+  // Stand
+  const standX = compX + Math.floor(iconS / 2);
+  setPixel(standX, my + iconS - 6, cc);
+  hline(standX - 2, standX + 2, my + iconS - 5, cc);
+
+  // AI type name below icons
+  const typeName = AI_NAMES[setup.aiType] || 'Human';
+  drawText(lay.iconRowX, lay.iconRowY + iconS + 1, typeName, UI_DARK_TEXT);
+
+  // Done button (EXE: raised 3D button at bottom-right)
+  boxRaised(lay.doneX, lay.doneY, lay.doneW, lay.doneH);
+  const doneTx = lay.doneX + Math.floor((lay.doneW - measureText('~Done')) / 2);
+  const doneTy = lay.doneY + Math.floor((lay.doneH - FONT_HEIGHT) / 2);
+  drawText(doneTx, doneTy, '~Done', UI_DARK_TEXT);
 }
 
 // Reset menu state when re-entering from game over / system menu

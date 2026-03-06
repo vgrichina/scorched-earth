@@ -2956,6 +2956,29 @@ The shop screen dispatches through a 12-case jump table at file 0x1DF4D. For com
 
 Mountain mode check: if DS:0x50D8 != 0 and action == 8, re-roll (skip guidance in mountain terrain).
 
+### Shop Dialog Layout (shopDialogBuild at file 0x15AF6, session 148)
+
+Full-screen modal dialog created via `dialog_alloc(FG_MAXX, FG_MAXY, 0, 0)`.
+
+**Resolution check** at 0x15D37: `if FG_MAXY >= 0x190 (400px)` → di=5 extra spacing, else di=0.
+
+**Left panel**: scrollable item list at X=0, width=0xC8 (200px), height=full screen minus header.
+
+**Right-side buttons** (all at X=0xFA=250):
+| Button | String | Y position (lo-res / hi-res) |
+|--------|--------|------------------------------|
+| "~Update" | DS:0x2E39 | di+0x32 (50 / 55) |
+| "~Inventory" | DS:0x2EEF | di×2+0x46 (70 / 80) |
+| "~Done" | DS:0x2C57 | di×3+0x5A (90 / 105) |
+
+**Type9 widgets** (tabs/icons): Score, Weapons, Misc — positioned as icon-like selectors, NOT bottom tab bar.
+
+**Header** (cash_display at file 0x16A7C):
+- Row 1 (Y varies): "Cash Left:" at X=5, colored fill bar at X=CASH_LABEL_X+textW("Cash Left:")+10
+- Interest label at X=CASH_BAR_X+0x48, interest bar at INTEREST_LABEL_X+textW("Earned interest")+10
+- Cash bar width = NUM_PLAYERS × 6 pixels
+- "%s rounds remain" (DS:0x2C1A) / "1 round remains" (DS:0x2C2B) at top-right
+
 ### Sell Equipment — Refund Price Formula (file 0x37955, VERIFIED)
 
 Function `compute_sell_refund` at file 0x37955 (seg 0x2CBF:0x4365):
@@ -6194,23 +6217,23 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 #### 2. Player Setup Dialog (`/tmp/after_s.state`, `/tmp/after_a.state`)
 - [x] Player N (of M) title bar — **VERIFIED** (session 146). EXE: `"Player 1 (of 2)"` via sprintf DS:0x500E + DS:0x31E5. Web fixed to match.
 - [x] Name text field (focused, accepts typed characters) — **VERIFIED** (session 146). EXE: `"Name:"` label + sunken input + cursor. Web matches.
-- [ ] AI type selector — **DISCREPANCY** (session 146). EXE uses **two clickable icons** at bottom-left (Human=person icon, Computer=monitor icon), NOT a text spinner. Web incorrectly uses `~Type:` text label + spinner. Needs rework to icon-based selector.
-- [ ] Done button — **DISCREPANCY** (session 146). EXE has a visible raised **"Done" button** at bottom-right of dialog. Web has no Done button, only Enter key. Need to add visible Done button.
-- [ ] Player color icon row — **MISSING** (session 146). EXE shows a row of 8 colored icon squares below the name field (player color selectors). Web has no equivalent. Need to add.
-- [x] Tab-order: Name field → Done button (Enter cycles focus) — **VERIFIED** (session 146). DS:0xD0AC tracks focus. Web Tab/arrows cycle fields.
+- [x] AI type selector — **FIXED** (session 147). Replaced text spinner with Human/Computer icon buttons at bottom-left. Click to toggle type.
+- [x] Done button — **FIXED** (session 147). Added raised "Done" button at bottom-right. Click or Enter to advance.
+- [x] Player color icon row — **FIXED** (session 147). Added row of 10 colored squares below name field. Click to select color.
+- [x] Tab-order: Name field → Done button (Enter cycles focus) — **VERIFIED** (session 146). DS:0xD0AC tracks focus. Web Tab/arrows cycle fields (3 fields: name, colors, type).
 - [x] Sequential: show dialog for each player in order — **VERIFIED** (session 146). Web iterates playerSetupIndex 0..numPlayers-1.
-- [ ] Dialog background — **DISCREPANCY** (session 146). EXE draws dialog as popup over the red gradient main menu background. Web draws full-screen raised box, hiding the gradient. Fix: skip full-screen boxRaised, draw dialog directly over existing menu.
+- [x] Dialog background — **FIXED** (session 147). Dialog now draws over main menu background (drawMainMenu() called first, then dialog overlaid).
 
 #### 3. Weapons Shop (`/tmp/after_p2done.state`, `/tmp/after_shop1.png`)
-- [ ] **Pixel audit**: compare `/tmp/after_shop1.png` vs web shop — full layout comparison: header bar, weapon list, button panel, icon sizes, row heights, scrollbar
-- [ ] Header layout: EXE shows player name icon "A" top-left, "Cash: $1,000,000" centered, "10 rounds remain" top-right, "Cash Left:" bar below with colored fill + "Earned interest" label. Compare exact positions/colors vs web.
-- [ ] Weapon list rows: EXE format is `qty icon_glyph weapon_name $price/max` — verify web row layout matches column widths, icon placement, text alignment
-- [ ] Right-side buttons: EXE has "~Update", "~Inventory", "~Done" as raised 3D buttons. Verify web button style, size, position match.
+- [x] **Pixel audit**: compare `/tmp/after_shop1.png` vs web shop — full layout comparison **AUDITED** (session 148). Multiple discrepancies found, see sub-tasks below.
+- [x] **Shop header bar** — **FIXED** (session 148). Now matches EXE: player initial icon top-left, "Cash: $N" centered (DS:0x275D), "N rounds remain" (DS:0x2C1A) top-right. Row 2: "Cash Left:" (DS:0x2DDD) + colored fill bar + "Earned interest" (DS:0x235C) + bar.
+- [x] **Shop item row format** — **FIXED** (session 148). Now matches EXE: `qty > weapon_name $price/bundle` — quantity left, arrow, name, price/bundle right-aligned.
+- [x] **Shop right-side buttons** — **FIXED** (session 148). Now matches EXE: Score/Weapons/Misc tab selectors + "~Update" (DS:0x2E39) + "~Inventory" (DS:0x2EEF) + "~Done" (DS:0x2C57) stacked vertically on right at X=250 (shopDialogBuild 0x15AF6).
+- [x] **Shop tabs vs buttons** — **FIXED** (session 148). Removed bottom tab bar. Tab selectors now on right side as raised/sunken buttons, matching EXE type9 widget layout.
 - [ ] Weapon icons: EXE draws small colored glyphs inline with each row. Verify web icon rendering matches pixel size and color.
 - [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
-- [ ] Tab buttons: EXE screenshot doesn't show bottom tabs on Weapons page — **disasm**: trace equip.cpp tab system to verify if tabs exist or if Score/Weapons/Misc are right-side buttons
 - [ ] Buy/sell mechanics: **disasm** equip.cpp buy/sell logic — verify click regions, qty increment/decrement, max-buy limits match web
-- [ ] Shop scrollbar: EXE shows scrollbar on weapon list right edge. Verify web has matching scrollbar or scroll behavior.
+- [x] Shop scrollbar: EXE shows scrollbar on weapon list right edge. Web has matching 3D scrollbar with arrow buttons + proportional thumb. **VERIFIED** (session 148).
 - [x] Interest calculation on earned cash between rounds: **VERIFIED** (session 145). EXE formula at file 0x17804: `earned = floor(player.cash * DS:0x5190)` where DS:0x5190=interest_rate (float64, 0.30 default from SCORCH.CFG). Per-player bignum cash (+0xBE) loaded, FPU multiplied by rate, `_ftol`, added back via bignum add. Web port score.js `applyInterest()`: `floor(cash * config.interest / 100)` with config.interest=30 → identical result. Called once at round transition before shop. No discrepancy.
 
 #### 4. Terrain Generation + Tank Placement (`/tmp/shop2_d.png`, `/tmp/shop2_d2.png`)

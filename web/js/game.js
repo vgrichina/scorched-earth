@@ -864,7 +864,8 @@ export function gameTick() {
           mktUpdate();  // EXE: mkt_update — adjust dynamic market prices before shopping
           game.shopPlayerIdx = 0;
           applyInterest();
-          openShop(0);
+          const rl = config.rounds - game.round + 1;
+          openShop(0, rl);
           game.state = STATE.SHOP;
         }
       }
@@ -881,7 +882,8 @@ export function gameTick() {
           closeShop();
           game.state = STATE.ROUND_SETUP;
         } else {
-          openShop(game.shopPlayerIdx);
+          const rl = config.rounds - game.round + 1;
+          openShop(game.shopPlayerIdx, rl);
         }
       }
       break;
