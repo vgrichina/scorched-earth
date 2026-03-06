@@ -6,6 +6,7 @@ Usage:
     python3 disasm/search_bytes.py <hex_pattern> [--context N] [--disasm [lines]]
 
     hex_pattern  — hex bytes to find, e.g. "8B 46 FC" or "8B46FC"
+                   Use ?? as wildcard for any single byte: "CD ?? 8B 46"
     --context N  — show N raw bytes before/after each match (default 4)
     --disasm     — invoke dis.py at each match location
     lines        — number of instructions to disassemble (default 8, only with --disasm)
@@ -14,6 +15,8 @@ Examples:
     python3 disasm/search_bytes.py "8B 46 FC"
     python3 disasm/search_bytes.py CD34 --context 8 --disasm
     python3 disasm/search_bytes.py "FF 1E" --disasm 12
+    python3 disasm/search_bytes.py "CD ?? 8B 46 FC" --disasm
+    python3 disasm/search_bytes.py "9A ?? ?? ?? ?? 83 C4"
 """
 
 import sys
@@ -63,12 +66,25 @@ def main():
         print(__doc__)
         sys.exit(0)
 
-    pattern_str = args[0].replace(' ', '')
-    try:
-        pattern = bytes.fromhex(pattern_str)
-    except ValueError:
-        print(f"Invalid hex pattern: {args[0]!r}")
+    # Parse pattern with ?? wildcard support
+    tokens = args[0].replace(' ', '')
+    # Split into 2-char tokens
+    if len(tokens) % 2 != 0:
+        print(f"Invalid hex pattern (odd length): {args[0]!r}")
         sys.exit(1)
+    pattern = []  # list of (byte_val, is_wild)
+    for j in range(0, len(tokens), 2):
+        tok = tokens[j:j+2]
+        if tok == '??' or tok == '**':
+            pattern.append((0, True))
+        else:
+            try:
+                pattern.append((int(tok, 16), False))
+            except ValueError:
+                print(f"Invalid hex byte: {tok!r} in {args[0]!r}")
+                sys.exit(1)
+    has_wildcards = any(w for _, w in pattern)
+    pat_len = len(pattern)
 
     context   = 4
     do_disasm = False
@@ -90,15 +106,29 @@ def main():
         exe = f.read()
 
     matches = []
-    pos = 0
-    while True:
-        idx = exe.find(pattern, pos)
-        if idx == -1:
-            break
-        matches.append(idx)
-        pos = idx + 1
+    if has_wildcards:
+        # Wildcard search: scan byte by byte
+        for pos in range(len(exe) - pat_len + 1):
+            match = True
+            for k, (bval, wild) in enumerate(pattern):
+                if not wild and exe[pos + k] != bval:
+                    match = False
+                    break
+            if match:
+                matches.append(pos)
+    else:
+        # Fast path: no wildcards, use bytes.find
+        pat_bytes = bytes(b for b, _ in pattern)
+        pos = 0
+        while True:
+            idx = exe.find(pat_bytes, pos)
+            if idx == -1:
+                break
+            matches.append(idx)
+            pos = idx + 1
 
-    print(f"Pattern: {pattern.hex().upper()}  ({len(pattern)} bytes)")
+    pat_display = ' '.join('??' if w else f'{b:02X}' for b, w in pattern)
+    print(f"Pattern: {pat_display}  ({pat_len} bytes)")
     print(f"Found {len(matches)} match(es)")
     print()
 
@@ -110,12 +140,12 @@ def main():
 
         # Context bytes with match highlighted in [brackets]
         start = max(0, off - context)
-        end   = min(len(exe), off + len(pattern) + context)
+        end   = min(len(exe), off + pat_len + context)
         region = exe[start:end]
         hex_parts = []
         for j, b in enumerate(region):
             abs_off = start + j
-            if off <= abs_off < off + len(pattern):
+            if off <= abs_off < off + pat_len:
                 hex_parts.append(f'[{b:02X}]')
             else:
                 hex_parts.append(f' {b:02X} ')
