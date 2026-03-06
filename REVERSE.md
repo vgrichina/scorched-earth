@@ -6167,7 +6167,10 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 - `/tmp/after_a.state` — Player 1 dialog, "A" typed in name
 - `/tmp/after_2enter.state` — Player 2 dialog (Player 1 done)
 - `/tmp/after_p2done.state` — **Weapons shop screen** (both players done, game started)
+- `/tmp/game_playing.state` — **In-game playing** (terrain drawn, tanks placed, Player 1 turn)
 - Key injection recipe: `--keys STEP:SC:ASC` with make/break pairs (0x80+sc for release)
+- Shop input: uses `get_key_input` (0x28B31) which reads DS:D0B8 (last_scancode) for mode 2; break code must arrive AFTER shop polls (delay ≥1M steps)
+- Shop has sparkle animation phase before interactive dialog — 'd' during animation skips to dialog, then 'd' again closes shop
 
 ### Dialog/Widget System RE
 - Widget struct partially mapped: type(+0), enabled(+2), draw_fn(+4), hotkey(+0C)

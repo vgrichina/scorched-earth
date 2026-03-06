@@ -94,7 +94,21 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
     try:
         for i in range(max_steps):
             if cpu.halted:
-                return 'halted', i
+                # HLT waits for interrupt — keep looping to process timer/key IRQs
+                # but skip instruction execution until an interrupt fires
+                if not cpu.intf:
+                    return 'halted', i  # interrupts disabled — truly stuck
+                # Check if timer or key interrupt will fire this cycle
+                will_wake = False
+                if timer_period and timer_counter <= 0:
+                    will_wake = True
+                if has_sched_keys and i in scheduled_keys:
+                    will_wake = True
+                if not will_wake:
+                    timer_counter -= 1
+                    continue
+                # An interrupt will fire — clear halted so we resume after ISR
+                cpu.halted = False
 
             # Hardware timer interrupt
             if timer_period and timer_counter <= 0:
