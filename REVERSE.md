@@ -6249,7 +6249,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Shop item row format** — **FIXED** (session 148). Now matches EXE: `qty > weapon_name $price/bundle` — quantity left, arrow, name, price/bundle right-aligned.
 - [x] **Shop right-side buttons** — **FIXED** (session 148). Now matches EXE: Score/Weapons/Misc tab selectors + "~Update" (DS:0x2E39) + "~Inventory" (DS:0x2EEF) + "~Done" (DS:0x2C57) stacked vertically on right at X=250 (shopDialogBuild 0x15AF6).
 - [x] **Shop tabs vs buttons** — **FIXED** (session 148). Removed bottom tab bar. Tab selectors now on right side as raised/sunken buttons, matching EXE type9 widget layout.
-- [ ] Weapon icons: EXE draws small colored glyphs inline with each row. Verify web icon rendering matches pixel size and color.
+- [x] Weapon icons: **VERIFIED** (session 153). All 48 icons (DS:0x3826, stride 125B) compared via icon_verify.py — type/width/height/pixel data match exactly between EXE and web ICONS array. Column-major 1bpp rendering matches.
 - [ ] Sparkle/palette animation on shop open (cosmetic, low priority)
 - [x] Buy/sell mechanics: **disasm** equip.cpp buy/sell logic — max qty 99 cap + overflow refund added to web (session 149). EXE buy_weapon (0x14924): reject if qty>=99, deduct price, add bundle, if qty>99 clip to 99 and refund floor(excess*price/bundle). Sell factor: 0.8 normal, 0.65 free market — web was correct. Sell formula: floor(qty*price*factor/bundle) — web was correct.
 - [x] Shop scrollbar: EXE shows scrollbar on weapon list right edge. Web has matching 3D scrollbar with arrow buttons + proportional thumb. **VERIFIED** (session 148).
