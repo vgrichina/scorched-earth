@@ -115,7 +115,7 @@ function drawIconBitmap(x, y, pixels, width, height, color) {
 // Draw icon by index from ICONS table
 // EXE: draw_icon_alive (0x261D7) — validates idx 0-47, extracts type/w/h/px, calls renderer
 // Vertically centers small icons within the 12px row height
-function drawIcon(x, y, iconIdx, color) {
+export function drawIcon(x, y, iconIdx, color) {
   if (iconIdx < 0 || iconIdx >= ICONS.length) return;
   const icon = ICONS[iconIdx];
   if (icon.w === 0) return; // blank icon — nothing to draw

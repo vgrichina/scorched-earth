@@ -72,6 +72,7 @@ import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
 import { players } from './tank.js';
 import { getLeaderboard } from './score.js';
+import { drawIcon } from './hud.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -771,8 +772,11 @@ export function drawShop(player) {
   // === Header row 1 (EXE: cash_display at file 0x16A7C) ===
   // EXE: player initial icon at top-left via player+0x1A color
   // EXE: "Cash: $N" (DS:0x275D "Cash") centered, "%s rounds remain" (DS:0x2C1A) right
+  // EXE: player initial + small color swatch block at top-left
   const initial = player.name.charAt(0).toUpperCase();
   drawText(6, 4, initial, baseColor);
+  const swatchX = 6 + measureText(initial) + 2;
+  fillRect(swatchX, 5, swatchX + 7, 5 + 8, baseColor);
 
   const cashStr = `Cash: $${player.cash.toLocaleString()}`;
   const cashTxtX = Math.floor((SW - measureText(cashStr)) / 2);
@@ -892,8 +896,8 @@ export function drawShop(player) {
                      :             UI_MED_BORDER;
       // Qty column (EXE: left-most, shows owned count)
       drawText(qtyCol, y, owned > 0 ? String(owned) : '0', owned > 0 ? baseColor : txtColor);
-      // Small icon indicator
-      drawText(PANEL_X + 16, y, '>', txtColor);
+      // EXE: draws weapon icon between qty and name (weapon index = icon index)
+      drawIcon(PANEL_X + 16, y, item.idx, txtColor);
       // Weapon name
       drawText(nameCol, y, item.weapon.name, txtColor);
       // Price/bundle (EXE: "$price/max" right-aligned)

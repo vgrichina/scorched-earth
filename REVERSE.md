@@ -6327,10 +6327,10 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Player dialog: title centered** — EXE centers "Player N (of M)" in dialog (0x26F09-0x26F1D: x = left + (right-left-textWidth)/2). Web was already correct (centered). Initial visual analysis suggested right-aligned but disasm confirms centered.
 - [x] **Shop: earned interest bar always drawn** — EXE always draws the sunken bar frame. Web only drew it when earnedInterest > 0. Fixed in shop.js.
 - [x] **Player dialog: 8 color swatches** — EXE loop at icons.cpp 0x28333: `cmp di, 8; jl` — draws exactly 8 swatches. Fixed NUM_PLAYER_COLORS from 10 to 8 in menu.js.
-- [ ] **Player dialog: Human/Computer icons** — EXE uses pixel-art bitmaps from icon table, web uses crude procedural shapes. Extract actual icon bitmaps from EXE for faithful rendering.
-- [ ] **Shop: weapon icons in item rows** — EXE renders colored weapon icons between quantity and name. Web draws a plain '>' character. Need to render actual weapon icons from icon table (DS:0x3826).
+- [ ] **Player dialog: Human/Computer icons** — EXE uses pixel-art bitmaps (NOT from DS:0x3826 weapon icon table — checked all 48, none match). Likely hardcoded in the player dialog paint callback in icons.cpp. Web uses crude procedural shapes. Need to trace paint callback to extract bitmap data.
+- [x] **Shop: weapon icons in item rows** — EXE renders weapon icons per row (weapon idx = icon idx, paint callback 0x1580D). Fixed: exported drawIcon from hud.js, replaced '>' with drawIcon(item.idx) in shop.js.
 - [ ] **Shop: buy/sell arrow icons** — EXE has small clickable arrow glyphs for mouse-driven buy/sell. Web relies on keyboard/click-on-row only.
-- [ ] **Shop: player color block in header** — EXE shows player letter + color swatch block at top-left. Web shows just the colored letter.
+- [x] **Shop: player color block in header** — EXE shows player letter + color swatch (8×9 filled rect). Fixed: added fillRect after initial letter in shop header.
 
 #### 8. Cross-Cutting Pixel Audits
 - [x] **Font rendering**: **VERIFIED** (session 154). font_verify.py reads EXE font pointer table (font_init at 0x4C290, 161 custom glyphs, formula DS:[char*4-0xCA6]→far ptr→width+bitmap). All 94 ASCII glyphs (32-126 minus 34) have identical widths AND pixel-perfect bitmaps vs web font.js. All 126 extended glyphs (0x80-0xFD) also match exactly. Only discrepancy: char 34 (`"`) has width=0 in EXE (Fastgraph font omission) vs width=3 in web (handcrafted improvement). measureText spacing (width+1 per char, skip `~`) matches EXE text_measure at 0x4CE17. No fixes needed.
