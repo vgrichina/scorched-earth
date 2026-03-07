@@ -123,6 +123,11 @@ python3 disasm/palette_dump.py earth/SCORCH.EXE --accent       # shop animation 
 python3 disasm/palette_dump.py earth/SCORCH.EXE --scan         # find palette blocks
 ```
 
+### Agent Rules
+- One command per Bash tool call (no `&&` chaining, no `;` separating)
+- Stick to pre-approved tools listed above — avoid running commands that aren't listed here
+- `git add` specific files by name, never `git add -A` or `git add .`
+
 ### Key Binary Layout
 - Header: 0x6A00 bytes (MZ DOS header + relocations)
 - Data segment (DS): 0x4F38 (file base 0x055D80)
@@ -136,14 +141,19 @@ python3 disasm/palette_dump.py earth/SCORCH.EXE --scan         # find palette bl
 ### Source File Segments (from debug strings)
 | File | Code Segment | File Base | Purpose |
 |------|-------------|-----------|---------|
+| comments.cpp | 0x117B | ~0x17F50 | Tank talking/speech bubbles |
+| equip.cpp | 0x16BC | ~0x1D560 | Equipment/weapon shop management |
 | extras.cpp | 0x1A4A | 0x20EA0 | Explosions/damage/projectiles |
 | icons.cpp | 0x1F7F+ | 0x263F0 | Tank/icon rendering |
+| play.cpp | 0x28B9 | 0x2F830 | Main game loop |
+| player.cpp | 0x2B3B+ | 0x31FB0 | Player/tank management |
+| ranges.cpp | 0x2CBF | 0x33690 | Terrain generation |
+| score.cpp | 0x30B2 | ~0x37520 | Scoring system |
 | shark.cpp | 0x3167 | 0x38070 | AI trajectory solver |
 | shields.cpp | 0x31D8 | 0x38780 | Shield system |
-| player.cpp | 0x2B3B+ | 0x31FB0 | Player/tank management |
-| play.cpp | 0x28B9 | 0x2F830 | Main game loop |
-| ranges.cpp | 0x2CBF | 0x33690 | Terrain generation |
+| *(hud bars)* | 0x3249 | ~0x38E90 | HUD bar column fill helpers |
 | *(menu module)* | 0x34ED | 0x3B8D0 | Main menu/config UI, sub-dialogs |
+| team.cpp | 0x3A56+ | ~0x40F60 | Team management |
 | *(font module)* | 0x4589 | 0x4C290 | Fastgraph text rendering (font_init, text_display, text_measure) |
 
 ## v86 DOS Emulator (browser-based EXE comparison)
@@ -165,6 +175,37 @@ mcopy -i v86/images/game.img earth/*.EXE earth/*.CFG earth/*.MTN ::
 Image must be FAT32 with HD geometry (16 heads, 63 sectors/track) — FAT12 causes read errors.
 
 Serve from project root: `python3 -m http.server 8090` → http://localhost:8090/v86.html
+
+## Web Port (browser reimplementation)
+
+Serve from project root: `python3 -m http.server 8090` → http://localhost:8090/web/
+
+Key modules in `web/js/`:
+| Module | Maps to EXE | Purpose |
+|--------|------------|---------|
+| game.js | play.cpp | Main game loop, state machine, projectile flight |
+| main.js | — | Entry point, canvas setup, frame loop |
+| physics.js | extras.cpp | Gravity, wind, collision, explosion damage |
+| ai.js | shark.cpp | AI trajectory solver |
+| terrain.js | ranges.cpp | Terrain generation, height array, drawing |
+| shop.js | equip.cpp | Weapon shop UI, buy/sell |
+| menu.js | menu module | Main menu, config dialogs |
+| hud.js | hud bars | Power/angle bars, weapon display, wind |
+| shields.js | shields.cpp | Shield rendering and damage absorption |
+| tank.js | icons.cpp | Tank sprite rendering (6 types, pixel tables) |
+| palette.js | — | VGA palette emulation (sky, terrain, UI colors) |
+| font.js | font module | Proportional font (161 glyphs from EXE) |
+| weapons.js | — | Weapon definitions (52-byte struct data) |
+| explosions.js | extras.cpp | Explosion animation (Bresenham circles) |
+| score.js | score.cpp | Scoring, interest, round-end tallying |
+| config.js | — | Game config (gravity, walls, wind, etc.) |
+| sound.js | — | PC speaker sound emulation |
+| input.js | — | Keyboard/mouse input handling |
+| framebuffer.js | — | VGA 320×200 framebuffer + canvas scaling |
+| constants.js | — | Shared constants (colors, layout) |
+| talk.js | comments.cpp | Tank speech bubbles |
+| behaviors.js | — | Weapon behavior types (roller, digger, etc.) |
+| utils.js | — | Math helpers |
 
 ## Conventions
 
