@@ -3,13 +3,24 @@
 
 Usage:
   python3 disasm/mem_read.py STATE_FILE ADDRESS [options]
+  python3 disasm/mem_read.py STATE_FILE LABEL_NAME [options]
+  python3 disasm/mem_read.py --labels PATTERN        (no state file needed)
 
 Address formats:
+  LABEL_NAME     — Label name from labels.csv (e.g. WIND_SPEED, NUM_PLAYERS)
   DS:0x1234      — DS-relative offset
   SS:BP+0x06     — Stack-relative (reads from SS:BP+offset)
   SS:SP+0x00     — Stack pointer relative
   SEG:OFF        — Absolute segment:offset (e.g. 5F2A:274E)
   0x12345        — Physical/linear address
+
+  When using a label name, the dtype column from labels.csv is used for
+  auto-formatting (tables as rows, farptrs as seg:off, strings as text).
+  Explicit format flags (-w, -s, -fp, etc.) override auto-formatting.
+
+Label search (no state file needed):
+  --labels [PAT]      — List DS labels matching glob pattern (default: all)
+  --dump-labels [PAT] — Like --labels but reads current values from state
 
 Options:
   -n N           — Number of items (default 1)
@@ -24,12 +35,16 @@ Options:
 
 Examples:
   python3 disasm/mem_read.py /tmp/cp1.state DS:0x50F6 -w
+  python3 disasm/mem_read.py /tmp/cp1.state WIND_SPEED
+  python3 disasm/mem_read.py /tmp/cp1.state NUM_PLAYERS
+  python3 disasm/mem_read.py /tmp/cp1.state ground_color_table -n 6
   python3 disasm/mem_read.py /tmp/cp1.state SS:BP+0x06 -fp --follow
   python3 disasm/mem_read.py /tmp/cp1.state --regs
   python3 disasm/mem_read.py /tmp/cp1.state --stack 20
-  python3 disasm/mem_read.py /tmp/cp1.state 5F2A:274E -w -n 10
+  python3 disasm/mem_read.py /tmp/cp1.state --dump-labels '*wind*'
+  python3 disasm/mem_read.py --labels '*player*'
 """
-import sys, os, re, argparse
+import sys, os, re, argparse, csv, fnmatch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -39,6 +54,35 @@ from disasm.emu.loader import load_exe, setup_ivt, setup_cpu
 from disasm.emu.ports import PortIO
 from disasm.emu.interrupts import InterruptHandler
 from disasm.emu.state import load_state
+
+
+def load_labels():
+    """Load labels.csv, return dict of name -> (ds_offset_int, dtype_or_None)
+    and list of (ds_offset_int, name, dtype) for DS: entries only."""
+    labels_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'labels.csv')
+    by_name = {}  # name -> (ds_offset, dtype)
+    all_ds = []   # (ds_offset, name, dtype)
+    if not os.path.exists(labels_path):
+        return by_name, all_ds
+    with open(labels_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(',')
+            if len(parts) < 2:
+                continue
+            addr, name = parts[0].strip(), parts[1].strip()
+            dtype = parts[2].strip() if len(parts) > 2 else None
+            if addr.upper().startswith('DS:'):
+                try:
+                    off = int(addr[3:], 16)
+                    by_name[name] = (off, dtype)
+                    all_ds.append((off, name, dtype))
+                except ValueError:
+                    pass
+    all_ds.sort(key=lambda x: x[0])
+    return by_name, all_ds
 
 
 def dump_struct(mem, phys, fmt_str, prefix='  '):
@@ -99,9 +143,18 @@ def dump_struct(mem, phys, fmt_str, prefix='  '):
     return off
 
 
-def resolve_address(addr_str, cpu, mem):
-    """Resolve address string to physical address. Returns (phys, description)."""
+def resolve_address(addr_str, cpu, mem, labels_by_name=None):
+    """Resolve address string to physical address. Returns (phys, description).
+    Also tries label name lookup if labels_by_name is provided."""
     addr_str = addr_str.strip()
+
+    # Try label name lookup first (if it doesn't look like an address pattern)
+    if labels_by_name and not re.match(r'(DS:|ES:|SS:|0x|[0-9a-fA-F]{4}:)', addr_str, re.I):
+        if addr_str in labels_by_name:
+            off, dtype = labels_by_name[addr_str]
+            ds = cpu.segs[3]
+            phys = ((ds << 4) + off) & 0xFFFFF
+            return phys, f'{addr_str} = DS:{off:04X} = {ds:04X}:{off:04X} (phys {phys:05X})'
 
     # SS:BP+offset or SS:SP+offset
     m = re.match(r'SS:(BP|SP)([+-]0x[0-9a-fA-F]+|[+-]\d+)?$', addr_str, re.I)
@@ -148,8 +201,8 @@ def resolve_address(addr_str, cpu, mem):
 
 def main():
     parser = argparse.ArgumentParser(description='Read memory from emulator state')
-    parser.add_argument('state_file', help='Path to saved state file')
-    parser.add_argument('address', nargs='?', help='Address to read')
+    parser.add_argument('state_file', nargs='?', help='Path to saved state file')
+    parser.add_argument('address', nargs='?', help='Address to read (DS:offset, label name, SEG:OFF, etc.)')
     parser.add_argument('-n', type=int, default=1, help='Number of items')
     parser.add_argument('-w', action='store_true', help='Read as 16-bit words (default)')
     parser.add_argument('-dw', action='store_true', help='Read as 32-bit dwords')
@@ -169,8 +222,28 @@ def main():
                         'Prefix with name= for labels, e.g. type=u16,enabled=u16,x=s16')
     parser.add_argument('--each-fp', metavar='FMT',
                         help='Read -n far pointers at ADDRESS, apply FMT struct to each target')
+    parser.add_argument('--labels', metavar='PATTERN', nargs='?', const='*',
+                        help='Search/list DS labels matching glob pattern (e.g. "*wind*")')
+    parser.add_argument('--dump-labels', metavar='PATTERN', nargs='?', const='*',
+                        help='Like --labels but also reads current value from state')
     parser.add_argument('--exe', default='earth/SCORCH.EXE', help='EXE path')
     args = parser.parse_args()
+
+    # Load labels
+    labels_by_name, labels_all_ds = load_labels()
+
+    # --labels: search without loading state (no state_file needed)
+    if args.labels is not None:
+        pat = args.labels
+        for off, name, dtype in labels_all_ds:
+            if fnmatch.fnmatch(name.lower(), pat.lower()):
+                dt = f'  [{dtype}]' if dtype else ''
+                print(f'  DS:0x{off:04X}  {name}{dt}')
+        return
+
+    # Everything below requires a state file
+    if not args.state_file:
+        parser.error('state_file is required (except with --labels)')
 
     # Load state
     mem = Memory()
@@ -182,6 +255,38 @@ def main():
     ports.mem = mem
     ih = InterruptHandler(mem, cpu, 'earth', ports)
     load_state(args.state_file, cpu, mem, ports, ih)
+
+    # --dump-labels: search and read values
+    if args.dump_labels is not None:
+        pat = args.dump_labels
+        ds = cpu.segs[3]
+        for off, name, dtype in labels_all_ds:
+            if not fnmatch.fnmatch(name.lower(), pat.lower()):
+                continue
+            phys = ((ds << 4) + off) & 0xFFFFF
+            # Auto-format based on dtype
+            if dtype and 'str' in dtype:
+                chars = []
+                for i in range(64):
+                    b = mem.data[phys + i]
+                    if b == 0:
+                        break
+                    chars.append(chr(b) if 0x20 <= b < 0x7F else f'\\x{b:02X}')
+                val_str = f'"{("".join(chars))}"'
+            elif dtype and 'farptr' in dtype:
+                fp_off = mem.read16(phys)
+                fp_seg = mem.read16(phys + 2)
+                val_str = f'{fp_seg:04X}:{fp_off:04X}'
+            elif dtype and dtype.startswith('data/table:'):
+                stride = int(dtype.split(':')[1])
+                val_str = f'[table stride={stride}, first word=0x{mem.read16(phys):04X}]'
+            else:
+                val = mem.read16(phys)
+                sval = val if val < 0x8000 else val - 0x10000
+                val_str = f'0x{val:04X} ({sval})'
+            dt = f'  [{dtype}]' if dtype else ''
+            print(f'  DS:0x{off:04X}  {name} = {val_str}{dt}')
+        return
 
     if args.regs:
         print(f'AX={cpu.ax:04X} BX={cpu.bx:04X} CX={cpu.cx:04X} DX={cpu.dx:04X}')
@@ -225,7 +330,12 @@ def main():
             parser.print_help()
         return
 
-    phys, desc = resolve_address(args.address, cpu, mem)
+    phys, desc = resolve_address(args.address, cpu, mem, labels_by_name)
+
+    # Auto-detect dtype from labels if no explicit format given
+    auto_dtype = None
+    if labels_by_name and args.address in labels_by_name:
+        _, auto_dtype = labels_by_name[args.address]
 
     # Dereference: treat address as far pointer, read from target
     if args.deref:
@@ -254,6 +364,24 @@ def main():
             print(f'\n  --- [{idx}] at +0x{stride*idx:X} ---')
             dump_struct(mem, phys + stride * idx, args.fmt)
         return
+
+    # Auto-format from dtype if no explicit format flags
+    no_explicit = not (args.s or args.b or args.fp or args.dw or args.fmt or args.each_fp)
+    if no_explicit and auto_dtype:
+        if 'str' in auto_dtype:
+            args.s = True
+        elif auto_dtype == 'data/farptr':
+            args.fp = True
+            if args.n == 1:
+                args.n = 4
+        elif auto_dtype.startswith('data/table:'):
+            stride = int(auto_dtype.split(':')[1])
+            print(f'  [table: stride={stride} bytes, showing {args.n} entries as raw words]')
+            for idx in range(args.n):
+                base = phys + stride * idx
+                words = [mem.read16(base + j*2) for j in range(min(stride//2, 8))]
+                print(f'  [{idx:2d}] +0x{stride*idx:04X}  {" ".join(f"{w:04X}" for w in words)}')
+            return
 
     if args.s:
         # String
