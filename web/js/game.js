@@ -8,7 +8,7 @@
 import { config } from './config.js';
 import { random, clamp } from './utils.js';
 import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
-import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations } from './tank.js';
+import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, TANK_TYPES } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles, applyMagDamping,
@@ -389,12 +389,17 @@ function handleAimInput(player) {
 // NOT shield energy consumption. It loads a string from DS:0xCC8E and calls
 // Fastgraph text display (0x3F19:0x4695). See Task 5: Talking Tanks.
 function fireWeapon(player) {
-  // EXE: barrel tip = dome center + BARREL_LENGTH (12) in angle direction (icons.cpp)
-  const barrelLength = 12;
-  const domeTopY = player.y - 4 - 4;  // body(4) + dome peak(4)
+  // EXE: barrel tip = barrel origin + barrelLen in angle direction
+  // Tank type table at DS:0x673E: barrelLen, barrelXOff, barrelYOff per type
+  const tankType = TANK_TYPES[player.tankType] || TANK_TYPES[0];
+  const dir = player.angle <= 90 ? 1 : -1;
+  const barrelOriginX = player.x + dir * tankType.barrelXOff;
+  const barrelOriginY = player.y + tankType.barrelYOff;
   const angleRad = player.angle * Math.PI / 180;
-  const startX = player.x + Math.cos(angleRad) * barrelLength;
-  const startY = domeTopY - Math.sin(angleRad) * barrelLength;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const startX = barrelOriginX + (dir === 1 ? cosA : -cosA) * tankType.barrelLen;
+  const startY = barrelOriginY - sinA * tankType.barrelLen;
 
   let weaponIdx = player.selectedWeapon;
 
@@ -1025,11 +1030,15 @@ export function gameTick() {
         const p = players[aim.playerIdx];
         if (!p.alive) continue;
 
-        const barrelLength = 12;
-        const domeTopY = p.y - 4 - 4;
+        const tt = TANK_TYPES[p.tankType] || TANK_TYPES[0];
+        const d = aim.angle <= 90 ? 1 : -1;
+        const bx = p.x + d * tt.barrelXOff;
+        const by = p.y + tt.barrelYOff;
         const angleRad = aim.angle * Math.PI / 180;
-        const startX = p.x + Math.cos(angleRad) * barrelLength;
-        const startY = domeTopY - Math.sin(angleRad) * barrelLength;
+        const cosA = Math.cos(angleRad);
+        const sinA = Math.sin(angleRad);
+        const startX = bx + (d === 1 ? cosA : -cosA) * tt.barrelLen;
+        const startY = by - sinA * tt.barrelLen;
 
         launchProjectile(startX, startY, aim.angle, aim.power, aim.weaponIdx, aim.playerIdx);
       }

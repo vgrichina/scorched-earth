@@ -30,6 +30,22 @@ DS:0x231C,PTR_NO_KIBITZING,data/farptr
 # ---- Score System (score.cpp, seg 0x30B2) ----
 # ---- Sound System ----
 # ---- Talk system (comments.cpp, seg 0x1144) ----
+# ---- Tank rendering (icons.cpp, menu module) ----
+DS:0x649C,tank_type0_pixels
+DS:0x6508,tank_type4_pixels
+DS:0x6577,tank_type2_pixels
+DS:0x65D7,tank_type3_pixels
+DS:0x6640,tank_type1_pixels
+DS:0x668B,tank_type5_pixels
+DS:0x6494,deg_to_rad_const
+DS:0x673E,tank_type_table,data/table:18
+0x40A75,draw_tank_type
+0x40BA3,point_with_clip
+0x40C19,render_pixel_table
+0x3FB27,draw_tank_complete
+0x3FC7D,draw_tank_setup
+0x3FD3F,compute_barrel_endpoint
+0x403F5,draw_barrel
 # ---- Tank rendering DS vars (icons.cpp) ----
 # ---- Terrain generation (ranges.cpp) ----
 # ---- Timer ISR (installed as INT 08h) ----
@@ -252,6 +268,11 @@ DS:0x231C,PTR_NO_KIBITZING,data/farptr
 0x39628,shield_plot_point
 0x3968D,shield_expand_y
 0x396FA,update_terrain_type_cache
+0x2923C,ground_color_init
+DS:0x5036,ground_color_table,data/table:6
+DS:0xDD4C,ground_color_R
+DS:0xDD4E,ground_color_G
+DS:0xDD50,ground_color_B
 0x3971F,terrain_gen_main
 0x39956,terrain_type0_palette
 0x39969,terrain_type1_palette

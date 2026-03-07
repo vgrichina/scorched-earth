@@ -2673,9 +2673,9 @@ palette_index = (terrain_bottom - y) * 29 / terrain_height + 120
 | 5 | **Castle** | Same 3-band FPU gradient as Type 4 | Yellow → red → blue → indigo (shares 0x39C31 handler) |
 | 6 | **Scanned MTN** | Palette from .MTN file | 8-bit→6-bit: `VGA = val >> 2` |
 
-### Base Color Table (Type 5) — DS:0x5036 (file 0x05ADB6)
+### Ground Color Table — DS:0x5036 (file 0x05ADB6)
 
-6 earth-tone entries, one randomly selected per round. Gradient formula: `Channel[di] = BaseChannel * (di + 8) / 45.0`
+6 earth-tone entries, one randomly selected per round via `ground_color_init` (file 0x2923C: `si = random(6)`). Stored at DS:0xDD4C-DD50 (R, G, B). Used as solid terrain body fill: `drawColumn` (0x29720) draws terrain body with `vline(color=0x50)` for types 1-6, where VGA 80 is set to this color via `fg_setrgb(0x50, R, G, B)` at file 0x2965D. Also used for gradient base in Castle/Sunset types: `Channel[di] = BaseChannel * (di + 8) / 45.0`.
 
 | Idx | VGA (R,G,B) | Hex (24-bit) | Theme |
 |-----|-------------|--------------|-------|
@@ -3862,6 +3862,33 @@ y= 0: 012333210
 
 **Color globals** (EF26=highlight, EF2E=body fill, EF30=shadow) are used by the **panel/HUD rendering** (icons.cpp at 0x26527), NOT the in-game pixel table renderer. The in-game renderer uses palette offsets 0-3 from the pixel data directly.
 
+### Tank Type Pixel Data Tables (VERIFIED session 158)
+
+6 tank types, pixel data at DS offsets, 3-byte entries `[x_i8, y_i8, color_slot]` terminated by `0x63`.
+Type table at DS:0x673E, stride 0x12 (18 bytes): `[pix_ptr, pix_seg, dead_ptr, dead_seg, barrelLen, barrelXOff, barrelYOff, field_D, field_E]`.
+
+| Type | DS Offset | Pixels | Size | Barrel Len | Barrel X/Y Off | Shape |
+|------|-----------|--------|------|-----------|----------------|-------|
+| 0 | 0x649C | 35 | 9×5 | 7 | 0, -4 | Classic dome |
+| 1 | 0x6640 | 24 | 9×4 | 8 | -3, -4 | Low profile |
+| 2 | 0x6577 | 31 | 11×6 | 8 | -2, -5 | Antenna |
+| 3 | 0x65D7 | 34 | 9×7 | 5 | 1, -5 | Tall antenna |
+| 4 | 0x6508 | 36 | 11×5 | 6 | -1, -4 | Turret |
+| 5 | 0x668B | 17 | 7×5 | 6 | -1, -5 | Small |
+
+**Type 0 (Classic dome)**:
+```
+y=-4: ...000...
+y=-3: .0011100.
+y=-2: .0122210.
+y=-1: 012333210
+y= 0: 012333210
+```
+
+**render_pixel_table** (0x40C19): For direction +1 (right): `screen_x = tank_x + x_off`. For direction -1 (left): `screen_x = tank_x - x_off`. Y unchanged. Color = `player_base + slot`.
+
+**compute_barrel_endpoint** (0x3FD3F): `angle_rad = sub[0x92] * π/180`. Barrel origin = `(tank_x + dir*barrelXOff, tank_y + barrelYOff)`. End = origin + `(±cos(angle)*len, -sin(angle)*len)`. Barrel color = `player_base + 4`.
+
 ### Tank Body Rectangle
 
 The tank body is drawn as a filled rectangle using `fg_drect` (via `[0xEF14]` or wrapper `0x3dab:0xb`).
@@ -4462,9 +4489,18 @@ void drawColumn(LandGenerator *this, int screen_seg, int col, int y) {
 }
 ```
 
+### drawColumn — Per-Column Renderer (file 0x29720, VERIFIED)
+
+For terrain_type == 0: draws entire column (sky+terrain) with `vline(color=0x78)` = VGA 120.
+For terrain_type != 0: TWO-PHASE rendering:
+1. **Sky phase**: loops `setTerrainPixel(x, y)` for sky rows → uses `height_array[y]` mapped to VGA 120-149 gradient
+2. **Terrain body phase**: draws `vline(color=0x50)` = VGA 80 (solid ground color from DS:0xDD4C table)
+
+This means for types 1-6, the SKY uses the "terrain palette" (VGA 120-149) via height_array, and the TERRAIN BODY is solid VGA 80 (one of 6 random ground colors). The web port's separate sky (VGA 80-104) and terrain (VGA 120-149) ranges must account for this inverted usage.
+
 ### setTerrainPixel — Per-Pixel Color Function (file 0x3AB39)
 
-7-way dispatch on terrain_type (DS:0x5110). Determines palette index for each individual terrain pixel.
+7-way dispatch on terrain_type (DS:0x5110). Determines palette index for each individual **sky** pixel (despite the misleading name). Called by drawColumn for the sky portion of each column.
 
 ```c
 // setTerrainPixel(int x, int y) — file 0x3AB39, segment 31D8:23B9
@@ -6260,8 +6296,8 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Terrain profile with smooth curves
 - [x] Tank placement on terrain surface
 - [x] Progressive terrain draw (columns left-to-right, visible during generation): **DONE** (session 145).
-- [ ] **Pixel audit**: compare `/tmp/shop2_d.png` (terrain after shop) vs web — sky gradient color ramp, terrain fill color, terrain edge smoothness. EXE sky is deep blue→lighter blue gradient; verify web gradient endpoints match EXE palette entries.
-- [ ] **Pixel audit**: tank sprite rendering — compare EXE tank shape/colors at various angles vs web. Use emu to capture tank at known angle, compare pixel-level.
+- [x] **Pixel audit**: sky gradient + terrain fill color — **FIXED** (session 157). EXE drawColumn (0x29720) architecture verified: for types 1-6, sky rows use setTerrainPixel→height_array (VGA 120-149 gradient), terrain body uses solid vline(color=0x50=VGA 80, from ground_color_table DS:0x5036, 6 random earth-tone colors). Web had: (1) sky palette case 1 used wrong randomized formula — fixed to EXE's R=G=floor(i*29/24), B=63; (2) terrain palette case 1 had blue gradient (matching sky) making terrain invisible — fixed to solid random ground color from 6-entry table.
+- [x] **Pixel audit**: tank sprite rendering — **FIXED** (session 158). EXE has 6 tank types (DS:0x673E, stride 0x12), each with pixel data table (3-byte entries: x_off_i8, y_off_i8, color_slot, terminated by 0x63). render_pixel_table (0x40C19): direction-aware X mirroring from sub[0x94]. Type 0 (classic dome): 9×5px, 35 pixels, color slots 0-3. Web had: hardcoded 7×9px dome+body shape (wrong dimensions, wrong colors slots 2-4, wrong barrel length 12 vs EXE 7). Fixed: replaced drawTank with table-driven renderer using all 6 EXE pixel tables, per-type barrel origin/length, direction mirroring. Updated fireWeapon launch point in game.js/main.js to use type-specific barrel params.
 - [x] **Disasm**: terrain reveal speed (session 150). EXE height_random_walk (0x29808) calls drawColumn in a tight loop with NO frame sync/delay — draws all columns as fast as CPU allows. Direction alternates per generator pass (+1 or -1). Web's `screenWidth/60` cols/frame at 60fps ≈ 1s total reveal is a faithful approximation. No change needed.
 
 #### 5. In-Game HUD (`/tmp/game_playing.state`)

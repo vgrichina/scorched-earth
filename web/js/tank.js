@@ -3,11 +3,11 @@
 // EXE: tank color gradient at file 0x28540, 10 base colors at DS:0x57E2
 // EXE: player struct stride 0x6C (108 bytes), far ptr base at DS:CEB8
 // EXE: tank/sub struct stride 0xCA (202 bytes), base at DS:D568
-// Dome: 7px wide, 5px tall (1 base line + 4px rise)
-// Body: 7px wide rectangle below dome
-// Barrel: Bresenham line from dome center, BARREL_LENGTH=12
+// 6 tank types with pixel data tables at DS:0x673E (stride 0x12)
+// render_pixel_table at 0x40C19: direction-aware X mirroring
+// Barrel: Bresenham line from type-specific origin point
 
-import { setPixel, hline } from './framebuffer.js';
+import { setPixel } from './framebuffer.js';
 import { getTerrainY, terrain } from './terrain.js';
 import { config } from './config.js';
 import { bresenhamLine, clamp } from './utils.js';
@@ -16,11 +16,77 @@ import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE } from './constants.js';
 import { playParachuteDeploySound, playLandingThudSound, playCrushGlanceSound } from './sound.js';
 import { applyShieldDamage } from './shields.js';
 
-// Tank dimensions — EXE: verified from icons.cpp disassembly (file 0x263F0+)
-const TANK_WIDTH = 7;       // EXE: 7px wide dome and body
-const DOME_HEIGHT = 5;      // EXE: 1px base line + 4px rise (dome peak at y-4)
-const BODY_HEIGHT = 4;      // EXE: 4px tall body rectangle below dome
-const BARREL_LENGTH = 12;   // EXE: barrel extends 12px from dome center (fire_weapon at 0x30652)
+// EXE tank type pixel tables (DS:0x673E, stride 0x12, 6 types)
+// Each entry: [x_offset_i8, y_offset_i8, color_slot] relative to tank center (bottom-center)
+// Terminated by sentinel 0x63 in EXE. Color slot added to player palette base.
+// render_pixel_table at file 0x40C19: direction +1 = X+offset, direction -1 = X-offset (mirrored)
+export const TANK_TYPES = [
+  { // Type 0: Classic dome (DS:0x649C, 35 pixels, 9×5)
+    pixels: [
+      [-1,-4,0],[0,-4,0],[1,-4,0],
+      [-3,-3,0],[-2,-3,0],[-1,-3,1],[0,-3,1],[1,-3,1],[2,-3,0],[3,-3,0],
+      [-3,-2,0],[-2,-2,1],[-1,-2,2],[0,-2,2],[1,-2,2],[2,-2,1],[3,-2,0],
+      [-4,-1,0],[-3,-1,1],[-2,-1,2],[-1,-1,3],[0,-1,3],[1,-1,3],[2,-1,2],[3,-1,1],[4,-1,0],
+      [-4,0,0],[-3,0,1],[-2,0,2],[-1,0,3],[0,0,3],[1,0,3],[2,0,2],[3,0,1],[4,0,0],
+    ],
+    barrelLen: 7, barrelXOff: 0, barrelYOff: -4, halfWidth: 4
+  },
+  { // Type 1: Low profile (DS:0x6640, 24 pixels, 9×4)
+    pixels: [
+      [-1,-3,2],[0,-3,2],[1,-3,2],
+      [-4,-2,2],[-1,-2,2],[0,-2,2],[1,-2,2],[4,-2,2],
+      [-4,-1,1],[-3,-1,1],[-1,-1,1],[0,-1,1],[1,-1,1],[3,-1,1],[4,-1,1],
+      [-4,0,0],[-3,0,0],[-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,0],[4,0,0],
+    ],
+    barrelLen: 8, barrelXOff: -3, barrelYOff: -4, halfWidth: 4
+  },
+  { // Type 2: Antenna tank (DS:0x6577, 31 pixels, 11×6)
+    pixels: [
+      [-4,-5,2],
+      [-4,-4,2],
+      [-3,-3,2],[-2,-3,2],
+      [-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,1],[-1,-2,1],[0,-2,1],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],[5,-2,0],
+      [-5,-1,0],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[5,-1,0],
+      [-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],
+    ],
+    barrelLen: 8, barrelXOff: -2, barrelYOff: -5, halfWidth: 5
+  },
+  { // Type 3: Tall antenna (DS:0x65D7, 34 pixels, 9×7)
+    pixels: [
+      [-3,-6,2],
+      [-3,-5,2],
+      [-2,-4,2],[-1,-4,2],
+      [-4,-3,2],[-3,-3,1],[-2,-3,1],[-1,-3,1],[0,-3,1],[1,-3,1],[2,-3,1],[3,-3,1],
+      [-4,-2,0],[-3,-2,0],[-2,-2,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],
+      [-4,-1,0],[-2,-1,7],[0,-1,7],[2,-1,7],[4,-1,0],
+      [-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],
+    ],
+    barrelLen: 5, barrelXOff: 1, barrelYOff: -5, halfWidth: 4
+  },
+  { // Type 4: Turret tank (DS:0x6508, 36 pixels, 11×5)
+    pixels: [
+      [-3,-4,2],[-2,-4,2],[-1,-4,2],[0,-4,3],[1,-4,3],[2,-4,3],
+      [-1,-3,2],[0,-3,2],[1,-3,2],
+      [-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,1],[-1,-2,1],[0,-2,1],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],[5,-2,0],
+      [-5,-1,0],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[5,-1,0],
+      [-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],
+    ],
+    barrelLen: 6, barrelXOff: -1, barrelYOff: -4, halfWidth: 5
+  },
+  { // Type 5: Small tank (DS:0x668B, 17 pixels, 7×5)
+    pixels: [
+      [-3,-4,0],
+      [-2,-3,0],
+      [-2,-2,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],
+      [-3,-1,0],[-2,-1,0],[-1,-1,7],[0,-1,7],[1,-1,0],
+      [-4,0,0],[-3,0,0],[-1,0,7],[0,0,7],[1,0,7],
+    ],
+    barrelLen: 6, barrelXOff: -1, barrelYOff: -5, halfWidth: 4
+  },
+];
+
+const TANK_WIDTH = 9;       // EXE type 0: 9px wide (-4..+4)
+const TANK_HEIGHT = 5;      // EXE type 0: 5px tall (y=-4..0)
 const FALL_SPEED = 2;       // pixels per frame when falling
 
 // Player state
@@ -54,6 +120,9 @@ export function createPlayer(index, name) {
     shieldEnergy: 0,
     // batteries: use inventory[43] (Battery item) — not a separate field
 
+    // Tank type (0-5, EXE sub struct [0x00], default type 0)
+    tankType: 0,
+
     // Phase 5: scoring
     team: index,         // EXE: player struct +0x30, default = player index (each on own team)
     score: 0,
@@ -78,7 +147,7 @@ export function placeTanks(numPlayers) {
     player.x = clamp(baseX, margin, width - margin - 1);
 
     // Flatten terrain under tank for stable placement
-    flattenTerrainAt(player.x);
+    flattenTerrainAt(player.x, player.tankType);
 
     // Tank sits on terrain
     player.y = getTerrainY(player.x);
@@ -110,14 +179,14 @@ export function resetAndPlaceTanks() {
 
     const baseX = margin + Math.floor(spacing * (i + 0.5));
     p.x = clamp(baseX, margin, width - margin - 1);
-    flattenTerrainAt(p.x);
+    flattenTerrainAt(p.x, p.tankType);
     p.y = getTerrainY(p.x);
   }
 }
 
 // Flatten a small area of terrain under the tank
-function flattenTerrainAt(cx) {
-  const halfW = Math.floor(TANK_WIDTH / 2);
+function flattenTerrainAt(cx, tankType = 0) {
+  const halfW = TANK_TYPES[tankType].halfWidth;
   // Find average height in tank footprint
   let sum = 0, count = 0;
   for (let x = cx - halfW; x <= cx + halfW; x++) {
@@ -176,18 +245,19 @@ function getDeployThreshold(player) {
 // EXE: Per-step pixel scan for crush detection (file 0x20690)
 // Checks if falling tank overlaps another tank's bounding box
 // Returns { victim, overlapCols } or null if no overlap
-const HALF_W = Math.floor(TANK_WIDTH / 2); // 3
 function detectCrush(faller) {
-  const fallerLeft = faller.x - HALF_W;
-  const fallerRight = faller.x + HALF_W;
+  const fallerHW = TANK_TYPES[faller.tankType].halfWidth;
+  const fallerLeft = faller.x - fallerHW;
+  const fallerRight = faller.x + fallerHW;
   const fallerBottom = faller.y; // bottom of tank body (ground line)
 
   for (const other of players) {
     if (other === faller || !other.alive || other.falling) continue;
 
-    const otherLeft = other.x - HALF_W;
-    const otherRight = other.x + HALF_W;
-    const otherTop = other.y - BODY_HEIGHT - DOME_HEIGHT; // top of dome
+    const otherHW = TANK_TYPES[other.tankType].halfWidth;
+    const otherLeft = other.x - otherHW;
+    const otherRight = other.x + otherHW;
+    const otherTop = other.y + TANK_TYPES[other.tankType].barrelYOff; // top of tank
     const otherBottom = other.y; // ground line
 
     // Check vertical overlap: faller's bottom must be within other tank's vertical extent
@@ -261,7 +331,7 @@ export function stepFallingTanks() {
     if (crush) {
       if (crush.overlapCols > 2) {
         // EXE: >2 columns overlap → immediate landing + crush damage (file 0x2071C)
-        player.y = crush.victim.y - BODY_HEIGHT - DOME_HEIGHT; // land on top
+        player.y = crush.victim.y + TANK_TYPES[crush.victim.tankType].barrelYOff; // land on top
         player.falling = false;
 
         // EXE: Post-landing impact self-damage (0x20AE4)
@@ -334,69 +404,41 @@ export function stepFallingTanks() {
   return anyFalling;
 }
 
-// Draw a single tank
+// Draw a single tank — EXE: render_pixel_table at file 0x40C19
+// Pixel data tables at DS:0x649C+ (6 types), direction-aware X mirroring from sub[0x94]
 export function drawTank(player) {
   if (!player.alive) return;
 
-  const cx = player.x;            // center X
-  const groundY = player.y;       // ground line Y (terrain surface)
-  const baseColor = player.index * PLAYER_PALETTE_STRIDE;  // VGA palette base for this player
+  const cx = player.x;            // center X (sub[0x0E])
+  const groundY = player.y;       // ground line Y (sub[0x10])
+  const baseColor = player.index * PLAYER_PALETTE_STRIDE;
+  const type = TANK_TYPES[player.tankType] || TANK_TYPES[0];
 
-  // --- Body: filled rectangle ---
-  const bodyTop = groundY - BODY_HEIGHT;
-  const bodyLeft = cx - 3;
-  const bodyRight = cx + 3;
+  // Direction: EXE sub[0x94], +1=right, -1=left. Determined by angle.
+  const dir = player.angle <= 90 ? 1 : -1;
 
-  // Body with gradient bands (slots 1-4: dark to light, bottom to top)
-  for (let row = 0; row < BODY_HEIGHT; row++) {
-    const y = bodyTop + row;
-    // Gradient: top rows lighter (slot 4), bottom rows darker (slot 1)
-    const slot = 4 - Math.floor(row * 3 / BODY_HEIGHT);
-    hline(bodyLeft, bodyRight, y, baseColor + slot);
+  // Draw body pixels from type table
+  for (const [dx, dy, slot] of type.pixels) {
+    const px = dir === 1 ? cx + dx : cx - dx;  // mirror X for left-facing
+    const py = groundY + dy;
+    setPixel(px, py, baseColor + slot);
   }
 
-  // --- Dome: 7px wide, 5 rows high, 3D shading ---
-  // Dome sits on top of body
-  const domeBaseY = bodyTop;
-  const domeLeft = cx - 3;
+  // Draw barrel — EXE: draw_barrel at 0x403F5
+  // Barrel origin: (cx + dir*barrelXOff, groundY + barrelYOff) — from type table
+  const barrelX = cx + dir * type.barrelXOff;
+  const barrelY = groundY + type.barrelYOff;
+  const barrelColor = baseColor + 4;  // EXE: sub[0x1A]+4
 
-  // Base line (7px wide)
-  hline(domeLeft, domeLeft + 6, domeBaseY, baseColor + 3);
-
-  // Left side ascending (darker color, slot 2)
-  const leftColor = baseColor + 2;
-  setPixel(domeLeft + 0, domeBaseY - 1, leftColor);
-  setPixel(domeLeft + 1, domeBaseY - 2, leftColor);
-  setPixel(domeLeft + 2, domeBaseY - 3, leftColor);
-  setPixel(domeLeft + 3, domeBaseY - 4, leftColor);  // peak
-
-  // Right side descending (highlight, slot 4)
-  const rightColor = baseColor + 4;
-  setPixel(domeLeft + 4, domeBaseY - 3, rightColor);
-  setPixel(domeLeft + 5, domeBaseY - 2, rightColor);
-  setPixel(domeLeft + 6, domeBaseY - 1, rightColor);
-
-  // Fill dome interior
-  // Row by row, fill between left and right outlines
-  // Row -1 from base: columns 0 and 6 are edges, fill 1-5
-  for (let col = 1; col <= 5; col++) setPixel(domeLeft + col, domeBaseY - 1, baseColor + 3);
-  // Row -2: columns 1 and 5 are edges, fill 2-4
-  for (let col = 2; col <= 4; col++) setPixel(domeLeft + col, domeBaseY - 2, baseColor + 3);
-  // Row -3: columns 2 and 4 are edges, fill 3
-  setPixel(domeLeft + 3, domeBaseY - 3, baseColor + 3);
-
-  // --- Barrel ---
-  drawBarrel(player, cx, domeBaseY - 4, baseColor + 4);
-}
-
-// Draw barrel as a line from dome top in the direction of angle
-function drawBarrel(player, cx, domeTopY, color) {
   const angleRad = player.angle * Math.PI / 180;
-  const endX = Math.round(cx + Math.cos(angleRad) * BARREL_LENGTH);
-  const endY = Math.round(domeTopY - Math.sin(angleRad) * BARREL_LENGTH);
+  // EXE: dir=+1 → endX = startX + cos*len, dir=-1 → endX = startX - cos*len
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const endX = Math.round(barrelX + (dir === 1 ? cosA : -cosA) * type.barrelLen);
+  const endY = Math.round(barrelY - sinA * type.barrelLen);
 
-  bresenhamLine(cx, domeTopY, endX, endY, (x, y) => {
-    setPixel(x, y, color);
+  bresenhamLine(barrelX, barrelY, endX, endY, (x, y) => {
+    setPixel(x, y, barrelColor);
   });
 }
 
@@ -414,7 +456,7 @@ export const deathAnimations = [];
 export function startDeathAnimation(player) {
   deathAnimations.push({
     x: player.x,
-    y: player.y - 4,  // center of tank body
+    y: player.y + Math.floor(TANK_TYPES[player.tankType].barrelYOff / 2),  // center of tank body
     baseColor: player.index * PLAYER_PALETTE_STRIDE,
     frame: 0,
     maxFrames: 20,

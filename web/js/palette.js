@@ -107,13 +107,11 @@ export function setupSkyPalette(skyType) {
   if (skyType === 6) skyType = random(6);
   resolvedSkyType = skyType;
   switch (skyType) {
-    case 1: // Shaded — gentle variation on plain
+    case 1: // Shaded — EXE 0x39969: 30-entry gradient R=G=29-di, B=63 at VGA 120-149
+      // Mapped to 25 sky entries: R=G=floor(i*29/24), B=63 (dark blue top → lighter bottom)
       for (let i = 0; i < 25; i++) {
-        const t = i / 24;
-        const r = Math.floor(t * 15 + random(5));
-        const g = Math.floor(t * 15 + (1 - t) * 8 + random(3));
-        const b = Math.floor(35 + t * 28);
-        setEntry(80 + i, r, g, b);
+        const rg = Math.floor(i * 29 / 24);
+        setEntry(80 + i, rg, rg, 63);
       }
       break;
     case 2: // Stars — black background
@@ -155,6 +153,17 @@ export function setupSkyPalette(skyType) {
   }
 }
 
+// --- Ground color table (EXE DS:0x5036, 6 entries × 3 words R,G,B) ---
+// random(6) selects one per round; used as solid terrain fill for types 1,5,6
+const GROUND_COLORS = [
+  [38, 25, 17],  // Brown
+  [54, 36, 28],  // Salmon
+  [53, 53, 47],  // Light gray
+  [20, 62, 20],  // Green
+  [ 9, 35,  9],  // Dark green
+  [36, 54, 28],  // Olive/tan
+];
+
 // --- Terrain palette (VGA 120-149): 30 entries ---
 // VGA 149 = surface (top), VGA 120 = deepest underground
 export function setupTerrainPalette(terrainType) {
@@ -163,11 +172,15 @@ export function setupTerrainPalette(terrainType) {
       setupTerrainGradient(9, 9, 31);
       break;
 
-    case 1: // Snow/Ice: white-blue (29,29,63) → pure blue (0,0,63)
+    case 1: { // Shaded: solid ground color from random(6) table (EXE 0x2923C)
+      // EXE: drawColumn fills terrain body with VGA 80 (solid), sky with VGA 120-149 gradient.
+      // Web: terrain body uses VGA 120-149 range, so fill all 30 entries with one ground color.
+      const gc = GROUND_COLORS[random(GROUND_COLORS.length)];
       for (let di = 0; di < 30; di++) {
-        setEntry(120 + di, 29 - di, 29 - di, 63);
+        setEntry(120 + di, gc[0], gc[1], gc[2]);
       }
       break;
+    }
 
     case 2: // Rock/Gray: dark gray → white with scatter
       for (let di = 0; di < 30; di++) {

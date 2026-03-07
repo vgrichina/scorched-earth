@@ -70,7 +70,7 @@ function applyMagDeflection(proj) {
     if (magCount <= 0) continue;
 
     const dx = proj.x - player.x;
-    const dy = proj.y - (player.y - 4);  // center of tank body
+    const dy = proj.y - (player.y - 2);  // center of tank body (EXE type 0: 5px tall)
     const distSq = dx * dx + dy * dy;
 
     // EXE: fcomp [DS:1D2C] — range check, 1000px radius

@@ -7,7 +7,7 @@ import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
 import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
 import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers, loadMTNFiles } from './terrain.js';
-import { placeTanks, drawAllTanks, players, drawDeathAnimations } from './tank.js';
+import { placeTanks, drawAllTanks, players, drawDeathAnimations, TANK_TYPES } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud, drawWindIndicator } from './hud.js';
@@ -216,16 +216,20 @@ function drawLaserSight(player) {
   }
 
   const angleRad = laserState.displayAngle;
-  // EXE: barrel tip = tank dome center + barrel length (12px) in aim direction
-  const barrelLength = 12;
-  const domeTopY = player.y - 4 - 4;  // body(4) + dome peak(4) from icons.cpp
-  const startX = Math.round(player.x + Math.cos(angleRad) * barrelLength);
-  const startY = Math.round(domeTopY - Math.sin(angleRad) * barrelLength);
+  // EXE: barrel tip = barrel origin + barrelLen in angle direction
+  const tankType = TANK_TYPES[player.tankType] || TANK_TYPES[0];
+  const dir = player.angle <= 90 ? 1 : -1;
+  const barrelOriginX = player.x + dir * tankType.barrelXOff;
+  const barrelOriginY = player.y + tankType.barrelYOff;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const startX = Math.round(barrelOriginX + (dir === 1 ? cosA : -cosA) * tankType.barrelLen);
+  const startY = Math.round(barrelOriginY - sinA * tankType.barrelLen);
 
   // EXE: dx = sin(angle_rad) * (-power) — power (0-1000) controls laser reach
   const maxDist = player.power;
-  const endX = Math.round(player.x + Math.cos(angleRad) * maxDist);
-  const endY = Math.round(domeTopY - Math.sin(angleRad) * maxDist);
+  const endX = Math.round(barrelOriginX + (dir === 1 ? cosA : -cosA) * maxDist);
+  const endY = Math.round(barrelOriginY - sinA * maxDist);
 
   // EXE: per-pixel callback at file 0x36271 (seg 0x2F76:0x0111)
   // EXE: checks screen bounds (DS:EF42/EF3C/EF40/EF38)
