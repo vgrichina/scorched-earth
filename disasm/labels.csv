@@ -159,6 +159,8 @@ DS:0x673E,tank_type_table,data/table:18
 0x26245,draw_icon_dead
 0x262B3,draw_icon_blank
 0x263F0,icons_start
+0x26EA0,player_dialog_paint,paint callback for player setup dialog - draws title + swatches
+0x282F9,color_swatch_loop,loop di=0..7 placing 8 color swatches in player dialog
 0x2640F,compute_distance
 0x26491,find_nearest_player
 0x26527,draw_tank_turret
@@ -410,8 +412,12 @@ DS:0x20C8,menu_string_table,data/farptr
 DS:0x2100,scale_name_ptrs_static
 DS:0x212C,menu_btn_string_table
 DS:0x2158,submenu_label_ptrs,data/farptr
-DS:0x220C,hud_row1_label_ptr_off
+DS:0x220C,hud_row1_label_ptr_off,far ptr to "Power" (DS:0x2AF8) - HUD Row 1 label
 DS:0x220E,hud_row1_label_ptr_seg
+DS:0x2364,hud_row2_label_ptr_off,far ptr to "Max" (DS:0x2EFA) - HUD Row 2 label
+DS:0x2366,hud_row2_label_ptr_seg
+DS:0x2400,player_dialog_title_ptr_off,far ptr to "(of %d)" (DS:0x31E5) format string
+DS:0x2402,player_dialog_title_ptr_seg
 DS:0x2210,hud_angle_label_ptr_off
 DS:0x2212,hud_angle_label_ptr_seg
 DS:0x22F8,PTR_CASH_LEFT,data/farptr
@@ -435,6 +441,8 @@ DS:0x2AD5,STR_TILDE_COMPUTER
 DS:0x2ADF,STR_TILDE_PERSON
 DS:0x2AEC,STR_TILDE_NAME
 DS:0x2AF2,STR_TILDE_TYPE
+DS:0x2AF8,STR_POWER,HUD Row 1 label "Power"
+DS:0x2EFA,STR_MAX,HUD Row 2 label "Max"
 DS:0x2B22,STR_SYSTEM_MENU
 DS:0x2B2E,STR_CLEAR_SCREEN
 DS:0x2B3C,STR_MASS_KILL

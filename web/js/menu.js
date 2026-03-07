@@ -59,8 +59,8 @@ const MENU_ITEMS = [
   { label: 'S~ound...',        type: 'submenu', submenu: 'sound' },
   { label: '~Hardware...',     type: 'submenu', submenu: 'hardware' },
   { label: '~Economics...',    type: 'submenu', submenu: 'economics' },
-  { label: '~Landscape...',    type: 'submenu', submenu: 'landscape' },
   { label: 'Ph~ysics...',      type: 'submenu', submenu: 'physics' },
+  { label: '~Landscape...',    type: 'submenu', submenu: 'landscape' },
   { label: 'Play Op~tions...', type: 'submenu', submenu: 'playoptions' },
   { label: '~Weapons...',      type: 'submenu', submenu: 'weapons' },
   { label: 'Save ~Changes',    type: 'button',  action: 'save' },
@@ -189,8 +189,9 @@ const DEFAULT_NAMES = [
   'Barbarella', 'Antoinette', 'Elizabeth', 'Persephone', 'Mata Hari',
 ];
 
-// EXE: 10 player base colors (palette.js PLAYER_COLORS order)
-const NUM_PLAYER_COLORS = 10;
+// EXE: 8 color swatches visible in player setup dialog (icons.cpp 0x28333: cmp di,8)
+// 10 players supported but dialog only shows first 8 colors for selection
+const NUM_PLAYER_COLORS = 8;
 
 export const playerSetup = [];
 
@@ -798,7 +799,8 @@ export function drawPlayerSetupScreen() {
   // Centered raised dialog box (popup over menu background)
   boxRaised(lay.dlgX, lay.dlgY, lay.dlgW, lay.dlgH);
 
-  // Title: "Player N (of M)" right-aligned in dialog top area, in player color
+  // Title: "Player N (of M)" centered in dialog, in player color
+  // EXE: x = dlg.left + (dlg.right - dlg.left - textWidth) / 2  (0x26F09-0x26F1D)
   const titleStr = `Player ${idx + 1} (of ${config.numPlayers})`;
   const titleX = lay.dlgX + Math.floor((lay.dlgW - measureText(titleStr)) / 2);
   drawText(titleX, lay.dlgY + 5, titleStr, baseColor);

@@ -801,12 +801,13 @@ export function drawShop(player) {
   const intLabelStr = 'Earned interest';
   const intLabelX = barX + barW + 8; // EXE: DS:0xCC82 = CASH_BAR_X + 0x48
   drawText(intLabelX, hdr2Y, intLabelStr, UI_HIGHLIGHT);
+  // EXE: always draws the interest bar frame (even when empty)
+  const intBarX = intLabelX + measureText(intLabelStr) + 10; // EXE: DS:0xCC84
+  drawBox3DSunken(intBarX, hdr2Y, barW, barH, BLACK,
+    UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
   if (player.earnedInterest > 0) {
-    const intBarX = intLabelX + measureText(intLabelStr) + 10; // EXE: DS:0xCC84
     const intRatio = config.startCash > 0 ? Math.min(1, player.earnedInterest / config.startCash) : 0;
     const intFillW = Math.floor(barW * intRatio);
-    drawBox3DSunken(intBarX, hdr2Y, barW, barH, BLACK,
-      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     if (intFillW > 0) fillRect(intBarX + 1, hdr2Y + 1, intBarX + intFillW, hdr2Y + barH - 2, baseColor);
   }
 

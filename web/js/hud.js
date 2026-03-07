@@ -168,10 +168,10 @@ function drawBarColumn(barX, barY, idx, fillH, color) {
 // Draw the full HUD into the framebuffer
 // EXE: draw_hud() at file 0x2FC84, draw_hud_full() at file 0x301B2
 export function drawHud(player, wind, round, opts) {
-  // EXE: [EF22] = VGA 152 = black (UI_DEEP_SHADOW) — used for most HUD text
+  // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
   const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-  const hudTextColor = UI_DEEP_SHADOW; // EXE: [EF22] = VGA 152 = black
+  const hudTextColor = UI_DEEP_SHADOW; // VGA 152 = black, remapped to web palette 205
   // EXE: [EF24] = dim text color for depleted/zero-ammo items
   const dimColor = UI_DARK_TEXT;
   const numP = Math.min(config.numPlayers, players.length);
@@ -181,9 +181,9 @@ export function drawHud(player, wind, round, opts) {
   const ammo = player.inventory[player.selectedWeapon];
 
   // EXE: compute_hud_layout — barX aligned for both rows
-  // EXE: si = measureText(name) + 8 (0x2FBF1: add ax,0x8), NOT measureText(name+':')
-  // The +8 provides padding between name colon and bar start (~4px more than colon width)
-  const barX = LEFT + measureText(player.name) + 8;
+  // EXE: DS:0x220C → "Power", DS:0x2364 → "Max" — these are the Row 1/2 labels (NOT player name)
+  // EXE: si = measureText("Power") + 8 (0x2FBF1: add ax,0x8), then max with measureText("Max")+8
+  const barX = LEFT + Math.max(measureText('Power'), measureText('Max')) + 8;
   const barWidth = measureText('8888 '); // EXE: DS:0x5778 measurement string
   const afterBarX = barX + barWidth;
 
@@ -191,8 +191,8 @@ export function drawHud(player, wind, round, opts) {
   fillRect(LEFT, HUD_Y, config.screenWidth - LEFT - 1, ROW2_Y + BAR_H + 1, UI_BACKGROUND);
 
   // === Row 1 ===
-  // EXE: sprintf(buf, "%s:", name) then fg_text at (5, HUD_Y) in [EF22] = VGA 152 = black
-  drawText(LEFT, HUD_Y, player.name + ':', hudTextColor);
+  // EXE: sprintf(buf, "%s:", DS:0x220C→"Power") then fg_text at (5, HUD_Y) in [EF22]
+  drawText(LEFT, HUD_Y, 'Power:', hudTextColor);
 
   if (config.screenWidth <= 320) {
     // --- Basic mode Row 1: multi-player power bar + icons (EXE: draw_hud 0x2FC84) ---
@@ -313,7 +313,8 @@ export function drawHud(player, wind, round, opts) {
     //   E9FA = E9F8+m("100% ") → W5 (0x3DC94): shield count ("%d") [DS:6476]
     //   E9FC = E9FA+m("99 ")   → W5: shield bar (20px)
     //   E9FE = E9FC+20          → inline: [D566] item ("%2d") [DS:57D4]
-    drawText(LEFT, ROW2_Y, player.name + ':', hudTextColor);
+    // EXE: sprintf(buf, "%s:", DS:0x2364→"Max") — Row 2 label is "Max:", not player name
+    drawText(LEFT, ROW2_Y, 'Max:', hudTextColor);
 
     const countFieldW = measureText('99 ');    // DS:579B / 579F / 57A9
     const pctFieldW   = measureText('100% ');  // DS:57A3
