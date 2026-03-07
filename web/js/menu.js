@@ -544,16 +544,16 @@ function handlePlayerSetupInput() {
         }
       }
     }
-    // Human/Computer icon click
-    else if (mouse.y >= lay.iconRowY && mouse.y < lay.iconRowY + lay.iconSize) {
-      // Human icon
-      if (mouse.x >= lay.iconRowX && mouse.x < lay.iconRowX + lay.iconSize) {
+    // Person/Computer text button click
+    else if (mouse.y >= lay.iconRowY && mouse.y < lay.iconRowY + FONT_HEIGHT + 4) {
+      const personW = measureText('~Person') + 8;
+      const computerW = measureText('~Computer') + 8;
+      const personX = lay.valX;
+      const computerX = personX + personW + 4;
+      if (mouse.x >= personX && mouse.x < personX + personW) {
         setup.aiType = AI_TYPE.HUMAN;
         menu.playerSetupField = 2;
-      }
-      // Computer icon (next to human)
-      const compX = lay.iconRowX + lay.iconSize + 4;
-      if (mouse.x >= compX && mouse.x < compX + lay.iconSize) {
+      } else if (mouse.x >= computerX && mouse.x < computerX + computerW) {
         if (setup.aiType === AI_TYPE.HUMAN) setup.aiType = AI_TYPE.SHOOTER;
         menu.playerSetupField = 2;
       }
@@ -762,12 +762,12 @@ function getPlayerSetupLayout() {
   const inputW = measureText('WWWWWWWWWWWW_') + 8;
   const colorSize = isSmallMode() ? 11 : 13;
   const colorRowW = NUM_PLAYER_COLORS * (colorSize + 2) - 2;
-  const iconSize = isSmallMode() ? 14 : 16;
+  const typeBtnH = FONT_HEIGHT + 4;
   const doneW = measureText('~Done') + 12;
   const doneH = isSmallMode() ? 14 : 18;
   const dlgW = Math.max(labelW + inputW + 24, colorRowW + 20, 180);
-  // title + sep + name field + color row + sep + icon row + type label
-  const dlgH = 22 + rowH + 4 + colorSize + 8 + iconSize + FONT_HEIGHT + 6;
+  // title + sep + name field + color row + sep + type row + padding
+  const dlgH = 22 + rowH + 4 + colorSize + 8 + Math.max(typeBtnH, doneH) + 6;
   const dlgX = Math.floor((getScreenW() - dlgW) / 2);
   const dlgY = Math.floor((getScreenH() - dlgH) / 2);
   const fieldH = rowH + 2;
@@ -777,11 +777,10 @@ function getPlayerSetupLayout() {
   const colorRowY = nameFieldY + fieldH + 4;
   const colorRowX = dlgX + Math.floor((dlgW - colorRowW) / 2);
   const iconRowY = colorRowY + colorSize + 8;
-  const iconRowX = dlgX + 10;
   const doneX = dlgX + dlgW - doneW - 8;
   const doneY = iconRowY;
   return { dlgX, dlgY, dlgW, dlgH, rowH, labelX, valX, inputW, nameFieldY, fieldH,
-           colorRowY, colorRowX, colorSize, iconRowY, iconRowX, iconSize,
+           colorRowY, colorRowX, colorSize, iconRowY,
            doneX, doneY, doneW, doneH };
 }
 
@@ -836,48 +835,28 @@ export function drawPlayerSetupScreen() {
   const sepY = lay.colorRowY + lay.colorSize + 3;
   hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, sepY, UI_MED_BORDER);
 
-  // Human/Computer type selector icons (EXE: two clickable icon boxes at bottom-left)
+  // Type selector (EXE: text labels "~Person" / "~Computer" in list widget, DS:0x21F8)
   const isHuman = setup.aiType === AI_TYPE.HUMAN;
-  const iconS = lay.iconSize;
-
-  // Human icon (person silhouette)
+  const typeSelected = menu.playerSetupField === 2;
+  const typeColor = typeSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
+  drawText(lay.labelX, lay.iconRowY + 2, '~Type:', typeColor);
+  const personW = measureText('~Person') + 8;
+  const computerW = measureText('~Computer') + 8;
+  const btnH = FONT_HEIGHT + 4;
+  const personX = lay.valX;
+  const computerX = personX + personW + 4;
   if (isHuman) {
-    boxSunken(lay.iconRowX, lay.iconRowY, iconS, iconS, UI_BACKGROUND);
+    boxSunken(personX, lay.iconRowY, personW, btnH, UI_BACKGROUND);
   } else {
-    boxRaised(lay.iconRowX, lay.iconRowY, iconS, iconS);
+    boxRaised(personX, lay.iconRowY, personW, btnH);
   }
-  // Draw simple person shape
-  const hx = lay.iconRowX + Math.floor(iconS / 2);
-  const hy = lay.iconRowY + 2;
-  const hc = isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  // Head (2x2)
-  fillRect(hx - 1, hy, hx, hy + 1, hc);
-  // Body
-  fillRect(hx - 1, hy + 2, hx, hy + 4, hc);
-  // Legs
-  setPixel(hx - 1, hy + 5, hc);
-  setPixel(hx, hy + 5, hc);
-  if (iconS > 12) { setPixel(hx - 2, hy + 6, hc); setPixel(hx + 1, hy + 6, hc); }
-
-  // Computer icon (monitor shape)
-  const compX = lay.iconRowX + iconS + 4;
+  drawText(personX + 4, lay.iconRowY + 2, '~Person', isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT);
   if (!isHuman) {
-    boxSunken(compX, lay.iconRowY, iconS, iconS, UI_BACKGROUND);
+    boxSunken(computerX, lay.iconRowY, computerW, btnH, UI_BACKGROUND);
   } else {
-    boxRaised(compX, lay.iconRowY, iconS, iconS);
+    boxRaised(computerX, lay.iconRowY, computerW, btnH);
   }
-  const cc = !isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  const mx = compX + 3, my = lay.iconRowY + 2;
-  // Monitor screen
-  fillRect(mx, my, mx + iconS - 7, my + iconS - 7, cc);
-  // Stand
-  const standX = compX + Math.floor(iconS / 2);
-  setPixel(standX, my + iconS - 6, cc);
-  hline(standX - 2, standX + 2, my + iconS - 5, cc);
-
-  // AI type name below icons
-  const typeName = AI_NAMES[setup.aiType] || 'Human';
-  drawText(lay.iconRowX, lay.iconRowY + iconS + 1, typeName, UI_DARK_TEXT);
+  drawText(computerX + 4, lay.iconRowY + 2, '~Computer', !isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT);
 
   // Done button (EXE: raised 3D button at bottom-right)
   boxRaised(lay.doneX, lay.doneY, lay.doneW, lay.doneH);

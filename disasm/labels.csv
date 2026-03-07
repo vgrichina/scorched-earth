@@ -766,3 +766,15 @@ DS:0xEF40,SHIELD_DRAW_Y_MIN
 DS:0xEF42,SHIELD_DRAW_X_MIN
 DS:0xEF46,SOUND_DEVICE
 DS:0xF054,dialog_redraw_flag
+DS:0x2ACE,STR_PLAYER,data/str
+DS:0x2AD5,STR_COMPUTER,data/str
+DS:0x2ADF,STR_PERSON,data/str
+DS:0x2AE7,STR_NAME_LABEL,data/str
+DS:0x2AEC,STR_TILDE_NAME,data/str
+DS:0x2AF2,STR_TILDE_TYPE,data/str
+DS:0x21F4,player_dialog_item_ptrs,data/farptr
+DS:0xD0AC,player_type_selector
+0x154D2,shop_scroll_arrows_draw,draws up/down scroll arrow glyphs for shop list
+DS:0xCABC,SHOP_SCROLLBAR_NEEDED
+DS:0xCAAE,SHOP_SCROLL_UP_WIDGET_IDX
+DS:0xCAB0,SHOP_SCROLL_DN_WIDGET_IDX

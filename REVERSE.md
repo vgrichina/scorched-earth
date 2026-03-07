@@ -6327,9 +6327,9 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Player dialog: title centered** — EXE centers "Player N (of M)" in dialog (0x26F09-0x26F1D: x = left + (right-left-textWidth)/2). Web was already correct (centered). Initial visual analysis suggested right-aligned but disasm confirms centered.
 - [x] **Shop: earned interest bar always drawn** — EXE always draws the sunken bar frame. Web only drew it when earnedInterest > 0. Fixed in shop.js.
 - [x] **Player dialog: 8 color swatches** — EXE loop at icons.cpp 0x28333: `cmp di, 8; jl` — draws exactly 8 swatches. Fixed NUM_PLAYER_COLORS from 10 to 8 in menu.js.
-- [ ] **Player dialog: Human/Computer icons** — EXE uses pixel-art bitmaps (NOT from DS:0x3826 weapon icon table — checked all 48, none match). Likely hardcoded in the player dialog paint callback in icons.cpp. Web uses crude procedural shapes. Need to trace paint callback to extract bitmap data.
+- [x] **Player dialog: Human/Computer icons** — EXE uses TEXT labels "~Person" and "~Computer" (DS:0x2ADF, DS:0x2AD5) in dialog list widget, NOT pixel-art bitmaps. String table at DS:0x21F8. Web updated: replaced procedural icon shapes with text button labels matching EXE.
 - [x] **Shop: weapon icons in item rows** — EXE renders weapon icons per row (weapon idx = icon idx, paint callback 0x1580D). Fixed: exported drawIcon from hud.js, replaced '>' with drawIcon(item.idx) in shop.js.
-- [ ] **Shop: buy/sell arrow icons** — EXE has small clickable arrow glyphs for mouse-driven buy/sell. Web relies on keyboard/click-on-row only.
+- [x] **Shop: buy/sell arrow icons** — Investigated: EXE arrows at 0x154D2 are SCROLL arrows (up/down triangles for list scrolling, drawn pixel-by-pixel with 3D highlight/shadow). Not per-item buy/sell arrows. Web already has scrollbar with arrow buttons (shop.js lines 920-937). EXE draws two decorative blank icons (5,6) and a vertical line (icon 7) in paint callback. No separate buy/sell arrows exist.
 - [x] **Shop: player color block in header** — EXE shows player letter + color swatch (8×9 filled rect). Fixed: added fillRect after initial letter in shop header.
 
 #### 8. Cross-Cutting Pixel Audits
