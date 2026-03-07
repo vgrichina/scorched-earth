@@ -34,14 +34,14 @@ Options:
   --regs         — Show all registers
 
 Examples:
-  python3 disasm/mem_read.py /tmp/cp1.state DS:0x50F6 -w
-  python3 disasm/mem_read.py /tmp/cp1.state WIND_SPEED
-  python3 disasm/mem_read.py /tmp/cp1.state NUM_PLAYERS
-  python3 disasm/mem_read.py /tmp/cp1.state ground_color_table -n 6
-  python3 disasm/mem_read.py /tmp/cp1.state SS:BP+0x06 -fp --follow
-  python3 disasm/mem_read.py /tmp/cp1.state --regs
-  python3 disasm/mem_read.py /tmp/cp1.state --stack 20
-  python3 disasm/mem_read.py /tmp/cp1.state --dump-labels '*wind*'
+  python3 disasm/mem_read.py scratch/game_playing.state DS:0x50F6 -w
+  python3 disasm/mem_read.py scratch/game_playing.state WIND_SPEED
+  python3 disasm/mem_read.py scratch/game_playing.state NUM_PLAYERS
+  python3 disasm/mem_read.py scratch/game_playing.state ground_color_table -n 6
+  python3 disasm/mem_read.py scratch/game_playing.state SS:BP+0x06 -fp --follow
+  python3 disasm/mem_read.py scratch/game_playing.state --regs
+  python3 disasm/mem_read.py scratch/game_playing.state --stack 20
+  python3 disasm/mem_read.py scratch/game_playing.state --dump-labels '*wind*'
   python3 disasm/mem_read.py --labels '*player*'
 """
 import sys, os, re, argparse, csv, fnmatch

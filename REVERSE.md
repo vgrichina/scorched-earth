@@ -6240,12 +6240,12 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 - Game INT 9 handler at file 0x2898E: reads port 0x60, checks DS:5030 (INPUT_MODE), mode 1 → circular buffer (DS:D2BE/D3BE), mode 2 → key-down table (DS:D1BE)
 
 ### Emulator — Checkpoint Chain (updated)
-- `/tmp/menu.state` — main menu idle, dialog_poll_input loop
-- `/tmp/after_s.state` — Player 1 dialog, name field focused
-- `/tmp/after_a.state` — Player 1 dialog, "A" typed in name
-- `/tmp/after_2enter.state` — Player 2 dialog (Player 1 done)
-- `/tmp/after_p2done.state` — **Weapons shop screen** (both players done, game started)
-- `/tmp/game_playing.state` — **In-game playing** (terrain drawn, tanks placed, Player 1 turn)
+- `scratch/menu.state` — main menu idle, dialog_poll_input loop
+- `scratch/after_s.state` — Player 1 dialog, name field focused
+- `scratch/after_a.state` — Player 1 dialog, "A" typed in name
+- `scratch/after_2enter.state` — Player 2 dialog (Player 1 done)
+- `scratch/after_p2done.state` — **Weapons shop screen** (both players done, game started)
+- `scratch/game_playing.state` — **In-game playing** (terrain drawn, tanks placed, Player 1 turn)
 - Key injection recipe: `--keys STEP:SC:ASC` with make/break pairs (0x80+sc for release)
 - Shop input: uses `get_key_input` (0x28B31) which reads DS:D0B8 (last_scancode) for mode 2; break code must arrive AFTER shop polls (delay ≥1M steps)
 - Shop has sparkle animation phase before interactive dialog — 'd' during animation skips to dialog, then 'd' again closes shop
@@ -6261,7 +6261,7 @@ SESSION_SUMMARY: Implement MTN terrain loading (land type 3): PCX-RLE 4bpp decod
 Reference screenshots from emulator trace (boot → menu → player setup → shop → gameplay).
 **Every task below must be cross-checked against EXE disassembly AND v86 emulator execution (including pixel-level screenshots) before marking done.** Compare web port output side-by-side with EXE screenshots to confirm fidelity — do not mark done based on code review alone.
 
-#### 1. Main Menu (`/tmp/menu.state`, `/tmp/menu.png`)
+#### 1. Main Menu (`scratch/menu.state`, `/tmp/menu.png`)
 - [x] Split-panel layout with terrain preview
 - [x] Menu items with ~ hotkey markers
 - [x] 3D beveled boxes, dialog system
@@ -6269,7 +6269,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Pixel audit**: menu title "Scorched Earth" + "The Mother of All Games" — **VERIFIED** (session 156). EXE: embossed title at 0x3D6CF, Y=2(small)/11(large), centering uses 2*textW+4. Subtitle Y=27/41 in EF26 color. "Registered Version" Y=52/71. Web matches all Y coords, emboss layers, and centering formula.
 - [x] **Pixel audit**: "Version 1.50" + copyright footer — **VERIFIED** (session 156). EXE at 0x3D790: copyrightY = FG_MAXY-20 = screenH-21, versionY = copyrightY-13, color = EF2C (deep shadow). Wide copyright splits to 2 lines (sub 0x0D). Web matches: copyrightY=screenH-21, versionY=copyrightY-13, UI_DEEP_SHADOW color, 2-line split logic.
 
-#### 2. Player Setup Dialog (`/tmp/after_s.state`, `/tmp/after_a.state`)
+#### 2. Player Setup Dialog (`scratch/after_s.state`, `scratch/after_a.state`)
 - [x] Player N (of M) title bar — **VERIFIED** (session 146). EXE: `"Player 1 (of 2)"` via sprintf DS:0x500E + DS:0x31E5. Web fixed to match.
 - [x] Name text field (focused, accepts typed characters) — **VERIFIED** (session 146). EXE: `"Name:"` label + sunken input + cursor. Web matches.
 - [x] AI type selector — **FIXED** (session 147). Replaced text spinner with Human/Computer icon buttons at bottom-left. Click to toggle type.
@@ -6279,7 +6279,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Sequential: show dialog for each player in order — **VERIFIED** (session 146). Web iterates playerSetupIndex 0..numPlayers-1.
 - [x] Dialog background — **FIXED** (session 147). Dialog now draws over main menu background (drawMainMenu() called first, then dialog overlaid).
 
-#### 3. Weapons Shop (`/tmp/after_p2done.state`, `/tmp/after_shop1.png`)
+#### 3. Weapons Shop (`scratch/after_p2done.state`, `/tmp/after_shop1.png`)
 - [x] **Pixel audit**: compare `/tmp/after_shop1.png` vs web shop — full layout comparison **AUDITED** (session 148). Multiple discrepancies found, see sub-tasks below.
 - [x] **Shop header bar** — **FIXED** (session 148). Now matches EXE: player initial icon top-left, "Cash: $N" centered (DS:0x275D), "N rounds remain" (DS:0x2C1A) top-right. Row 2: "Cash Left:" (DS:0x2DDD) + colored fill bar + "Earned interest" (DS:0x235C) + bar.
 - [x] **Shop item row format** — **FIXED** (session 148). Now matches EXE: `qty > weapon_name $price/bundle` — quantity left, arrow, name, price/bundle right-aligned.
@@ -6300,7 +6300,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Pixel audit**: tank sprite rendering — **FIXED** (session 158). EXE has 6 tank types (DS:0x673E, stride 0x12), each with pixel data table (3-byte entries: x_off_i8, y_off_i8, color_slot, terminated by 0x63). render_pixel_table (0x40C19): direction-aware X mirroring from sub[0x94]. Type 0 (classic dome): 9×5px, 35 pixels, color slots 0-3. Web had: hardcoded 7×9px dome+body shape (wrong dimensions, wrong colors slots 2-4, wrong barrel length 12 vs EXE 7). Fixed: replaced drawTank with table-driven renderer using all 6 EXE pixel tables, per-type barrel origin/length, direction mirroring. Updated fireWeapon launch point in game.js/main.js to use type-specific barrel params.
 - [x] **Disasm**: terrain reveal speed (session 150). EXE height_random_walk (0x29808) calls drawColumn in a tight loop with NO frame sync/delay — draws all columns as fast as CPU allows. Direction alternates per generator pass (+1 or -1). Web's `screenWidth/60` cols/frame at 60fps ≈ 1s total reveal is a faithful approximation. No change needed.
 
-#### 5. In-Game HUD (`/tmp/game_playing.state`)
+#### 5. In-Game HUD (`scratch/game_playing.state`)
 - [x] Top bar: "Power: NNN  Angle: -NN°" + weapon name with icon
 - [x] Second row: "Max: NNNN" + player status icons (shield/parachute/etc)
 - [x] "No Wind" / wind indicator

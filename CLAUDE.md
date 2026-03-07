@@ -126,25 +126,25 @@ python3 disasm/palette_dump.py earth/SCORCH.EXE --scan         # find palette bl
 
 # Emulator state reader (mem_read.py) — read from saved checkpoints
 # Addresses: DS:offset, SS:BP+offset, SEG:OFF, physical, or LABEL NAME
-python3 disasm/mem_read.py /tmp/game_playing.state --regs              # all registers
-python3 disasm/mem_read.py /tmp/game_playing.state --stack 20          # stack dump
-python3 disasm/mem_read.py /tmp/game_playing.state NUM_PLAYERS         # by label name
-python3 disasm/mem_read.py /tmp/game_playing.state WIND_SPEED          # by label name
-python3 disasm/mem_read.py /tmp/game_playing.state ground_color_table -n 6  # auto-formats table
-python3 disasm/mem_read.py /tmp/game_playing.state DS:0x50F6 -w       # explicit DS offset
-python3 disasm/mem_read.py /tmp/game_playing.state SS:BP+0x06 -fp --follow
-python3 disasm/mem_read.py /tmp/game_playing.state --dump-labels '*wind*'  # search+read values
+python3 disasm/mem_read.py scratch/game_playing.state --regs              # all registers
+python3 disasm/mem_read.py scratch/game_playing.state --stack 20          # stack dump
+python3 disasm/mem_read.py scratch/game_playing.state NUM_PLAYERS         # by label name
+python3 disasm/mem_read.py scratch/game_playing.state WIND_SPEED          # by label name
+python3 disasm/mem_read.py scratch/game_playing.state ground_color_table -n 6  # auto-formats table
+python3 disasm/mem_read.py scratch/game_playing.state DS:0x50F6 -w       # explicit DS offset
+python3 disasm/mem_read.py scratch/game_playing.state SS:BP+0x06 -fp --follow
+python3 disasm/mem_read.py scratch/game_playing.state --dump-labels '*wind*'  # search+read values
 python3 disasm/mem_read.py --labels '*player*'                         # search labels (no state needed)
 
 # Dynamic analysis (emu_trace.py) — trace/watch/calltree/run from checkpoints
-python3 disasm/emu_trace.py trace /tmp/game_playing.state 200          # trace 200 instructions
-python3 disasm/emu_trace.py trace /tmp/game_playing.state 500 --from 0x25DE9  # from specific address
-python3 disasm/emu_trace.py trace /tmp/game_playing.state 5000 --calls-only   # only CALL/RET
-python3 disasm/emu_trace.py watch /tmp/game_playing.state WIND_SPEED          # watch until change
-python3 disasm/emu_trace.py watch /tmp/game_playing.state DS:0x515C --max 10000000
-python3 disasm/emu_trace.py calltree /tmp/game_playing.state 1000000 --depth 5
-python3 disasm/emu_trace.py run /tmp/game_playing.state 0x25DE9 --until-ret
-python3 disasm/emu_trace.py run /tmp/game_playing.state 0x25DE9 500 --set AX=3 WIND_SPEED=200
+python3 disasm/emu_trace.py trace scratch/game_playing.state 200          # trace 200 instructions
+python3 disasm/emu_trace.py trace scratch/game_playing.state 500 --from 0x25DE9  # from specific address
+python3 disasm/emu_trace.py trace scratch/game_playing.state 5000 --calls-only   # only CALL/RET
+python3 disasm/emu_trace.py watch scratch/game_playing.state WIND_SPEED          # watch until change
+python3 disasm/emu_trace.py watch scratch/game_playing.state DS:0x515C --max 10000000
+python3 disasm/emu_trace.py calltree scratch/game_playing.state 1000000 --depth 5
+python3 disasm/emu_trace.py run scratch/game_playing.state 0x25DE9 --until-ret
+python3 disasm/emu_trace.py run scratch/game_playing.state 0x25DE9 500 --set AX=3 WIND_SPEED=200
 ```
 
 ### Agent Rules

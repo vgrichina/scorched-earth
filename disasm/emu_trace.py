@@ -16,14 +16,14 @@ Usage:
   python3 disasm/emu_trace.py run STATE_FILE ADDR [N] [--until-ret] [--set REG=VAL ...]
 
 Examples:
-  python3 disasm/emu_trace.py trace /tmp/game_playing.state 200
-  python3 disasm/emu_trace.py trace /tmp/game_playing.state 500 --from 0x25DE9
-  python3 disasm/emu_trace.py trace /tmp/game_playing.state 5000 --calls-only
-  python3 disasm/emu_trace.py watch /tmp/game_playing.state WIND_SPEED
-  python3 disasm/emu_trace.py watch /tmp/game_playing.state DS:0x515C --max 10000000
-  python3 disasm/emu_trace.py calltree /tmp/game_playing.state 1000000 --depth 3
-  python3 disasm/emu_trace.py run /tmp/game_playing.state 0x25DE9 500 --set AX=3
-  python3 disasm/emu_trace.py run /tmp/game_playing.state 0x25DE9 --until-ret
+  python3 disasm/emu_trace.py trace scratch/game_playing.state 200
+  python3 disasm/emu_trace.py trace scratch/game_playing.state 500 --from 0x25DE9
+  python3 disasm/emu_trace.py trace scratch/game_playing.state 5000 --calls-only
+  python3 disasm/emu_trace.py watch scratch/game_playing.state WIND_SPEED
+  python3 disasm/emu_trace.py watch scratch/game_playing.state DS:0x515C --max 10000000
+  python3 disasm/emu_trace.py calltree scratch/game_playing.state 1000000 --depth 3
+  python3 disasm/emu_trace.py run scratch/game_playing.state 0x25DE9 500 --set AX=3
+  python3 disasm/emu_trace.py run scratch/game_playing.state 0x25DE9 --until-ret
 """
 import sys
 import os

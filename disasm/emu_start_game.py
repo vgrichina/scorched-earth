@@ -94,10 +94,10 @@ def main():
     print(f"  dialog_poll_input called {poll_count[0]} times")
 
     # Save state + screenshot
-    save_state('/tmp/scorch_game_start.state', cpu, mem, ports, int_handler)
-    mem.dump_screen_png('/tmp/scorch_game_start.png', ports)
-    print(f"\nState saved to /tmp/scorch_game_start.state")
-    print(f"Screen saved to /tmp/scorch_game_start.png")
+    save_state('scratch/game_start.state', cpu, mem, ports, int_handler)
+    mem.dump_screen_png('scratch/game_start.png', ports)
+    print(f"\nState saved to scratch/game_start.state")
+    print(f"Screen saved to scratch/game_start.png")
     print(cpu.dump())
 
 if __name__ == '__main__':

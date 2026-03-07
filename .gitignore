@@ -16,3 +16,6 @@ disasm/*.txt
 re_loop_sessions/
 __pycache__/
 emu_screenshots/
+
+# Emulator checkpoints and scratch files
+scratch/
