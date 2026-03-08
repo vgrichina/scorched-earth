@@ -3667,6 +3667,57 @@ then add `,...,data/<type>` to the matching label row.
 - [x] Fix labels.csv: DS:0x5172 already labeled "FLATLAND" — confirmed correct (config key "FLATLAND" at DS:0x048F, config parser writes DS:0x5172 at file 0x1A14B). No change needed.
 - [x] Audit game-over screen: **DONE (session 136)**. `end_of_round_scoring` at 0x33FC3 (2CBF:09D3): when `SHOP_VIEWER_IDX == SHOP_HOTSEAT_FLAG` (last round, file 0x34430), calls **Final Scoring setup** at file 0x34F2F which installs paint callback 0x2CC4:0x1686 (file 0x34CC6) and adds "~Quit"/"New ~Game" buttons. **Paint callback (0x34CC6)**: draws rainbow border (palette cycling 0xB3→0xDC), clears interior, then draws `"Final Scoring"` (DS:0x2A9F via far ptr DS:0x21EC/0x21EE) centered via `draw_embossed_text(centered_X, dialog_y+5, ...)`. **Per-player rows** (same loop as round-over at 0x3422D): rank `"#%d"` (DS:0x6052), name, score `"%d"` **bare integer** (DS:0x6056), cash `"$%s"` (DS:0x2759) from tank_struct+0xBA. **Buttons**: "~Quit" (DS:0x2F29 via DS:0x2378/0x237A), "New ~Game" (DS:0x2F2F via DS:0x237C/0x237E), "~Type" if any player alive (DS:0x2AF2 via DS:0x2208/0x220A). **Any-key**: `dialog_run()` at 0x3F19:0x045D; after dialog: `round_over_cleanup` shows text-mode `"<<Press any key>>"` (DS:0x5212) via `fg_puts` then waits via `fg_getkey(DS:0xC082)`. **Web differences (structural, not bugs)**: flat `drawTextShadow` overlay vs embossed-text dialog; score shows " pts" suffix (web-only); wins "W" column (web-only) vs cash "$XXX" (EXE-only); no Quit/New Game buttons; "<<Press any key>>" in overlay vs text mode. Confirmed no critical fixes needed — all accepted as web-only additions per session 87. See HUD_MENU_COMPARISON.md Section 68.
 
+### Automated Screenshot Comparison (emu vs web)
+
+Pipeline: Python emu renders reference PNGs from checkpoints (`scratch/*.state`),
+Node.js headless web port renders matching states, Python diff tool highlights pixel differences.
+Tools: `disasm/web_screenshot.mjs`, `disasm/compare_screenshots.py`.
+Focus on **deterministic UI chrome** — terrain preview and random content are excluded from diff analysis.
+
+#### Menu screen (360×480, mode 4)
+- [x] Title text: "Scorched Earth" embossed — position, layer colors, centering (verified: 5 layers EF2C→EF32→EF24→EF2A→EF26 at +i,+i; centering=2*textW+4; Y=2/11)
+- [x] Subtitle: "The Mother of All Games" — position, color (EF26=white) (verified: Y=27/41, inherits EF26)
+- [x] "Registered Version" — position, color (verified: Y=52/71, inherits EF26)
+- [x] "Version 1.50" + copyright footer — Y positions, color (EF2C=black) (verified: copyrightY=FG_MAXY-20, versionY=copyrightY-13, split logic for narrow screens)
+- [x] Left panel buttons: position, size, 3D bevel, text labels, `~` hotkey markers (verified: btnX=5/12, startY=5/15, rowH=17/25, btnW=80; **fixed**: menu order was Physics→Landscape, EXE is Landscape→Physics)
+- [x] Spinners: "Players: N", "Rounds: N" — value text alignment (verified: web matches EXE spinner widget pattern)
+- [x] Outer 3D box: full-screen bevel (EF28 fill) (verified: boxRaised(0,0,screenW,screenH))
+- [x] Terrain frame: position (getRightX, 6, FG_MAXX-6, FG_MAXY-36), 3D border (verified: web code matches comments)
+
+#### Player setup dialog
+- [x] Dialog box: centered raised 3D, correct size (verified: dialog layout calculations match EXE widget system)
+- [x] "Player N (of M)" title — centered, player color (verified: matches EXE sprintf format "Player" + "(of %d)")
+- [x] "~Name:" label + sunken input field + cursor (verified: EXE uses "~Name" widget label; web renders name field with sunken box)
+- [x] Color swatches: 8 squares, correct colors, selection indicator (verified: EXE loop `cmp di,8` at 0x28333; web NUM_PLAYER_COLORS=8)
+- [x] "~Person" / "~Computer" text labels (verified: EXE strings at DS:0x2ADF/0x2AD5)
+- [x] "Done" button — raised 3D box, position (verified: web draws raised box at bottom-right of dialog)
+
+#### Shop screen (360×480, mode 4)
+- [x] Header: player letter + color swatch, "Cash: $N" centered, "N rounds remain" right (verified: web matches EXE strings DS:0x275D, DS:0x2C1A)
+- [x] Row 2: "Cash Left:" + bar, "Earned interest" + bar (verified: strings match DS:0x2DDD, DS:0x2EDF; bar layout uses NUM_PLAYERS*6 width)
+- [ ] Item list: row stride (20px), icon + name + price format, selection highlight color
+- [ ] Right panel: "~Update", "~Inventory", "~Done" buttons — 3D raised, positions
+- [ ] Tab buttons: active=sunken, inactive=raised
+- [ ] Scrollbar arrows: 7×5 triangle glyphs, 3D highlight/shadow
+- [ ] Misc sub-category headers: separator + tinted text
+
+#### In-game HUD (360×480, mode 4)
+- [x] Row 1 full: "Power:" label (black), power value, "Angle:" label, angle value, weapon name + icon (verified: web layout matches EXE full-mode HUD at 0x301B2)
+- [x] Row 1: player name at E9DC in player color (palette 163) (verified: EXE fg_setrgb(0xA3,R,G,B) at 0x3030E + text_display at 0x3032B)
+- [ ] Row 2 full: "Max:" label, 7 widgets (fuel/battery/parachute/weapon/shield/supermag/heavyshield)
+- [ ] Row 2 basic: "Max:" + energy bars, "Shields:" + shield bars, per-player icon row
+- [ ] Power/angle bar columns: 6px×10px fill, 12px outline, bottom-up fill
+- [x] Wind indicator: "Wind: N" or "No Wind", directional arrow triangle, position at FG_MAXX-textW-20 (verified: format "%s: %d"/"Wind"/"No Wind" at DS:0x505A/0x2B04/0x2B09; color=palette 154=0x9A; 5-col triangle arrow)
+
+#### 3D box rendering
+- [ ] Raised box (draw_3d_box): asymmetric borders bH=2/bV=2or3, per-edge colors, corner ownership
+- [ ] Sunken box (draw_flat_box): 1px borders, reversed colors, corner ownership per-edge
+
+#### Cross-cutting
+- [ ] Font rendering: all 161 glyphs pixel-perfect (already verified by font_verify.py — re-verify via screenshot)
+- [ ] UI palette colors: VGA 151-159 mapped to web 200-208 — RGB values match
+- [ ] Talk bubble: border geometry (14px tall), fill color (EF26=white), text color (EF2C=black)
+
 ---
 
 ## Tank Rendering — icons.cpp (VERIFIED from disassembly)
