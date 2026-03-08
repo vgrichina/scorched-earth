@@ -784,3 +784,14 @@ DS:0x6316,menu_row_height_table,data/table:2
 0x455C3,fg_draw_line,Bresenham line draw (x1 y1 x2 y2)
 DS:0x0119,STR_FMT_D,data/str
 DS:0x011C,STR_FMT_PRICE,data/str
+DS:0x226C,shop_tab_label_ptrs,data/farptr
+DS:0x2C3B,STR_SCORE_TAB,data/str
+DS:0x2C41,STR_WEAPONS_TAB,data/str
+DS:0x2C49,STR_MISC_TAB,data/str
+DS:0x2E39,STR_TILDE_UPDATE,data/str
+DS:0x2E5B,STR_TILDE_PARACHUTES,data/str
+DS:0x2E67,STR_TILDE_TRIGGERS,data/str
+DS:0x2E71,STR_TILDE_GUIDANCE,data/str
+DS:0x2EEF,STR_TILDE_INVENTORY,data/str
+DS:0x2EFE,STR_SHIELDS_SUBCAT,data/str
+0x152E9,shop_tab_dispatch,jump table for up/down/home/end/pgup/pgdn in item list

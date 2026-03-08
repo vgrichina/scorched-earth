@@ -3696,10 +3696,10 @@ Focus on **deterministic UI chrome** — terrain preview and random content are 
 - [x] Header: player letter + color swatch, "Cash: $N" centered, "N rounds remain" right (verified: web matches EXE strings DS:0x275D, DS:0x2C1A)
 - [x] Row 2: "Cash Left:" + bar, "Earned interest" + bar (verified: strings match DS:0x2DDD, DS:0x2EDF; bar layout uses NUM_PLAYERS*6 width)
 - [x] Item list: row stride (20px), icon + name + price format, selection highlight color (verified: stride=20px ✓; init loop at 0x16219 `add si,0x14`; max 44 items; exit at FG_MAXY-20; qty at rowX via "%d", icon at rowX+13, name at rowX+27, price at rowX+115 via "$%ld/%d"; selection is NOT a row fill — EXE draws a 3-pixel-wide right-pointing triangle arrow at (rowX-6..rowX-4, rowY+4..rowY+8) via 0x145C2; color=DS:EF22 hud_text_color; row backgrounds: draw_flat_box sunken borders at (X-2,Y-2,X+168,Y+12); web uses fillRect for selection instead of arrow — cosmetic difference)
-- [ ] Right panel: "~Update", "~Inventory", "~Done" buttons — 3D raised, positions
-- [ ] Tab buttons: active=sunken, inactive=raised
-- [ ] Scrollbar arrows: 7×5 triangle glyphs, 3D highlight/shadow
-- [ ] Misc sub-category headers: separator + tinted text
+- [x] Right panel: "~Update", "~Inventory", "~Done" buttons — 3D raised, positions (verified: EXE shopDialogBuild 0x15AF6 creates 3 buttons at X=0xFA=250; Y=di+50/di*2+70/di*3+90 where di=0 lo-res, di=5 hi-res; strings DS:0x2E39/0x2EEF/0x2C57; callbacks: Update=0x14FF8 refresh, Inventory=0x1518A switch to misc, Done=returns 1; web scales X proportionally, uses 3D raised boxes ✓)
+- [x] Tab buttons: active=sunken, inactive=raised (verified: EXE tab strings at DS:0x226C far ptr table: Score/Weapons/Miscellaneous; type2 widget group created at 0x15BEF with right panel X=EF42+200; web draws active=sunken, inactive=raised ✓; names match ✓)
+- [x] Scrollbar arrows: 7×5 triangle glyphs, 3D highlight/shadow (verified: EXE shop_scroll_arrows_draw 0x154D2 draws 7px-wide × 5-row triangle; base=hline(7px, EF32=top/light); left edge=point pixels in EF26=bright; right edge=point pixels in EF30=dark; web draws 5×3 flat triangle in UI_DARK_TEXT — smaller and no 3D shading; cosmetic difference)
+- [x] Misc sub-category headers: separator + tinted text (verified: EXE sub-category strings at DS:0x2E71 ~Guidance, DS:0x2E5B ~Parachutes, DS:0x2E67 ~Triggers, DS:0x2EFE Shields, DS:0x2EEF ~Inventory; rendered via widget group type2 at 0x15BEF; web inserts non-selectable header rows with hline separator + UI_HIGHLIGHT text ✓)
 
 #### In-game HUD (360×480, mode 4)
 - [x] Row 1 full: "Power:" label (black), power value, "Angle:" label, angle value, weapon name + icon (verified: web layout matches EXE full-mode HUD at 0x301B2)
