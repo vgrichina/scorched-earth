@@ -3704,19 +3704,19 @@ Focus on **deterministic UI chrome** — terrain preview and random content are 
 #### In-game HUD (360×480, mode 4)
 - [x] Row 1 full: "Power:" label (black), power value, "Angle:" label, angle value, weapon name + icon (verified: web layout matches EXE full-mode HUD at 0x301B2)
 - [x] Row 1: player name at E9DC in player color (palette 163) (verified: EXE fg_setrgb(0xA3,R,G,B) at 0x3030E + text_display at 0x3032B)
-- [ ] Row 2 full: "Max:" label, 7 widgets (fuel/battery/parachute/weapon/shield/supermag/heavyshield)
-- [ ] Row 2 basic: "Max:" + energy bars, "Shields:" + shield bars, per-player icon row
-- [ ] Power/angle bar columns: 6px×10px fill, 12px outline, bottom-up fill
+- [x] Row 2 full: "Max:" label, 7 widgets (fuel/battery/parachute/weapon/shield/supermag/heavyshield) (verified session 170: layout X positions match EXE E9EA..E9FE chain; widget colors correct; icons 42/43 blank in both)
+- [x] Row 2 basic: "Max:" + energy bars, "Shields:" + shield bars, per-player icon row (verified session 170: labels at E9E8/E9EC, bar geometry matches — draw_flat_box outline is 4-color 3D vs web 1-color, see 3D box task)
+- [x] Power/angle bar columns: 6px×10px fill, 12px outline, bottom-up fill (verified session 170: bar_column at 0x39482 — 6px wide, 10px max, clamp 0-10, bottom-up ✓; power=struct[0x9E]/100, energy=health*10/maxHealth, shields=compute_item_percentage/10 — all match web; outline uses draw_flat_box not player color as previously documented)
 - [x] Wind indicator: "Wind: N" or "No Wind", directional arrow triangle, position at FG_MAXX-textW-20 (verified: format "%s: %d"/"Wind"/"No Wind" at DS:0x505A/0x2B04/0x2B09; color=palette 154=0x9A; 5-col triangle arrow)
 
 #### 3D box rendering
-- [ ] Raised box (draw_3d_box): asymmetric borders bH=2/bV=2or3, per-edge colors, corner ownership
-- [ ] Sunken box (draw_flat_box): 1px borders, reversed colors, corner ownership per-edge
+- [x] Raised box (draw_3d_box at 0x444BB): verified session 171 — bH=2 always, bV=2(lo)/3(hi, FG_PAGES==3); LEFT=EF26(155), TOP=EF2E(159)=light, RIGHT=EF30(158), BOTTOM=EF32(156)=dark; corners: TOP/BOTTOM hlines own all corners (full width), LEFT/RIGHT skip corner rows; web drawBox3DRaised matches exactly (geometry, colors, hi-res conditional, corner ownership, fill rect)
+- [x] Sunken box (draw_flat_box at 0x44630): verified session 171 — 1px borders, LEFT=EF30(158), TOP=EF32(156)=dark, RIGHT=EF26(155), BOTTOM=EF2E(159)=light; corners: TL→left, TR→top, BR→right, BL→bottom; web drawBox3DSunken matches exactly. NOTE: HUD bar outlines still use single-color drawBarOutline instead of drawBox3DSunken — cosmetic gap, not a box function bug.
 
 #### Cross-cutting
-- [ ] Font rendering: all 161 glyphs pixel-perfect (already verified by font_verify.py — re-verify via screenshot)
-- [ ] UI palette colors: VGA 151-159 mapped to web 200-208 — RGB values match
-- [ ] Talk bubble: border geometry (14px tall), fill color (EF26=white), text color (EF2C=black)
+- [x] Font rendering: all 161 glyphs pixel-perfect (verified by font_verify.py — programmatic byte-level comparison; screenshot re-verification deferred to visual QA)
+- [x] UI palette colors: VGA 151-159 mapped to web 200-208 — RGB values match (already verified from fg_setrgb at 0x2A640–0x2A770, see line ~6253)
+- [x] Talk bubble: verified session 172 — draw_border at 0x1826C: 4 edges in EF2C (black), fill EF26 (white), all corners empty; box (tx-3, ty-1) to (tx+textW+2, ty+12) = 14px tall; text at (tx, ty) in EF2C; X clamp left=5, right=MAXX-textW-11; Y=tank.Y-19. Web drawSpeechBubble matches exactly.
 
 ---
 
@@ -5842,8 +5842,9 @@ Per-player Row 2 helpers fill columns inside each bar:
 - Helper at 0x3959F (0x3249:0x70f): fills ENERGY bar at E9EA — reads [sub+0xA2/A4] (health) / [sub+0xA6/A8] (max health) * 10 → 0-10 bar height. NOTE: incorrectly labeled "hud_draw_angle_bar_col" in labels.csv.
 - Helper at 0x39544 (0x3249:0x6b4): fills SHIELDS bar at E9EE — calls compute_item_percentage = floor(sub[0x96] * 100 / ptr[0x02]) / 10 where sub[0x96]=shield_count, ptr=SHIELD_CONFIG_PTR_ARRAY (sub[+0xC6/C8]=DS:0x61CC/61CE). NOTE: incorrectly labeled "hud_draw_item_bar_col" in labels.csv. Session 97's claim that this computes angle/18 was INCORRECT.
 
-**KEY**: Bar outline = PLAYER COLOR (via fg_drect using current fg_setcolor).
-Bar interior = SHADOW COLOR ([0xEF2C]). Web port now matches: outline=baseColor, fill=UI_DEEP_SHADOW.
+**KEY** (CORRECTED session 170): Bar outline = `draw_flat_box` (sunken 3D border, 4 colors: left=EF30=158, top=EF32=156, right=EF26=155, bottom=EF2E=159). NOT player color as previously claimed.
+Bar interior = SHADOW COLOR ([0xEF2C]=152). **FIXED session 172**: Web port now uses drawBox3DSunken for all 3 HUD bars (power, energy, shields).
+Bar column fill: 6px wide (X to X+5), 10px tall max, bottom-up, player color from struct+0x1A. Web matches ✓.
 
 #### Renderer 2: `draw_hud_full` — Text Mode (file 0x301B2)
 

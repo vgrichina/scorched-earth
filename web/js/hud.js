@@ -44,12 +44,13 @@
 //   Each widget: clear sub-area, draw icon, display count, color by ammo>0
 
 import { config } from './config.js';
-import { hline, fillRect, setPixel } from './framebuffer.js';
+import { hline, fillRect, setPixel, drawBox3DSunken } from './framebuffer.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
 import { players } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
-         UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND } from './constants.js';
+         UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND,
+         UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 import { PLAYFIELD_TOP } from './terrain.js';
 import { SHIELD_CONFIG } from './shields.js';
 
@@ -197,8 +198,9 @@ export function drawHud(player, wind, round, opts) {
   if (config.screenWidth <= 320) {
     // --- Basic mode Row 1: multi-player power bar + icons (EXE: draw_hud 0x2FC84) ---
     const barW = numP * 6;
-    drawBarOutline(barX, HUD_Y, barW, hudTextColor);
-    drawBarFill(barX, HUD_Y, barW, UI_DEEP_SHADOW);
+    // EXE: draw_flat_box(barX-1, HUD_Y, barX+barW, HUD_Y+0xB) + fg_rect fill with [EF2C]
+    drawBox3DSunken(barX - 1, HUD_Y, barW + 2, BAR_H + 1, UI_DEEP_SHADOW,
+      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     // EXE: per-player power columns (helper 0x394F2), height = power/100
     for (let i = 0; i < numP && i < players.length; i++) {
       const fillH = Math.floor(players[i].power / 100);
@@ -264,8 +266,9 @@ export function drawHud(player, wind, round, opts) {
     // EXE: helper at 0x3959F reads struct+0xA2-0xA8 = health/maxHealth*10
     // Web port: player.energy (0-100) / 10 = equivalent 0-10 fill
     const barW = numP * 6;
-    drawBarOutline(barX, ROW2_Y, barW, hudTextColor);
-    drawBarFill(barX, ROW2_Y, barW, UI_DEEP_SHADOW);
+    // EXE: draw_flat_box(barX-1, ROW2_Y, barX+barW, ROW2_Y+0xB) + fg_rect fill with [EF2C]
+    drawBox3DSunken(barX - 1, ROW2_Y, barW + 2, BAR_H + 1, UI_DEEP_SHADOW,
+      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     for (let i = 0; i < numP && i < players.length; i++) {
       const fillH = Math.floor(players[i].energy / 10);
       const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
@@ -279,8 +282,9 @@ export function drawHud(player, wind, round, opts) {
     drawText(shieldsLabelX, ROW2_Y, 'Shields:', hudTextColor);
     const shieldsBarX = shieldsLabelX + measureText('Shields:');
     if (shieldsBarX + barW < config.screenWidth - LEFT) {
-      drawBarOutline(shieldsBarX, ROW2_Y, barW, hudTextColor);
-      drawBarFill(shieldsBarX, ROW2_Y, barW, UI_DEEP_SHADOW);
+      // EXE: draw_flat_box + fg_rect for shields bar
+      drawBox3DSunken(shieldsBarX - 1, ROW2_Y, barW + 2, BAR_H + 1, UI_DEEP_SHADOW,
+        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
       for (let i = 0; i < numP && i < players.length; i++) {
         const p = players[i];
         const maxEnergy = (SHIELD_CONFIG[p.activeShield] || SHIELD_CONFIG[0]).energy || 1;
