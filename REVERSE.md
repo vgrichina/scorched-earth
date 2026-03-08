@@ -3695,7 +3695,7 @@ Focus on **deterministic UI chrome** — terrain preview and random content are 
 #### Shop screen (360×480, mode 4)
 - [x] Header: player letter + color swatch, "Cash: $N" centered, "N rounds remain" right (verified: web matches EXE strings DS:0x275D, DS:0x2C1A)
 - [x] Row 2: "Cash Left:" + bar, "Earned interest" + bar (verified: strings match DS:0x2DDD, DS:0x2EDF; bar layout uses NUM_PLAYERS*6 width)
-- [ ] Item list: row stride (20px), icon + name + price format, selection highlight color
+- [x] Item list: row stride (20px), icon + name + price format, selection highlight color (verified: stride=20px ✓; init loop at 0x16219 `add si,0x14`; max 44 items; exit at FG_MAXY-20; qty at rowX via "%d", icon at rowX+13, name at rowX+27, price at rowX+115 via "$%ld/%d"; selection is NOT a row fill — EXE draws a 3-pixel-wide right-pointing triangle arrow at (rowX-6..rowX-4, rowY+4..rowY+8) via 0x145C2; color=DS:EF22 hud_text_color; row backgrounds: draw_flat_box sunken borders at (X-2,Y-2,X+168,Y+12); web uses fillRect for selection instead of arrow — cosmetic difference)
 - [ ] Right panel: "~Update", "~Inventory", "~Done" buttons — 3D raised, positions
 - [ ] Tab buttons: active=sunken, inactive=raised
 - [ ] Scrollbar arrows: 7×5 triangle glyphs, 3D highlight/shadow

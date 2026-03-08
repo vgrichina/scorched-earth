@@ -779,3 +779,8 @@ DS:0xCABC,SHOP_SCROLLBAR_NEEDED
 DS:0xCAAE,SHOP_SCROLL_UP_WIDGET_IDX
 DS:0xCAB0,SHOP_SCROLL_DN_WIDGET_IDX
 DS:0x6316,menu_row_height_table,data/table:2
+0x145C2,shop_selection_arrow_draw,draws 3-line right-pointing triangle arrow for selected item
+0x14C5C,shop_selection_swap,erase old selection arrow + draw new one (colors EF28/EF22)
+0x455C3,fg_draw_line,Bresenham line draw (x1 y1 x2 y2)
+DS:0x0119,STR_FMT_D,data/str
+DS:0x011C,STR_FMT_PRICE,data/str
