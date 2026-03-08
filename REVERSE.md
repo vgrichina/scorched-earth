@@ -6392,3 +6392,29 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Dialog framework**: **ANALYZED** (session 155). EXE dialog system at segment 0x3F19 (file base 0x45B90). Key functions: dialog_create (0x45C72, allocs 0x14C=332 bytes), dialog_position (0x45D2C, centers on screen), dialog_draw (0x45DDC), dialog_run (0x45FED). Dialog struct: +0x00=x, +0x02=y, +0x04=width, +0x06=height, +0x08=item_count, +0x0E=flags, items at +0x20 (far ptrs, stride 4), hidden flags at +0xE8 (stride 2, up to 100 items). Widget types: 0=text, 3=list, 8=button. Centering: `(screen - margin - dialog_size) / 2` — matches web's `Math.floor()`. **Submenu dialog**: hard-coded 310×140 at (110,50) via `dialog_create(0x6E, 0x32, 0x0136, 0x008C)`. Row height=15 (unconditional). Items placed at (x=10, y=5+i*15). Web: dynamically computes width from content, height=30+N*rowH, items at y+18+i*rowH — structurally different but functionally equivalent (web adds title+separator that EXE handles inside list widget). **Confirm dialog**: text width padded +20px (0x14), button gap +30px (0x1E), height=53 (0x35), text at y=10, buttons at y=27. **draw_3d_box** (0x444BB): 2px left/right borders, 2px (lo-res) or 3px (hi-res, FG_PAGES==3) top/bottom borders; colors LEFT=EF26, TOP=EF2E, RIGHT=EF30, BOTTOM=EF32; fill inset by (2,bV). Web drawBox3DRaised matches geometry and color assignments. **draw_border** (0x1826C): 1px border in EF2C + interior fill in EF26; used for simple flat frames. No web port fixes needed — dialog layout is functionally correct.
 - [x] **Explosion rendering**: **ANALYZED** (session 153). EXE uses Bresenham filled circle algorithm (0x43690) expanding over N frames. draw_explosion_expanding (0x2476B) receives (cx, cy, palette_base=170, num_frames=20). Each frame: palette_base+=6→176, ring_inner=176-(frame*6/N), circle drawn at expanding radius with fire palette. Per-pixel check: skips pixels already in fire range [inner,outer] to prevent overdraw. Color 0x50 (80) triggers setTerrainPixel for terrain-aware drawing. Web uses trig-based ring (cos/sin at 3° steps) with ringWidth=30% of radius, inner=attacker color, outer=fire palette — visually similar, algorithmically different. Acceptable divergence for reimplementation.
 - [x] **Projectile trail**: **VERIFIED** (session 153). EXE draws projectile head as VGA 255 (white), only over pixels >0x77 (terrain range). Small bomb = 1px, Big bomb = 5px cross (center + 4 cardinal). NO color-fading trail in EXE — when Trace Paths=off, previous positions are immediately restored; when on, white pixels remain permanently. Web adds cosmetic age-fading (white→orange→dark) which is an enhancement not in EXE — acceptable divergence. Erase logic restores terrain via setTerrainPixel (for laser color 0x78) or draws stored pixel color. Big cross pattern matches web BOMB_ICON handling.
+
+#### 9. Architecture Documentation
+- [ ] `docs/architecture_exe.md` — binary layout, segment/bank boundaries, call graph with entry points + file offsets, module map, per-turn execution flow, data flow, shared data regions
+- [ ] `docs/architecture_web.md` — JS module graph with exports + dependencies, EXE→web mapping table, game loop flow, state machine with transitions
+
+#### 10. Visual QA — Pixel-Compare Web vs Emulator
+- [ ] Pixel-compare: main menu screen (web vs v86 emulator screenshot)
+- [ ] Pixel-compare: player setup dialog (web vs v86 emulator screenshot)
+- [ ] Pixel-compare: weapons shop (web vs v86 emulator screenshot)
+- [ ] Pixel-compare: in-game HUD + terrain + tanks (web vs v86 emulator screenshot)
+- [ ] Pixel-compare: explosion animation frame (web vs v86 emulator screenshot)
+- [ ] Pixel-compare: round-over / score screen (web vs v86 emulator screenshot)
+
+#### 11. Cosmetic Divergences (Known, Low Priority)
+- [ ] HUD bar outlines use single-color `drawBarOutline` instead of 4-color `drawBox3DSunken` (noted session 171)
+- [ ] Shop scroll arrows: web draws 5×3 flat triangle vs EXE 7×5 triangle with 3D highlight/shadow (noted session 148)
+- [ ] Explosion algorithm: web uses trig-based rings vs EXE Bresenham filled circles (acceptable divergence, cosmetic only)
+- [ ] Projectile trail: web adds age-fading (white→orange→dark) not present in EXE (enhancement)
+- [ ] "NO KIBITZING!!" screen: web uses fullscreen black vs EXE partial-screen 155×200 dialog (functionally correct)
+
+#### 12. Unexplored Code Regions
+- [ ] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables
+- [ ] RE: team.cpp (~0x40F60) — team management, team scoring, alliance mechanics
+- [ ] RE: score.cpp (~0x37520) — round-over screen rendering, score tallying display, game-over sequence
+- [ ] RE: play.cpp (0x2F830) — deeper main game loop internals, turn sequencing edge cases
+- [ ] RE: config file parsing — SCORCH.CFG read/write routines, default value table
