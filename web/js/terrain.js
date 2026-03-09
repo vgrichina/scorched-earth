@@ -84,30 +84,23 @@ export function generateTerrain() {
   buildTerrainBitmap();
 }
 
+// EXE: Type 0 (Flat) uses the SAME random walk kernel as all other types.
+// "Flat" refers to the palette (single solid color VGA 120), not the terrain shape.
 function generateFlat(width, yStart, yEnd) {
-  const midY = Math.floor((yStart + yEnd) / 2) + 20;
-  for (let x = 0; x < width; x++) {
-    terrain[x] = midY;
-  }
+  generateRolling(width, yStart, yEnd);
 }
 
+// EXE: Type 1 (Slope) uses the SAME random walk kernel as all other types
+// (file 0x29808). Only the terrain PALETTE differs (linear Y-gradient via
+// height_array at 0x3999A). The web port handles palette via setupSkyPalette().
 function generateSlope(width, yStart, yEnd) {
-  const margin = 40;
-  const top = yStart + margin;
-  const bottom = yEnd - 1;
-  for (let x = 0; x < width; x++) {
-    terrain[x] = Math.floor(top + (bottom - top) * x / (width - 1));
-  }
+  generateRolling(width, yStart, yEnd);
 }
 
+// EXE: Type 4 (V-Shaped) uses the SAME random walk kernel as all other types.
+// "V-Shaped" refers only to the palette/coloring pattern, not the terrain shape.
 function generateVShaped(width, yStart, yEnd) {
-  const center = Math.floor(width / 2);
-  const highY = yStart + 50;
-  const lowY = yEnd - 20;
-  for (let x = 0; x < width; x++) {
-    const dist = Math.abs(x - center) / center;
-    terrain[x] = Math.floor(lowY - (lowY - highY) * dist);
-  }
+  generateRolling(width, yStart, yEnd);
 }
 
 // ======================================================================
@@ -207,89 +200,34 @@ function applyMTNHeights(mtn, width, yStart, yEnd) {
   }
 }
 
-// Mountain terrain: sharp peaks with multiple overlaid random walk passes
+// EXE: Type 3 (Mountain) uses ScannedMountain (MTN files) or the same random walk.
+// The EXE selects ScannedMountain vs LandGenerator based on MTN_PERCENT probability.
+// When LandGenerator is selected, it's the same random walk as all other types.
 function generateMountain(width, yStart, yEnd) {
   // EXE: MTN_PERCENT% chance of ScannedMountain class (default 20%)
   if (mtnHeightMaps.length > 0 && random(100) < config.mtnPercent) {
     applyMTNHeights(mtnHeightMaps[random(mtnHeightMaps.length)], width, yStart, yEnd);
     return;
   }
-  // Start with high base
-  for (let x = 0; x < width; x++) {
-    terrain[x] = yEnd - 1;
-  }
-
-  // Multiple passes of sharp peaks overlaid
-  const passes = 3;
-  for (let pass = 0; pass < passes; pass++) {
-    let y = random(yEnd - yStart - 80) + yStart + 50;
-    let walkDelta = 0;
-
-    for (let col = 0; col < width; col++) {
-      const proposedY = clamp(Math.floor(y), yStart + 20, yEnd - 1);
-      // Take the minimum (highest peak) across passes
-      if (proposedY < terrain[col]) {
-        terrain[col] = proposedY;
-      }
-
-      // High bump chance, low flat chance for sharp peaks
-      if (random(100) < 8) {
-        // Rare flat segments
-      } else {
-        walkDelta = random(5) - 2;  // {-2, -1, 0, +1, +2}
-        if (random(100) < 40) {
-          walkDelta *= 2;  // sharper peaks
-        }
-      }
-
-      y += walkDelta;
-
-      if (y < yStart + 25) {
-        y = yStart + 25;
-        if (walkDelta < 0) walkDelta = 2;
-      }
-      if (y > yEnd - 1) {
-        y = yEnd - 1;
-        if (walkDelta > 0) walkDelta = -1;
-      }
-    }
-  }
+  // Non-MTN: same random walk kernel as all types
+  generateRolling(width, yStart, yEnd);
 }
 
-// Castle terrain: flat base with rectangular rampart towers at intervals
+// EXE: Type 5 (Castle) uses TWO random walk passes to create a symmetric shape.
+// First pass: normal left-to-right random walk. Second pass: reversed (right-to-left)
+// from the midpoint. The min() of both passes creates the castle-like silhouette.
+// EXE: file 0x29677 — sets struct.bound to midpoint, flips direction, runs again.
 function generateCastle(width, yStart, yEnd) {
-  // Generate a gentle rolling base
-  const baseY = Math.floor((yStart + yEnd) * 0.65);
+  // First pass: normal random walk
+  generateRolling(width, yStart, yEnd);
+  const pass1 = new Uint16Array(terrain);
+
+  // Second pass: random walk (independent)
+  generateRolling(width, yStart, yEnd);
+
+  // Combine: take min (highest point) of both passes for castle silhouette
   for (let x = 0; x < width; x++) {
-    terrain[x] = baseY + random(5) - 2;
-  }
-
-  // Add castle towers at regular intervals
-  const towerCount = 4 + random(3);  // 4-6 towers
-  const towerSpacing = Math.floor(width / (towerCount + 1));
-
-  for (let t = 0; t < towerCount; t++) {
-    const cx = towerSpacing * (t + 1) + random(20) - 10;
-    const towerWidth = 10 + random(8);
-    const towerHeight = 30 + random(25);
-    const towerTop = baseY - towerHeight;
-
-    // Tower body
-    for (let x = cx - towerWidth; x <= cx + towerWidth; x++) {
-      if (x >= 0 && x < width) {
-        terrain[x] = Math.min(terrain[x], towerTop);
-      }
-    }
-
-    // Crenellations on top
-    const crenWidth = 3;
-    for (let x = cx - towerWidth; x <= cx + towerWidth; x += crenWidth * 2) {
-      for (let bx = x; bx < x + crenWidth && bx <= cx + towerWidth; bx++) {
-        if (bx >= 0 && bx < width) {
-          terrain[bx] = Math.min(terrain[bx], towerTop - 5);
-        }
-      }
-    }
+    terrain[x] = Math.min(pass1[x], terrain[x]);
   }
 }
 

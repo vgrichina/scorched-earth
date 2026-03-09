@@ -178,7 +178,9 @@ DS:0x673E,tank_type_table,data/table:18
 0x28F1D,draw_wind_indicator
 0x29280,play_ai_type_dispatch
 0x2943A,generate_wind
+0x29495,LandGenerator_alloc_init
 0x29505,set_ai_type_palette_color
+0x295DF,LandGenerator_generate
 0x29564,spoiler_random_noise_setup
 0x29720,drawColumn
 0x29808,height_random_walk
