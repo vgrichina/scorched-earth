@@ -6228,7 +6228,7 @@ Basic mode (≤320px) uses multi-player column bars; full mode (>320px) uses tex
 HIGH:
 - ~~Shop sell sub-dialog~~ — FIXED (sell factor 0.5→0.8/0.65; freeMarket config toggle added)
 - ~~Shop palette animation missing~~ — FIXED (session 129: VGA 2 triangle wave, VGA 8-11 accent 4-step rotation entries 1-4, VGA 14-18 gray gradient; all verified against shop_palette_tick 0x14E34)
-- Full Row 2: 7 inventory widgets (icon + fill bar each) replaced by text approximations; icons 43(battery)/42(parachute) are blank (w=0) in EXE so no bitmap to implement; bars are web additions for usability
+- ~~Full Row 2: 7 inventory widgets~~ — **FIXED** (session 176). EXE has NO fill bars — only icons + text. Removed drawBox3DSunken + drawBarFill from widgets 2, 3, 5. Fixed icon indices: battery=39 (DS:D556), parachute=38 (DS:D554), contact trigger=47 (DS:D566) — web had 43/42/52 which are blank icons. Battery icon color always [6E2A]=153=dimColor (not conditional). Shield widget uses activeShield type index as icon, with sentinel=32 for no shield. All 7 widgets now pixel-match EXE rendering.
 - ~~Sunken box bevel order~~ — verified correct (outer edges match EF26/EE/30/32 mapping)
 
 MEDIUM:
@@ -6412,7 +6412,10 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Projectile trail: web adds age-fading (white→orange→dark) not present in EXE — **FIXED** (session 176). Removed age-fading; all trail pixels now white (VGA 255) matching EXE behavior
 - [x] "NO KIBITZING!!" screen: web uses fullscreen black vs EXE partial-screen 155×200 dialog — **FIXED** (session 174). Web now draws 200×155 centered 3D raised dialog with 5-layer embossed text at (dlg+30, dlg+70), matching EXE show_no_kibitzing (0x43080) + draw_no_kibitzing_text (0x4304B)
 
-#### 12. Unexplored Code Regions
+#### 12. End-to-End Pixel-Perfect Verification
+- [ ] Run full game session in both Python emulator (emu_screenshot.py) and web port side-by-side, comparing framebuffer output at each major game state: (1) main menu idle, (2) player setup dialog, (3) weapons shop, (4) in-game HUD + terrain, (5) projectile in flight, (6) explosion mid-frame, (7) crater after explosion, (8) round-over score screen, (9) game-over final scoring dialog. Fix fg_waitfor timer blocking (HLT+INT 8) in emulator to enable projectile/explosion capture. Use same RNG seed in both to eliminate terrain differences. Goal: every pixel matches or divergence is documented with EXE offset justification.
+
+#### 13. Unexplored Code Regions
 - [x] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables — **ALREADY COMPLETE** (see "Talk Files — comments.cpp" section). All functions documented: load_talk_file, show_die_comment, show_attack_comment (1% random-player taunt), display_talk_bubble, talk_delay. Web port matches all logic.
 - [x] RE: team.cpp (~0x40F60) — team management, team scoring, alliance mechanics — **ALREADY DOCUMENTED** (see "Team System" section). `same_team()` at 0x324ED compares player.team_number (+0x30). TEAMS_ENABLED (DS:0x5148) toggles team scoring pool formula (round*500+5000+per-player bonuses vs numPlayers*1000+round*4000). "Configure Teams" / "Reassign Teams" dialogs in menu module. Web port already supports teams.
 - [x] RE: score.cpp (~0x37520) — round-over screen rendering, score tallying display, game-over sequence — **ALREADY COMPLETE** (see "Score System" section + session 136/668 audit). All functions documented: end_of_round_scoring (pool formulas), score_on_damage, score_on_death, add_score, Final Scoring dialog with rainbow border, game-over buttons.

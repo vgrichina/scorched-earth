@@ -136,14 +136,12 @@ const ICON_SPACING = 11;   // EXE: imul ax, ax, 0xB at file 0x2FE71
 const BAR_RESERVED = 62;   // EXE: mov si, 0x3E — reserved bar area width (max 10 players × 6 + 2)
 const AFTER_BAR_GAP = 10;  // EXE: add ax, 0xA at file 0x2FC2E — gap after bar area
 
-// Draw bar fill
-// EXE: fg_rect(barX, y+1, barX+fill-1, y+0xA) at file 0x2FD30
-function drawBarFill(x, y, fill, color) {
-  if (fill <= 0) return;
-  for (let row = 1; row <= BAR_H - 1; row++) {
-    hline(x, x + fill - 1, y + row, color);
-  }
-}
+// EXE icon indices — runtime-resolved from weapon table, differ from web WEAPONS array indices
+// These are the icon bitmap indices in the ICONS table (DS:0x3826), NOT weapon array positions
+const ICON_PARACHUTE = 38;       // DS:D554 — parachute icon (2×11px)
+const ICON_BATTERY = 39;         // DS:D556 — battery icon (2×11px)
+const ICON_CONTACT_TRIGGER = 47; // DS:D566 — contact trigger icon (4×7px)
+const ICON_NO_SHIELD = 32;       // DS:D548 — sentinel value meaning "no shield active"
 
 // Draw a per-player column inside a multi-player bar
 // EXE: bar_column at file 0x39482 — fills 6px-wide column from bottom up
@@ -323,35 +321,26 @@ export function drawHud(player, wind, round, opts) {
     x += barWidth; // → E9EC
 
     // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), icon at E9EE
-    // EXE: clears area, formats "%2d" count, calls draw_icon_alive(E9EE, ROW2_Y, D556=43, color)
-    // Icon 43 (battery) has width=0 in EXE — blank icon. Web port adds fill bar for usability.
-    const batCount = (player.inventory && player.inventory[43]) || 0;
+    // EXE: clears area, formats "%2d" count, calls draw_icon_alive(E9EE, ROW2_Y, D556=39, [6E2A]=153)
+    const batCount = (player.inventory && player.inventory[WPN.BATTERY]) || 0;
     const batColor = batCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(batCount).padStart(2), batColor);
     x += countFieldW; // → E9EE
-    // EXE: draw_icon_alive(x, ROW2_Y, 43, color) — icon 43 is blank (w=0)
-    drawIcon(x, ROW2_Y, 43, batColor);
-    // Web port: bar fill for visual feedback (not in EXE, but icon is blank there too)
-    drawBox3DSunken(x - 1, ROW2_Y, 27, BAR_H + 1, UI_DEEP_SHADOW,
-      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-    if (batCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, Math.ceil(batCount * 2.5)), batColor);
+    // EXE: draw_icon_alive(x, ROW2_Y, 39, [6E2A]) — icon color always DS:6E2A=153=[EF24]
+    drawIcon(x, ROW2_Y, ICON_BATTERY, dimColor);
     x += 25; // → E9F0
 
     // Inline (draw_hud_full 0x303CC): parachute count at E9F0, format "%2d" [DS:57D0]
-    // EXE: inventory[D554=42] = parachute count
-    const paraCount = player.inventory ? (player.inventory[42] || 0) : 0;
+    // EXE: inventory[D554=38] = parachute count
+    const paraCount = player.inventory ? (player.inventory[WPN.PARACHUTE] || 0) : 0;
     const paraColor = paraCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(paraCount).padStart(2), paraColor);
     x += countFieldW; // → E9F2
 
     // Widget 3 (0x3DE5E): parachute icon at E9F2
     // EXE: color = struct[0x28] > 0 ? [EF22] : [EF24]
-    // EXE: draw_icon_alive(E9F2, ROW2_Y, D554=42, color) — icon 42 is blank (w=0)
-    drawIcon(x, ROW2_Y, 42, paraColor);
-    // Web port: bar fill for visual feedback
-    drawBox3DSunken(x - 1, ROW2_Y, 27, BAR_H + 1, UI_DEEP_SHADOW,
-      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-    if (paraCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, paraCount * 5), paraColor);
+    // EXE: draw_icon_alive(E9F2, ROW2_Y, D554=38, color)
+    drawIcon(x, ROW2_Y, ICON_PARACHUTE, paraColor);
     x += 25; // → E9F4
 
     // Widget 4 (0x3DB30): item display at E9F4, weapon icon at E9F6, % at E9F8
@@ -383,29 +372,32 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, ROW2_Y, itemPct + '%', itemColor);
     x += pctFieldW; // → E9FA
 
-    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), icon/bar at E9FC
-    // EXE: clears E9FA to E9FE-1, shows shield type info + bar
-    const shieldCount = player.shieldEnergy || 0;
-    const shieldColor = shieldCount > 0 ? hudTextColor : dimColor;
-    drawText(x, ROW2_Y, String(Math.min(99, shieldCount)), shieldColor);
+    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), icon at E9FC
+    // EXE: clears E9FA to E9FE-1, shows count text, draws shield icon
+    // EXE: if struct[+0x9A] == D548 sentinel (32) → draw_icon_dead (blank, h=10, color=[EF22])
+    //      else → draw_icon_alive(E9FC, ROW2_Y, struct[+0x9A], [EF22])
+    const shieldType = player.activeShield || 0;
+    const shieldInvCount = (player.inventory && shieldType !== ICON_NO_SHIELD)
+      ? (player.inventory[shieldType] || 0) : 0;
+    drawText(x, ROW2_Y, String(Math.min(99, shieldInvCount)), shieldInvCount > 0 ? hudTextColor : dimColor);
     x += countFieldW; // → E9FC
-    // EXE: draws shield icon or bar (20px area). Web port: bar fill.
-    drawBox3DSunken(x - 1, ROW2_Y, 22, BAR_H + 1, UI_DEEP_SHADOW,
-      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-    if (shieldCount > 0) drawBarFill(x, ROW2_Y, Math.min(20, Math.round(shieldCount / 5)), shieldColor);
+    // EXE: draws shield icon by activeShield type, always in [EF22] color
+    if (shieldType !== ICON_NO_SHIELD && shieldType >= 0 && shieldType < ICONS.length) {
+      drawIcon(x, ROW2_Y, shieldType, hudTextColor);
+    }
     x += 20; // → E9FE
 
-    // Inline (draw_hud_full 0x303CC): Super Mag count at E9FE, format "%2d" [DS:57D4]
-    // EXE: inventory[D566=52] = Super Mag count
-    const magCount = player.inventory ? (player.inventory[WPN.SUPER_MAG] || 0) : 0;
-    const magColor = magCount > 0 ? hudTextColor : dimColor;
-    drawText(x, ROW2_Y, String(magCount).padStart(2), magColor);
+    // Inline (draw_hud_full 0x303CC): contact trigger count at E9FE, format "%2d" [DS:57D4]
+    // EXE: inventory[D566=47] = contact trigger count
+    const trigCount = player.inventory ? (player.inventory[WPN.SUPER_MAG] || 0) : 0;
+    const trigColor = trigCount > 0 ? hudTextColor : dimColor;
+    drawText(x, ROW2_Y, String(trigCount).padStart(2), trigColor);
     x += countFieldW; // → EA00
 
-    // Widget 6 (0x3DD59): Super Mag icon at EA00
+    // Widget 6 (0x3DD59): contact trigger icon at EA00
     // EXE: color = struct[0x2A] != 0 ? [EF22] : [EF24]
-    // EXE: draw_icon_alive(EA00, ROW2_Y, D566=52, color) — icon 52 is blank (w=0)
-    drawIcon(x, ROW2_Y, WPN.SUPER_MAG, magColor);
+    // EXE: draw_icon_alive(EA00, ROW2_Y, D566=47, color)
+    drawIcon(x, ROW2_Y, ICON_CONTACT_TRIGGER, trigColor);
     x += 20; // → EA02 (EXE: EA02 = EA00 + 20 at 0x3005D, not 25 like W2/W3 icons)
 
     // Widget 7 (0x3DD95): Heavy Shield energy, conditional on screen width
