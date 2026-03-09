@@ -6408,8 +6408,8 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 #### 11. Cosmetic Divergences (Known, Low Priority)
 - [x] HUD bar outlines use single-color `drawBarOutline` instead of 4-color `drawBox3DSunken` — **FIXED** (session 174). Replaced all 3 `drawBarOutline` calls (battery, parachute, shield bars in full-mode Row 2) with `drawBox3DSunken` using correct sunken border colors. Removed dead `drawBarOutline` function.
 - [x] Shop scroll arrows: web draws 5×3 flat triangle vs EXE 7×5 triangle with 3D highlight/shadow — **FIXED** (session 174). Up/down triangles now 5 rows with 3D edge colors: base=EF32(light), left=EF26(bright), right=EF30(dark), interior=UI_DARK_TEXT.
-- [ ] Explosion algorithm: web uses trig-based rings vs EXE Bresenham filled circles (acceptable divergence, cosmetic only)
-- [ ] Projectile trail: web adds age-fading (white→orange→dark) not present in EXE (enhancement)
+- [x] Explosion algorithm: web uses trig-based rings vs EXE Bresenham filled circles — **FIXED** (session 175). Ported EXE bresenham_circle_fill (0x43690) with doubled-coordinate Bresenham, 4-fold scanline symmetry, even-step drawing. Color gradient from fire palette 178→172 matching draw_explosion_expanding (0x2476B)
+- [x] Projectile trail: web adds age-fading (white→orange→dark) not present in EXE — **FIXED** (session 176). Removed age-fading; all trail pixels now white (VGA 255) matching EXE behavior
 - [x] "NO KIBITZING!!" screen: web uses fullscreen black vs EXE partial-screen 155×200 dialog — **FIXED** (session 174). Web now draws 200×155 centered 3D raised dialog with 5-layer embossed text at (dlg+30, dlg+70), matching EXE show_no_kibitzing (0x43080) + draw_no_kibitzing_text (0x4304B)
 
 #### 12. Unexplored Code Regions

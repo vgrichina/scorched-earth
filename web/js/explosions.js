@@ -195,7 +195,7 @@ export function startExplosion(cx, cy, radius, attackerIndex) {
   const anim = {
     cx, cy, radius, attackerIndex,
     frame: 0,
-    maxFrames: Math.max(8, Math.floor(radius * 0.5)),
+    maxFrames: radius,  // EXE: loops di from 0 to radius (one Bresenham circle per frame)
     currentRadius: 0,
   };
   if (!currentExplosion) {
@@ -205,7 +205,56 @@ export function startExplosion(cx, cy, radius, attackerIndex) {
   }
 }
 
+// Bresenham filled circle — matches EXE bresenham_circle_fill at file 0x43690
+// Draws horizontal scanlines with 4-fold symmetry using doubled-coordinate Bresenham
+function bresenhamCircleFill(cx, cy, radius, colorIdx) {
+  const W = config.screenWidth;
+  const H = config.screenHeight;
+  let si = 0;             // x step (doubled coords)
+  let di = 2 * radius;    // y step (doubled coords)
+  let decision = 0;
+
+  // Draw scanline: horizontal line from (cx-halfW, y) to (cx+halfW, y)
+  const scanline = (halfW, offsetY) => {
+    const y = cy + offsetY;
+    if (y < 0 || y >= H) return;
+    const x0 = Math.max(0, cx - halfW);
+    const x1 = Math.min(W - 1, cx + halfW);
+    for (let x = x0; x <= x1; x++) {
+      setPixel(x, y, colorIdx);
+    }
+  };
+
+  while (si <= di) {
+    // Only draw on even si values (EXE: test si, 1; jnz skip)
+    if ((si & 1) === 0) {
+      const hw = (di + 1) >> 1;   // half-width = (di+1)/2
+      const h = si >> 1;          // height offset = si/2
+      // 4-fold symmetry: (±hw, ±h) and (±h, ±hw)
+      scanline(hw, h);
+      scanline(hw, -h);
+      scanline(h, hw);
+      scanline(h, -hw);
+    }
+    decision += 2 * si + 1;
+    si++;
+    if (decision > 0) {
+      decision -= 2 * di - 1;
+      di--;
+    }
+  }
+  // Final scanline after loop
+  const hw = (di + 1) >> 1;
+  const h = si >> 1;
+  scanline(hw, h);
+  scanline(hw, -h);
+  scanline(h, hw);
+  scanline(h, -hw);
+}
+
 // Step the explosion animation, returns true while active
+// EXE: draw_explosion_expanding at file 0x2476B — one filled circle per frame,
+// expanding from radius 0 to max. Color gradient: palette base+8 down to base.
 export function stepExplosion() {
   if (!currentExplosion) return false;
 
@@ -220,28 +269,13 @@ export function stepExplosion() {
   // EXE: random(3000) Hz tone per explosion frame (extras.cpp 0x247BA)
   playImpactFrame();
 
-  // Expanding ring animation using fire palette (VGA 170-199)
-  const t = currentExplosion.frame / maxFrames;
-  const ringRadius = Math.floor(radius * t);
-  const ringWidth = Math.max(2, Math.floor(radius * 0.3));
+  // EXE: palette_base(170) += 6 → 176, then color = 176+2 - (frame*6/radius)
+  // Range: 178 (bright, frame 0) → 172 (darker, last frame)
+  const colorOffset = Math.floor(currentExplosion.frame * 6 / maxFrames);
+  const colorIdx = Math.max(FIRE_PAL_BASE, FIRE_PAL_BASE + 8 - colorOffset);
 
-  // Draw explosion ring — outer ring uses fire palette, inner ring uses attacker's color
-  const attackerBase = (currentExplosion.attackerIndex || 0) * PLAYER_PALETTE_STRIDE;
-  for (let angle = 0; angle < 360; angle += 3) {
-    const rad = angle * Math.PI / 180;
-    for (let r = Math.max(0, ringRadius - ringWidth); r <= ringRadius; r++) {
-      const px = Math.round(cx + Math.cos(rad) * r);
-      const py = Math.round(cy + Math.sin(rad) * r);
-      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-        const colorT = (r - (ringRadius - ringWidth)) / Math.max(ringWidth, 1);
-        // Inner portion: attacker color gradient, outer: fire palette
-        const palIdx = colorT < 0.4
-          ? attackerBase + Math.floor(colorT * 12.5)  // player color slots 0-4
-          : FIRE_PAL_BASE + Math.floor(colorT * (FIRE_PAL_COUNT - 1));
-        setPixel(px, py, palIdx);
-      }
-    }
-  }
+  // EXE: frame di draws filled circle of radius di (1:1 frame-to-radius)
+  bresenhamCircleFill(cx, cy, currentExplosion.frame, colorIdx);
 
   currentExplosion.frame++;
   return true;

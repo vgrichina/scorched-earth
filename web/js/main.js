@@ -22,7 +22,7 @@ import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
 import { initSound, toggleSound } from './sound.js';
 import { drawSpeechBubble } from './talk.js';
-import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, COLOR_HUD_WARNING,
+import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          FIRE_PAL_BASE,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -105,18 +105,17 @@ function drawAllProjectiles() {
   for (const proj of projectiles) {
     if (!proj.active) continue;
 
-    // Draw trail — config.tracePaths shows full permanent trail
+    // Draw trail — EXE: Trace Paths=on keeps white pixels permanently, off restores immediately
+    // EXE: NO color-fading trail — all trail pixels are white (VGA 255)
     const trail = proj.trail;
     const trailLen = config.tracePaths ? trail.length : (proj.isNapalmParticle ? 5 : 20);
     for (let i = Math.max(0, trail.length - trailLen); i < trail.length; i++) {
       const p = trail[i];
-      const age = trail.length - i;
       if (p.x >= 0 && p.x < config.screenWidth && p.y >= 0 && p.y < config.screenHeight) {
         if (proj.isNapalmParticle) {
-          const palIdx = proj.isDirtParticle ? 140 : (190 + Math.min(9, age));
-          setPixel(p.x, p.y, palIdx);
+          setPixel(p.x, p.y, proj.isDirtParticle ? 140 : COLOR_HUD_HIGHLIGHT);
         } else {
-          setPixel(p.x, p.y, age < 5 ? COLOR_HUD_HIGHLIGHT : age < 10 ? 189 : COLOR_HUD_WARNING);
+          setPixel(p.x, p.y, COLOR_HUD_HIGHLIGHT);
         }
       }
     }
