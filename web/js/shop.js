@@ -63,7 +63,7 @@
 
 import { config } from './config.js';
 import { fillRect, hline, vline, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
-import { drawText, drawTextShadow, measureText } from './font.js';
+import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { BLACK, saveAccentPalette, restoreAccentPalette, tickAccentPalette } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
 import { consumeKey, consumeClick, isKeyDown, mouse } from './input.js';
@@ -76,7 +76,7 @@ import { drawIcon } from './hud.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
-         UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
+         UI_DEEP_SHADOW, UI_LIGHT_ACCENT, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 
 // === Dynamic Market Pricing (EXE: SCORCH.MKT, mkt_update at file 0x2BB5E) ===
 // EXE constants: DS:0x5260=alpha(0.7), DS:0x5190=sensitivity(0.05), DS:0x5298=signal_div(10.0)
@@ -750,15 +750,17 @@ export function drawShop(player) {
   const SW = config.screenWidth;
   const SH = config.screenHeight;
 
-  // EXE: "NO KIBITZING!!" — DS:0x231C — full-screen privacy guard between hotseat turns
+  // EXE: "NO KIBITZING!!" — show_no_kibitzing at 0x43080 — 200×155 centered 3D dialog
   if (shop.kibitz) {
-    fillRect(0, 0, SW - 1, SH - 1, BLACK);
-    const msg = 'NO KIBITZING!!';
-    const mw = measureText(msg);
-    drawText(Math.floor((SW - mw) / 2), Math.floor(SH / 2) - 6, msg, COLOR_HUD_HIGHLIGHT);
-    const sub = `${player.name}'s turn — press any key`;
-    const sw = measureText(sub);
-    drawText(Math.floor((SW - sw) / 2), Math.floor(SH / 2) + 10, sub, COLOR_HUD_TEXT);
+    const dlgW = 200, dlgH = 155;
+    const dlgX = Math.floor((SW - dlgW) / 2);
+    const dlgY = Math.floor((SH - dlgH) / 2);
+    drawBox3DRaised(dlgX, dlgY, dlgW, dlgH, UI_BACKGROUND,
+      UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+    // EXE: draw_embossed_text at (dlg.x+30, dlg.y+70)
+    drawTextEmbossed(dlgX + 30, dlgY + 70, 'NO KIBITZING!!', [
+      UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
+    ]);
     return;
   }
 
@@ -920,21 +922,36 @@ export function drawShop(player) {
       // Up arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, sbTop, SB_W, btnH, UI_BACKGROUND,
         UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      // Up triangle (▲)
+      // Up triangle (▲) — EXE: 7px wide × 5 rows, 3D shaded (0x154D2)
+      // base hline in EF32 (top/light), left edge EF26 (bright), right edge EF30 (dark)
       const arrowMidX = sbX + Math.floor(SB_W / 2);
-      for (let row = 0; row < 3; row++) {
-        for (let col = -row; col <= row; col++) {
-          setPixel(arrowMidX + col, sbTop + 3 + row, UI_DARK_TEXT);
+      const upY = sbTop + Math.floor((btnH - 5) / 2);
+      for (let row = 0; row < 5; row++) {
+        const span = row;
+        for (let col = -span; col <= span; col++) {
+          let color;
+          if (row === 4) color = UI_BRIGHT_BORDER;       // base = EF32 (light)
+          else if (col === -span) color = UI_DARK_BORDER; // left = EF26 (bright)
+          else if (col === span) color = UI_MED_BORDER;   // right = EF30 (dark)
+          else color = UI_DARK_TEXT;
+          setPixel(arrowMidX + col, upY + row, color);
         }
       }
 
       // Down arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, trkBot, SB_W, btnH, UI_BACKGROUND,
         UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      // Down triangle (▼)
-      for (let row = 0; row < 3; row++) {
-        for (let col = -(2 - row); col <= (2 - row); col++) {
-          setPixel(arrowMidX + col, trkBot + 3 + row, UI_DARK_TEXT);
+      // Down triangle (▼) — EXE: 7px wide × 5 rows, 3D shaded, inverted
+      const dnY = trkBot + Math.floor((btnH - 5) / 2);
+      for (let row = 0; row < 5; row++) {
+        const span = 4 - row;
+        for (let col = -span; col <= span; col++) {
+          let color;
+          if (row === 0) color = UI_BRIGHT_BORDER;       // top = EF32 (light)
+          else if (col === -span) color = UI_DARK_BORDER; // left = EF26 (bright)
+          else if (col === span) color = UI_MED_BORDER;   // right = EF30 (dark)
+          else color = UI_DARK_TEXT;
+          setPixel(arrowMidX + col, dnY + row, color);
         }
       }
 

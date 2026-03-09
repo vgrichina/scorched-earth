@@ -136,15 +136,6 @@ const ICON_SPACING = 11;   // EXE: imul ax, ax, 0xB at file 0x2FE71
 const BAR_RESERVED = 62;   // EXE: mov si, 0x3E — reserved bar area width (max 10 players × 6 + 2)
 const AFTER_BAR_GAP = 10;  // EXE: add ax, 0xA at file 0x2FC2E — gap after bar area
 
-// Draw a bar outline
-// EXE: fg_drect(barX-1, y, barX+w, y+0xB) at file 0x2FD08 — 4-sided rectangle
-function drawBarOutline(x, y, w, color) {
-  hline(x - 1, x + w, y, color);
-  hline(x - 1, x + w, y + BAR_H, color);
-  fillRect(x - 1, y + 1, x - 1, y + BAR_H - 1, color);
-  fillRect(x + w, y + 1, x + w, y + BAR_H - 1, color);
-}
-
 // Draw bar fill
 // EXE: fg_rect(barX, y+1, barX+fill-1, y+0xA) at file 0x2FD30
 function drawBarFill(x, y, fill, color) {
@@ -341,8 +332,8 @@ export function drawHud(player, wind, round, opts) {
     // EXE: draw_icon_alive(x, ROW2_Y, 43, color) — icon 43 is blank (w=0)
     drawIcon(x, ROW2_Y, 43, batColor);
     // Web port: bar fill for visual feedback (not in EXE, but icon is blank there too)
-    drawBarOutline(x, ROW2_Y, 25, batColor);
-    drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
+    drawBox3DSunken(x - 1, ROW2_Y, 27, BAR_H + 1, UI_DEEP_SHADOW,
+      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     if (batCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, Math.ceil(batCount * 2.5)), batColor);
     x += 25; // → E9F0
 
@@ -358,8 +349,8 @@ export function drawHud(player, wind, round, opts) {
     // EXE: draw_icon_alive(E9F2, ROW2_Y, D554=42, color) — icon 42 is blank (w=0)
     drawIcon(x, ROW2_Y, 42, paraColor);
     // Web port: bar fill for visual feedback
-    drawBarOutline(x, ROW2_Y, 25, paraColor);
-    drawBarFill(x, ROW2_Y, 25, UI_DEEP_SHADOW);
+    drawBox3DSunken(x - 1, ROW2_Y, 27, BAR_H + 1, UI_DEEP_SHADOW,
+      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     if (paraCount > 0) drawBarFill(x, ROW2_Y, Math.min(25, paraCount * 5), paraColor);
     x += 25; // → E9F4
 
@@ -399,8 +390,8 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, ROW2_Y, String(Math.min(99, shieldCount)), shieldColor);
     x += countFieldW; // → E9FC
     // EXE: draws shield icon or bar (20px area). Web port: bar fill.
-    drawBarOutline(x, ROW2_Y, 20, shieldColor);
-    drawBarFill(x, ROW2_Y, 20, UI_DEEP_SHADOW);
+    drawBox3DSunken(x - 1, ROW2_Y, 22, BAR_H + 1, UI_DEEP_SHADOW,
+      UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     if (shieldCount > 0) drawBarFill(x, ROW2_Y, Math.min(20, Math.round(shieldCount / 5)), shieldColor);
     x += 20; // → E9FE
 

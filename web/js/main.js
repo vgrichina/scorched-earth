@@ -11,7 +11,7 @@ import { placeTanks, drawAllTanks, players, drawDeathAnimations, TANK_TYPES } fr
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud, drawWindIndicator } from './hud.js';
-import { drawText, drawTextShadow, measureText } from './font.js';
+import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { projectiles } from './physics.js';
 import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
@@ -26,7 +26,7 @@ import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT, COLOR_HUD_WARNING,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          FIRE_PAL_BASE,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
-         UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
+         UI_DEEP_SHADOW, UI_LIGHT_ACCENT, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 
 // Update CSS --game-aspect custom property for display scaling.
 // EXE: each mode has a displayAspect (pixel height/width ratio). For non-square
@@ -381,18 +381,22 @@ function gameLoop() {
     return;
   }
 
-  // EXE: No Kibitzing — black screen between human turns
+  // EXE: No Kibitzing — 200×155 centered dialog between human turns
+  // EXE: show_no_kibitzing at 0x43080 — dialog_create(0, 0, 200, 155), centered via dialog_position
+  // EXE: paint callback draw_no_kibitzing_text at 0x4304B — embossed text at (dlg.x+30, dlg.y+70)
   if (game.state === STATE.SCREEN_HIDE) {
     gameTick();
-    fillRect(0, 0, config.screenWidth - 1, config.screenHeight - 1, BLACK);
-    // EXE: dialog at 0x43080 (34ED:77B0), paint at 0x4304B — draws "NO KIBITZING!!" via draw_embossed_text
-    // EXE: no player name, no "press any key" in the dialog — web adds these for clarity
-    const nkW = measureText('NO KIBITZING!!');
-    drawTextShadow(Math.floor((config.screenWidth - nkW) / 2), 60, 'NO KIBITZING!!', COLOR_HUD_HIGHLIGHT, 0);
-    const targetPlayer = players[game.screenHideTarget] || getCurrentPlayer();
-    drawTextShadow(72, 80, `${targetPlayer.name}'s turn`, targetPlayer.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
-    // EXE: "<<Press any key>>" (DS:0x5212) — consistent with round-over/game-over
-    drawTextShadow(72, 100, '<<Press any key>>', COLOR_HUD_TEXT, 0);
+    redrawWorld();
+    // EXE: dialog is partial-screen (200×155), not fullscreen black
+    const dlgW = 200, dlgH = 155;
+    const dlgX = Math.floor((config.screenWidth - dlgW) / 2);
+    const dlgY = Math.floor((config.screenHeight - dlgH) / 2);
+    drawBox3DRaised(dlgX, dlgY, dlgW, dlgH, UI_BACKGROUND,
+      UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+    // EXE: draw_embossed_text at (dlg.x + 0x1E, dlg.y + 0x46) = (dlg.x+30, dlg.y+70)
+    drawTextEmbossed(dlgX + 30, dlgY + 70, 'NO KIBITZING!!', [
+      UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
+    ]);
     blit();
     requestAnimationFrame(gameLoop);
     return;

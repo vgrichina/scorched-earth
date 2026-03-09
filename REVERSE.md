@@ -6394,27 +6394,27 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Projectile trail**: **VERIFIED** (session 153). EXE draws projectile head as VGA 255 (white), only over pixels >0x77 (terrain range). Small bomb = 1px, Big bomb = 5px cross (center + 4 cardinal). NO color-fading trail in EXE — when Trace Paths=off, previous positions are immediately restored; when on, white pixels remain permanently. Web adds cosmetic age-fading (white→orange→dark) which is an enhancement not in EXE — acceptable divergence. Erase logic restores terrain via setTerrainPixel (for laser color 0x78) or draws stored pixel color. Big cross pattern matches web BOMB_ICON handling.
 
 #### 9. Architecture Documentation
-- [ ] `docs/architecture_exe.md` — binary layout, segment/bank boundaries, call graph with entry points + file offsets, module map, per-turn execution flow, data flow, shared data regions
-- [ ] `docs/architecture_web.md` — JS module graph with exports + dependencies, EXE→web mapping table, game loop flow, state machine with transitions
+- [x] `docs/architecture_exe.md` — binary layout, segment/bank boundaries, call graph with entry points + file offsets, module map, per-turn execution flow, data flow, shared data regions (already written, 370 lines)
+- [x] `docs/architecture_web.md` — JS module graph with exports + dependencies, EXE→web mapping table, game loop flow, state machine with transitions (already written, 382 lines)
 
 #### 10. Visual QA — Pixel-Compare Web vs Emulator
-- [ ] Pixel-compare: main menu screen (web vs v86 emulator screenshot)
-- [ ] Pixel-compare: player setup dialog (web vs v86 emulator screenshot)
-- [ ] Pixel-compare: weapons shop (web vs v86 emulator screenshot)
-- [ ] Pixel-compare: in-game HUD + terrain + tanks (web vs v86 emulator screenshot)
-- [ ] Pixel-compare: explosion animation frame (web vs v86 emulator screenshot)
-- [ ] Pixel-compare: round-over / score screen (web vs v86 emulator screenshot)
+- [x] Pixel-compare: main menu screen (web vs v86 emulator screenshot) — **VERIFIED** (session 175). compare_screenshots.py + web_screenshot.mjs headless renderer. Layout matches: outer 3D box, button positions/sizes, title centering, footer position, terrain frame. Diff is terrain content (different RNG seed) not structural.
+- [x] Pixel-compare: player setup dialog (web vs v86 emulator screenshot) — **VERIFIED** (session 175). Dialog structure matches: "Player 1 (of 2)" centered title, "Name:" + input field, 8 color swatches, Human/Computer selector, "Done" button. Background differs (different terrain seed).
+- [x] Pixel-compare: weapons shop (web vs v86 emulator screenshot) — **VERIFIED** (session 175). Full shop layout matches: header bar (player initial, cash, rounds), Cash Left/Earned Interest bars, Weapons tab active, item list with icons/names/prices, Score/Weapons/Misc tabs on right, Update/Inventory/Done buttons, scrollbar. Web adds info panel (bottom-right, web-only addition).
+- [x] Pixel-compare: in-game HUD + terrain + tanks (web vs v86 emulator screenshot) — **VERIFIED** (session 175). HUD Row 1 (Power/Angle/player name/weapon icon/weapon name) and Row 2 (Max/bars/icons) match. "No Wind" indicator in correct position. Tank sprites visible at correct terrain positions. Diff is terrain content only.
+- [ ] Pixel-compare: explosion animation frame — requires live gameplay session, deferred to visual QA phase
+- [ ] Pixel-compare: round-over / score screen — requires live gameplay session, deferred to visual QA phase
 
 #### 11. Cosmetic Divergences (Known, Low Priority)
-- [ ] HUD bar outlines use single-color `drawBarOutline` instead of 4-color `drawBox3DSunken` (noted session 171)
-- [ ] Shop scroll arrows: web draws 5×3 flat triangle vs EXE 7×5 triangle with 3D highlight/shadow (noted session 148)
+- [x] HUD bar outlines use single-color `drawBarOutline` instead of 4-color `drawBox3DSunken` — **FIXED** (session 174). Replaced all 3 `drawBarOutline` calls (battery, parachute, shield bars in full-mode Row 2) with `drawBox3DSunken` using correct sunken border colors. Removed dead `drawBarOutline` function.
+- [x] Shop scroll arrows: web draws 5×3 flat triangle vs EXE 7×5 triangle with 3D highlight/shadow — **FIXED** (session 174). Up/down triangles now 5 rows with 3D edge colors: base=EF32(light), left=EF26(bright), right=EF30(dark), interior=UI_DARK_TEXT.
 - [ ] Explosion algorithm: web uses trig-based rings vs EXE Bresenham filled circles (acceptable divergence, cosmetic only)
 - [ ] Projectile trail: web adds age-fading (white→orange→dark) not present in EXE (enhancement)
-- [ ] "NO KIBITZING!!" screen: web uses fullscreen black vs EXE partial-screen 155×200 dialog (functionally correct)
+- [x] "NO KIBITZING!!" screen: web uses fullscreen black vs EXE partial-screen 155×200 dialog — **FIXED** (session 174). Web now draws 200×155 centered 3D raised dialog with 5-layer embossed text at (dlg+30, dlg+70), matching EXE show_no_kibitzing (0x43080) + draw_no_kibitzing_text (0x4304B)
 
 #### 12. Unexplored Code Regions
-- [ ] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables
-- [ ] RE: team.cpp (~0x40F60) — team management, team scoring, alliance mechanics
-- [ ] RE: score.cpp (~0x37520) — round-over screen rendering, score tallying display, game-over sequence
-- [ ] RE: play.cpp (0x2F830) — deeper main game loop internals, turn sequencing edge cases
-- [ ] RE: config file parsing — SCORCH.CFG read/write routines, default value table
+- [x] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables — **ALREADY COMPLETE** (see "Talk Files — comments.cpp" section). All functions documented: load_talk_file, show_die_comment, show_attack_comment (1% random-player taunt), display_talk_bubble, talk_delay. Web port matches all logic.
+- [x] RE: team.cpp (~0x40F60) — team management, team scoring, alliance mechanics — **ALREADY DOCUMENTED** (see "Team System" section). `same_team()` at 0x324ED compares player.team_number (+0x30). TEAMS_ENABLED (DS:0x5148) toggles team scoring pool formula (round*500+5000+per-player bonuses vs numPlayers*1000+round*4000). "Configure Teams" / "Reassign Teams" dialogs in menu module. Web port already supports teams.
+- [x] RE: score.cpp (~0x37520) — round-over screen rendering, score tallying display, game-over sequence — **ALREADY COMPLETE** (see "Score System" section + session 136/668 audit). All functions documented: end_of_round_scoring (pool formulas), score_on_damage, score_on_death, add_score, Final Scoring dialog with rainbow border, game-over buttons.
+- [x] RE: play.cpp (0x2F830) — deeper main game loop internals, turn sequencing edge cases — **ALREADY DOCUMENTED** (see "Play Modes" and "Play Order System" sections). 3 play modes (Sequential/Simultaneous/Synchronous), 5 play orders, fire callback dispatch, screen wrapping, turn handler at 0x30560 all covered.
+- [x] RE: config file parsing — SCORCH.CFG read/write routines, default value table — **ALREADY DOCUMENTED** (session 174). `read_config_file` at 0x19455: opens filename (default "scorch.cfg"), reads via fgets, parses key=value pairs into DS variables. All 40+ config keys documented throughout REVERSE.md with DS offsets, types, and defaults. Config writer at 0x1B02E serializes back to file. Web port uses localStorage with matching defaults.
