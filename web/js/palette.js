@@ -103,51 +103,89 @@ export function setupPlayerPalette() {
 // 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Black, 6=Random
 // EXE Random resolution (file 0x3978E): random(6)→0-5, re-rolls Cavern if no .mtn
 export function setupSkyPalette(skyType) {
-  // Resolve Random (6) to a concrete type (0-5)
-  if (skyType === 6) skyType = random(6);
+  // EXE: TERRAIN_TYPE (DS:0x5110) controls sky palette via setTerrainPixel (0x3AB39)
+  // EXE uses VGA 120-149 (30 entries); web maps to VGA 80-104 (25 entries)
+  // EXE sky names: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black, 7=Random
+  // Resolve Random (7) to a concrete type (0-6)
+  if (skyType === 7) skyType = random(7);
   resolvedSkyType = skyType;
+  const N = 25; // web sky palette entry count
   switch (skyType) {
-    case 1: // Shaded — EXE 0x39969: 30-entry gradient R=G=29-di, B=63 at VGA 120-149
-      // Mapped to 25 sky entries: R=G=floor(i*29/24), B=63 (dark blue top → lighter bottom)
-      for (let i = 0; i < 25; i++) {
-        const rg = Math.floor(i * 29 / 24);
-        setEntry(80 + i, rg, rg, 63);
+    case 1: // Shaded — EXE 0x39969: di=0..29: R=G=29-di, B=63 at VGA 120-149
+      // VGA 120=(29,29,63) top of screen, VGA 149=(0,0,63) near ground
+      for (let i = 0; i < N; i++) {
+        const di = Math.floor(i * 29 / (N - 1));
+        setEntry(80 + i, 29 - di, 29 - di, 63);
       }
       break;
-    case 2: // Stars — black background
-      for (let i = 0; i < 25; i++) {
-        setEntry(80 + i, 0, 0, Math.floor(i * 0.5));
+    case 2: // Stars — EXE: VGA 120=(5,5,10); VGA 121-149: R=G=B=di*2+7 (gray 7→63)
+      setEntry(80, 5, 5, 10);
+      for (let i = 1; i < N; i++) {
+        const di = Math.floor((i - 1) * 28 / (N - 2));
+        const v = di * 2 + 7;
+        setEntry(80 + i, v, v, v);
       }
       break;
-    case 3: // Storm — dark grey gradient
-      for (let i = 0; i < 25; i++) {
-        const t = i / 24;
-        const grey = Math.floor(8 + t * 15);
-        setEntry(80 + i, grey, grey, Math.floor(grey * 1.1));
+    case 3: // Storm — EXE: 120-129: R=G=di, B=di+30; 130-149: R=G=B=(di-10)*2
+      for (let i = 0; i < N; i++) {
+        const di = Math.floor(i * 29 / (N - 1));
+        if (di < 10) {
+          setEntry(80 + i, di, di, di + 30);
+        } else {
+          const v = (di - 10) * 2;
+          setEntry(80 + i, v, v, v);
+        }
       }
       break;
-    case 4: // Sunset — cool blue/indigo at top → warm orange/red at bottom (verified from v86)
-      for (let i = 0; i < 25; i++) {
-        const t = i / 24;
-        const r = Math.floor(28 + t * 35);   // 28→63 (warm at bottom)
-        const g = Math.floor(5 + t * 15);    // 5→20
-        const b = Math.floor(50 - t * 40);   // 50→10 (cool at top)
+    case 4: { // Sunset — EXE 0x39C45: 3-band gradient VGA 120-149
+      // Band 1 (di=0..9, VGA 121-130): yellow(63,63,0) → red(63,20,20)
+      // Band 2 (di=0..9, VGA 131-140): red(63,20,20) → blue(29,29,63)
+      // Band 3 (di=0..8, VGA 141-149): blue(29,29,63) → indigo(9,9,31)
+      // VGA 120 = (63,63,0) yellow base
+      setEntry(80, 63, 63, 0); // VGA 120 = yellow
+      for (let i = 1; i < N; i++) {
+        const di29 = Math.floor((i - 1) * 28 / (N - 2)); // map to 0..28
+        let r, g, b;
+        if (di29 < 10) {
+          // Band 1: yellow → red (di=0..9)
+          const t = di29 / 9;
+          r = 63;
+          g = Math.floor(63 * (1 - t) + 20 * t);
+          b = Math.floor(0 * (1 - t) + 20 * t);
+        } else if (di29 < 20) {
+          // Band 2: red → blue (di=0..9 → 10..19)
+          const t = (di29 - 10) / 9;
+          r = Math.floor(63 * (1 - t) + 29 * t);
+          g = Math.floor(20 * (1 - t) + 29 * t);
+          b = Math.floor(20 * (1 - t) + 63 * t);
+        } else {
+          // Band 3: blue → indigo (di=0..8 → 20..28)
+          const t = (di29 - 20) / 8;
+          r = Math.floor(29 * (1 - t) + 9 * t);
+          g = Math.floor(29 * (1 - t) + 9 * t);
+          b = Math.floor(63 * (1 - t) + 31 * t);
+        }
         setEntry(80 + i, r, g, b);
       }
       break;
-    case 5: // Black — solid black
-      for (let i = 0; i < 25; i++) {
+    }
+    case 5: // Cavern — EXE 0x3A263: same gray gradient as Stars (VGA 120=(5,5,10), 121-149: di*2+7)
+      setEntry(80, 5, 5, 10);
+      for (let i = 1; i < N; i++) {
+        const di = Math.floor((i - 1) * 28 / (N - 2));
+        const v = di * 2 + 7;
+        setEntry(80 + i, v, v, v);
+      }
+      break;
+    case 6: // Black — EXE: all VGA 120-149 = (0,0,0)
+      for (let i = 0; i < N; i++) {
         setEntry(80 + i, 0, 0, 0);
       }
       break;
-    case 0: // Plain — gradient blue (default)
+    case 0: // Plain — EXE: flat VGA 120 = (9,9,31) dark blue, all entries same
     default:
-      for (let i = 0; i < 25; i++) {
-        const t = i / 24;
-        const r = Math.floor(t * 20);
-        const g = Math.floor(t * 20 + (1 - t) * 5);
-        const b = Math.floor(40 + t * 23);
-        setEntry(80 + i, r, g, b);
+      for (let i = 0; i < N; i++) {
+        setEntry(80 + i, 9, 9, 31);
       }
       break;
   }
