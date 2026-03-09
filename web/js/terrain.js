@@ -75,8 +75,10 @@ export function generateTerrain() {
     case 5: // Castle
       generateCastle(width, yStart, yEnd);
       break;
-    case 6: // Cavern
-      generateCavern(width, yStart, yEnd);
+    case 6: // EXE: No separate "Cavern" terrain shape exists. The EXE's
+            // TERRAIN_TYPE 6 is "Black" sky mode with standard random walk terrain.
+            // The Landscape menu has only LAND1/LAND2/FLATLAND params, no shape selector.
+      generateRolling(width, yStart, yEnd);
       break;
   }
 
@@ -213,62 +215,24 @@ function generateMountain(width, yStart, yEnd) {
   generateRolling(width, yStart, yEnd);
 }
 
-// EXE: Type 5 (Castle) uses TWO random walk passes to create a symmetric shape.
-// First pass: normal left-to-right random walk. Second pass: reversed (right-to-left)
-// from the midpoint. The min() of both passes creates the castle-like silhouette.
-// EXE: file 0x29677 — sets struct.bound to midpoint, flips direction, runs again.
+// EXE: Type 5 (Castle) uses TWO random walk passes (file 0x29677).
+// First pass generates ceiling terrain (yStart to midY), second pass generates
+// floor terrain (midY to yEnd). drawColumn's +0x02 flag (set between passes)
+// inverts draw direction: first pass fills from midY up, second from height down.
+// Result: terrain on both top and bottom with an air gap between, like a castle hall.
 function generateCastle(width, yStart, yEnd) {
-  // First pass: normal random walk
-  generateRolling(width, yStart, yEnd);
-  const pass1 = new Uint16Array(terrain);
-
-  // Second pass: random walk (independent)
-  generateRolling(width, yStart, yEnd);
-
-  // Combine: take min (highest point) of both passes for castle silhouette
-  for (let x = 0; x < width; x++) {
-    terrain[x] = Math.min(pass1[x], terrain[x]);
-  }
-}
-
-// Cavern terrain: ceiling + floor with open space between
-function generateCavern(width, yStart, yEnd) {
   const midY = Math.floor((yStart + yEnd) / 2);
-  const gap = 50 + random(20);  // min gap between ceiling and floor
 
-  // Generate floor using rolling algorithm
-  let floorY = midY + Math.floor(gap / 2);
-  let floorDelta = 0;
-  for (let col = 0; col < width; col++) {
-    terrain[col] = clamp(Math.floor(floorY), midY, yEnd - 1);
-
-    if (random(100) < 20) {
-      // maintain momentum
-    } else {
-      floorDelta = random(3) - 1;
-      if (random(100) < 15) floorDelta *= 2;
-    }
-    floorY += floorDelta;
-    if (floorY < midY) { floorY = midY; if (floorDelta < 0) floorDelta = 1; }
-    if (floorY > yEnd - 1) { floorY = yEnd - 1; if (floorDelta > 0) floorDelta = 0; }
+  // First pass: ceiling terrain — random walk in upper half
+  generateRolling(width, yStart, midY);
+  // Save as ceiling heights (terrain drawn from PLAYFIELD_TOP down to this height)
+  for (let x = 0; x < width; x++) {
+    ceilingTerrain[x] = terrain[x];
   }
 
-  // Generate ceiling
-  let ceilY = midY - Math.floor(gap / 2);
-  let ceilDelta = 0;
-  for (let col = 0; col < width; col++) {
-    ceilingTerrain[col] = clamp(Math.floor(ceilY), yStart, midY - 10);
-
-    if (random(100) < 20) {
-      // maintain
-    } else {
-      ceilDelta = random(3) - 1;
-      if (random(100) < 15) ceilDelta *= 2;
-    }
-    ceilY += ceilDelta;
-    if (ceilY < yStart + 15) { ceilY = yStart + 15; if (ceilDelta < 0) ceilDelta = 1; }
-    if (ceilY > midY - 10) { ceilY = midY - 10; if (ceilDelta > 0) ceilDelta = -1; }
-  }
+  // Second pass: floor terrain — random walk in lower half
+  generateRolling(width, midY, yEnd);
+  // terrain[] now holds floor heights (terrain drawn from this height down to bottom)
 }
 
 // Main random walk algorithm
@@ -371,8 +335,8 @@ function buildTerrainBitmap() {
     for (let y = terrain[x]; y <= bottom; y++) {
       terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((bottom - y) * (TERRAIN_PAL_COUNT - 1) / globalRange);
     }
-    // Ceiling terrain (cavern mode)
-    if (config.landType === 6 && ceilingTerrain[x] > 0) {
+    // Ceiling terrain (Castle mode — EXE type 5 draws terrain on both top and bottom)
+    if (config.landType === 5 && ceilingTerrain[x] > 0) {
       for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
         terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((y - PLAYFIELD_TOP) * (TERRAIN_PAL_COUNT - 1) / globalRange);
       }

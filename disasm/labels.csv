@@ -797,3 +797,5 @@ DS:0x2E71,STR_TILDE_GUIDANCE,data/str
 DS:0x2EEF,STR_TILDE_INVENTORY,data/str
 DS:0x2EFE,STR_SHIELDS_SUBCAT,data/str
 0x152E9,shop_tab_dispatch,jump table for up/down/home/end/pgup/pgdn in item list
+0x3A038,terrain_palette_jump_table,data/table:7 word offsets for terrain types 0-6 palette handlers
+0x39F30,terrain_type6_black_palette,Black sky palette: terrain R=63 G=29-i B=29-i + sky all-black + VGA 0-103 black

@@ -2777,7 +2777,7 @@ The "terrain type" variable DS:0x5110 is actually a **sky mode** that controls b
 | Mountain mode flag | DS:0x50D8 (1 when type 5) |
 | Mountain files available | DS:0x621A (0 = no .mtn files) |
 | Random land flag | DS:0x623C |
-| Terrain jump table | file 0x3A118 (cs:0x0A18, 7 word entries) |
+| Terrain jump table | file 0x3A038 (32C2:0A18, 7 word entries — palette handlers per sky type) |
 | Terrain generation | file 0x3971F (main function in ranges.cpp) |
 | Sky gradient base index | DS:0x6E2A (set to 0x50=80; stored by `call far 0x3EA1:0x028F` = file 0x4569F) |
 | Sky palette rendering | file 0x285A7 (player color + black sky check for type 6) |
@@ -2822,7 +2822,7 @@ When SKY=Black, 7 code patches create an underground visual environment:
 
 `random(6)` generates types 0-5 (Plain through Cavern). Type 6 (Black) and type 7 (Random) are excluded from random rotation. Type 5 (Cavern) is also excluded if no .mtn files exist.
 
-**Note**: Despite the name "Cavern" (type 5), it does NOT create a ceiling+floor cave — it uses mountain .mtn terrain files. The actual underground visual is "Black" (type 6) with flat terrain.
+**Note**: Despite the name "Cavern" (type 5), it does NOT create a ceiling+floor cave — it uses mountain .mtn terrain files. The actual underground visual is "Black" (type 6) with the same random walk terrain as all other types (no ceiling). The EXE has no LAND_TYPE config variable — the "Landscape..." menu offers only LAND1 (Bumpiness), LAND2 (Slope), FLATLAND (Flatten Peaks), and RANDOM_LAND. All 7 sky types share the same height_random_walk kernel (file 0x29808), differing only in VGA palette.
 
 **Intermediate files**: `disasm/cavern_shop_analysis.txt`
 
@@ -6420,8 +6420,8 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] Add `?seed=N` URL parameter for deterministic terrain comparison — **DONE**. Re-seeds RNG right before generateTerrain() when seed param present. `web/js/main.js`
 - [x] Verify terrain generation (Rolling, type 2) matches EXE for same seed — **DONE**. All 320 height columns match between Python reference and JS web port for seed=42.
 - [x] Fix terrain type 1 (Slope) to use random walk kernel — **DONE**. Web port's generateSlope() was a linear gradient; now delegates to generateRolling(). EXE confirms all types share random walk kernel at 0x29808. Type 1 only differs in VGA palette (Y-gradient at 0x3999A: height_array[y]=(bottom-y)*29/height+120). **Files**: `web/js/terrain.js`
-- [x] Fix terrain types 0 (Flat), 3 (MTN), 4 (V-Shaped), 5 (Castle) to use EXE random walk — **DONE**. EXE confirmed: ALL terrain types share the same random walk kernel at 0x29808. Call chain: generate() at 0x295DF calls vtable method (random walk) for ALL types, then terrain_gen_main handles palette/coloring per type. Types only differ in VGA palette, not terrain shape. Castle (type 5) additionally runs TWO random walk passes for a symmetric silhouette (0x29677). Fixed web port: types 0/1/3/4 now delegate to generateRolling(); Castle uses two passes with min(). **Files**: `web/js/terrain.js`
-- [ ] Verify Cavern (type 6) terrain matches EXE: web port has floor+ceiling random walk, needs verification that ceiling generation matches EXE's approach. EXE Cavern has special palette setup (setup_sky_ceiling_palette at 0x3A099) and ceiling rendering. May use separate LandGenerator pass for ceiling.
+- [x] Fix terrain types 0 (Flat), 3 (MTN), 4 (V-Shaped), 5 (Castle) to use EXE random walk — **DONE**. EXE confirmed: ALL terrain types share the same random walk kernel at 0x29808. Call chain: generate() at 0x295DF calls vtable method (random walk) for ALL types, then terrain_gen_main handles palette/coloring per type. Types only differ in VGA palette, not terrain shape. Castle (type 5) additionally runs TWO random walk passes (0x29677). **Correction (session 180)**: Castle does NOT use min(pass1, pass2). EXE drawColumn (0x29720) checks struct+0x02 flag to invert draw direction: first pass draws terrain from midY upward (ceiling), second pass draws from height downward (floor). Result is terrain on BOTH top and bottom with an air gap — like a castle hall. Fixed web port: Castle generates ceiling + floor terrain bands via ceilingTerrain[]. Removed dead generateCavern(). **Files**: `web/js/terrain.js`
+- [x] ~~Verify Cavern (type 6) terrain matches EXE~~: **RESOLVED** — EXE type 6 "Black" has NO ceiling+floor cave. It uses the same random walk terrain as all other types with an all-black sky palette. The web port's `generateCavern()` with floor+ceiling was entirely fabricated. Fixed: case 6 now delegates to `generateRolling()`. The EXE has no LAND_TYPE selector with 7 shape types — only LAND1/LAND2/FLATLAND params. All terrain shapes use the same random walk kernel (session 179).
 - [ ] Full pixel-perfect comparison pipeline: automate emulator screenshot capture + web port screenshot (via Playwright) + compare_screenshots.py diffing for each game state.
 
 #### 14. Unexplored Code Regions
