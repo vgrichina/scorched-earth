@@ -1,0 +1,27 @@
+{
+  "name": "scorched-earth",
+  "version": "1.0.0",
+  "description": "\"The Mother of All Games\" — the classic DOS artillery game (1995), reverse-engineered and rebuilt for the web.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vgrichina/scorched-earth.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/vgrichina/scorched-earth/issues"
+  },
+  "homepage": "https://github.com/vgrichina/scorched-earth#readme",
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  }
+}
