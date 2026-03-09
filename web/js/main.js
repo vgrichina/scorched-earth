@@ -46,7 +46,9 @@ async function init() {
   updateCSSAspect();
 
   initInput(canvas);
-  seedRandom(Date.now());
+  // Allow fixed seed via URL: ?seed=12345
+  const urlSeed = new URLSearchParams(window.location.search).get('seed');
+  seedRandom(urlSeed ? parseInt(urlSeed, 10) : Date.now());
 
   // Set up palette for title screen (default terrain/sky)
   initPalette(config.landType, config.skyType);
@@ -72,6 +74,12 @@ function startGame() {
   // Re-init palette with configured types
   initPalette(config.landType, config.skyType);
   initSkyBackground();
+  // Re-seed RNG just before terrain generation for deterministic comparison
+  // This matches EXE behavior: r250_init called once at game start (file 0x2A5EE)
+  const terrainSeed = new URLSearchParams(window.location.search).get('seed');
+  if (terrainSeed !== null) {
+    seedRandom(parseInt(terrainSeed, 10));
+  }
   generateTerrain();
   generateWind();
   placeTanks(config.numPlayers);

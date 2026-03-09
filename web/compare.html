@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>EXE vs Web Pixel Comparison</title>
+<style>
+body { background: #222; color: #eee; font-family: monospace; margin: 20px; }
+.container { display: flex; gap: 20px; flex-wrap: wrap; }
+.panel { text-align: center; }
+canvas { border: 1px solid #555; image-rendering: pixelated; }
+#diff { border-color: #f44; }
+#stats { margin: 20px 0; padding: 10px; background: #333; white-space: pre; }
+.controls { margin: 10px 0; }
+button { padding: 5px 15px; margin: 0 5px; }
+</style>
+</head>
+<body>
+<h2>EXE Emulator vs Web Port — Pixel Comparison</h2>
+<div class="controls">
+  <label>EXE screenshot (PNG): <input type="file" id="emuFile" accept=".png"></label>
+  <label>VGA dump (JSON): <input type="file" id="vgaFile" accept=".json"></label>
+  <button onclick="compare()">Compare</button>
+  <button onclick="toggleOverlay()">Toggle Overlay</button>
+</div>
+<div id="stats">Load an EXE screenshot PNG or VGA JSON dump to begin.</div>
+<div class="container">
+  <div class="panel">
+    <h3>EXE (Emulator)</h3>
+    <canvas id="emu" width="360" height="480"></canvas>
+  </div>
+  <div class="panel">
+    <h3>Diff (red = mismatch)</h3>
+    <canvas id="diff" width="360" height="480"></canvas>
+  </div>
+</div>
+
+<script>
+let emuImageData = null;
+let emuWidth = 0, emuHeight = 0;
+
+// Load PNG file
+document.getElementById('emuFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    emuWidth = img.width;
+    emuHeight = img.height;
+    const c = document.getElementById('emu');
+    c.width = emuWidth; c.height = emuHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    emuImageData = ctx.getImageData(0, 0, emuWidth, emuHeight);
+    document.getElementById('stats').textContent = `Loaded EXE screenshot: ${emuWidth}x${emuHeight}`;
+
+    // Also resize diff canvas
+    document.getElementById('diff').width = emuWidth;
+    document.getElementById('diff').height = emuHeight;
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+// Load VGA JSON dump
+document.getElementById('vgaFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const data = JSON.parse(text);
+  emuWidth = data.width;
+  emuHeight = data.height;
+
+  const c = document.getElementById('emu');
+  c.width = emuWidth; c.height = emuHeight;
+  const ctx = c.getContext('2d');
+  const imgData = ctx.createImageData(emuWidth, emuHeight);
+
+  // Convert palette indices to RGBA
+  // VGA 6-bit palette: multiply by 255/63 for 8-bit
+  for (let i = 0; i < data.pixels.length; i++) {
+    const idx = data.pixels[i];
+    const [r6, g6, b6] = data.palette[idx];
+    imgData.data[i * 4]     = Math.round(r6 * 255 / 63);
+    imgData.data[i * 4 + 1] = Math.round(g6 * 255 / 63);
+    imgData.data[i * 4 + 2] = Math.round(b6 * 255 / 63);
+    imgData.data[i * 4 + 3] = 255;
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  emuImageData = imgData;
+  document.getElementById('stats').textContent =
+    `Loaded VGA dump: ${emuWidth}x${emuHeight}, ${data.numPlayers} players, wind=${data.windSpeed}`;
+
+  document.getElementById('diff').width = emuWidth;
+  document.getElementById('diff').height = emuHeight;
+});
+
+function compare() {
+  if (!emuImageData) {
+    document.getElementById('stats').textContent = 'Load an EXE image first!';
+    return;
+  }
+
+  // For now, just show the EXE image in the diff canvas
+  // Full comparison requires the web port to render the same state
+  const c = document.getElementById('diff');
+  const ctx = c.getContext('2d');
+  ctx.putImageData(emuImageData, 0, 0);
+  document.getElementById('stats').textContent =
+    `EXE image loaded (${emuWidth}x${emuHeight}). Web port comparison requires matching game state.`;
+}
+
+let overlayMode = false;
+function toggleOverlay() {
+  overlayMode = !overlayMode;
+}
+</script>
+</body>
+</html>
