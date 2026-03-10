@@ -19,3 +19,4 @@ emu_screenshots/
 
 # Emulator checkpoints and scratch files
 scratch/
+node_modules/
