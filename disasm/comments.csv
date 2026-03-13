@@ -428,3 +428,17 @@ DS:0xD1BE,key_state_array: 128 words, scancode→1=pressed/0=released (set by IN
 0x49E59,button_activate: activates button widget [bp-0x0C], calls callback if type==6
 0x47D53,text_input_handler: type 8 widget key handler, draws field and processes typed char
 0x352B7,per_player_dialog_callback: copies [tank+0xB6/B8](name far ptr) to local buf; calls 3F19:5260 to populate dialog
+0x2CF01,AI Human primary: inventory counting / HUD update (also shield dispatch type 1)
+0x38B4E,AI Moron primary: flicker toggle DS:EC88 (also shield dispatch type 2)
+0x38E50,AI Moron secondary: flicker step handler
+0x37FDC,AI Shooter primary: elastic wall bounce check (also shield dispatch type 3)
+0x38211,AI Shooter secondary: elastic wall adjustment (shark.cpp)
+0x420B7,AI Poolshark primary: position geometry + random target (also shield dispatch type 4)
+0x421AE,AI Poolshark secondary: angle/position stepping
+0x17D2F,AI Tosser primary: vtable proxy through DS:0x02E6 (also shield dispatch type 5)
+0x17E10,AI Tosser secondary: vtable proxy dispatch through tank+0x8E
+0x3B683,AI Chooser primary: multi-tank iteration (also shield dispatch type 6)
+0x3B813,AI Chooser secondary: cross-tank targeting via DS:E1E4
+0x1BA63,AI Spoiler primary: auto-fire via ai_auto_select_weapon (also shield dispatch type 7)
+0x1BB81,AI Spoiler secondary: vtable proxy dispatch
+0x317D0,play: team damage check — compares tank+0xAC team_id; skips if same team

@@ -316,6 +316,10 @@ void spawn_sub_bombs(int x, int y, int param) {    // file 0x24894
     }
 
     // Phase 1: Palette setup (5 base colors × 6 gradient levels = 30 VGA entries at 170+)
+    // Fire rain color table at DS:0x1F62 (5 entries × 3 words R,G,B):
+    //   (63,0,0)=red, (63,32,10)=orange, (63,0,63)=magenta,
+    //   (63,12,12)=dark-red, (63,0,30)=red-magenta
+    // Inner loop (6 frames) interpolates between adjacent entries
     // Phase 2: Parent explosion visual — radius 20, palette base 170
     draw_explosion(x, y, 170, 20);                  // file 0x24AB5, hardcoded radius=20
 
@@ -2047,13 +2051,15 @@ Used ONLY when Random Shield is selected (dispatch_type=8 → random(7)+1). Stan
 |------|----------------------|---------------------|-------------|---------|
 | 1 | 262C:0241 | NULL | 0x2CF01 | Inventory counting / HUD update |
 | 2 | 320D:007E | 320D:0380 | 0x38B4E / 0x38E50 | Flicker toggle (DS:EC88) |
-| 3 | 315D:000C | 315D:0241 | 0x37FDC / 0x38211 | Unknown |
-| 4 | 3B6B:0007 | 3B6B:00FE | 0x420B7 / 0x421AE | Unknown |
-| 5 | 1132:000F | 1132:00F0 | 0x17D2F / 0x17E10 | Unknown |
-| 6 | 34B2:0163 | 34B2:02F3 | 0x3B683 / 0x3B813 | Unknown |
-| 7 | 14C8:03E3 | 14C8:0501 | 0x1BA63 / 0x1BB81 | Unknown |
+| 3 | 315D:000C | 315D:0241 | 0x37FDC / 0x38211 | Elastic wall bounce — checks DS:5154 (ELASTIC wall type); for elastic/spring walls (3,4): reads tank+0xAE/0xB0 substruct, dispatches through substruct vtable; for normal/wrap walls (0): delegates to type 2 flicker handler |
+| 4 | 3B6B:0007 | 3B6B:00FE | 0x420B7 / 0x421AE | Position geometry — calls 0x1276:0x01E7 (compute shield position), checks tank[+0x32]>90, manages tank+0xAE/0xB0 substruct pointer; per-step also uses random(0x46)+10 |
+| 5 | 1132:000F | 1132:00F0 | 0x17D2F / 0x17E10 | Vtable proxy — dispatches per-frame through vtable at DS:0x02E6[+0x08]; when flicker ON (DS:EC88=1), stores DS:0x02E6 far ptr at tank+0x8E/0x90; per-step dispatches through tank+0x8E vtable[+0x0C] |
+| 6 | 34B2:0163 | 34B2:02F3 | 0x3B683 / 0x3B813 | Multi-tank interaction — per-frame iterates all tanks (stride 0xCA at DS:D568+0x80), checks alive status; per-step reads DS:E1E4/E1E6 (far ptr), calls 0x2A16:0x198D with two tank ptrs (shield-to-shield interaction?) |
+| 7 | 14C8:03E3 | 14C8:0501 | 0x1BA63 / 0x1BB81 | AI auto-fire — dispatches through DS:0x02E6 vtable; when flicker ON: stores vtable at tank+0x8E/0x90 AND calls ai_auto_select_weapon (0x11B5:0x0ABC); per-step dispatches through tank+0x8E vtable[+0x0C] |
 
-Types 2-7 have unique per-step handlers for Random Shield gameplay effects. Type 2's flicker toggle (DS:EC88) is the only confirmed special behavior, used exclusively by the Random Shield mechanism.
+**Key insight**: Shield dispatch types 1-7 reuse the exact same function pointers as AI types 0-6 (Human through Spoiler). Shield type N has the same per-frame/per-step handlers as AI type N-1. The shield dispatch table at DS:0x026A and the AI vtable pointer table at DS:0x02E2 both reference the same set of functions. This means Random Shield effectively gives the player a random AI personality's per-turn behavior. DS:0x02E6 (used by types 5 and 7) is the Moron AI vtable pointer — not a shield-specific vtable.
+
+All types share a common pattern: they check the tank substruct far pointer at tank+0xAE/0xB0 and its validity flag at substruct+0x18.
 
 ### Damage Absorption Formula
 
@@ -2331,7 +2337,7 @@ Full tank state record. Global pointer at DS:5182/5184.
 | +0xA2 | 4 | uint32 | max_power | 32-bit max power. Low: `[es:bx+0xa2]`, High: `[es:bx+0xa4]` |
 | +0xA6 | 4 | uint32 | max_health | 32-bit max health (bar denominator). Low: `[es:bx+0xA6]`, High: `[es:bx+0xA8]`. Init from DS:0x50E4/E6 at 0x30DD0. |
 | +0xAA | 2 | int16 | fuel_energy | Fractional Heavy Shield fuel energy (0–9 within one Fuel Tank unit). Starts at 0; decremented when Heavy Shield absorbs damage; refills by 10 (and decrements inventory[FuelTank]) when it goes negative. Used in `check_heavy_shield_energy` (0x31249): total = `inventory[D564=FuelTank]×10 + struct[+0xAA]`. |
-| +0xAC | 2 | int16 | unk_AC | Initialized to 0 in player_init_substruct (0x30F29). Purpose unknown. |
+| +0xAC | 2 | int16 | team_id | Team assignment index. Initialized to 0 in player_init_substruct (0x30F29). Used in play.cpp (0x317F2): when TEAMS_ENABLED (DS:0x5148) ≠ 2, compares attacker vs defender team_id — if different, skips damage processing (friendly fire protection). |
 | +0xAE | 4 | fptr | ai_target | AI target far pointer. `mov ax,[es:bx+0xae]` at 0x217E4 |
 | +0xB6 | 4 | fptr | name_ptr | Far pointer to player name string |
 | +0xC6 | 4 | fptr | shield_cfg | Far pointer to shield config entry. `les bx,[es:bx+0xc6]` at 0x22469 |

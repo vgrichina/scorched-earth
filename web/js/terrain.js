@@ -324,7 +324,7 @@ export function drawSky() {
 // Build per-pixel terrain bitmap from the height map arrays.
 // Called once after terrain generation. Subsequent terrain modifications
 // (craters, dirt, tunnels) update the bitmap directly.
-function buildTerrainBitmap() {
+export function buildTerrainBitmap() {
   terrainBitmap.fill(0);
   const bottom = PLAYFIELD_BOTTOM;
   const globalTop = PLAYFIELD_TOP + 20;

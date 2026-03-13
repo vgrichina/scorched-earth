@@ -165,7 +165,7 @@ def compare(emu_path, web_path, diff_path=None):
             wi = (y * ww + x) * 4
             er, eg, eb = epx[ei], epx[ei+1], epx[ei+2]
             wr, wg, wb = wpx[wi], wpx[wi+1], wpx[wi+2]
-            if er != wr or eg != wb or eb != wb:
+            if er != wr or eg != wg or eb != wb:
                 # Use a small tolerance for VGA 6-bit DAC rounding
                 if abs(er-wr) > 1 or abs(eg-wg) > 1 or abs(eb-wb) > 1:
                     diff_count += 1

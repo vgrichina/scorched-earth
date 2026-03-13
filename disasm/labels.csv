@@ -801,3 +801,34 @@ DS:0x2EFE,STR_SHIELDS_SUBCAT,data/str
 0x152E9,shop_tab_dispatch,jump table for up/down/home/end/pgup/pgdn in item list
 0x3A038,terrain_palette_jump_table,data/table:7 word offsets for terrain types 0-6 palette handlers
 0x39F30,terrain_type6_black_palette,Black sky palette: terrain R=63 G=29-i B=29-i + sky all-black + VGA 0-103 black
+0x37FDC,shield_dispatch_type3_frame
+0x38211,shield_dispatch_type3_step
+0x420B7,shield_dispatch_type4_frame
+0x421AE,shield_dispatch_type4_step
+0x17D2F,shield_dispatch_type5_frame
+0x17E10,shield_dispatch_type5_step
+0x3B683,shield_dispatch_type6_frame
+0x3B813,shield_dispatch_type6_step
+0x1BA63,shield_dispatch_type7_frame
+0x1BB81,shield_dispatch_type7_step
+DS:0x02E6,shield_vtable_ptr,data/farptr
+0x317D0,play_check_team_damage
+0x2CF01,ai_human_primary
+0x38B4E,ai_moron_primary
+0x38E50,ai_moron_secondary
+0x37FDC,ai_shooter_primary
+0x38211,ai_shooter_secondary
+0x420B7,ai_poolshark_primary
+0x421AE,ai_poolshark_secondary
+0x17D2F,ai_tosser_primary
+0x17E10,ai_tosser_secondary
+0x3B683,ai_chooser_primary
+0x3B813,ai_chooser_secondary
+0x1BA63,ai_spoiler_primary
+0x1BB81,ai_spoiler_secondary
+0x24894,funky_bomb_spawn_sub_bombs
+DS:0x1F62,funky_bomb_rain_table,data/table:6
+DS:0xCF64,funky_bomb_sub_x_array
+DS:0xCF66,funky_bomb_sub_y_array
+DS:0xCF8C,funky_bomb_current_idx
+DS:0xCF8E,funky_bomb_total_drawn
