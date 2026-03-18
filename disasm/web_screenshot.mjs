@@ -183,7 +183,7 @@ function renderFromState(stateJsonPath) {
     while (players.length < config.numPlayers) {
       players.push(createPlayer(players.length, `Player ${players.length + 1}`));
     }
-    // Inject tank positions
+    // Inject tank positions and state
     for (let i = 0; i < state.tanks.length && i < players.length; i++) {
       const t = state.tanks[i];
       players[i].x = t.x;
@@ -191,6 +191,8 @@ function renderFromState(stateJsonPath) {
       players[i].alive = t.alive !== 0;
       players[i].turretAngle = t.turretAngle;
       players[i].power = t.power;
+      players[i].angle = t.turretAngle || 0;
+      if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx;
       if (t.colorBase !== undefined) players[i].colorBase = t.colorBase;
     }
     drawAllTanks();

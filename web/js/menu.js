@@ -785,14 +785,19 @@ function getPlayerSetupLayout() {
 }
 
 export function drawPlayerSetupScreen() {
-  // EXE: dialog is drawn over the main menu background (red gradient + terrain preview)
-  drawMainMenu();
-
+  // EXE: full-screen player-colored fill hides the menu behind the dialog.
+  // EXE fills screen with the current player's color, then draws the centered
+  // dialog on top — menu buttons are NOT visible.
   const idx = menu.playerSetupIdx;
   if (idx >= config.numPlayers) return;
 
   const setup = playerSetup[idx];
   const baseColor = setup.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+
+  // Fill entire screen with solid player color
+  // EXE: full-screen fill before dialog (player_struct+0x1A color)
+  fillRect(0, 0, getScreenW() - 1, getScreenH() - 1, baseColor);
+
   const lay = getPlayerSetupLayout();
 
   // Centered raised dialog box (popup over menu background)
