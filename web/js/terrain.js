@@ -9,7 +9,7 @@
 import { random, clamp } from './utils.js';
 import { config } from './config.js';
 import { setPixel, setBackground, clearToBackground } from './framebuffer.js';
-import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT } from './constants.js';
+import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START } from './constants.js';
 import { resolvedSkyType } from './palette.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
@@ -324,21 +324,21 @@ export function drawSky() {
 // Build per-pixel terrain bitmap from the height map arrays.
 // Called once after terrain generation. Subsequent terrain modifications
 // (craters, dirt, tunnels) update the bitmap directly.
+// EXE: terrain body is solid VGA 80; web uses TERRAIN_PAL_START (120) which
+// all share the same ground color RGB, so a single constant index suffices.
 export function buildTerrainBitmap() {
   terrainBitmap.fill(0);
   const bottom = PLAYFIELD_BOTTOM;
-  const globalTop = PLAYFIELD_TOP + 20;
-  const globalRange = Math.max(bottom - globalTop, 1);
 
   for (let x = 0; x < WIDTH; x++) {
-    // Floor terrain
+    // Floor terrain — single solid palette index (all 120-149 have same color)
     for (let y = terrain[x]; y <= bottom; y++) {
-      terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((bottom - y) * (TERRAIN_PAL_COUNT - 1) / globalRange);
+      terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START;
     }
     // Ceiling terrain (Castle mode — EXE type 5 draws terrain on both top and bottom)
     if (config.landType === 5 && ceilingTerrain[x] > 0) {
       for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
-        terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START + Math.floor((y - PLAYFIELD_TOP) * (TERRAIN_PAL_COUNT - 1) / globalRange);
+        terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START;
       }
     }
   }

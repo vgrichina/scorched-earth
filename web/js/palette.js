@@ -203,92 +203,14 @@ const GROUND_COLORS = [
 ];
 
 // --- Terrain palette (VGA 120-149): 30 entries ---
-// VGA 149 = surface (top), VGA 120 = deepest underground
+// EXE: drawColumn renders terrain body as solid VGA 80 (single color from ground_color_table).
+// The VGA 120-149 gradient only appears in sky rows above the terrain surface.
+// Web: terrain body pixels use VGA 120+ for collision (>= TERRAIN_THRESHOLD=105),
+// so we set ALL 30 entries to the same solid ground color, matching EXE visuals.
 export function setupTerrainPalette(terrainType) {
-  switch (terrainType) {
-    case 0: // Blue Ice: black → dark blue (9,9,31) in 16 steps
-      setupTerrainGradient(9, 9, 31);
-      break;
-
-    case 1: { // Shaded: solid ground color from random(6) table (EXE 0x2923C)
-      // EXE: drawColumn fills terrain body with VGA 80 (solid), sky with VGA 120-149 gradient.
-      // Web: terrain body uses VGA 120-149 range, so fill all 30 entries with one ground color.
-      const gc = GROUND_COLORS[random(GROUND_COLORS.length)];
-      for (let di = 0; di < 30; di++) {
-        setEntry(120 + di, gc[0], gc[1], gc[2]);
-      }
-      break;
-    }
-
-    case 2: // Rock/Gray: dark gray → white with scatter
-      for (let di = 0; di < 30; di++) {
-        const base = di * 2 + 7;
-        const scatter = random(6) - 3;
-        const val = Math.max(0, Math.min(63, base + scatter));
-        setEntry(120 + di, val, val, val);
-      }
-      break;
-
-    case 3: // Night/MTN: 10-entry blue-gray + 20-entry gray depth (EXE 0x39AEF)
-      // Loop 1 (VGA 120-129): R=G=di, B=di+30 — blue-tinted terrain gradient
-      for (let di = 0; di < 10; di++) {
-        setEntry(120 + di, di, di, di + 30);
-      }
-      // Loop 2 (VGA 130-149): R=G=B=(di-10)*2 — gray depth gradient
-      for (let di = 10; di < 30; di++) {
-        setEntry(120 + di, (di - 10) * 2, (di - 10) * 2, (di - 10) * 2);
-      }
-      break;
-
-    case 5: // Castle: same 3-band Sunset-style FPU gradient as Type 4 (EXE 0x39C31)
-    case 4: { // Desert/Lava + Castle: 3-segment FPU gradient matching EXE (file 0x39C31)
-      // VGA 120: bright yellow (set separately in EXE via set_sky_palette_entry)
-      setEntry(120, 63, 63, 0);
-      // Loop 1 (VGA 121-130): warm gold → red-brown
-      for (let di = 0; di < 10; di++) {
-        const t2 = (9 - di) / 10, t1 = 1 - t2;
-        setEntry(121 + di,
-          Math.trunc(t2 * 63 + t1 * 63),  // R: 63 constant
-          Math.trunc(t2 * 63 + t1 * 20),  // G: 58→20
-          Math.trunc(t1 * 20)             // B: 2→20
-        );
-      }
-      // Loop 2 (VGA 131-140): red → blue-purple
-      for (let di = 0; di < 10; di++) {
-        const t2 = (9 - di) / 10, t1 = 1 - t2;
-        setEntry(131 + di,
-          Math.trunc(t2 * 63 + t1 * 29),  // R: 59→29
-          Math.trunc(t2 * 20 + t1 * 29),  // G: 20→29
-          Math.trunc(t2 * 20 + t1 * 63)   // B: 24→63
-        );
-      }
-      // Loop 3 (VGA 141-149): blue-purple → dark indigo (same t2=(9-di)/10 formula)
-      for (let di = 0; di < 9; di++) {
-        const t2 = (9 - di) / 10, t1 = 1 - t2;
-        setEntry(141 + di,
-          Math.trunc(t2 * 29 + t1 * 9),   // R=G: 27→11
-          Math.trunc(t2 * 29 + t1 * 9),
-          Math.trunc(t2 * 63 + t1 * 31)   // B: 59→34
-        );
-      }
-      break;
-    }
-
-    default: // Fallback to Rock/Gray
-      setupTerrainPalette(2);
-      break;
-  }
-}
-
-// setTerrainPalette: 16-step gradient from black to target color (used by type 0)
-function setupTerrainGradient(tr, tg, tb) {
+  const gc = GROUND_COLORS[random(GROUND_COLORS.length)];
   for (let di = 0; di < 30; di++) {
-    const t = di / 29;
-    setEntry(120 + di,
-      Math.floor(tr * t),
-      Math.floor(tg * t),
-      Math.floor(tb * t)
-    );
+    setEntry(120 + di, gc[0], gc[1], gc[2]);
   }
 }
 

@@ -15,7 +15,7 @@ import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
 import { playExplosionSound, playShieldHitSound, playImpactFrame } from './sound.js';
 import { random } from './utils.js';
-import { TERRAIN_PAL_START, TERRAIN_PAL_COUNT, FIRE_PAL_BASE, FIRE_PAL_COUNT,
+import { TERRAIN_PAL_START, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
 
 // Create a circular crater at (cx, cy) with given radius
@@ -73,9 +73,8 @@ export function addDirt(cx, cy, radius) {
       if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
 
       if (!terrainBitmap[y * W + x]) {
-        const palIdx = TERRAIN_PAL_START + Math.floor(Math.max(0, Math.min(TERRAIN_PAL_COUNT - 1, (config.screenHeight - 1 - y) * (TERRAIN_PAL_COUNT - 1) / (config.screenHeight - PLAYFIELD_TOP))));
-        terrainBitmap[y * W + x] = palIdx;
-        setPixel(x, y, palIdx);
+        terrainBitmap[y * W + x] = TERRAIN_PAL_START;
+        setPixel(x, y, TERRAIN_PAL_START);
       }
     }
 
@@ -95,9 +94,8 @@ export function addDirtTower(cx, cy, _height) {
       const y = cy + dy;
       if (y < PLAYFIELD_TOP || y >= config.screenHeight) continue;
       if (!terrainBitmap[y * W + x]) {  // only fill empty pixels (EXE: pixel < 170)
-        const palIdx = TERRAIN_PAL_START + Math.floor(Math.max(0, Math.min(TERRAIN_PAL_COUNT - 1, (config.screenHeight - 1 - y) * (TERRAIN_PAL_COUNT - 1) / (config.screenHeight - PLAYFIELD_TOP))));
-        terrainBitmap[y * W + x] = palIdx;
-        setPixel(x, y, palIdx);
+        terrainBitmap[y * W + x] = TERRAIN_PAL_START;
+        setPixel(x, y, TERRAIN_PAL_START);
       }
     }
     updateTerrainColumn(x);

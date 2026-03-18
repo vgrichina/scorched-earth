@@ -13,7 +13,7 @@ import { generateTerrain, terrain, initSkyBackground, PLAYFIELD_TOP } from './te
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
          UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
-         SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START, TERRAIN_PAL_COUNT
+         SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START
          } from './constants.js';
 
 // --- Layout helpers (EXE-verified, mode-dependent) ---
@@ -702,10 +702,8 @@ function drawTerrainPreview() {
         const skyIdx = SKY_PAL_START + Math.floor(screenRow * (SKY_PAL_COUNT - 1) / (getScreenH() - 1));
         setPixel(px, py, skyIdx);
       } else {
-        // Terrain — depth-based coloring
-        const depth = getPrevH() - 1 - cy;
-        const palIdx = TERRAIN_PAL_START + Math.floor(depth * (TERRAIN_PAL_COUNT - 1) / Math.max(getPrevH() - scaledTerrainRow, 1));
-        setPixel(px, py, palIdx);
+        // Terrain — solid color (all 120-149 entries share same ground color)
+        setPixel(px, py, TERRAIN_PAL_START);
       }
     }
   }

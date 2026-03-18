@@ -120,6 +120,9 @@ export function createPlayer(index, name) {
     shieldEnergy: 0,
     // batteries: use inventory[43] (Battery item) — not a separate field
 
+    // Color index (0-9, default = player index; overridden by player setup color picker)
+    colorIndex: index,
+
     // Tank type (0-5, EXE sub struct [0x00], default type 0)
     tankType: 0,
 
@@ -411,7 +414,7 @@ export function drawTank(player) {
 
   const cx = player.x;            // center X (sub[0x0E])
   const groundY = player.y;       // ground line Y (sub[0x10])
-  const baseColor = player.index * PLAYER_PALETTE_STRIDE;
+  const baseColor = player.colorIndex * PLAYER_PALETTE_STRIDE;
   const type = TANK_TYPES[player.tankType] || TANK_TYPES[0];
 
   // Direction: EXE sub[0x94], +1=right, -1=left. Determined by angle.
@@ -457,7 +460,7 @@ export function startDeathAnimation(player) {
   deathAnimations.push({
     x: player.x,
     y: player.y + Math.floor(TANK_TYPES[player.tankType].barrelYOff / 2),  // center of tank body
-    baseColor: player.index * PLAYER_PALETTE_STRIDE,
+    baseColor: player.colorIndex * PLAYER_PALETTE_STRIDE,
     frame: 0,
     maxFrames: 20,
   });

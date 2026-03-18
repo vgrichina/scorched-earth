@@ -160,7 +160,7 @@ function drawBarColumn(barX, barY, idx, fillH, color) {
 export function drawHud(player, wind, round, opts) {
   // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
-  const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const baseColor = player.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
   const hudTextColor = UI_DEEP_SHADOW; // VGA 152 = black, remapped to web palette 205
   // EXE: [EF24] = dim text color for depleted/zero-ammo items
   const dimColor = UI_DARK_TEXT;
@@ -193,7 +193,7 @@ export function drawHud(player, wind, round, opts) {
     // EXE: per-player power columns (helper 0x394F2), height = power/100
     for (let i = 0; i < numP && i < players.length; i++) {
       const fillH = Math.floor(players[i].power / 100);
-      const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      const pColor = players[i].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
       drawBarColumn(barX, HUD_Y, i, fillH, pColor);
     }
     // EXE: player icons at afterBarX = barX + 62 + 10
@@ -202,7 +202,7 @@ export function drawHud(player, wind, round, opts) {
       const p = players[i];
       const ix = iconBaseX + i * ICON_SPACING;
       if (ix + 6 > config.screenWidth - LEFT) break;
-      const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      const pColor = players[i].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
       // EXE: draw_icon_alive (filled in player color) / draw_icon_dead (outline in palette 0xA9=169=UI_DARK_TEXT)
       // EXE: icon index from tank sub-struct (stride 0xCA) +0x16 = always 0 (confirmed session 110/140)
       //      draw_hud_basic reads from tank sub-struct (DS:D568+i*0xCA), NOT player struct (stride 0x6C)
@@ -260,7 +260,7 @@ export function drawHud(player, wind, round, opts) {
       UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
     for (let i = 0; i < numP && i < players.length; i++) {
       const fillH = Math.floor(players[i].energy / 10);
-      const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      const pColor = players[i].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
       drawBarColumn(barX, ROW2_Y, i, fillH, pColor);
     }
 
@@ -278,7 +278,7 @@ export function drawHud(player, wind, round, opts) {
         const p = players[i];
         const maxEnergy = (SHIELD_CONFIG[p.activeShield] || SHIELD_CONFIG[0]).energy || 1;
         const fillH = Math.floor(p.shieldEnergy * 10 / maxEnergy);
-        const pColor = i * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+        const pColor = p.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
         drawBarColumn(shieldsBarX, ROW2_Y, i, fillH, pColor);
       }
     }

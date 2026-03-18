@@ -88,6 +88,7 @@ function startGame() {
   for (let i = 0; i < players.length && i < playerSetup.length; i++) {
     players[i].name = playerSetup[i].name;
     players[i].aiType = playerSetup[i].aiType;
+    players[i].colorIndex = playerSetup[i].colorIndex;
   }
 
   game.round = 1;
@@ -268,7 +269,7 @@ function drawRoundOver() {
   // EXE: Vicious mode skips winner display entirely (guard at file 0x33FEC: cmp [DS:5188],1; jz skip)
   if (config.scoringMode !== SCORE_MODE.VICIOUS) {
     if (alive.length === 1) {
-      drawTextShadow(104, 60, alive[0].name, alive[0].index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
+      drawTextShadow(104, 60, alive[0].name, alive[0].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
     } else {
       drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
     }
@@ -279,7 +280,7 @@ function drawRoundOver() {
   const board = getLeaderboard();
   for (let i = 0; i < board.length; i++) {
     const p = board[i];
-    const color = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+    const color = p.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
     drawText(16, 92 + i * 10, `${p.name}: ${p.score}`, color);
   }
 
@@ -316,7 +317,7 @@ function drawGameOver() {
   const board = getLeaderboard();
   for (let i = 0; i < board.length; i++) {
     const p = board[i];
-    const color = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+    const color = p.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
     const medal = i === 0 ? '* ' : '  ';
     drawTextShadow(24, 50 + i * 14, `${medal}${p.name}`, color, 0);
     drawText(200, 50 + i * 14, `${p.score} pts`, COLOR_HUD_TEXT);

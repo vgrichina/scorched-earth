@@ -193,7 +193,10 @@ function renderFromState(stateJsonPath) {
       players[i].power = t.power;
       players[i].angle = t.turretAngle || 0;
       if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx;
-      if (t.colorBase !== undefined) players[i].colorBase = t.colorBase;
+      if (t.colorBase !== undefined) {
+        players[i].colorBase = t.colorBase;
+        players[i].colorIndex = Math.floor(t.colorBase / 8);
+      }
     }
     drawAllTanks();
   }

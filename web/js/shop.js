@@ -764,7 +764,7 @@ export function drawShop(player) {
     return;
   }
 
-  const baseColor = player.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  const baseColor = player.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
   const selFill = baseColor;
 
   // Full-screen 3D raised box (EXE: dialog_alloc creates full-screen modal)
@@ -848,7 +848,7 @@ export function drawShop(player) {
     for (let i = 0; i < board.length; i++) {
       const p   = board[i];
       const y   = listY + i * scoreRowH;
-      const col = p.index * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+      const col = p.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
       // EXE: "#N" rank number prefix (DS:0x6052="#%d")
       drawText(PANEL_X + 3, y, '#' + (i + 1),     UI_DARK_TEXT);
       drawText(PANEL_X + 23, y, p.name,            col);
