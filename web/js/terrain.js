@@ -287,7 +287,9 @@ function generateRolling(width, yStart, yEnd) {
 export function initSkyBackground() {
   const rowColors = new Uint8Array(config.screenHeight);
   for (let y = 0; y < config.screenHeight; y++) {
-    rowColors[y] = SKY_PAL_START + Math.floor(y * (SKY_PAL_COUNT - 1) / (config.screenHeight - 1));
+    // EXE: fill_height_array_palIdx (0x3999A) maps (bottom-y)*29/height+120
+    // Top of screen = highest index (darkest), bottom = lowest index (brightest)
+    rowColors[y] = SKY_PAL_START + SKY_PAL_COUNT - 1 - Math.floor(y * (SKY_PAL_COUNT - 1) / (config.screenHeight - 1));
   }
   setBackground(rowColors);
 }

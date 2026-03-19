@@ -151,16 +151,42 @@ function renderGame() {
 function renderFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
 
-  // Use web port's own palette (from initPalette) — don't inject emulator palette.
-  // The EXE and web port use different palette index assignments:
-  //   EXE: terrain at ~80, sky at 120+
-  //   Web: terrain at 120, sky at 80
-  // Injecting emulator palette would cause color mismatch with web's index scheme.
-
-  // Set config from state
+  // Set config from state and init base palette
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
   initPalette(config.landType, config.skyType);
+
+  // Inject EXE palette with index remapping:
+  //   EXE: VGA 80 = terrain body (solid), VGA 120-149 = sky gradient
+  //   Web: VGA 80-104 = sky gradient, VGA 120-149 = terrain body
+  // Also inject player colors (0-79), UI (150+), fire (170-199), etc.
+  if (state.palette && state.palette.length === 256) {
+    const pal = state.palette;
+    // Player colors (0-79): same mapping in both EXE and web
+    for (let i = 0; i < 80; i++) {
+      paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
+    }
+    // Sky: EXE VGA 120-149 → web VGA 80-104 (25 entries from 30)
+    for (let i = 0; i < 25; i++) {
+      const exeIdx = 120 + Math.floor(i * 29 / 24); // map 25 web entries to 30 EXE entries
+      paletteMod.setPaletteRgb(80 + i, pal[exeIdx][0], pal[exeIdx][1], pal[exeIdx][2]);
+    }
+    // Terrain: EXE VGA 80 (solid ground color) → web VGA 120-149 (all same color)
+    const gc = pal[80];
+    for (let i = 0; i < 30; i++) {
+      paletteMod.setPaletteRgb(120 + i, gc[0], gc[1], gc[2]);
+    }
+    // Wall color (150)
+    paletteMod.setPaletteRgb(150, pal[150][0], pal[150][1], pal[150][2]);
+    // Wind indicator (154)
+    if (pal[154]) paletteMod.setPaletteRgb(154, pal[154][0], pal[154][1], pal[154][2]);
+    // Fire palette (170-199)
+    for (let i = 170; i < 200; i++) {
+      paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
+    }
+    paletteMod.updatePalette32();
+  }
+
   initSkyBackground();
 
   // Inject terrain heights
