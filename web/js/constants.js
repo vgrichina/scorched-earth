@@ -13,10 +13,10 @@ export const PLAYER_PALETTE_STRIDE = 8;   // palette slots per player
 export const PLAYER_COLOR_FULL = 4;       // slot 4 = full brightness (used for text, barrel)
 
 // --- Collision thresholds (pixel-based, from EXE extras.cpp) ---
-// EXE VERIFIED: >0 && <80 = tank hit, >=105 = terrain hit
-// Sky/HUD pixels (0, 80-104) pass through
+// EXE uses Fastgraph dual-page: display has sky VGA 120-149 (>=105),
+// collision page has sky=0. Web uses terrainBitmap[] for terrain detection.
+// Player hit still uses framebuffer pixel < 80.
 export const PLAYER_COLOR_MAX = 80;       // pixel < 80 = tank hit
-export const TERRAIN_THRESHOLD = 105;     // pixel >= 105 = terrain hit
 
 // --- Terrain palette ---
 // EXE: palette indices 120-149 (30 entries), depth-gradient coloring
@@ -29,9 +29,10 @@ export const FIRE_PAL_BASE = 170;
 export const FIRE_PAL_COUNT = 30;
 
 // --- Sky palette ---
-// EXE: VGA 80-104 (25 entries), row-gradient mapping
+// EXE: VGA 120-149 (30 entries), row-gradient mapping
+// Web: VGA 80-109 (30 entries) — matches EXE count for pixel-perfect gradients
 export const SKY_PAL_START = 80;
-export const SKY_PAL_COUNT = 25;
+export const SKY_PAL_COUNT = 30;
 
 // --- 3D UI palette (VGA indices 200-208) ---
 // EXE: UI color variables at DS:0xEF22-0xEF32, used by 3D box/title rendering

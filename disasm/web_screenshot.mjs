@@ -166,10 +166,9 @@ function renderFromState(stateJsonPath) {
     for (let i = 0; i < 80; i++) {
       paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
     }
-    // Sky: EXE VGA 120-149 → web VGA 80-104 (25 entries from 30)
-    for (let i = 0; i < 25; i++) {
-      const exeIdx = 120 + Math.floor(i * 29 / 24); // map 25 web entries to 30 EXE entries
-      paletteMod.setPaletteRgb(80 + i, pal[exeIdx][0], pal[exeIdx][1], pal[exeIdx][2]);
+    // Sky: EXE VGA 120-149 → web VGA 80-109 (30 entries, 1:1 mapping)
+    for (let i = 0; i < 30; i++) {
+      paletteMod.setPaletteRgb(80 + i, pal[120 + i][0], pal[120 + i][1], pal[120 + i][2]);
     }
     // Terrain: EXE VGA 80 (solid ground color) → web VGA 120-149 (all same color)
     const gc = pal[80];

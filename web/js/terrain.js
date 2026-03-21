@@ -285,11 +285,18 @@ function generateRolling(width, yStart, yEnd) {
 // This enables clearToBackground() to fill the entire framebuffer in a single
 // memcpy, emulating VGA hardware where every pixel always has a valid DAC color.
 export function initSkyBackground() {
+  // EXE: fill_height_array_palIdx (0x3999A) — uniform gradient, NOT per-column.
+  // Formula: height_array[y] = (MAXY - y) * 29 / playfield_height + 120
+  // where MAXY = screenHeight - 4 (DS:EF38), playfield_height = MAXY - YMIN (DS:ECB8)
+  // EXE: YMIN (DS:EF40) = 38 at 480px, MAXY (DS:EF38) = 476 at 480px
+  const MAXY = config.screenHeight - 4;
+  const YMIN = Math.round(38 * config.screenHeight / 480);
+  const playH = MAXY - YMIN;
   const rowColors = new Uint8Array(config.screenHeight);
   for (let y = 0; y < config.screenHeight; y++) {
-    // EXE: fill_height_array_palIdx (0x3999A) maps (bottom-y)*29/height+120
-    // Top of screen = highest index (darkest), bottom = lowest index (brightest)
-    rowColors[y] = SKY_PAL_START + SKY_PAL_COUNT - 1 - Math.floor(y * (SKY_PAL_COUNT - 1) / (config.screenHeight - 1));
+    // Clamp to valid range: rows above YMIN get darkest, rows below MAXY get brightest
+    const idx = Math.floor((MAXY - Math.max(YMIN, Math.min(y, MAXY))) * 29 / playH);
+    rowColors[y] = SKY_PAL_START + Math.min(idx, SKY_PAL_COUNT - 1);
   }
   setBackground(rowColors);
 }

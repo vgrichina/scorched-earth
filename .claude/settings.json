@@ -11,6 +11,8 @@
       "Bash(python3 disasm/palette_dump.py*)",
       "Bash(python3 disasm/seg_offset.py*)",
       "Bash(python3 disasm/*.py*)",
+      "Bash(node disasm/web_screenshot.mjs*)",
+      "Bash(node disasm/compare_screenshots.mjs*)",
       "Bash(git add*)",
       "Bash(git commit*)",
       "Bash(git log*)",

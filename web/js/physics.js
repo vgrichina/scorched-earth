@@ -9,8 +9,8 @@
 import { config } from './config.js';
 import { clamp } from './utils.js';
 import { players } from './tank.js';
-import { PLAYFIELD_TOP } from './terrain.js';
-import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
+import { PLAYFIELD_TOP, terrainBitmap } from './terrain.js';
+import { PLAYER_COLOR_MAX } from './constants.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -296,34 +296,14 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     return 'offscreen';
   }
 
-  // 8. Collision detection via pixel color (only when on-screen and below HUD)
-  // EXE: fire_weapon at file 0x30652 launches from barrel tip (icons.cpp BARREL_LENGTH=12)
-  // EXE: pixel-based collision — player colors 0-79, terrain >= 105
-  // EXE VERIFIED: thresholds (>0 && <80 = tank, >=105 = terrain) match EXE collision
-  // checks in extras.cpp projectile step. Sky/HUD pixels (0, 80-104) pass through.
+  // 8. Collision detection (only when on-screen and below HUD)
+  // EXE uses Fastgraph dual-page: display page has sky gradient (VGA 120-149),
+  // collision page has sky=0. Web emulates this by checking terrainBitmap[] for
+  // terrain hits and framebuffer pixels for tank hits (player colors 0-79).
   // Skip first 2 steps (grace period) to clear barrel/body pixels at low power
   if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
-    const pixel = getPixelFn(sx, sy);
-
-    // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
-    if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
-      // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
-      // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
-      // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
-      if (config.hostileEnvironment) {
-        const pIdx = Math.floor(pixel / 8);
-        const p = players[pIdx];
-        if (p && p.alive) {
-          p.energy = Math.max(0, p.energy - 1);
-          if (p.energy === 0) p.alive = false;
-        }
-        return 'flying';  // continue through tank body (EXE: return 0)
-      }
-      return 'hit_tank';
-    }
-
-    // Terrain hit: pixel >= TERRAIN_THRESHOLD
-    if (pixel >= TERRAIN_THRESHOLD) {
+    // Terrain hit: check terrainBitmap (EXE: collision page has terrain at VGA 120+)
+    if (terrainBitmap[sy * config.screenWidth + sx]) {
       // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
       // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
       // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
@@ -338,6 +318,24 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
         return 'flying';  // fast enough → tunnel through
       }
       return 'hit_terrain';
+    }
+
+    // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
+    const pixel = getPixelFn(sx, sy);
+    if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
+      // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
+      // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
+      // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
+      if (config.hostileEnvironment) {
+        const pIdx = Math.floor(pixel / 8);
+        const p = players[pIdx];
+        if (p && p.alive) {
+          p.energy = Math.max(0, p.energy - 1);
+          if (p.energy === 0) p.alive = false;
+        }
+        return 'flying';  // continue through tank body (EXE: return 0)
+      }
+      return 'hit_tank';
     }
   }
 

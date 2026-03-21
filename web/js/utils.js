@@ -85,9 +85,9 @@ export function clamp(val, min, max) {
 // EXE: VGA DAC stores 6-bit values (0-63), display hardware maps to analog
 // Standard VGA shift: val6 << 2 gives 0-252; we use 255/63 for full 8-bit range
 export function vga6to8(val6) {
-  // Map 0-63 to 0-255: multiply by 4.047619 (255/63)
-  // Original VGA DAC: val6 << 2 gives 0-252, but we want full 0-255 range
-  return Math.round(val6 * 255 / 63);
+  // VGA DAC hardware conversion: 6-bit to 8-bit via bit replication
+  // Matches v86 emulator and real VGA hardware exactly
+  return (val6 << 2) | (val6 >> 4);
 }
 
 // Bresenham line - calls callback(x, y) for each pixel

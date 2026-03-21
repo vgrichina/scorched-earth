@@ -7,12 +7,12 @@
 
 import { config } from './config.js';
 import { BHV, WEAPONS } from './weapons.js';
-import { terrain } from './terrain.js';
+import { terrain, terrainBitmap } from './terrain.js';
 import { random, clamp } from './utils.js';
 import { setPixel, getPixel } from './framebuffer.js';
 import { players } from './tank.js';
 import { WALL, resolvedWallType } from './physics.js';
-import { PLAYER_COLOR_MAX, TERRAIN_THRESHOLD } from './constants.js';
+import { PLAYER_COLOR_MAX } from './constants.js';
 
 // Guidance weapon indices
 // EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
@@ -610,18 +610,17 @@ function checkNapalmDirection(x, y, pixelColor, wind) {
   // Check pixel below (y+1)
   if (y + 1 < config.screenHeight) {
     const below = getPixel(x, y + 1);
-    if (below !== pixelColor && below >= TERRAIN_THRESHOLD)
+    const belowIsTerrain = terrainBitmap[(y + 1) * config.screenWidth + x];
+    if (below !== pixelColor && belowIsTerrain)
       return 0;  // terrain below → drop down
   }
   // Check pixels left (x-1) and right (x+1) for terrain
   let canLeft = false, canRight = false;
   if (x > 0) {
-    const left = getPixel(x - 1, y);
-    canLeft = left !== pixelColor && left >= TERRAIN_THRESHOLD;
+    canLeft = getPixel(x - 1, y) !== pixelColor && terrainBitmap[y * config.screenWidth + (x - 1)];
   }
   if (x < config.screenWidth - 1) {
-    const right = getPixel(x + 1, y);
-    canRight = right !== pixelColor && right >= TERRAIN_THRESHOLD;
+    canRight = getPixel(x + 1, y) !== pixelColor && terrainBitmap[y * config.screenWidth + (x + 1)];
   }
   // Wind direction determines preference when both available (EXE: DS:0x515A)
   if (canLeft && canRight) return wind > 0 ? 1 : -1;
