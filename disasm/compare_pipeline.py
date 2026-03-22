@@ -101,6 +101,13 @@ def extract_state(state_path):
     hud_y = mem.read16(ds_base + 0x518E)
     playfield_top = mem.read16(ds_base + 0xEF40)  # SHIELD_DRAW_Y_MIN / playfield top
 
+    # Round number
+    round_number = mem.read16(ds_base + 0xE340)
+    # Total rounds config — not yet located in DS; use default
+    num_rounds = 10
+    arms_level = mem.read16(ds_base + 0x518A)
+    weapon_count = mem.read16(ds_base + 0x1BB6)
+
     # Tank data
     tanks = []
     for p in range(num_players):
@@ -113,10 +120,37 @@ def extract_state(state_path):
             'turretAngle': mem.read16(base + 0x92),
             'power': mem.read16(base + 0x02),
             'tankType': mem.read16(base + 0x12),
+            'weaponIdx': mem.read16(base + 0x26),
         }
         # Signed angle
         if tank['turretAngle'] > 0x7FFF:
             tank['turretAngle'] -= 0x10000
+
+        # Cash (sub-struct +0x9E, int16 signed)
+        cash = mem.read16(base + 0x9E)
+        if cash > 0x7FFF:
+            cash -= 0x10000
+        tank['cash'] = cash
+
+        # Inventory: far pointer at sub+0xB2 → word array of weapon_count entries
+        inv_off = mem.read16(base + 0xB2)
+        inv_seg = mem.read16(base + 0xB4)
+        inv_phys = (inv_seg << 4) + inv_off
+        inventory = []
+        for w in range(weapon_count):
+            qty = mem.read16(inv_phys + w * 2)
+            if qty > 0x7FFF:
+                qty -= 0x10000
+            inventory.append(qty)
+        tank['inventory'] = inventory
+
+        # Selected weapon for shop display
+        tank['selectedWeapon'] = mem.read16(base + 0x26)
+
+        # Shield energy
+        tank['shieldEnergy'] = mem.read16(base + 0x96)
+        tank['activeShield'] = mem.read16(base + 0x22)
+
         tanks.append(tank)
 
     # Extract terrain heights from VGA pixels, skipping border columns
@@ -146,6 +180,9 @@ def extract_state(state_path):
         'playfieldTop': playfield_top,
         'tanks': tanks,
         'terrainHeights': terrain_heights,
+        'roundNumber': round_number,
+        'numRounds': num_rounds,
+        'armsLevel': arms_level,
     }
 
 
@@ -209,6 +246,9 @@ def write_state_json(state, out_path):
         'playfieldTop': state['playfieldTop'],
         'tanks': state['tanks'],
         'terrainHeights': state['terrainHeights'],
+        'roundNumber': state['roundNumber'],
+        'numRounds': state['numRounds'],
+        'armsLevel': state['armsLevel'],
     }
     with open(out_path, 'w') as f:
         json.dump(state_for_web, f)
@@ -256,7 +296,7 @@ def main():
     #   'menu' → renderMenu (main menu with terrain preview)
     #   'shop' → renderShop (weapon shop UI)
     cmd = ['node', web_screenshot, render_state, web_png, '--mode', '4']
-    if render_state == 'game':
+    if render_state in ('game', 'shop'):
         cmd += ['--from-state', state_json]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

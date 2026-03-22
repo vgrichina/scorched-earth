@@ -34,18 +34,18 @@ export const FIRE_PAL_COUNT = 30;
 export const SKY_PAL_START = 80;
 export const SKY_PAL_COUNT = 30;
 
-// --- 3D UI palette (VGA indices 200-208) ---
+// --- 3D UI palette (VGA indices 151-160, matching EXE) ---
 // EXE: UI color variables at DS:0xEF22-0xEF32, used by 3D box/title rendering
-// Mapped to unused palette range 200-208 for web implementation
-export const UI_HIGHLIGHT    = 200;  // DS:0xEF22 — selected item text (white)
-export const UI_DARK_TEXT    = 201;  // DS:0xEF24 — unselected text, title layer 3
-export const UI_DARK_BORDER  = 202;  // DS:0xEF26 — dark border edge, title layer 5
-export const UI_BACKGROUND   = 203;  // DS:0xEF28 — button/panel fill (gray)
-export const UI_LIGHT_ACCENT = 204;  // DS:0xEF2A — title layer 4
-export const UI_DEEP_SHADOW  = 205;  // DS:0xEF2C — deepest shadow, title layer 1
-export const UI_LIGHT_BORDER = 206;  // DS:0xEF2E — top-left highlight (raised box)
-export const UI_MED_BORDER   = 207;  // DS:0xEF30 — bottom-right inner (raised box)
-export const UI_BRIGHT_BORDER = 208; // DS:0xEF32 — bottom-right outer, title layer 2
+// Aligned to EXE VGA indices (151-159, skipping 154=wind indicator)
+export const UI_HIGHLIGHT    = 152;  // DS:0xEF22 — selected item text (white); EXE: dynamic per-player
+export const UI_DARK_TEXT    = 153;  // DS:0xEF24 — unselected text, dark gray
+export const UI_DARK_BORDER  = 155;  // DS:0xEF26 — dark border edge, white (outer top-left)
+export const UI_BACKGROUND   = 151;  // DS:0xEF28 — button/panel fill, medium gray
+export const UI_LIGHT_ACCENT = 157;  // DS:0xEF2A — title layer 4 (EXE: same RGB as background)
+export const UI_DEEP_SHADOW  = 160;  // DS:0xEF2C — deepest shadow, title layer 1 (EXE: same RGB as highlight)
+export const UI_LIGHT_BORDER = 159;  // DS:0xEF2E — top-left highlight (raised box), light gray
+export const UI_MED_BORDER   = 158;  // DS:0xEF30 — bottom-right inner (raised box), near-black
+export const UI_BRIGHT_BORDER = 156; // DS:0xEF32 — bottom-right outer, dark gray
 
 // --- Font dimensions ---
 // Fastgraph V4.02 proportional bitmap font (extracted from SCORCH.EXE)

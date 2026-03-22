@@ -142,10 +142,10 @@ function warpTank(player) {
   player.fallDamageAccum = 0;
 }
 
-// EXE: VGA palette entries 210-219 = per-player dedicated shield color
+// EXE: VGA palette entries 200-209 = per-player dedicated shield color
 // EXE: activation uses player*8+5 (shared), ongoing uses player+200 (dedicated)
-// Web port maps player+200 → 210+playerIndex (200-208 used by 3D UI)
-const SHIELD_PALETTE_BASE = 210;
+// Aligned to EXE indices now that 3D UI moved to 151-160
+const SHIELD_PALETTE_BASE = 200;
 
 // Draw shield circle around a tank
 // EXE: update_shield_color at file 0x389DA — continuous fade formula

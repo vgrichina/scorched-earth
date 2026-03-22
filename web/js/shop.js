@@ -782,7 +782,7 @@ export function drawShop(player) {
 
   const cashStr = `Cash: $${player.cash.toLocaleString()}`;
   const cashTxtX = Math.floor((SW - measureText(cashStr)) / 2);
-  drawText(cashTxtX, 4, cashStr, COLOR_HUD_HIGHLIGHT);
+  drawText(cashTxtX, 4, cashStr, UI_HIGHLIGHT);
 
   // EXE: "%s rounds remain" DS:0x2C1A / "1 round remains" DS:0x2C2B
   const roundsStr = shop.roundsLeft === 1 ? '1 round remains' : `${shop.roundsLeft} rounds remain`;
@@ -825,7 +825,8 @@ export function drawShop(player) {
   const rbX = getRightBtnX();
 
   // Left item panel — sunken inset (EXE: left panel 0xC8=200px wide, scrollable list)
-  drawBox3DSunken(PANEL_X, PANEL_Y, panelW, panelH, BLACK,
+  // EXE: panel fill is UI_BACKGROUND (light gray), not BLACK
+  drawBox3DSunken(PANEL_X, PANEL_Y, panelW, panelH, UI_BACKGROUND,
     UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
 
   // Column headers inside panel

@@ -147,6 +147,64 @@ function renderGame() {
   drawWindIndicator(game.wind);
 }
 
+// ─── Render shop from emulator state JSON ────────────────────────────────
+
+function renderShopFromState(stateJsonPath) {
+  const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
+
+  // Set config from state
+  config.numPlayers = state.numPlayers || 2;
+  config.numRounds = state.numRounds || 10;
+  if (state.armsLevel !== undefined) config.armsLevel = state.armsLevel;
+  if (state.landType !== undefined) config.landType = state.landType;
+  if (state.skyType !== undefined) config.skyType = state.skyType;
+  initPalette(config.landType, config.skyType);
+
+  // Create players and inject state from emulator checkpoint
+  while (players.length < config.numPlayers) {
+    players.push(createPlayer(players.length, `Player ${players.length + 1}`));
+  }
+  if (state.tanks) {
+    for (let i = 0; i < state.tanks.length && i < players.length; i++) {
+      const t = state.tanks[i];
+      const p = players[i];
+      p.x = t.x;
+      p.y = t.y;
+      p.alive = t.alive !== 0;
+      if (t.colorBase !== undefined) {
+        p.colorBase = t.colorBase;
+        p.colorIndex = Math.floor(t.colorBase / 8);
+      }
+      // Cash: EXE stores in bignum score system, not simple int.
+      // At round 0 (first shop), cash = startCash. For later rounds,
+      // use extracted value if non-zero, else fall back to startCash.
+      if (t.cash !== undefined && t.cash > 0) {
+        p.cash = t.cash;
+      } else if (state.roundNumber === 0 || state.roundNumber === undefined) {
+        p.cash = config.startCash;
+      }
+      if (t.inventory) {
+        for (let w = 0; w < t.inventory.length && w < p.inventory.length; w++) {
+          p.inventory[w] = t.inventory[w];
+        }
+      }
+      if (t.selectedWeapon !== undefined) p.selectedWeapon = t.selectedWeapon;
+      if (t.activeShield !== undefined) p.activeShield = t.activeShield;
+      if (t.shieldEnergy !== undefined) p.shieldEnergy = t.shieldEnergy;
+    }
+  }
+
+  // Compute rounds remaining
+  const roundNumber = state.roundNumber || 0;
+  const roundsLeft = Math.max(1, config.numRounds - roundNumber);
+
+  // Open shop for player 0 and draw
+  openShop(0, roundsLeft);
+  game.state = STATE.SHOP;
+  game.shopPlayerIdx = 0;
+  drawShop(players[0]);
+}
+
 // ─── Render from emulator state JSON ─────────────────────────────────────
 
 function renderFromState(stateJsonPath) {
@@ -284,7 +342,9 @@ if (!stateName || !outPath) {
 
 initHeadless(modeIndex);
 
-if (fromStatePath) {
+if (fromStatePath && stateName === 'shop') {
+  renderShopFromState(fromStatePath);
+} else if (fromStatePath) {
   renderFromState(fromStatePath);
 } else {
   switch (stateName) {
