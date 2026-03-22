@@ -310,23 +310,24 @@ export function drawSky() {
   // Base gradient fill from precomputed background table (single memcpy)
   clearToBackground();
 
-  // Stars: scatter white pixels (use resolvedSkyType for Random support)
+  // Stars: scatter pixels (use resolvedSkyType for Random support)
+  // EXE: palette 154 (VGA 0x9A) = (40,40,63) light blue-white, same as wind indicator
   if (resolvedSkyType === 2) {
     for (let i = 0; i < 80; i++) {
       const sx = random(width);
       const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
-      const brightness = random(3);
-      // Use explosion palette white-ish entries for stars
-      setPixel(sx, sy, brightness === 0 ? 199 : 189);
+      const brightness = random(3);  // EXE consumes this RNG call but uses single color
+      setPixel(sx, sy, 154);
     }
   }
 
   // Storm: occasional bright lightning pixels (use resolvedSkyType for Random support)
+  // EXE: also uses palette 154 for storm pixels
   if (resolvedSkyType === 3) {
     for (let i = 0; i < 15; i++) {
       const sx = random(width);
       const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
-      setPixel(sx, sy, 199);
+      setPixel(sx, sy, 154);
     }
   }
 }
