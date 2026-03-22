@@ -119,10 +119,17 @@ def extract_state(state_path):
             tank['turretAngle'] -= 0x10000
         tanks.append(tank)
 
-    # Extract terrain heights from VGA pixels
+    # Extract terrain heights from VGA pixels, skipping border columns
+    # EXE: playfield border is 3px (pal 150/152/157) on each side
+    # Columns 0-2 and W-3..W-1 are border, not terrain
     terrain_heights = extract_terrain_from_vga(
         pixels, width, height, palette, playfield_top
     )
+    # Fix border columns: copy from nearest interior column
+    for x in range(3):
+        terrain_heights[x] = terrain_heights[3]
+    for x in range(width - 3, width):
+        terrain_heights[x] = terrain_heights[width - 4]
 
     return {
         'width': width,
