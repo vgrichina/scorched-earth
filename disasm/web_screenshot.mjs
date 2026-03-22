@@ -65,7 +65,7 @@ const fb = await import(WEB + 'framebuffer.js');
 const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } = await import(WEB + 'terrain.js');
 const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
 const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
-const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup } = await import(WEB + 'menu.js');
+const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu } = await import(WEB + 'menu.js');
 const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
 const { isShopActive, drawShop, openShop } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
@@ -112,7 +112,6 @@ function renderMenuFromState(stateJsonPath) {
   if (state.skyType !== undefined) config.skyType = state.skyType;
   if (state.seed !== undefined) seedRandom(state.seed);
   initPalette(config.landType, config.skyType);
-  initSkyBackground();
   // Inject EXE palette if available
   if (state.palette && state.palette.length === 256) {
     const pal = state.palette;
@@ -138,6 +137,16 @@ function renderMenuFromState(stateJsonPath) {
     paletteMod.updatePalette32();
   }
   initSkyBackground();
+
+  // Inject terrain heights from EMU checkpoint — skip ensureTerrainPreview
+  if (state.terrainHeights) {
+    menu.terrainDirty = false;  // prevent regeneration
+    const w = Math.min(state.terrainHeights.length, terrainMod.terrain.length);
+    for (let x = 0; x < w; x++) {
+      terrainMod.terrain[x] = state.terrainHeights[x];
+    }
+    buildTerrainBitmap();
+  }
   drawMainMenu();
 }
 

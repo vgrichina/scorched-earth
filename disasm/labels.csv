@@ -616,8 +616,11 @@ DS:0x61E4,SHIELD_COUNT
 DS:0x621C,sky_name_ptrs,data/farptr
 DS:0x6234,gfx_mode_table,data/table:16
 DS:0x623E,aux_array_ptr
+DS:0x6240,aux_array_seg
 DS:0x6242,height_array_ptr
+DS:0x6244,height_array_seg
 DS:0x6246,bitmap_array_ptr
+DS:0x6248,bitmap_array_seg
 DS:0x624A,scanned_mtn_flag
 DS:0x624C,terrain_cached_flag
 DS:0x624E,cached_terrain_type

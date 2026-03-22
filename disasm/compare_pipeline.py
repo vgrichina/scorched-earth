@@ -21,31 +21,47 @@ from emu.interrupts import InterruptHandler
 from emu.state import load_state
 
 
-def extract_terrain_from_vga(pixels, width, height, palette, hud_bottom):
+def extract_terrain_from_vga(pixels, width, height, playfield_top):
     """Extract terrain height array from VGA framebuffer.
-    Scan each column from bottom up. Terrain is contiguous from the bottom;
-    sky is contiguous from the top. The boundary is where palette indices
-    transition from terrain gradient to sky gradient."""
+    Scan each column top-down from playfield_top. Terrain = palette 80-119
+    (EXE ground colors). Sky = palette 120-149. UI = palette >= 150 (skip).
+    Player colors = 0-79 (skip/treat as non-terrain).
+    For columns fully covered by UI (no terrain visible), interpolate from neighbors."""
     heights = []
     for x in range(width):
-        # Sample bottom pixel (above UI border) to get terrain palette index
-        bottom_px = pixels[(height - 4) * width + x]
-        if bottom_px >= 150:
-            # UI border at bottom of this column — no terrain
-            heights.append(height)
-            continue
-        # Scan from bottom up: terrain is contiguous from bottom
-        terrain_top = height
-        for y in range(height - 4, hud_bottom - 1, -1):
+        terrain_top = height  # default: no terrain visible
+        for y in range(playfield_top, height):
             px = pixels[y * width + x]
             if px >= 150:
-                continue  # UI border pixel
-            # Terrain: same as bottom pixel or within ±30 and in range 80-149
-            if px == bottom_px or (abs(px - bottom_px) < 30 and 80 <= px < 150):
+                continue  # UI overlay
+            if 0 <= px < 80:
+                continue  # player/tank colors
+            if 80 <= px < 120:
                 terrain_top = y
-            else:
-                break  # hit sky
+                break
+            # 120-149 = sky — keep scanning down
         heights.append(terrain_top)
+
+    # Interpolate columns that are fully UI-covered (height == screen height)
+    # These occur under menu buttons. Fill from nearest visible neighbor.
+    for x in range(width):
+        if heights[x] >= height:
+            # Find nearest column with visible terrain
+            left = right = None
+            for dx in range(1, width):
+                if x - dx >= 0 and heights[x - dx] < height:
+                    left = heights[x - dx]
+                    break
+            for dx in range(1, width):
+                if x + dx < width and heights[x + dx] < height:
+                    right = heights[x + dx]
+                    break
+            if left is not None and right is not None:
+                heights[x] = (left + right) // 2
+            elif left is not None:
+                heights[x] = left
+            elif right is not None:
+                heights[x] = right
     return heights
 
 
@@ -174,17 +190,10 @@ def extract_state(state_path):
 
         tanks.append(tank)
 
-    # Extract terrain heights from VGA pixels, skipping border columns
-    # EXE: playfield border is 3px (pal 150/152/157) on each side
-    # Columns 0-2 and W-3..W-1 are border, not terrain
+    # Extract terrain heights from VGA framebuffer pixels
     terrain_heights = extract_terrain_from_vga(
-        pixels, width, height, palette, playfield_top
+        pixels, width, height, playfield_top
     )
-    # Fix border columns: copy from nearest interior column
-    for x in range(3):
-        terrain_heights[x] = terrain_heights[3]
-    for x in range(width - 3, width):
-        terrain_heights[x] = terrain_heights[width - 4]
 
     return {
         'width': width,

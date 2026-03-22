@@ -107,8 +107,8 @@ DS:0x5110,TERRAIN_TYPE: 0=Flat 1=Slope 2=Rolling 3=MTN 4=V-Shaped 5=Castle 6=Cav
 DS:0xECB8,screen_height: EF38-EF40 (total playfield height)
 DS:0xECBA,bitmap_col_bytes: (EF3A+9)/8+1 bytes per bitmap column
 DS:0xECBE,depth_divisor: type3=depth/this -> VGA 130+; type4: 2 or 3 (based on screen width)
-DS:0x6242,height_array_ptr: far ptr to per-row color index array; size=(EF3A+1)*2
-DS:0x6246,bitmap_array_ptr: far ptr to per-column bitmap arrays; for textured terrain types
+DS:0x6242,height_array_ptr: far ptr to Y->palette-index map (NOT terrain heights); size=(MAXY+1)*2; maps scanline Y to VGA 120-149 for sky gradient; TEMPORARY freed after render
+DS:0x6246,bitmap_array_ptr: far ptr to (MAXX+1) far ptrs; each->packed column bitmap (1bit/row); bit=1=terrain; TEMPORARY freed after render; only textured types 3/4/5
 DS:0x623E,aux_array_ptr: far ptr to per-row aux values; type2=rand(32000) texture; type3=depth gradient
 DS:0x624A,scanned_mtn_flag: 1=.MTN scanned mountain data loaded; 0/-1=use procedural or alloc failed
 DS:0x624C,terrain_cached_flag: 1=reuse cached terrain from previous round; 0=regenerate
