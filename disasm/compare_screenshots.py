@@ -142,7 +142,7 @@ def write_png(path, width, height, rgba):
         f.write(chunk(b'IEND', b''))
 
 
-def compare(emu_path, web_path, diff_path=None):
+def compare(emu_path, web_path, diff_path=None, mask_hud=0):
     ew, eh, epx = read_png(emu_path)
     ww, wh, wpx = read_png(web_path)
 
@@ -156,11 +156,16 @@ def compare(emu_path, web_path, diff_path=None):
         cw, ch = ew, eh
 
     total = cw * ch
+    masked = 0
     diff_count = 0
     diff_map = bytearray(cw * ch)  # 1 = different
 
     for y in range(ch):
         for x in range(cw):
+            # Skip HUD text region from diff (state mismatch artifact)
+            if mask_hud and y < mask_hud:
+                masked += 1
+                continue
             ei = (y * ew + x) * 4
             wi = (y * ww + x) * 4
             er, eg, eb = epx[ei], epx[ei+1], epx[ei+2]
@@ -171,8 +176,10 @@ def compare(emu_path, web_path, diff_path=None):
                     diff_count += 1
                     diff_map[y * cw + x] = 1
 
-    match_pct = (total - diff_count) / total * 100
-    print(f"Pixels: {total}  Match: {total - diff_count} ({match_pct:.1f}%)  Diff: {diff_count} ({100-match_pct:.1f}%)")
+    compared = total - masked
+    match_pct = (compared - diff_count) / compared * 100 if compared else 0
+    hud_note = f"  (HUD masked: y<{mask_hud})" if mask_hud else ""
+    print(f"Pixels: {compared}  Match: {compared - diff_count} ({match_pct:.1f}%)  Diff: {diff_count} ({100-match_pct:.1f}%){hud_note}")
 
     # Find bounding box of differences
     if diff_count > 0:
@@ -229,4 +236,10 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         print(__doc__)
         sys.exit(1)
-    compare(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
+    mask_hud = 0
+    args = list(sys.argv[1:])
+    if '--mask-hud' in args:
+        idx = args.index('--mask-hud')
+        mask_hud = int(args[idx + 1])
+        del args[idx:idx+2]
+    compare(args[0], args[1], args[2] if len(args) > 2 else None, mask_hud=mask_hud)

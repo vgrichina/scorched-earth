@@ -266,10 +266,12 @@ def main():
 
     print(f"[4/4] Comparing pixels → {diff_png}")
     compare_script = os.path.join(script_dir, 'compare_screenshots.py')
-    result = subprocess.run(
-        ['python3', compare_script, emu_png, web_png, diff_png],
-        capture_output=True, text=True
-    )
+    # Mask HUD text rows from diff (EXE framebuffer retains stale rendered values)
+    mask_hud = state['playfieldTop'] if render_state == 'game' else 0
+    compare_cmd = ['python3', compare_script, emu_png, web_png, diff_png]
+    if mask_hud:
+        compare_cmd += ['--mask-hud', str(mask_hud)]
+    result = subprocess.run(compare_cmd, capture_output=True, text=True)
     print(f"  {result.stdout.strip()}")
 
     print(f"\n[4b/4] Comparing terrain shape...")
