@@ -168,6 +168,13 @@ function drawBarColumn(barX, barY, idx, fillH, color) {
 export function drawPlayfieldBorder() {
   const W = config.screenWidth;
   const H = config.screenHeight;
+
+  // Step 1 (0x290CC): draw_3d_box(0, 0, FG_MAXX, YMIN-4, [EF28]) — HUD raised frame
+  // EXE: dx=FG_MAXX=319, dy=SHIELD_DRAW_Y_MIN-4=34; web w=dx+1, h=dy+1
+  drawBox3DRaised(0, 0, W, PLAYFIELD_TOP - 3, UI_BACKGROUND,
+    UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+
+  // Step 2: three concentric rectangles for playfield border
   // EXE playfield viewport: XMIN=3, YMIN=PLAYFIELD_TOP, XMAX=W-4, YMAX=H-4
   const XMIN = 3;
   const YMIN = PLAYFIELD_TOP;
@@ -216,8 +223,9 @@ export function drawHud(player, wind, round, opts) {
   const barWidth = measureText('8888 '); // EXE: DS:0x5778 measurement string
   const afterBarX = barX + barWidth;
 
-  // EXE: fg_fillregion(5, DS:0x518E, screenW-5, screenH-7, [EF28])
-  fillRect(LEFT, HUD_Y, config.screenWidth - LEFT - 1, ROW2_Y + BAR_H + 1, UI_BACKGROUND);
+  // EXE: fg_fillregion(5, DS:0x518E, screenW-5, SHIELD_DRAW_Y_MIN-7, [EF28])
+  // Fills entire HUD interior: y=5 to y=PLAYFIELD_TOP-7 (31 in 320×200)
+  fillRect(LEFT, HUD_Y, config.screenWidth - LEFT - 1, PLAYFIELD_TOP - 7, UI_BACKGROUND);
 
   // === Row 1 ===
   // EXE: sprintf(buf, "%s:", DS:0x220C→"Power") then fg_text at (5, HUD_Y) in [EF22]

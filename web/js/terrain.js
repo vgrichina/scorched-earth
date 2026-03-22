@@ -31,8 +31,9 @@ let HEIGHT = config.screenHeight;
 export let terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
 
 // Sky region: HUD occupies top rows, rest is playfield
-// EXE: two 12px rows (bar outline y to y+11), total ~26px from top
-export const HUD_HEIGHT = 26;
+// EXE: HUD raised box covers y=0–34, 3px playfield border at y=35–37, playfield at y=38
+// EXE: SHIELD_DRAW_Y_MIN (DS:EF40) = 38 — first playfield row
+export const HUD_HEIGHT = 38;
 export const PLAYFIELD_TOP = HUD_HEIGHT;
 let PLAYFIELD_BOTTOM = config.screenHeight - 1;
 
