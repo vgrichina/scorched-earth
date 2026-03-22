@@ -135,6 +135,9 @@ python3 disasm/mem_read.py scratch/game_playing.state DS:0x50F6 -w       # expli
 python3 disasm/mem_read.py scratch/game_playing.state SS:BP+0x06 -fp --follow
 python3 disasm/mem_read.py scratch/game_playing.state --dump-labels '*wind*'  # search+read values
 python3 disasm/mem_read.py --labels '*player*'                         # search labels (no state needed)
+python3 disasm/mem_read.py scratch/game_playing.state --search 1000000           # find value in memory
+python3 disasm/mem_read.py scratch/game_playing.state --search 0xF4240 --range DS  # search DS segment only
+python3 disasm/mem_read.py scratch/game_playing.state --search "AB CD EF"        # search hex byte pattern
 
 # Dynamic analysis (emu_trace.py) — trace/watch/calltree/run from checkpoints
 python3 disasm/emu_trace.py trace scratch/game_playing.state 200          # trace 200 instructions

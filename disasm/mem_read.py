@@ -5,6 +5,7 @@ Usage:
   python3 disasm/mem_read.py STATE_FILE ADDRESS [options]
   python3 disasm/mem_read.py STATE_FILE LABEL_NAME [options]
   python3 disasm/mem_read.py --labels PATTERN        (no state file needed)
+  python3 disasm/mem_read.py STATE_FILE --search VALUE [options]
 
 Address formats:
   LABEL_NAME     — Label name from labels.csv (e.g. WIND_SPEED, NUM_PLAYERS)
@@ -43,6 +44,10 @@ Examples:
   python3 disasm/mem_read.py scratch/game_playing.state --stack 20
   python3 disasm/mem_read.py scratch/game_playing.state --dump-labels '*wind*'
   python3 disasm/mem_read.py --labels '*player*'
+  python3 disasm/mem_read.py scratch/game_playing.state --search 1000000
+  python3 disasm/mem_read.py scratch/game_playing.state --search 0xF4240
+  python3 disasm/mem_read.py scratch/game_playing.state --search "AB CD EF"
+  python3 disasm/mem_read.py scratch/game_playing.state --search 1000000 --range DS
 """
 import sys, os, re, argparse, csv, fnmatch
 
@@ -226,6 +231,11 @@ def main():
                         help='Search/list DS labels matching glob pattern (e.g. "*wind*")')
     parser.add_argument('--dump-labels', metavar='PATTERN', nargs='?', const='*',
                         help='Like --labels but also reads current value from state')
+    parser.add_argument('--search', metavar='VALUE',
+                        help='Search emulator memory for a value. '
+                             'Decimal (1000000), hex (0xF4240), or hex bytes ("AB CD EF")')
+    parser.add_argument('--range', metavar='RANGE', default='all',
+                        help='Search range: "all", "DS", "DS:START-END" (default: all)')
     parser.add_argument('--exe', default='earth/SCORCH.EXE', help='EXE path')
     args = parser.parse_args()
 
@@ -255,6 +265,101 @@ def main():
     ports.mem = mem
     ih = InterruptHandler(mem, cpu, 'earth', ports)
     load_state(args.state_file, cpu, mem, ports, ih)
+
+    # --search: find a value in emulator memory
+    if args.search is not None:
+        ds = cpu.segs[3]
+        ds_base = ds << 4
+
+        # Parse search value
+        val_str = args.search.strip()
+        needle = None
+        search_desc = val_str
+
+        # Hex bytes: "AB CD EF" or "ABCDEF"
+        if ' ' in val_str or (len(val_str) > 4 and all(c in '0123456789abcdefABCDEF' for c in val_str) and not val_str.startswith('0x')):
+            hex_str = val_str.replace(' ', '')
+            if len(hex_str) % 2 == 0 and all(c in '0123456789abcdefABCDEF' for c in hex_str):
+                needle = bytes.fromhex(hex_str)
+                search_desc = ' '.join(f'{b:02X}' for b in needle)
+
+        if needle is None:
+            # Numeric: decimal or 0xHEX
+            try:
+                num = int(val_str, 0)
+            except ValueError:
+                print(f'Cannot parse search value: {val_str}')
+                return
+
+            # Try as 16-bit LE, 32-bit LE, and signed 16-bit
+            needles = []
+            if 0 <= num <= 0xFFFF:
+                needles.append((num.to_bytes(2, 'little'), 'u16'))
+            if num < 0 and -32768 <= num:
+                needles.append(((num & 0xFFFF).to_bytes(2, 'little'), 's16'))
+            if num > 0xFFFF or num > 255:
+                needles.append((num.to_bytes(4, 'little'), 'u32'))
+            if not needles:
+                needles.append((num.to_bytes(2, 'little'), 'u16'))
+            search_desc = f'{num} (0x{num & 0xFFFFFFFF:X})'
+        else:
+            needles = [(needle, 'bytes')]
+
+        # Determine search range
+        if args.range.upper() == 'DS':
+            ranges = [(ds_base, ds_base + 0x10000, 'DS')]
+        elif args.range.upper().startswith('DS:'):
+            m = re.match(r'DS:(0x[0-9a-fA-F]+)-(0x[0-9a-fA-F]+)', args.range, re.I)
+            if m:
+                start = ds_base + int(m.group(1), 16)
+                end = ds_base + int(m.group(2), 16)
+                ranges = [(start, end, f'DS:{m.group(1)}-{m.group(2)}')]
+            else:
+                print(f'Bad range: {args.range}')
+                return
+        else:
+            # Search all accessible memory
+            ranges = [(0, min(len(mem.data), 0x100000), 'all')]
+
+        print(f'Searching for {search_desc} ...')
+        total_found = 0
+        for search_needle, ntype in needles:
+            for rstart, rend, rname in ranges:
+                i = rstart
+                while i < rend - len(search_needle) + 1:
+                    # Linear search in mem.data
+                    try:
+                        idx = mem.data.index(search_needle[0], i, rend)
+                    except (ValueError, IndexError):
+                        break
+                    if idx + len(search_needle) > rend:
+                        break
+                    if mem.data[idx:idx + len(search_needle)] == bytearray(search_needle):
+                        # Found — compute DS offset if in DS range
+                        phys = idx
+                        ds_off = phys - ds_base
+                        loc_parts = [f'phys 0x{phys:05X}']
+                        if 0 <= ds_off < 0x10000:
+                            loc_parts.insert(0, f'DS:0x{ds_off:04X}')
+                            # Check for label
+                            for loff, lname, ldtype in labels_all_ds:
+                                if loff == ds_off:
+                                    loc_parts.insert(0, lname)
+                                    break
+                        # Show context
+                        ctx_before = bytes(mem.data[max(0, idx-4):idx])
+                        ctx_after = bytes(mem.data[idx+len(search_needle):idx+len(search_needle)+4])
+                        print(f'  {" / ".join(loc_parts)}  [{ntype}]  '
+                              f'ctx: {ctx_before.hex(" ")} [{search_needle.hex(" ")}] {ctx_after.hex(" ")}')
+                        total_found += 1
+                        i = idx + 1
+                    else:
+                        i = idx + 1
+        if total_found == 0:
+            print('  (not found)')
+        else:
+            print(f'  --- {total_found} match(es) ---')
+        return
 
     # --dump-labels: search and read values
     if args.dump_labels is not None:
