@@ -2,8 +2,8 @@
 // EXE: VGA Mode 13h — 256-entry DAC palette, 6-bit per channel (0-63)
 // EXE: palette ranges:
 //   0-79:   player colors (10 players × 8 gradient slots) — DS:0x57E2 base colors
-//   80-104: sky gradient (25 entries) — varies by sky type
-//   105-119: unused
+//   80-109: sky gradient (30 entries) — varies by sky type (maps EXE VGA 120-149)
+//   110-119: unused
 //   120-149: terrain gradient (30 entries) — varies by terrain type
 //   150:    wall color
 //   170-199: explosion fire palette (3 bands × 10)
@@ -99,7 +99,7 @@ export function setupPlayerPalette() {
   }
 }
 
-// --- Sky palette (VGA 80-104, 25 entries) ---
+// --- Sky palette (VGA 80-109, 30 entries) ---
 // 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Black, 6=Random
 // EXE Random resolution (file 0x3978E): random(6)→0-5, re-rolls Cavern if no .mtn
 export function setupSkyPalette(skyType) {

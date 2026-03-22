@@ -14,11 +14,11 @@ import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
 import { WPN } from './weapons.js';
 
-// EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-104 = 0x50-0x68)
+// EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-109 = 0x50-0x6D)
 // EXE: shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (terrain)
 // Both prevent shield pixels from being drawn over sky background
 const SKY_RANGE_START = 80;   // VGA 0x50
-const SKY_RANGE_END = 104;    // VGA 0x68
+const SKY_RANGE_END = 109;    // VGA 0x6D (30 sky gradient entries, matching EXE VGA 120-149)
 
 // Shield type constants (matches EXE config entry indices)
 // EXE config mapping: weapon_index - DS:D558(=45) + 1
@@ -169,14 +169,14 @@ export function drawShield(player) {
 
   // Draw shield as circle outline using dedicated palette entry
   // EXE: all shield types render identically (no per-type visual effects)
-  // EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-104)
+  // EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-109)
   for (let angle = 0; angle < 360; angle += 4) {
     const rad = angle * Math.PI / 180;
     const px = Math.round(cx + Math.cos(rad) * radius);
     const py = Math.round(cy + Math.sin(rad) * radius);
     if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
       const existing = getPixel(px, py);
-      // EXE: skip sky range 0x50-0x68 (VGA 80-104) — shield not drawn over sky
+      // EXE: skip sky range 0x50-0x6D (VGA 80-109) — shield not drawn over sky
       if (existing >= SKY_RANGE_START && existing <= SKY_RANGE_END) continue;
       setPixel(px, py, paletteIdx);
     }

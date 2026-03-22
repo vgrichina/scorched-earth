@@ -44,7 +44,7 @@
 //   Each widget: clear sub-area, draw icon, display count, color by ammo>0
 
 import { config } from './config.js';
-import { hline, fillRect, setPixel, drawBox3DSunken } from './framebuffer.js';
+import { hline, vline, fillRect, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
 import { players } from './tank.js';
@@ -153,6 +153,45 @@ function drawBarColumn(barX, barY, idx, fillH, color) {
   for (let row = 0; row < h; row++) {
     hline(colX, colX + 5, bottom - row, color);
   }
+}
+
+// Draw 3-pixel sunken frame around the playfield viewport
+// EXE: draw_playfield_border at file 0x290A8 (icons.cpp)
+// Step 1 (0x290CC): draw_3d_box(0, 0, FG_MAXX=[EF3E], YMIN=[EF40]-4, [EF28]) — HUD raised frame
+// Step 2 (0x290D4–0x29220): three concentric rectangles via hline/vline callbacks
+//   Layer 0 (0x290D4, pal 0x96=150): offset ±3 from playfield (XMIN-3, YMIN-3, XMAX+3, YMAX+3)
+//   Layer 1 (0x29143, pal 0x9D=157): offset ±1 from playfield (XMIN-1, YMIN-1, XMAX+1, YMAX+1)
+//   Layer 2 (0x291B8, pal [EF2C]=152): offset ±2 from playfield (XMIN-2, YMIN-2, XMAX+2, YMAX+2)
+// Callbacks: [DS:EF0C]=fg_drawhline, [DS:EF10]=fg_drawvline
+// DS:EF38=SHIELD_DRAW_Y_MAX(476), DS:EF3C=SHIELD_DRAW_X_MAX(356),
+// DS:EF40=SHIELD_DRAW_Y_MIN(38), DS:EF42=SHIELD_DRAW_X_MIN(3)
+export function drawPlayfieldBorder() {
+  const W = config.screenWidth;
+  const H = config.screenHeight;
+  // EXE playfield viewport: XMIN=3, YMIN=PLAYFIELD_TOP, XMAX=W-4, YMAX=H-4
+  const XMIN = 3;
+  const YMIN = PLAYFIELD_TOP;
+  const XMAX = W - 4;
+  const YMAX = H - 4;
+  // Layer 0 (file 0x290FF–0x2913B): pal 150 — wall color, outermost (offset ±3)
+  const L0 = 150;
+  hline(XMIN - 3, XMAX + 3, YMIN - 3, L0); // top
+  hline(XMIN - 3, XMAX + 3, YMAX + 3, L0); // bottom
+  vline(XMIN - 3, YMIN - 3, YMAX + 3, L0); // left
+  vline(XMAX + 3, YMIN - 3, YMAX + 3, L0); // right
+  // Layer 1 (file 0x29168–0x291B1): pal 157 — gray highlight, innermost (offset ±1)
+  // EXE pal 157 = (50,50,50) = same RGB as pal 150, so reuse wall color index
+  const L1 = 150;
+  hline(XMIN - 1, XMAX + 1, YMIN - 1, L1); // top
+  hline(XMIN - 1, XMAX + 1, YMAX + 1, L1); // bottom
+  vline(XMIN - 1, YMIN - 1, YMAX + 1, L1); // left
+  vline(XMAX + 1, YMIN - 1, YMAX + 1, L1); // right
+  // Layer 2 (file 0x291E6–0x29220): pal [EF2C]=152 — black shadow, middle (offset ±2)
+  const L2 = UI_DEEP_SHADOW; // pal 152 = black
+  hline(XMIN - 2, XMAX + 2, YMIN - 2, L2); // top
+  hline(XMIN - 2, XMAX + 2, YMAX + 2, L2); // bottom
+  vline(XMIN - 2, YMIN - 2, YMAX + 2, L2); // left
+  vline(XMAX + 2, YMIN - 2, YMAX + 2, L2); // right
 }
 
 // Draw the full HUD into the framebuffer

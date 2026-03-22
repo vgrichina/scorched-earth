@@ -10,7 +10,7 @@ import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP
 import { placeTanks, drawAllTanks, players, drawDeathAnimations, TANK_TYPES } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
-import { drawHud, drawWindIndicator } from './hud.js';
+import { drawHud, drawWindIndicator, drawPlayfieldBorder } from './hud.js';
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { projectiles } from './physics.js';
 import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
@@ -108,6 +108,8 @@ function redrawWorld() {
   for (const p of players) {
     if (p.alive) drawShield(p);
   }
+  // EXE: draw_playfield_border (0x290A8) — 3-pixel sunken frame around viewport
+  drawPlayfieldBorder();
 }
 
 function drawAllProjectiles() {

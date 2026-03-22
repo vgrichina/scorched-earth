@@ -95,7 +95,10 @@ console.log(`  Off ≤60 RGB: ${off60} (${(off60 / (W*H) * 100).toFixed(1)}%)`);
 console.log(`  Off >60 RGB: ${offBig} (${(offBig / (W*H) * 100).toFixed(1)}%)`);
 
 // --- Pixel category breakdown (what kind of pixels differ) ---
-const cats = { hud: 0, stars: 0, tanks: 0, terrain: 0, skyGradient: 0 };
+const windEnd = Math.round(40 * H / 480);  // wind text / status line area
+const bottomBorder = H - 4;  // EXE draws 3px gray/black border at bottom
+const edgeW = 3;  // edge columns not filled by web terrain
+const cats = { hud: 0, windText: 0, edgeCols: 0, bottomBorder: 0, stars: 0, tanks: 0, terrain: 0, skyGradient: 0 };
 for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
     const i = (y * W + x) * 4;
@@ -108,9 +111,12 @@ for (let y = 0; y < H; y++) {
     const wR = web.data[i], wG = web.data[i+1], wB = web.data[i+2];
 
     if (y <= hudEnd) { cats.hud++; continue; }
+    if (y > hudEnd && y < windEnd) { cats.windText++; continue; }
+    if (y >= bottomBorder) { cats.bottomBorder++; continue; }
+    if (x < edgeW || x >= W - edgeW) { cats.edgeCols++; continue; }
+
     if (y > terrainStart) {
       // In terrain area: distinguish tanks from terrain
-      // Tank = bright saturated colors (green, red, etc)
       const eSat = Math.max(eR, eG, eB) - Math.min(eR, eG, eB);
       const wSat = Math.max(wR, wG, wB) - Math.min(wR, wG, wB);
       if (eSat > 80 || wSat > 80) cats.tanks++;

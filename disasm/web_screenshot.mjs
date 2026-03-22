@@ -64,7 +64,7 @@ const { initPalette, palette32 } = await import(WEB + 'palette.js');
 const fb = await import(WEB + 'framebuffer.js');
 const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } = await import(WEB + 'terrain.js');
 const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
-const { drawHud, drawWindIndicator } = await import(WEB + 'hud.js');
+const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
 const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup } = await import(WEB + 'menu.js');
 const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
 const { isShopActive, drawShop, openShop } = await import(WEB + 'shop.js');
@@ -142,6 +142,7 @@ function renderGame() {
   if (clearToBackground) clearToBackground();
   drawAllTanks();
   const player = players[game.currentPlayer];
+  drawPlayfieldBorder();
   drawHud(player, game.wind, game.round, {});
   drawWindIndicator(game.wind);
 }
@@ -158,7 +159,7 @@ function renderFromState(stateJsonPath) {
 
   // Inject EXE palette with index remapping:
   //   EXE: VGA 80 = terrain body (solid), VGA 120-149 = sky gradient
-  //   Web: VGA 80-104 = sky gradient, VGA 120-149 = terrain body
+  //   Web: VGA 80-109 = sky gradient (30 entries), VGA 120-149 = terrain body
   // Also inject player colors (0-79), UI (150+), fire (170-199), etc.
   if (state.palette && state.palette.length === 256) {
     const pal = state.palette;
@@ -225,6 +226,9 @@ function renderFromState(stateJsonPath) {
     }
     drawAllTanks();
   }
+
+  // Playfield border (EXE: draw_playfield_border 0x290A8)
+  drawPlayfieldBorder();
 
   // Set wind and draw HUD
   if (state.wind !== undefined) game.wind = state.wind;
