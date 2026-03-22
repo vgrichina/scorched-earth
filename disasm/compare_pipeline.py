@@ -108,10 +108,27 @@ def extract_state(state_path):
     arms_level = mem.read16(ds_base + 0x518A)
     weapon_count = mem.read16(ds_base + 0x1BB6)
 
+    # INITIAL_CASH from DS:0x516A (fallback when sub-struct cash is 0)
+    initial_cash = mem.read16(ds_base + 0x516A)
+    if initial_cash > 0x7FFF:
+        initial_cash = initial_cash | ~0xFFFF  # sign extend
+    # It's stored as cash/10000 in some configs; read the 32-bit value
+    initial_cash_lo = mem.read16(ds_base + 0x516A)
+    initial_cash_hi = mem.read16(ds_base + 0x516C)
+    initial_cash_full = (initial_cash_hi << 16) | initial_cash_lo
+
     # Tank data
     tanks = []
     for p in range(num_players):
         base = ds_base + 0xD568 + p * 0xCA
+
+        # Player name: sub-struct +0xB6/+0xB8 is far pointer to name string
+        name_off = mem.read16(base + 0xB6)
+        name_seg = mem.read16(base + 0xB8)
+        name_phys = (name_seg << 4) + name_off
+        name_bytes = bytes([mem.read8(name_phys + i) for i in range(20)])
+        name = name_bytes.split(b'\x00')[0].decode('ascii', errors='replace')
+
         tank = {
             'x': mem.read16(base + 0x0E),
             'y': mem.read16(base + 0x10),
@@ -121,6 +138,7 @@ def extract_state(state_path):
             'power': mem.read16(base + 0x02),
             'tankType': mem.read16(base + 0x12),
             'weaponIdx': mem.read16(base + 0x26),
+            'name': name,
         }
         # Signed angle
         if tank['turretAngle'] > 0x7FFF:
@@ -130,6 +148,9 @@ def extract_state(state_path):
         cash = mem.read16(base + 0x9E)
         if cash > 0x7FFF:
             cash -= 0x10000
+        # Fallback: if cash is 0 and this is round 0, use INITIAL_CASH
+        if cash == 0 and round_number == 0 and initial_cash_full > 0:
+            cash = initial_cash_full
         tank['cash'] = cash
 
         # Inventory: far pointer at sub+0xB2 → word array of weapon_count entries
@@ -296,7 +317,7 @@ def main():
     #   'menu' → renderMenu (main menu with terrain preview)
     #   'shop' → renderShop (weapon shop UI)
     cmd = ['node', web_screenshot, render_state, web_png, '--mode', '4']
-    if render_state in ('game', 'shop'):
+    if render_state in ('game', 'shop', 'menu'):
         cmd += ['--from-state', state_json]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

@@ -21,9 +21,9 @@ export const GRAPHICS_MODES = [
 
 export const config = {
   // Screen — EXE: mode index into GRAPHICS_MODES table (default=4, 360×480)
-  graphicsMode: 0,     // start at 320×200 for backwards compat; menu can change
-  screenWidth: 320,    // derived from GRAPHICS_MODES[graphicsMode]
-  screenHeight: 200,
+  graphicsMode: 4,     // EXE default: mode 4 (360×480, custom Mode-X)
+  screenWidth: 360,    // derived from GRAPHICS_MODES[graphicsMode]
+  screenHeight: 480,
 
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
   gravity: 0.2,        // EXE: GRAVITY=0.200000 (DS:0x512A, range 0.05-10.0, accel = 2500×G px/sec²)

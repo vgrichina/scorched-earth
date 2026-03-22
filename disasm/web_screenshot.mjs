@@ -106,6 +106,41 @@ function renderMenu() {
   drawMainMenu();
 }
 
+function renderMenuFromState(stateJsonPath) {
+  const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
+  if (state.landType !== undefined) config.landType = state.landType;
+  if (state.skyType !== undefined) config.skyType = state.skyType;
+  if (state.seed !== undefined) seedRandom(state.seed);
+  initPalette(config.landType, config.skyType);
+  initSkyBackground();
+  // Inject EXE palette if available
+  if (state.palette && state.palette.length === 256) {
+    const pal = state.palette;
+    for (let i = 0; i < 80; i++) {
+      paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
+    }
+    for (let i = 0; i < 30; i++) {
+      paletteMod.setPaletteRgb(80 + i, pal[120 + i][0], pal[120 + i][1], pal[120 + i][2]);
+    }
+    const gc = pal[80];
+    for (let i = 0; i < 30; i++) {
+      paletteMod.setPaletteRgb(120 + i, gc[0], gc[1], gc[2]);
+    }
+    paletteMod.setPaletteRgb(150, pal[150][0], pal[150][1], pal[150][2]);
+    if (pal[154]) paletteMod.setPaletteRgb(154, pal[154][0], pal[154][1], pal[154][2]);
+    for (let i = 170; i < 200; i++) {
+      paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
+    }
+    // UI palette (151-160)
+    for (let i = 151; i <= 160; i++) {
+      paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
+    }
+    paletteMod.updatePalette32();
+  }
+  initSkyBackground();
+  drawMainMenu();
+}
+
 function renderPlayerSetup() {
   drawMainMenu();
   initPlayerSetup();
@@ -347,6 +382,8 @@ initHeadless(modeIndex);
 
 if (fromStatePath && stateName === 'shop') {
   renderShopFromState(fromStatePath);
+} else if (fromStatePath && stateName === 'menu') {
+  renderMenuFromState(fromStatePath);
 } else if (fromStatePath) {
   renderFromState(fromStatePath);
 } else {
