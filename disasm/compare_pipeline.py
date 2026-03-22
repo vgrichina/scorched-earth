@@ -216,14 +216,17 @@ def write_state_json(state, out_path):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 disasm/compare_pipeline.py <checkpoint.state> [--output-dir DIR]")
+        print("Usage: python3 disasm/compare_pipeline.py <checkpoint.state> [--state menu|shop|game] [--output-dir DIR]")
         sys.exit(1)
 
     state_path = sys.argv[1]
     output_dir = '/tmp/compare'
+    render_state = 'game'  # default: in-game rendering
     for i, arg in enumerate(sys.argv[2:], 2):
         if arg == '--output-dir' and i + 1 < len(sys.argv):
             output_dir = sys.argv[i + 1]
+        elif arg == '--state' and i + 1 < len(sys.argv):
+            render_state = sys.argv[i + 1]
 
     os.makedirs(output_dir, exist_ok=True)
     basename = os.path.splitext(os.path.basename(state_path))[0]
@@ -248,19 +251,16 @@ def main():
     print(f"[3/4] Rendering web port → {web_png}")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     web_screenshot = os.path.join(script_dir, 'web_screenshot.mjs')
-    result = subprocess.run(
-        ['node', web_screenshot, 'game', web_png, '--mode', '4',
-         '--from-state', state_json],
-        capture_output=True, text=True
-    )
+    # render_state selects the web_screenshot.mjs renderer:
+    #   'game' → renderFromState (terrain + tanks + HUD from emulator state)
+    #   'menu' → renderMenu (main menu with terrain preview)
+    #   'shop' → renderShop (weapon shop UI)
+    cmd = ['node', web_screenshot, render_state, web_png, '--mode', '4']
+    if render_state == 'game':
+        cmd += ['--from-state', state_json]
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  ERROR: {result.stderr.strip()}")
-        # Try without --from-state as fallback
-        print("  Falling back to default render...")
-        subprocess.run(
-            ['node', web_screenshot, 'game', web_png, '--mode', '4'],
-            capture_output=True, text=True
-        )
     else:
         print(f"  {result.stdout.strip()}")
 
