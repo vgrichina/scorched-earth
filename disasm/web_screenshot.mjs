@@ -171,6 +171,7 @@ function renderShopFromState(stateJsonPath) {
       p.x = t.x;
       p.y = t.y;
       p.alive = t.alive !== 0;
+      if (t.name !== undefined) p.name = t.name;
       if (t.colorBase !== undefined) {
         p.colorBase = t.colorBase;
         p.colorIndex = Math.floor(t.colorBase / 8);
@@ -273,10 +274,12 @@ function renderFromState(stateJsonPath) {
       players[i].x = t.x;
       players[i].y = t.y;
       players[i].alive = t.alive !== 0;
+      if (t.name !== undefined) players[i].name = t.name;
       players[i].turretAngle = t.turretAngle;
       players[i].power = t.power;
       players[i].angle = t.turretAngle || 0;
-      if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx;
+      if (t.selectedWeapon !== undefined) players[i].selectedWeapon = t.selectedWeapon;
+      else if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx;
       if (t.colorBase !== undefined) {
         players[i].colorBase = t.colorBase;
         players[i].colorIndex = Math.floor(t.colorBase / 8);
