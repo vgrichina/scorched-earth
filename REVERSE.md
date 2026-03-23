@@ -6453,9 +6453,9 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 **Game state: 99.9%** — only 113 px diff (star RNG positions, accepted).
 
 **Shop state: 81.7%** — 18.3% diff in weapon shop UI:
-- [ ] **Shop button height**: web uses 15px, EXE uses 17px (lo-res) / 19px (hi-res). Fix `btnH` in shop.js to match EXE: 17 if FG_MAXY<300, else 19.
+- [x] **Shop button height**: web was 15px, EXE uses 17px (lo-res) / 19px (hi-res). Fixed: `getBtnH()` returns 17 if screenH<300, else 19 (file 0x48755). All 4 btnH sites updated.
 - [ ] **Shop scrollbar track/thumb**: web adds sunken 3D track and proportional draggable thumb not present in EXE. EXE has only arrow buttons (12px wide) with 7×5 triangle glyphs, no track/thumb. Remove or gate behind a flag.
-- [ ] **Shop scrollbar arrow height**: web uses 12px (square SB_W×SB_W), EXE uses 17-19px (same as button height). Fix arrow button height to match EXE.
+- [x] **Shop scrollbar arrow dimensions**: web was 12×12 (SB_W×SB_W). EXE uses width=15 height=14 (file 0x15C40, dialog_create_button params bp+0x0E=0x0F, bp+0x10=0x0E). Fixed: SB_W=15, SB_H=14.
 - [ ] **Shop selected item highlight**: web uses `fillRect` with player-color fill for selected row. Verify EXE selection rendering: is it player-color fill, or just the `→` arrow marker? Check shop_paint_callback at file 0x1580D.
 - [ ] **Shop weapon icons**: some weapon icon glyphs may differ between web and EXE. Compare all 20+ visible icons pixel-by-pixel.
 

@@ -215,13 +215,16 @@ const PANEL_Y = 32;      // EXE: list widget Y = 0x20 = 32 (shopDialogBuild)
 const ITEM_X = 12;       // EXE: SHIELD_DRAW_X_MIN + 9 = 3 + 9 = 12
 const ITEM_Y_START = 55; // EXE: SHIELD_DRAW_Y_MIN + 17 = 38 + 17 = 55
 // Scrollbar: EXE dialog system (seg 0x3F19) — sunken track, raised thumb, arrow buttons
-const SB_W    = 12;   // scrollbar width (EXE: ~14px at 640, scaled proportionally)
+const SB_W    = 15;   // scrollbar arrow width (EXE: 15px, file 0x15C40 bp+0x0E)
+const SB_H    = 14;   // scrollbar arrow height (EXE: 14px, file 0x15C40 bp+0x10)
 
 // EXE: right-side buttons at X=0xFA=250 (shopDialogBuild at file 0x15AF6)
 function getRightBtnX() { return 250; }
 function getRightBtnW() { return config.screenWidth - getRightBtnX() - 6; }
 // EXE: resolution check at file 0x15D37: cmp [FG_MAXY], 0x190 → di=0 or 5
 function getExtraSpacing() { return config.screenHeight >= 400 ? 5 : 0; }
+// EXE: button height at file 0x48755: cmp [FG_MAXY], 0x12C → 17 if <300, 19 if >=300
+function getBtnH() { return config.screenHeight >= 300 ? 19 : 17; }
 
 // EXE: constant 20px row stride (file 0x16219, no hi-res variation)
 function getRowH() { return 20; }
@@ -527,7 +530,7 @@ export function shopTick(player) {
       const dlgH = 106;
       const dlgX = Math.floor((SW - dlgW) / 2);
       const dlgY = Math.floor((SH - dlgH) / 2);
-      const btnW = 60, btnH = 15;
+      const btnW = 60, btnH = getBtnH();
       const acceptX = dlgX + Math.floor((dlgW - btnW * 2 - 20) / 2);
       const rejectX = acceptX + btnW + 20;
       const btnY = dlgY + 77;
@@ -612,7 +615,7 @@ export function shopTick(player) {
     if (mouse.buttons & 1) {
       const panelHTick = SH - PANEL_Y - 4;
       const listYTick  = ITEM_Y_START;
-      const btnHTick   = SB_W;
+      const btnHTick   = SB_H;
       const bTick      = 1;
       const trkTopTick = listYTick + btnHTick + bTick;
       const trkBotTick = PANEL_Y + panelHTick - 3 - btnHTick - bTick;
@@ -637,7 +640,7 @@ export function shopTick(player) {
     const rowH = getRowH();
     const rbX = getRightBtnX(), rbW = getRightBtnW();
     const di = getExtraSpacing();
-    const btnH = 15;
+    const btnH = getBtnH();
 
     // Right-side buttons: Score, Weapons, Misc, Update, Inventory, Done
     if (mx >= rbX && mx < rbX + rbW) {
@@ -678,7 +681,7 @@ export function shopTick(player) {
       const sbX    = PANEL_X + panelW - SB_W - 3;
       const panelHSb = SH - PANEL_Y - 4;
       const sbBot  = PANEL_Y + panelHSb - 3;
-      const btnHSb = SB_W;
+      const btnHSb = SB_H;
       const trkTop = listY + btnHSb;
       const trkBot = sbBot - btnHSb;
       const maxScroll = shop.items.length - perPage;
@@ -922,7 +925,7 @@ export function drawShop(player) {
       const sbTop = ITEM_Y_START;
       const sbBot = PANEL_Y + panelH - 3;
       const sbH   = sbBot - sbTop;
-      const btnH  = SB_W;          // square arrow buttons
+      const btnH  = SB_H;          // arrow button height (EXE: 14px)
       const trkTop = sbTop + btnH;  // track starts below up arrow
       const trkBot = sbBot - btnH;  // track ends above down arrow
       const trkH   = trkBot - trkTop;
@@ -989,7 +992,7 @@ export function drawShop(player) {
   //       "~Done" DS:0x2C57 at Y=di*3+0x5A
   // EXE: tab selectors (Score DS:0x2C3B, Weapons DS:0x2C41, Misc DS:0x2C49) as type9 widgets
   const rbW = getRightBtnW();
-  const btnH = 15;
+  const btnH = getBtnH();
   const btnPad = 4;
 
   // EXE: action buttons at TOP RIGHT (shopDialogBuild dialog_create_button calls)
@@ -1082,7 +1085,7 @@ export function drawShop(player) {
       hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 72, UI_MED_BORDER);
 
       // Accept / Reject buttons
-      const btnW = 60, btnH = 15;
+      const btnW = 60, btnH = getBtnH();
       const acceptX = dlgX + Math.floor((dlgW - btnW * 2 - 20) / 2);
       const rejectX = acceptX + btnW + 20;
       const btnY = dlgY + 77;
