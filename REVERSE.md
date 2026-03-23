@@ -6461,7 +6461,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 
 **Menu state: 65.9%** — 34.1% diff in main menu UI:
 - [x] **Menu button width/position**: Verified — EXE uses width=0x50 (80px), X=12 (hi-res)/5 (lo-res), height=auto→17/19. Web BTN_W=80 and getBtnX() match. Fixed getBtnH() from rowH-2 to EXE auto-height (17 if <300, 19 if >=300).
-- [ ] **Menu button text alignment**: web centers text in button. EXE may left-align or use different centering formula. Check file 0x3D59B button label rendering.
+- [x] **Menu button text alignment**: EXE left-aligns at button_X+8 (file 0x47AE1: `add ax, 0x08`). Web was centering with `(BTN_W - textWidth)/2`. Fixed to match EXE: `bx + 8`.
 - [ ] **Menu bottom bar (copyright/version)**: web renders "Version 1.50" and "Copyright (c) 1991-1995 Wendell Hicken" at fixed Y. Verify exact EXE Y positions and text colors. EXE: Y depends on FG_MAXY-22 and FG_MAXY-10 (file 0x3D668/0x3D6B0).
 - [ ] **Menu terrain frame border**: verify 3D sunken frame border colors match EXE draw_flat_box (0x44630). Current web uses UI_DARK_BORDER/UI_LIGHT_BORDER/UI_MED_BORDER/UI_BRIGHT_BORDER.
 - [ ] **Menu sky gradient formula accuracy**: web and EXE both use `(MAXY-y)*29/playH` for sky index, but pixel comparison shows color mismatches in the preview. May be rounding or YMIN calculation difference. Compare pixel-by-pixel at known Y positions.

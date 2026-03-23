@@ -616,9 +616,8 @@ export function drawMainMenu() {
       const valStr = String(config[item.key]);
       drawText(bx + BTN_W - measureText(valStr), textY, valStr, textColor);
     } else {
-      // Center text in button
-      const tx = bx + Math.floor((BTN_W - measureText(item.label)) / 2);
-      drawText(tx, textY, item.label, textColor);
+      // EXE: left-aligned at button_X + 8 (file 0x47AE1: add ax, 0x08)
+      drawText(bx + 8, textY, item.label, textColor);
     }
   }
 
