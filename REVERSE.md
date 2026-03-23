@@ -6442,11 +6442,30 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **HUD rows 1-2 state mismatch** (2580 px, 1.49%) — **DONE** (session 186). Added `--mask-hud Y` to compare_screenshots.py to exclude HUD text rows (y<playfieldTop) from diff count. compare_pipeline.py auto-passes playfieldTop for game state comparisons. Playfield-only match: 99.9% (113 diff px = star RNG). **Files**: disasm/compare_screenshots.py, disasm/compare_pipeline.py.
 - [x] **Stars RNG position mismatch** (212→113 px) — **Partially fixed** (session 186). Fixed star color: web used palettes 199/189 (wrong colors), EXE uses palette 154 (VGA 0x9A = light blue-white, same as wind indicator). Remaining 113 px diff is RNG position mismatch — EXE and web have different RNG state at star-draw time. Accepted as RNG-state artifact. **Files**: web/js/terrain.js.
 - [x] **Shop --from-state renderer** — **DONE** (sessions 185-186). Fixed player data extraction: names from sub-struct far ptr +0xB6/+0xB8, cash fallback to INITIAL_CASH (DS:0x516A) when sub-struct cash=0 at round 0. Match: 45.4% → **81.7%** (remaining diff: weapon list highlight style, button height 15px vs EXE 17-19px, scrollbar track/thumb web-only).
-- [x] **Menu --from-state renderer** — **DONE** (session 186). Added `renderMenuFromState()` to web_screenshot.mjs: injects palette, land/sky type, and terrain heights from checkpoint. Terrain heights extracted from VGA framebuffer (bitmap_array is TEMPORARY, freed after render — see "Key Data Structures for Terrain"). UI-covered columns interpolated from nearest visible neighbors. Match: 30.1% → **56.1%** (remaining diff: sky gradient palette mapping, button layout).
+- [x] **Menu --from-state renderer** — **DONE** (session 186). Added `renderMenuFromState()` to web_screenshot.mjs: injects palette, land/sky type, and terrain heights from checkpoint. Terrain heights extracted from VGA framebuffer (bitmap_array is TEMPORARY, freed after render). Terrain preview changed to 1:1 native resolution rendering (no scaling). Match: 30.1% → **65.9%** (remaining diff: button layout, sky gradient rounding, stars).
 - [x] **Fix compare_pipeline.py terrain extraction at edges** — **DONE** (session 185). Border columns (x=0-2, W-3..W-1) contain wall border pixels (pal 150/152/157), not terrain. Fixed by copying nearest interior column height (x=3 for left edge, x=W-4 for right). DS:0x6242 (height_array_ptr) is actually the sky palette index array, NOT terrain heights — terrain is in a dynamically allocated buffer. Terrain shape match: 97.2% → 98.9% (356/360 exact).
 - [x] **Sky palette: expand from 25 to 30 entries** — **DONE** (session 185). Web already had `SKY_PAL_COUNT=30` in constants.js and palette.js generated all 30 entries. Fixed `SKY_RANGE_END` in shields.js from 104→109 so shields skip all 30 sky palette indices. Updated stale comments in framebuffer.js, palette.js, shields.js.
 - [x] **Collision: decouple from framebuffer pixel values** — **ALREADY DONE**. Terrain collision already uses `terrainBitmap[]` (physics.js:306). `getPixel` is only used for tank hits (pixel 0-79) and visual effects (napalm, laser, shield skip) — all legitimate framebuffer reads that don't conflict with sky palette expansion.
 - [x] **Comparison tool palette injection** — **ALREADY DONE** (session 185). `web_screenshot.mjs` already uses 1:1 mapping: EXE VGA 120+i → web 80+i for all 30 sky entries. Updated stale comment.
+
+#### Pixel-Perfect Remaining Issues (session 186)
+
+**Game state: 99.9%** — only 113 px diff (star RNG positions, accepted).
+
+**Shop state: 81.7%** — 18.3% diff in weapon shop UI:
+- [ ] **Shop button height**: web uses 15px, EXE uses 17px (lo-res) / 19px (hi-res). Fix `btnH` in shop.js to match EXE: 17 if FG_MAXY<300, else 19.
+- [ ] **Shop scrollbar track/thumb**: web adds sunken 3D track and proportional draggable thumb not present in EXE. EXE has only arrow buttons (12px wide) with 7×5 triangle glyphs, no track/thumb. Remove or gate behind a flag.
+- [ ] **Shop scrollbar arrow height**: web uses 12px (square SB_W×SB_W), EXE uses 17-19px (same as button height). Fix arrow button height to match EXE.
+- [ ] **Shop selected item highlight**: web uses `fillRect` with player-color fill for selected row. Verify EXE selection rendering: is it player-color fill, or just the `→` arrow marker? Check shop_paint_callback at file 0x1580D.
+- [ ] **Shop weapon icons**: some weapon icon glyphs may differ between web and EXE. Compare all 20+ visible icons pixel-by-pixel.
+
+**Menu state: 65.9%** — 34.1% diff in main menu UI:
+- [ ] **Menu button width/position**: web uses BTN_W=80 at x=12, EXE button width may differ. Verify exact EXE button X, width, height from dialog system at file 0x3D140. Check if EXE uses fixed 80px or text-auto-width.
+- [ ] **Menu button text alignment**: web centers text in button. EXE may left-align or use different centering formula. Check file 0x3D59B button label rendering.
+- [ ] **Menu bottom bar (copyright/version)**: web renders "Version 1.50" and "Copyright (c) 1991-1995 Wendell Hicken" at fixed Y. Verify exact EXE Y positions and text colors. EXE: Y depends on FG_MAXY-22 and FG_MAXY-10 (file 0x3D668/0x3D6B0).
+- [ ] **Menu terrain frame border**: verify 3D sunken frame border colors match EXE draw_flat_box (0x44630). Current web uses UI_DARK_BORDER/UI_LIGHT_BORDER/UI_MED_BORDER/UI_BRIGHT_BORDER.
+- [ ] **Menu sky gradient formula accuracy**: web and EXE both use `(MAXY-y)*29/playH` for sky index, but pixel comparison shows color mismatches in the preview. May be rounding or YMIN calculation difference. Compare pixel-by-pixel at known Y positions.
+- [ ] **Menu stars overlay in terrain preview**: EXE sky type 2 (Stars) scatters 80 star pixels at palette 154. Web `drawSky()` does this but `drawTerrainPreview()` uses its own sky formula without star scatter. Add star rendering to preview for sky types 2/3.
 
 #### 14. Unexplored Code Regions
 - [x] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables — **ALREADY COMPLETE** (see "Talk Files — comments.cpp" section). All functions documented: load_talk_file, show_die_comment, show_attack_comment (1% random-player taunt), display_talk_bubble, talk_delay. Web port matches all logic.
