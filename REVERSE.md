@@ -6457,7 +6457,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **Shop scrollbar track/thumb**: Removed sunken track + proportional thumb + drag logic from web. EXE has only arrow buttons (confirmed at 0x15C40: two `dialog_create_button` calls, no track/thumb widgets). Kept page-up/down on click between arrows.
 - [x] **Shop scrollbar arrow dimensions**: web was 12×12 (SB_W×SB_W). EXE uses width=15 height=14 (file 0x15C40, dialog_create_button params bp+0x0E=0x0F, bp+0x10=0x0E). Fixed: SB_W=15, SB_H=14.
 - [x] **Shop selected item highlight**: Verified — EXE uses both: (1) player-color filled rect via fg_rect at 0x1586D with color DS:0xEF22 (=152, player highlight), and (2) triangle arrow via shop_selection_arrow_draw. Web fillRect approach matches EXE.
-- [ ] **Shop weapon icons**: some weapon icon glyphs may differ between web and EXE. Compare all 20+ visible icons pixel-by-pixel.
+- [x] **Shop weapon icons**: All 48 icons verified pixel-perfect. verify_icons.py reads EXE icon table (DS:0x3826, stride 125, 3-byte header + column-major pixels) and compares against web ICONS array in hud.js. Zero mismatches.
 
 **Menu state: 65.9%** — 34.1% diff in main menu UI:
 - [x] **Menu button width/position**: Verified — EXE uses width=0x50 (80px), X=12 (hi-res)/5 (lo-res), height=auto→17/19. Web BTN_W=80 and getBtnX() match. Fixed getBtnH() from rowH-2 to EXE auto-height (17 if <300, 19 if >=300).
