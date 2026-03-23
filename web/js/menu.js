@@ -689,9 +689,10 @@ function drawTerrainPreview() {
   // EXE: terrain_gen_main renders at native screen resolution, Fastgraph clips
   // to the sunken frame area. Render 1:1 (no scaling) — frame interior shows
   // the screen columns that fall within it.
-  // Sky gradient: use same formula as initSkyBackground (height_array in EXE)
-  const MAXY = getScreenH() - 4;
-  const YMIN = Math.round(38 * getScreenH() / 480);
+  // Sky gradient: EXE menu has YMIN=0, MAXY=screenH-1 (full screen, no HUD offset)
+  // Formula: height_array[y] = (MAXY - y) * 29 / playH + 120 (file 0x3999A)
+  const MAXY = getScreenH() - 1;
+  const YMIN = 0;
   const playH = MAXY - YMIN;
   const x0 = getPrevX(), y0 = getPrevY();
   const x1 = x0 + getPrevW(), y1 = y0 + getPrevH();

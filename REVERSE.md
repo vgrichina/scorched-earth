@@ -6454,7 +6454,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 
 **Shop state: 81.7%** — 18.3% diff in weapon shop UI:
 - [x] **Shop button height**: web was 15px, EXE uses 17px (lo-res) / 19px (hi-res). Fixed: `getBtnH()` returns 17 if screenH<300, else 19 (file 0x48755). All 4 btnH sites updated.
-- [ ] **Shop scrollbar track/thumb**: web adds sunken 3D track and proportional draggable thumb not present in EXE. EXE has only arrow buttons (12px wide) with 7×5 triangle glyphs, no track/thumb. Remove or gate behind a flag.
+- [x] **Shop scrollbar track/thumb**: Removed sunken track + proportional thumb + drag logic from web. EXE has only arrow buttons (confirmed at 0x15C40: two `dialog_create_button` calls, no track/thumb widgets). Kept page-up/down on click between arrows.
 - [x] **Shop scrollbar arrow dimensions**: web was 12×12 (SB_W×SB_W). EXE uses width=15 height=14 (file 0x15C40, dialog_create_button params bp+0x0E=0x0F, bp+0x10=0x0E). Fixed: SB_W=15, SB_H=14.
 - [x] **Shop selected item highlight**: Verified — EXE uses both: (1) player-color filled rect via fg_rect at 0x1586D with color DS:0xEF22 (=152, player highlight), and (2) triangle arrow via shop_selection_arrow_draw. Web fillRect approach matches EXE.
 - [ ] **Shop weapon icons**: some weapon icon glyphs may differ between web and EXE. Compare all 20+ visible icons pixel-by-pixel.
@@ -6464,7 +6464,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **Menu button text alignment**: EXE left-aligns at button_X+8 (file 0x47AE1: `add ax, 0x08`). Web was centering with `(BTN_W - textWidth)/2`. Fixed to match EXE: `bx + 8`.
 - [x] **Menu bottom bar (copyright/version)**: Verified — web matches EXE. Copyright at Y=FG_MAXY-20 (0x3D793), version 13px above, both centered in right panel. Two-line split when too wide. Color DS:0xEF2C (runtime-computed highlight).
 - [x] **Menu terrain frame border**: Verified — all 4 edge colors match EXE draw_flat_box (0x44630). Left=EF30(158), Top=EF32(156), Right=EF26(155), Bottom=EF2E(159). Web boxSunken() maps correctly.
-- [ ] **Menu sky gradient formula accuracy**: web and EXE both use `(MAXY-y)*29/playH` for sky index, but pixel comparison shows color mismatches in the preview. May be rounding or YMIN calculation difference. Compare pixel-by-pixel at known Y positions.
+- [x] **Menu sky gradient formula accuracy**: Fixed. EXE menu has YMIN=0, MAXY=479 (full screen); web was using in-game values (YMIN=38, MAXY=476). Changed menu.js drawTerrainPreview() to use YMIN=0, MAXY=screenH-1, matching EXE menu checkpoint state (DS:EF40=0, DS:EF38=479).
 - [x] **Menu stars overlay in terrain preview**: Added star scatter to `drawTerrainPreview()` for sky types 2 (80 stars) and 3 (15 storm pixels) at palette 154, matching `drawSky()` behavior.
 
 #### 14. Unexplored Code Regions

@@ -201,9 +201,7 @@ const shop = {
   selling: false,     // EXE: "Sell Equipment" sub-dialog active
   sellQty: 1,         // EXE: "~Quantity to sell:" field value
   frame: 0,           // frame counter for palette animation
-  scrollDrag: false,  // scrollbar thumb drag state
-  scrollDragY: 0,     // mouse Y at drag start
-  scrollDragOff: 0,   // scroll offset at drag start
+  // EXE scrollbar: arrow buttons only, no track/thumb drag
   roundsLeft: 10,     // rounds remaining (set on openShop)
 };
 
@@ -214,7 +212,7 @@ const PANEL_X = 4;       // sunken panel border X (items start at ITEM_X inside)
 const PANEL_Y = 32;      // EXE: list widget Y = 0x20 = 32 (shopDialogBuild)
 const ITEM_X = 12;       // EXE: SHIELD_DRAW_X_MIN + 9 = 3 + 9 = 12
 const ITEM_Y_START = 55; // EXE: SHIELD_DRAW_Y_MIN + 17 = 38 + 17 = 55
-// Scrollbar: EXE dialog system (seg 0x3F19) — sunken track, raised thumb, arrow buttons
+// Scrollbar: EXE dialog system (seg 0x3F19) — arrow buttons only (no track/thumb)
 const SB_W    = 15;   // scrollbar arrow width (EXE: 15px, file 0x15C40 bp+0x0E)
 const SB_H    = 14;   // scrollbar arrow height (EXE: 14px, file 0x15C40 bp+0x10)
 
@@ -609,29 +607,8 @@ export function shopTick(player) {
     return true;
   }
 
-  // Scrollbar thumb drag (continuous — check every frame while button held)
+  // EXE scrollbar: arrow buttons only (no track/thumb drag)
   const hasSbTick = shop.category !== TAB_SCORE && shop.items.length > perPage;
-  if (shop.scrollDrag) {
-    if (mouse.buttons & 1) {
-      const panelHTick = SH - PANEL_Y - 4;
-      const listYTick  = ITEM_Y_START;
-      const btnHTick   = SB_H;
-      const bTick      = 1;
-      const trkTopTick = listYTick + btnHTick + bTick;
-      const trkBotTick = PANEL_Y + panelHTick - 3 - btnHTick - bTick;
-      const innerHTick = trkBotTick - trkTopTick;
-      const thumbHTick = Math.max(8, Math.floor(innerHTick * perPage / shop.items.length));
-      const trackRange = innerHTick - thumbHTick;
-      const maxScroll  = shop.items.length - perPage;
-      if (trackRange > 0 && maxScroll > 0) {
-        const dy = mouse.y - shop.scrollDragY;
-        const newOff = Math.round(shop.scrollDragOff + dy * maxScroll / trackRange);
-        shop.scrollOffset = Math.max(0, Math.min(maxScroll, newOff));
-      }
-    } else {
-      shop.scrollDrag = false;
-    }
-  }
 
   // Mouse clicks
   if (mouse.over && consumeClick(0)) {
@@ -692,16 +669,9 @@ export function shopTick(player) {
         } else if (my >= trkBot && my < trkBot + btnHSb) {
           shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + 1);
         } else if (my >= trkTop && my < trkBot) {
-          const b = 1;
-          const innerH = (trkBot - trkTop) - 2 * b;
-          const thumbH = Math.max(8, Math.floor(innerH * perPage / shop.items.length));
-          const thumbY = trkTop + b + (maxScroll > 0
-            ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll) : 0);
-          if (my >= thumbY && my < thumbY + thumbH) {
-            shop.scrollDrag = true;
-            shop.scrollDragY = mouse.y;
-            shop.scrollDragOff = shop.scrollOffset;
-          } else if (my < thumbY) {
+          // EXE: no track/thumb — clicking between arrows pages up/down
+          const midY = Math.floor((trkTop + trkBot) / 2);
+          if (my < midY) {
             shop.scrollOffset = Math.max(0, shop.scrollOffset - perPage);
           } else {
             shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + perPage);
@@ -918,7 +888,7 @@ export function drawShop(player) {
       drawText(priceCol, y, priceStr, txtColor);
     }
 
-    // EXE-style 3D scrollbar (right side of panel) — sunken track, raised thumb, arrow buttons
+    // EXE-style scrollbar (right side of panel) — arrow buttons only, no track/thumb
     const perPageSb = getItemsPerPage();
     if (shop.items.length > perPageSb) {
       const sbX   = PANEL_X + panelW - SB_W - 3; // inside panel border
@@ -966,22 +936,7 @@ export function drawShop(player) {
         }
       }
 
-      // Track (sunken groove between arrow buttons)
-      drawBox3DSunken(sbX, trkTop, SB_W, trkH, UI_MED_BORDER,
-        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-
-      // Thumb (raised 3D box) — proportional to visible/total items
-      if (trkH > 8) {
-        const trackBorder = 1; // draw_flat_box uses 1px border
-        const innerH = trkH - 2 * trackBorder;
-        const thumbH = Math.max(8, Math.floor(innerH * perPageSb / shop.items.length));
-        const maxScroll = shop.items.length - perPageSb;
-        const thumbY = trkTop + trackBorder + (maxScroll > 0
-          ? Math.floor((innerH - thumbH) * shop.scrollOffset / maxScroll)
-          : 0);
-        drawBox3DRaised(sbX + 1, thumbY, SB_W - 2, thumbH, UI_BACKGROUND,
-          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      }
+      // EXE: no track or thumb between arrow buttons — just background
     }
 
   }
