@@ -6463,7 +6463,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **Menu button width/position**: Verified — EXE uses width=0x50 (80px), X=12 (hi-res)/5 (lo-res), height=auto→17/19. Web BTN_W=80 and getBtnX() match. Fixed getBtnH() from rowH-2 to EXE auto-height (17 if <300, 19 if >=300).
 - [x] **Menu button text alignment**: EXE left-aligns at button_X+8 (file 0x47AE1: `add ax, 0x08`). Web was centering with `(BTN_W - textWidth)/2`. Fixed to match EXE: `bx + 8`.
 - [x] **Menu bottom bar (copyright/version)**: Verified — web matches EXE. Copyright at Y=FG_MAXY-20 (0x3D793), version 13px above, both centered in right panel. Two-line split when too wide. Color DS:0xEF2C (runtime-computed highlight).
-- [ ] **Menu terrain frame border**: verify 3D sunken frame border colors match EXE draw_flat_box (0x44630). Current web uses UI_DARK_BORDER/UI_LIGHT_BORDER/UI_MED_BORDER/UI_BRIGHT_BORDER.
+- [x] **Menu terrain frame border**: Verified — all 4 edge colors match EXE draw_flat_box (0x44630). Left=EF30(158), Top=EF32(156), Right=EF26(155), Bottom=EF2E(159). Web boxSunken() maps correctly.
 - [ ] **Menu sky gradient formula accuracy**: web and EXE both use `(MAXY-y)*29/playH` for sky index, but pixel comparison shows color mismatches in the preview. May be rounding or YMIN calculation difference. Compare pixel-by-pixel at known Y positions.
 - [ ] **Menu stars overlay in terrain preview**: EXE sky type 2 (Stars) scatters 80 star pixels at palette 154. Web `drawSky()` does this but `drawTerrainPreview()` uses its own sky formula without star scatter. Add star rendering to preview for sky types 2/3.
 
