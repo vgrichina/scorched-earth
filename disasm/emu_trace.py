@@ -236,6 +236,32 @@ def cmd_trace(args):
             cpu.segs[1] = seg
             cpu.ip = off
 
+    # Apply --set overrides (shared with cmd_run)
+    if getattr(args, 'set_vals', None):
+        ds_base = (cpu.segs[3] << 4) & 0xFFFFF
+        for sv in args.set_vals:
+            lhs, rhs = sv.split('=', 1)
+            val = int(rhs, 0)
+            lhs_up = lhs.upper()
+            if lhs_up in REG_NAMES:
+                cpu.regs[REG_NAMES.index(lhs_up)] = val & 0xFFFF
+            elif lhs_up == 'IP':
+                cpu.ip = val & 0xFFFF
+            elif lhs_up in SEG_NAMES:
+                cpu.segs[SEG_NAMES.index(lhs_up)] = val & 0xFFFF
+            elif lhs_up.startswith('DS:'):
+                off = int(lhs[3:], 16)
+                phys = ds_base + off
+                mem.data[phys] = val & 0xFF
+                mem.data[phys + 1] = (val >> 8) & 0xFF
+            elif lhs in labels_by_name:
+                off, _ = labels_by_name[lhs]
+                phys = ds_base + off
+                mem.data[phys] = val & 0xFF
+                mem.data[phys + 1] = (val >> 8) & 0xFF
+            else:
+                print(f'Warning: unknown --set target: {lhs}')
+
     n = args.count or 200
     for i in range(n):
         ip_phys = ((cpu.segs[1] << 4) + cpu.ip) & 0xFFFFF
@@ -438,6 +464,11 @@ def cmd_run(args):
             if lhs_up in REG_NAMES:
                 idx = REG_NAMES.index(lhs_up)
                 cpu.regs[idx] = val & 0xFFFF
+            elif lhs_up == 'IP':
+                cpu.ip = val & 0xFFFF
+            elif lhs_up in SEG_NAMES:
+                idx = SEG_NAMES.index(lhs_up)
+                cpu.segs[idx] = val & 0xFFFF
             elif lhs_up.startswith('DS:'):
                 off = int(lhs[3:], 16)
                 phys = ds_base + off
@@ -539,6 +570,8 @@ def main():
     p_trace.add_argument('count', type=int, nargs='?', default=200, help='Instructions to trace (default 200)')
     p_trace.add_argument('--from', dest='start_from', help='Start address (file offset or label)')
     p_trace.add_argument('--calls-only', action='store_true', help='Only show CALL/RET instructions')
+    p_trace.add_argument('--set', dest='set_vals', nargs='+', metavar='REG=VAL',
+                        help='Set register/segment/IP or DS variable (e.g. AX=3 CS=0x1A4A IP=0)')
     p_trace.add_argument('--exe', default='earth/SCORCH.EXE')
 
     # watch
