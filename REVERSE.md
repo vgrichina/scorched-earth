@@ -6465,7 +6465,7 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **Menu bottom bar (copyright/version)**: Verified — web matches EXE. Copyright at Y=FG_MAXY-20 (0x3D793), version 13px above, both centered in right panel. Two-line split when too wide. Color DS:0xEF2C (runtime-computed highlight).
 - [x] **Menu terrain frame border**: Verified — all 4 edge colors match EXE draw_flat_box (0x44630). Left=EF30(158), Top=EF32(156), Right=EF26(155), Bottom=EF2E(159). Web boxSunken() maps correctly.
 - [ ] **Menu sky gradient formula accuracy**: web and EXE both use `(MAXY-y)*29/playH` for sky index, but pixel comparison shows color mismatches in the preview. May be rounding or YMIN calculation difference. Compare pixel-by-pixel at known Y positions.
-- [ ] **Menu stars overlay in terrain preview**: EXE sky type 2 (Stars) scatters 80 star pixels at palette 154. Web `drawSky()` does this but `drawTerrainPreview()` uses its own sky formula without star scatter. Add star rendering to preview for sky types 2/3.
+- [x] **Menu stars overlay in terrain preview**: Added star scatter to `drawTerrainPreview()` for sky types 2 (80 stars) and 3 (15 storm pixels) at palette 154, matching `drawSky()` behavior.
 
 #### 14. Unexplored Code Regions
 - [x] RE: comments.cpp (0x17F50) — tank speech bubble content/trigger logic, message tables — **ALREADY COMPLETE** (see "Talk Files — comments.cpp" section). All functions documented: load_talk_file, show_die_comment, show_attack_comment (1% random-player taunt), display_talk_bubble, talk_delay. Web port matches all logic.

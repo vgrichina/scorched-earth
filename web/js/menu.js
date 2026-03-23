@@ -710,6 +710,19 @@ function drawTerrainPreview() {
       }
     }
   }
+
+  // EXE: sky type 2 (Stars) scatters 80 star pixels at palette 154
+  // EXE: sky type 3 (Storm) scatters 15 bright pixels at palette 154
+  const sky = config.skyType;
+  const starCount = sky === 2 ? 80 : sky === 3 ? 15 : 0;
+  const pw = getPrevW(), ph = getPrevH();
+  for (let i = 0; i < starCount; i++) {
+    const sx = x0 + Math.floor(Math.random() * pw);
+    const sy = y0 + Math.floor(Math.random() * ph);
+    if (sx < x0 + pw && sy < y0 + ph && sy < (sx < terrain.length ? terrain[sx] : getScreenH())) {
+      setPixel(sx, sy, 154);
+    }
+  }
 }
 
 function drawSubmenu() {
