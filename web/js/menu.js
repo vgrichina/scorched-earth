@@ -9,7 +9,7 @@ import { drawText, drawTextEmbossed, measureText, FONT_HEIGHT } from './font.js'
 import { BLACK, initPalette } from './palette.js';
 import { consumeKey, consumeClick, mouse } from './input.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
-import { generateTerrain, terrain, initSkyBackground, PLAYFIELD_TOP } from './terrain.js';
+import { generateTerrain, terrain, initSkyBackground, drawSky, drawTerrain, PLAYFIELD_TOP } from './terrain.js';
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
          UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
@@ -625,7 +625,9 @@ export function drawMainMenu() {
   // 3. Right panel: sunken terrain preview frame (EXE: draw_flat_box)
   boxSunken(getFrameX(), getFrameY(), getFrameW(), getFrameH(), BLACK);
 
-  // 4. Render terrain preview inside frame
+  // 4. Render sky+terrain at native resolution inside frame interior.
+  // EXE: terrain_gen_main renders full-screen, Fastgraph clips to frame.
+  // Web: render only pixels inside frame to avoid overwriting UI.
   drawTerrainPreview();
 
   // 5. Embossed title "Scorched Earth" (EXE: title_3d_text at 0x4CEFD)
@@ -685,25 +687,27 @@ export function drawMainMenu() {
 }
 
 function drawTerrainPreview() {
-  // Map terrain[] (320 wide, heights in screen coords) into the preview area
-  const playH = getScreenH() - PLAYFIELD_TOP;
-  for (let cx = 0; cx < getPrevW(); cx++) {
-    const tx = Math.floor(cx * getScreenW() / getPrevW());
-    const terrainY = terrain[tx];
-    // Scale terrain height into preview coordinates
-    const scaledTerrainRow = Math.floor((terrainY - PLAYFIELD_TOP) * getPrevH() / playH);
+  // EXE: terrain_gen_main renders at native screen resolution, Fastgraph clips
+  // to the sunken frame area. Render 1:1 (no scaling) — frame interior shows
+  // the screen columns that fall within it.
+  // Sky gradient: use same formula as initSkyBackground (height_array in EXE)
+  const MAXY = getScreenH() - 4;
+  const YMIN = Math.round(38 * getScreenH() / 480);
+  const playH = MAXY - YMIN;
+  const x0 = getPrevX(), y0 = getPrevY();
+  const x1 = x0 + getPrevW(), y1 = y0 + getPrevH();
 
-    for (let cy = 0; cy < getPrevH(); cy++) {
-      const px = getPrevX() + cx;
-      const py = getPrevY() + cy;
-      if (cy < scaledTerrainRow) {
-        // Sky — map row to sky palette
-        const screenRow = PLAYFIELD_TOP + Math.floor(cy * playH / getPrevH());
-        const skyIdx = SKY_PAL_START + Math.floor(screenRow * (SKY_PAL_COUNT - 1) / (getScreenH() - 1));
-        setPixel(px, py, skyIdx);
+  for (let x = x0; x < x1; x++) {
+    const terrainY = x < terrain.length ? terrain[x] : getScreenH();
+    for (let y = y0; y < y1; y++) {
+      if (y >= terrainY) {
+        // Terrain body — solid ground color
+        setPixel(x, y, TERRAIN_PAL_START);
       } else {
-        // Terrain — solid color (all 120-149 entries share same ground color)
-        setPixel(px, py, TERRAIN_PAL_START);
+        // Sky — EXE: height_array[y] = (MAXY - y) * 29 / playH + 120
+        // Web: SKY_PAL_START + idx (VGA 80-109 maps to EXE VGA 120-149)
+        const idx = Math.floor((MAXY - Math.max(YMIN, Math.min(y, MAXY))) * 29 / playH);
+        setPixel(x, y, SKY_PAL_START + Math.min(idx, SKY_PAL_COUNT - 1));
       }
     }
   }
