@@ -6456,11 +6456,11 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] **Shop button height**: web was 15px, EXE uses 17px (lo-res) / 19px (hi-res). Fixed: `getBtnH()` returns 17 if screenH<300, else 19 (file 0x48755). All 4 btnH sites updated.
 - [ ] **Shop scrollbar track/thumb**: web adds sunken 3D track and proportional draggable thumb not present in EXE. EXE has only arrow buttons (12px wide) with 7×5 triangle glyphs, no track/thumb. Remove or gate behind a flag.
 - [x] **Shop scrollbar arrow dimensions**: web was 12×12 (SB_W×SB_W). EXE uses width=15 height=14 (file 0x15C40, dialog_create_button params bp+0x0E=0x0F, bp+0x10=0x0E). Fixed: SB_W=15, SB_H=14.
-- [ ] **Shop selected item highlight**: web uses `fillRect` with player-color fill for selected row. Verify EXE selection rendering: is it player-color fill, or just the `→` arrow marker? Check shop_paint_callback at file 0x1580D.
+- [x] **Shop selected item highlight**: Verified — EXE uses both: (1) player-color filled rect via fg_rect at 0x1586D with color DS:0xEF22 (=152, player highlight), and (2) triangle arrow via shop_selection_arrow_draw. Web fillRect approach matches EXE.
 - [ ] **Shop weapon icons**: some weapon icon glyphs may differ between web and EXE. Compare all 20+ visible icons pixel-by-pixel.
 
 **Menu state: 65.9%** — 34.1% diff in main menu UI:
-- [ ] **Menu button width/position**: web uses BTN_W=80 at x=12, EXE button width may differ. Verify exact EXE button X, width, height from dialog system at file 0x3D140. Check if EXE uses fixed 80px or text-auto-width.
+- [x] **Menu button width/position**: Verified — EXE uses width=0x50 (80px), X=12 (hi-res)/5 (lo-res), height=auto→17/19. Web BTN_W=80 and getBtnX() match. Fixed getBtnH() from rowH-2 to EXE auto-height (17 if <300, 19 if >=300).
 - [ ] **Menu button text alignment**: web centers text in button. EXE may left-align or use different centering formula. Check file 0x3D59B button label rendering.
 - [ ] **Menu bottom bar (copyright/version)**: web renders "Version 1.50" and "Copyright (c) 1991-1995 Wendell Hicken" at fixed Y. Verify exact EXE Y positions and text colors. EXE: Y depends on FG_MAXY-22 and FG_MAXY-10 (file 0x3D668/0x3D6B0).
 - [ ] **Menu terrain frame border**: verify 3D sunken frame border colors match EXE draw_flat_box (0x44630). Current web uses UI_DARK_BORDER/UI_LIGHT_BORDER/UI_MED_BORDER/UI_BRIGHT_BORDER.

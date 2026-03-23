@@ -30,7 +30,7 @@ function isSmallMode() { return config.screenHeight <= 200; }
 function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
 function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
 function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
-function getBtnH()   { return getRowH() - 2; }             // button height = row_h - 2 gap
+function getBtnH()   { return config.screenHeight >= 300 ? 19 : 17; }  // EXE: dialog_create_button auto-height at file 0x48755
 // EXE: submenu item pitch 15px ([bp-0x0A]=15 at 0x3BA92; items at y=5,20,35,50...n*15+5)
 // Web adds 4px extra in hi-res (19) for readability; lo-res must be 15 (not 14)
 function getSubRowH() { return getScreenH() >= 400 ? 19 : 15; }
