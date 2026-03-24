@@ -30,6 +30,7 @@ def main():
     key_spec = None
     poke_spec = None
     save_path = None
+    timer_period = 1000
     i = 3
     while i < len(sys.argv):
         if sys.argv[i] == '--run':
@@ -43,6 +44,9 @@ def main():
             i += 2
         elif sys.argv[i] == '--poke':
             poke_spec = sys.argv[i+1]
+            i += 2
+        elif sys.argv[i] == '--timer':
+            timer_period = int(sys.argv[i+1])
             i += 2
         elif sys.argv[i] == '--save':
             save_path = sys.argv[i+1]
@@ -97,10 +101,13 @@ def main():
 
     if steps > 0:
         print(f"Running {steps} steps...")
-        timer_period = 1000  # fast timer to unblock HLT waits in fg_waitfor
+        # Fast tick mode: increment DS:EE78 directly, only call ISR every 200 ticks
+        # (matching timer_reload). This avoids ISR overhead on busy-wait frames.
+        tick_phys = ds_base + 0xEE78  # timer_tick_count physical address
         reason, result = run_fast(cpu, mem, ports, int_handler, steps,
                                   timer_period=timer_period,
-                                  scheduled_keys=scheduled_keys if scheduled_keys else None)
+                                  scheduled_keys=scheduled_keys if scheduled_keys else None,
+                                  tick_addr=tick_phys, isr_divisor=200)
         print(f"  -> {reason}")
         print(f"CS:IP = {cpu.segs[1]:04X}:{cpu.ip:04X}")
 

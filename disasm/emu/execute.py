@@ -74,11 +74,15 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
 
 
 def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
-             timer_period=0, scheduled_keys=None):
+             timer_period=0, scheduled_keys=None, tick_addr=0, isr_divisor=0):
     """Tight execution loop — merges step+dispatch to avoid function call overhead.
 
     timer_period: if >0, fire INT 08h every N instructions (simulates hardware timer).
     scheduled_keys: dict of step_number → (scancode, ascii) for key injection.
+    tick_addr: if >0, physical address of 16-bit tick counter to auto-increment
+               on each timer tick (bypasses ISR overhead for fast emulation).
+    isr_divisor: if >0 with tick_addr, only call real INT 8 ISR every N ticks.
+               Tick counter still increments every tick.
     """
     segs = cpu.segs
     data = mem.data
@@ -88,24 +92,35 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
     has_hooks = hooks is not None and len(hooks) > 0
     has_bp = bp_set is not None and len(bp_set) > 0
     timer_counter = timer_period
+    isr_divisor_counter = isr_divisor
     has_sched_keys = scheduled_keys is not None and len(scheduled_keys) > 0
 
     i = 0
     try:
         for i in range(max_steps):
             if cpu.halted:
-                # HLT waits for interrupt — keep looping to process timer/key IRQs
-                # but skip instruction execution until an interrupt fires
+                # HLT waits for interrupt — skip ahead to next event instead of
+                # burning one step per timer tick countdown
                 if not cpu.intf:
                     return 'halted', i  # interrupts disabled — truly stuck
-                # Check if timer or key interrupt will fire this cycle
+                # Fast-forward: jump timer_counter to 0 if no scheduled key
+                # arrives before the next timer tick
+                if timer_period and timer_counter > 0:
+                    # Find nearest scheduled key between now and timer fire
+                    skip = timer_counter
+                    if has_sched_keys:
+                        for sk in scheduled_keys:
+                            if sk > i and sk - i < skip:
+                                skip = sk - i
+                    timer_counter -= skip
+                    # Don't burn steps — just advance the counter
+                # Check if timer or key interrupt will fire now
                 will_wake = False
                 if timer_period and timer_counter <= 0:
                     will_wake = True
                 if has_sched_keys and i in scheduled_keys:
                     will_wake = True
                 if not will_wake:
-                    timer_counter -= 1
                     continue
                 # An interrupt will fire — clear halted so we resume after ISR
                 cpu.halted = False
@@ -113,13 +128,40 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
             # Hardware timer interrupt
             if timer_period and timer_counter <= 0:
                 timer_counter = timer_period
-                if cpu.intf:
+                if tick_addr:
+                    # Fast tick mode: increment tick counter directly, skip ISR
+                    # unless it's time for the ISR to run its callback
+                    call_isr = False
+                    if isr_divisor > 0:
+                        isr_divisor_counter -= 1
+                        if isr_divisor_counter <= 0:
+                            isr_divisor_counter = isr_divisor
+                            call_isr = True
+                    if call_isr and cpu.intf:
+                        # ISR will increment EE78 itself — don't double-count
+                        vec_off = mem.read16(0x08 * 4)
+                        vec_seg = mem.read16(0x08 * 4 + 2)
+                        if vec_seg != 0 or vec_off != 0:
+                            _push16(cpu, mem, cpu.get_flags())
+                            _push16(cpu, mem, segs[1])
+                            _push16(cpu, mem, cpu.ip)
+                            cpu.intf = False
+                            segs[1] = vec_seg
+                            cpu.ip = vec_off
+                    else:
+                        # No ISR call — just bump the tick counter
+                        v = (data[tick_addr] | (data[tick_addr + 1] << 8))
+                        v = (v + 1) & 0xFFFF
+                        data[tick_addr] = v & 0xFF
+                        data[tick_addr + 1] = (v >> 8) & 0xFF
+                elif cpu.intf:
                     vec_off = mem.read16(0x08 * 4)
                     vec_seg = mem.read16(0x08 * 4 + 2)
                     if vec_seg != 0 or vec_off != 0:
                         _push16(cpu, mem, cpu.get_flags())
                         _push16(cpu, mem, segs[1])
                         _push16(cpu, mem, cpu.ip)
+                        cpu.intf = False  # x86 INT clears IF — prevent ISR re-entry
                         segs[1] = vec_seg
                         cpu.ip = vec_off
             timer_counter -= 1
@@ -149,6 +191,7 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
                         _push16(cpu, mem, cpu.get_flags())
                         _push16(cpu, mem, segs[1])
                         _push16(cpu, mem, cpu.ip)
+                        cpu.intf = False  # x86 INT clears IF
                         segs[1] = vec_seg
                         cpu.ip = vec_off
 
