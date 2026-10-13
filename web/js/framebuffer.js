@@ -163,9 +163,14 @@ export function setBackground(rowColors) {
   }
 }
 
-// Get background palette index for a screen row (used by crater/tunnel fill)
-export function getBackgroundColor(y) {
-  return background[y];
+// Install a persistent per-pixel sky (e.g. the EXE's star bitmap).
+export function setBackgroundPixels(colors) {
+  backgroundBuffer.set(colors);
+}
+
+// Craters and tunnels restore the same sky pixel that was covered by terrain.
+export function getBackgroundColor(y, x) {
+  return x === undefined ? background[y] : backgroundBuffer[y * WIDTH + x];
 }
 
 // Clear framebuffer to per-row background colors

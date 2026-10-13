@@ -4,20 +4,20 @@
 // Phase 6: Title screen, config menu, full game flow
 
 import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
-import { initFramebuffer, reinitFramebuffer, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
+import { initFramebuffer, reinitFramebuffer, getWidth, getHeight, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
-import { generateTerrain, drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers, loadMTNFiles } from './terrain.js';
-import { placeTanks, drawAllTanks, players, drawDeathAnimations, TANK_TYPES } from './tank.js';
+import { drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers, loadMTNFiles } from './terrain.js';
+import { drawAllTanks, players, drawDeathAnimations, TANK_TYPES } from './tank.js';
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud, drawWindIndicator, drawPlayfieldBorder } from './hud.js';
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { projectiles } from './physics.js';
-import { gameTick, game, STATE, generateWind, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
+import { gameTick, game, STATE, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
 import { getLeaderboard, SCORE_MODE } from './score.js';
-import { menuTick, drawMainMenu, drawPlayerSetupScreen, playerSetup } from './menu.js';
+import { menu, menuTick, drawMainMenu, drawPlayerSetupScreen, playerSetup } from './menu.js';
 import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
 import { initSound, toggleSound } from './sound.js';
@@ -71,30 +71,10 @@ function startGame() {
   reinitTerrainBuffers();
   updateCSSAspect();
 
-  // Re-init palette with configured types
-  initPalette(config.landType, config.skyType);
-  initSkyBackground();
-  // Re-seed RNG just before terrain generation for deterministic comparison
-  // This matches EXE behavior: r250_init called once at game start (file 0x2A5EE)
-  const terrainSeed = new URLSearchParams(window.location.search).get('seed');
-  if (terrainSeed !== null) {
-    seedRandom(parseInt(terrainSeed, 10));
-  }
-  generateTerrain();
-  generateWind();
-  placeTanks(config.numPlayers);
-
-  // Apply player setup from menu
-  for (let i = 0; i < players.length && i < playerSetup.length; i++) {
-    players[i].name = playerSetup[i].name;
-    players[i].aiType = playerSetup[i].aiType;
-    players[i].colorIndex = playerSetup[i].colorIndex;
-  }
-
   game.round = 1;
   game.turnCount = 0;
   game.currentPlayer = 0;
-  initGameRound();
+  initGameRound(playerSetup);
 }
 
 // EXE VERIFIED: full world repaint before gameTick ensures clean framebuffer
@@ -188,14 +168,12 @@ const LASER_ANGLE_STEP = 0.3;  // EXE: DS:6108 ~0.3 rad per animation frame
 //     bresenham_line(old, new, pixel_callback_at_0x36271);
 //     angle_rad += ~0.3_rad;
 //   }
-// EXE VERIFIED: Laser/Plasma Laser have NULL behavior pointers (0x0000:0x0000).
-// No per-turn ammo consumption found in any EXE code path. They are purely visual
-// accessories checked by inventory count but never decremented during AIM phase.
+// The old Laser/Plasma Laser labels were shifted: slots 35/36 are Heat/Bal
+// Guidance. Preserve the existing effect pending a separate behavior audit.
 function drawLaserSight(player) {
   if (!player.alive) return;
-  // EXE: checks player inventory for Laser (idx 35) or Plasma Laser (idx 36)
-  const hasLaser = player.inventory[WPN.LASER] > 0;
-  const hasPlasma = player.inventory[WPN.PLASMA_LASER] > 0;
+  const hasLaser = player.inventory[WPN.HEAT_GUIDANCE] > 0;
+  const hasPlasma = player.inventory[WPN.BAL_GUIDANCE] > 0;
   if (!hasLaser && !hasPlasma) return;
 
   // EXE: Plasma takes priority — type==1 check at 0x36321
@@ -345,18 +323,18 @@ function checkMayhemCheat() {
 function gameLoop() {
   // --- Menu screens ---
   if (game.state === STATE.TITLE || game.state === STATE.CONFIG || game.state === STATE.PLAYER_SETUP) {
-    // Menu always renders at 320×200 — reinit if returning from a higher-res game
-    if (config.screenWidth !== 320 || config.screenHeight !== 200) {
-      config.screenWidth = 320;
-      config.screenHeight = 200;
+    const result = menuTick();
+
+    // Menus use the selected EXE graphics mode too. A Hardware change must
+    // resize the backing buffers before drawing that same frame.
+    if (getWidth() !== config.screenWidth || getHeight() !== config.screenHeight) {
       reinitFramebuffer();
       reinitTerrainBuffers();
       updateCSSAspect();
       initPalette(config.landType, config.skyType);
       initSkyBackground();
+      menu.terrainDirty = true;
     }
-
-    const result = menuTick();
 
     if (result === 'start_game') {
       startGame();

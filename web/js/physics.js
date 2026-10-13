@@ -6,6 +6,7 @@
 // EXE: wind_accel = 1.25 × wind px/sec² (horizontal only)
 // EXE: no explicit speed limit — velocity bounded naturally by viscosity damping
 
+import { WPN } from './weapons.js';
 import { config } from './config.js';
 import { clamp } from './utils.js';
 import { players } from './tank.js';
@@ -56,8 +57,8 @@ function getViscosityFactor() {
 // EXE: No additional multiplier — scales as (direction / normDist) * dt only.
 const MAG_RANGE_SQ = 1000000.0;
 const MAG_RANGE = 1000.0;
-const MAG_DEFLECTOR_IDX = 45;
-const SUPER_MAG_IDX = 52;
+const MAG_DEFLECTOR_IDX = WPN.MAG_DEFLECTOR;
+const SUPER_MAG_IDX = WPN.SUPER_MAG;
 
 function applyMagDeflection(proj) {
   for (const player of players) {
@@ -178,7 +179,7 @@ export function setResolvedWallType(type) {
 }
 
 // Get effective wall type (resolves Erratic/Random to their resolved value)
-function getEffectiveWallType() {
+export function getEffectiveWallType() {
   const wt = config.wallType;
   if (wt === WALL.ERRATIC || wt === WALL.RANDOM) return resolvedWallType;
   return wt;

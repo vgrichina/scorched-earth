@@ -72,7 +72,7 @@ import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
 import { players } from './tank.js';
 import { getLeaderboard } from './score.js';
-import { drawIcon, drawPlayfieldBorder } from './hud.js';
+import { drawIcon, drawUIIcon, drawIconSlider, drawPlayfieldBorder } from './hud.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -236,7 +236,7 @@ function getItemsPerPage() {
 // Open shop for a player
 // EXE: called from between-rounds loop at file 0x232E5 (play.cpp)
 // EXE: checks player.cash > 0 (32-bit compare at player+0xA2/+0xA4) before opening
-export function openShop(playerIdx, roundsLeft) {
+export function openShop(playerIdx, roundsLeft, { showPrivacy = true } = {}) {
   shop.active = true;
   shop.playerIdx = playerIdx;
   shop.category = TAB_WEAPONS;
@@ -247,7 +247,7 @@ export function openShop(playerIdx, roundsLeft) {
   shop.frame = 0;
   shop.roundsLeft = roundsLeft || 10;
   // EXE: "NO KIBITZING!!" shown before each non-first human player's shop (DS:0x231C)
-  shop.kibitz = playerIdx > 0 && !isAI(players[playerIdx]);
+  shop.kibitz = showPrivacy && playerIdx > 0 && !isAI(players[playerIdx]);
   // EXE: palette tick saves and animates palette entries 8-11 during shop
   saveAccentPalette();
   updateItemList();
@@ -266,12 +266,14 @@ export function isShopActive() {
 // EXE Miscellaneous sub-category groups (DS:0x2E5B, 0x2E67, 0x2E71, 0x2EFE, 0x2EEF)
 // Each group has a header string and set of weapon indices.
 // Items are displayed grouped by sub-category with non-selectable header rows.
+// Group membership is mapped to the corrected items; layout/order outside the
+// initial Weapons page still needs comparison against emulator checkpoints.
 const MISC_GROUPS = [
-  { header: '~Guidance',   indices: [37, 38, 39, 40] },                   // Heat, Bal, Horz, Vert Guidance
-  { header: '~Parachutes', indices: [41, 42] },                           // Lazy Boy, Parachute
-  { header: '~Triggers',   indices: [56] },                               // Contact Trigger
-  { header: 'Shields',     indices: [46, 47, 48, 49, 50, 51, 52] },      // Shield through Super Mag
-  { header: '~Inventory',  indices: [35, 36, 43, 44, 45, 53, 54, 55] },  // Laser, Battery, Fuel Tank, etc.
+  { header: '~Guidance', indices: [WPN.HEAT_GUIDANCE, WPN.BAL_GUIDANCE, WPN.HORZ_GUIDANCE, WPN.VERT_GUIDANCE] },
+  { header: '~Parachutes', indices: [WPN.LAZY_BOY, WPN.PARACHUTE] },
+  { header: '~Triggers', indices: [WPN.CONTACT_TRIGGER] },
+  { header: 'Shields', indices: [WPN.MAG_DEFLECTOR, WPN.SHIELD, WPN.FORCE_SHIELD, WPN.HEAVY_SHIELD, WPN.SUPER_MAG] },
+  { header: '~Inventory', indices: [WPN.BATTERY, WPN.AUTO_DEFENSE, WPN.FUEL_TANK] },
 ];
 
 // Update filtered item list based on current tab
@@ -424,7 +426,7 @@ function aiBuyRandomFromCategory(player, category) {
 // EXE: buy_shields at near call 0x1E0F3 — scrolls through shield list with sine wave anim
 function aiBuyRandomShield(player) {
   const available = [];
-  for (let i = 46; i <= 52; i++) {
+  for (let i = WPN.MAG_DEFLECTOR; i <= WPN.SUPER_MAG; i++) {
     const w = WEAPONS[i];
     if (w.arms <= config.armsLevel && w.price > 0) {
       const price = getWeaponPrice(i);
@@ -441,7 +443,7 @@ function aiBuyRandomShield(player) {
 // Helper: buy mountain gear — fuel tank (55) or battery (43)
 // EXE: case 9 at 0x1DE20, call far 0x3451:0x016F
 function aiBuyRandomMountainGear(player) {
-  const candidates = [55, 43]; // Fuel Tank, Battery
+  const candidates = [WPN.FUEL_TANK, WPN.BATTERY]; // Fuel Tank, Battery
   const available = candidates.filter(i => {
     const w = WEAPONS[i];
     return w.arms <= config.armsLevel && w.price > 0 && player.cash >= getWeaponPrice(i);
@@ -745,14 +747,15 @@ export function drawShop(player) {
   drawPlayfieldBorder();
 
   // === Header row 1 (EXE: cash_display at file 0x16A7C) ===
-  // EXE: "Cash: $N" (DS:0x275D "Cash") centered, "%s rounds remain" (DS:0x2C1A) right
+  // EXE: cash label and amount use distinct columns (0x15FBA, 0x15FFB).
   // EXE: header row 1 at Y = HUD_Y (DS:0x518E, typically 5)
   const hdr1Y = 5;
   drawText(10, hdr1Y, player.name, baseColor);
 
-  const cashStr = `Cash: $${player.cash.toLocaleString()}`;
-  const cashTxtX = Math.floor((SW - measureText(cashStr)) / 2);
-  drawText(cashTxtX, hdr1Y, cashStr, UI_HIGHLIGHT);
+  const cashTxtX = 20 + measureText('MMMMMMMMMMMMMMM'); // EXE 0x15FBA..0x15FD6
+  drawText(cashTxtX, hdr1Y, 'Cash:', UI_HIGHLIGHT);
+  drawText(cashTxtX + measureText('Cash:') + 3, hdr1Y,
+    '$' + player.cash.toLocaleString(), UI_HIGHLIGHT);
 
   // EXE: "%s rounds remain" DS:0x2C1A / "1 round remains" DS:0x2C2B
   const roundsStr = shop.roundsLeft === 1 ? '1 round remains' : `${shop.roundsLeft} rounds remain`;
@@ -829,7 +832,7 @@ export function drawShop(player) {
     const listRight = PANEL_X + panelW - 3 - (hasSb ? SB_W + 1 : 0);
 
     // EXE column headers: qty, icon, weapon name, $price/max
-    drawText(22, hdrY, TAB_NAMES[shop.category], UI_HIGHLIGHT);
+    drawText(23, hdrY, TAB_NAMES[shop.category], UI_HIGHLIGHT);
     const endIdx  = Math.min(shop.items.length, shop.scrollOffset + perPage);
 
     // EXE item row format (paint callback file 0x1580D, item_click_handler file 0x1503B):
@@ -860,7 +863,7 @@ export function drawShop(player) {
       const txtColor = UI_HIGHLIGHT;
       if (selected) {
         for (let dy = -2; dy <= 2; dy++)
-          for (let dx = 0; dx <= 2 - Math.abs(dy); dx++) setPixel(4 + dx, y + 6 + dy, txtColor);
+          for (let dx = 0; dx <= 2 - Math.abs(dy); dx++) setPixel(6 + dx, y + 6 + dy, txtColor);
       }
       // Qty column (EXE: left-most, shows owned count)
       drawText(qtyCol, y, owned > 0 ? String(owned) : '0', txtColor);
@@ -888,43 +891,34 @@ export function drawShop(player) {
       // Up arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, sbTop, SB_W, btnH, UI_BACKGROUND,
         UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      // Up triangle (▲) — EXE: 7px wide × 5 rows, 3D shaded (0x154D2)
-      // base hline in EF32 (top/light), left edge EF26 (bright), right edge EF30 (dark)
-      const arrowMidX = sbX + Math.floor(SB_W / 2);
-      const upY = sbTop + Math.floor((btnH - 5) / 2);
-      for (let row = 0; row < 5; row++) {
-        const span = row;
-        for (let col = -span; col <= span; col++) {
-          let color;
-          if (row === 4) color = UI_BRIGHT_BORDER;       // base = EF32 (light)
-          else if (col === -span) color = UI_DARK_BORDER; // left = EF26 (bright)
-          else if (col === span) color = UI_MED_BORDER;   // right = EF30 (dark)
-          else color = UI_DARK_TEXT;
-          setPixel(arrowMidX + col, upY + row, color);
-        }
+      // EXE 0x15587: hollow seven-pixel bevel, base at widget top + 8.
+      hline(sbX + 4, sbX + 10, sbTop + 8, UI_BRIGHT_BORDER);
+      for (let k = 0; k < 4; k++) {
+        setPixel(sbX + 4 + k, sbTop + 7 - k, UI_DARK_BORDER);
+        if (k < 3) setPixel(sbX + 10 - k, sbTop + 7 - k, UI_MED_BORDER);
       }
 
       // Down arrow button (raised 3D box + triangle glyph)
       drawBox3DRaised(sbX, trkBot, SB_W, btnH, UI_BACKGROUND,
         UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      // Down triangle (▼) — EXE: 7px wide × 5 rows, 3D shaded, inverted
-      const dnY = trkBot + Math.floor((btnH - 5) / 2);
-      for (let row = 0; row < 5; row++) {
-        const span = 4 - row;
-        for (let col = -span; col <= span; col++) {
-          let color;
-          if (row === 0) color = UI_BRIGHT_BORDER;       // top = EF32 (light)
-          else if (col === -span) color = UI_DARK_BORDER; // left = EF26 (bright)
-          else if (col === span) color = UI_MED_BORDER;   // right = EF30 (dark)
-          else color = UI_DARK_TEXT;
-          setPixel(arrowMidX + col, dnY + row, color);
-        }
+      // EXE 0x156EF: the down tip belongs to the dark right edge.
+      hline(sbX + 4, sbX + 10, trkBot + 5, UI_LIGHT_BORDER);
+      for (let k = 0; k < 4; k++) {
+        if (k < 3) setPixel(sbX + 4 + k, trkBot + 6 + k, UI_DARK_BORDER);
+        setPixel(sbX + 10 - k, trkBot + 6 + k, UI_MED_BORDER);
       }
 
       // EXE: no track or thumb between arrow buttons — just background
     }
 
   }
+
+  // EXE type-6 selector: builder 0x15BBA, paint 0x47DF7, icons 0x15828.
+  const selectorY = Math.min((ITEM_Y_START - 3 + ITEM_Y_START - 3 +
+    (getItemsPerPage() - 1) * 20) >> 1, 240);
+  drawUIIcon(199, selectorY - 11, 5, UI_HIGHLIGHT);
+  drawUIIcon(217, selectorY - 11, 7, UI_HIGHLIGHT);
+  drawIconSlider(198, 226, selectorY, shop.category === TAB_MISC ? 221 : 203);
 
   // === Right-side buttons (EXE: shopDialogBuild at file 0x15AF6) ===
   // EXE: buttons at X=0xFA=250 (lo-res 320px mode)

@@ -36,8 +36,8 @@ export const config = {
   // Terrain — EXE: ranges.cpp generation params
   landType: 2,         // EXE: LAND_TYPE=Rolling (0=Flat,1=Slope,2=Rolling,3=MTN,4=V,5=Castle,6=Cavern)
   skyType: 0,          // EXE: SKY config (0=Plain,1=Shaded,2=Stars,3=Storm,4=Sunset,5=Cavern,6=Black,7=Random)
-  land1: 20,           // EXE: LAND1=20 (bumpiness/flat chance %)
-  land2: 20,           // EXE: LAND2=20 (terrain slope/frequency)
+  land1: 20,           // EXE: LAND1=20 (chance to change terrain momentum %)
+  land2: 20,           // EXE: LAND2=20 (chance to double momentum change %)
   numPeaks: 20,        // EXE: NUM_PEAKS=20
   randomLand: 0,       // EXE: RANDOM_LAND=Off
 
@@ -60,7 +60,7 @@ export const config = {
 
   // Misc
   talkingTanks: 0,     // EXE: TALKING_TANKS=Off (0=Off, 1=Computers, 2=All)
-  playOrder: 0,        // EXE: PLAY_ORDER=Random (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin,4=Sequential)
+  playOrder: 0,        // EXE: PLAY_ORDER=Random (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin)
 
   // Sound
   soundEnabled: 1,     // EXE: SOUND=On
@@ -143,4 +143,6 @@ export function applyGraphicsMode() {
 }
 
 loadConfig();
+// Older port versions exposed a fifth order that does not exist in the EXE.
+if (!Number.isInteger(config.playOrder) || config.playOrder < 0 || config.playOrder > 3) config.playOrder = 0;
 applyGraphicsMode();

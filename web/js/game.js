@@ -6,13 +6,14 @@
 // EXE: play modes — Sequential (0), Simultaneous (1), Synchronous (2) at DS config
 
 import { config } from './config.js';
+import { roundOrder } from './turn-order.js';
 import { random, clamp } from './utils.js';
 import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
-import { players, checkTanksFalling, stepFallingTanks, placeTanks, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, TANK_TYPES } from './tank.js';
+import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, getTankBarrel } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles, applyMagDamping,
-         WALL, setResolvedWallType } from './physics.js';
+         WALL, setResolvedWallType, getEffectiveWallType } from './physics.js';
 import { getPixel, setPixel } from './framebuffer.js';
 import { createCrater, startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
@@ -26,7 +27,8 @@ import { checkShieldDeflection, applyShieldDamage } from './shields.js';
 import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
-import { generateTerrain } from './terrain.js';
+import { generateTerrain, initSkyBackground, prepareTerrainGenerator } from './terrain.js';
+import { initPalette } from './palette.js';
 import { resetMenuState } from './menu.js';
 
 // EXE System Menu items (DS:0x2B22 pointer table at DS:0x2224)
@@ -123,7 +125,7 @@ export const game = {
 // 20% chance ×2; nested 40% of that = 8% total chance of ×4
 export function generateWind() {
   const maxWind = config.wind;
-  if (maxWind === 0) { game.wind = 0; return; }
+  // Even zero wind consumes the doubling draws in EXE 0x2945A.
   let wind = random(Math.floor(maxWind / 2)) - Math.floor(maxWind / 4);
   if (random(100) < 20) {
     wind *= 2;
@@ -150,60 +152,14 @@ export function getCurrentPlayer() {
   return players[game.currentPlayer];
 }
 
-// EXE: compute turn order based on playOrder config (DS:0x519C)
-// 0=Random, 1=Losers-First, 2=Winners-First, 3=Round-Robin, 4=Sequential
+// EXE dispatch table at 0x2B28C: Random, Losers, Winners, Round-Robin.
 function computeTurnOrder() {
-  const alive = players.filter(p => p.alive).map(p => p.index);
-  switch (config.playOrder) {
-    case 0: {
-      // Random: Fisher-Yates shuffle (EXE does 50 random swaps)
-      for (let i = alive.length - 1; i > 0; i--) {
-        const j = random(i + 1);
-        [alive[i], alive[j]] = [alive[j], alive[i]];
-      }
-      break;
-    }
-    case 1: {
-      // Losers-First: EXE (0x2AF29) random-shuffles then rotates so a tracked player goes first
-      // DS:0x51A4: first round = random start; subsequent rounds = (lastFirstId+1) % totalPlayers
-      // (NOT score-sorted — the rotation advances by 1 player index each round)
-      for (let i = alive.length - 1; i > 0; i--) {
-        const j = random(i + 1);
-        [alive[i], alive[j]] = [alive[j], alive[i]];
-      }
-      let targetId;
-      if (game.playOrderLastFirstId < 0) {
-        targetId = alive[random(alive.length)];
-      } else {
-        targetId = (game.playOrderLastFirstId + 1) % players.length;
-        for (let attempts = 0; attempts < players.length; attempts++) {
-          if (alive.includes(targetId)) break;
-          targetId = (targetId + 1) % players.length;
-        }
-      }
-      const pos1 = alive.indexOf(targetId);
-      if (pos1 > 0) { const tail1 = alive.splice(0, pos1); alive.push(...tail1); }
-      game.playOrderLastFirstId = alive[0];
-      break;
-    }
-    case 2:
-      // Winners-First: EXE sorts by score, fills in reverse (highest first)
-      alive.sort((a, b) => players[b].score - players[a].score);
-      break;
-    case 3: {
-      // Round-Robin: EXE (0x2B0BB) sorts by score (lowest first), then random rotation per round
-      // DS:0xE4F4 = random(NUM_PLAYERS) each round — fresh random start, no per-round tracking
-      alive.sort((a, b) => players[a].score - players[b].score);
-      const startPos = random(alive.length);
-      if (startPos > 0) { const tail3 = alive.splice(0, startPos); alive.push(...tail3); }
-      break;
-    }
-    default:
-      // Sequential (4): already in index order — no modification
-      break;
-  }
-  game.turnOrder = alive;
+  const { slots, start, lastFirst } = roundOrder(
+    players, config.playOrder, game.playOrderLastFirstId);
+  game.playOrderLastFirstId = lastFirst;
+  game.turnOrder = [...slots.slice(start), ...slots.slice(0, start)];
   game.turnOrderIdx = 0;
+  return slots;
 }
 
 // Advance to next living player using turn order
@@ -219,8 +175,8 @@ function advancePlayer() {
       }
       game.turnOrderIdx++;
     }
-    // Wrapped around — recompute order for next cycle
-    computeTurnOrder();
+    // Keep the round's slot order; dead players are skipped below.
+    game.turnOrderIdx = 0;
     while (game.turnOrderIdx < game.turnOrder.length) {
       const idx = game.turnOrder[game.turnOrderIdx];
       if (players[idx].alive) {
@@ -247,19 +203,14 @@ function advancePlayer() {
   return false;  // no living players
 }
 
-// Called by main.js startGame to set up first round state (turn order, sync mode, wall type)
-export function initGameRound() {
+// Called after landscape setup to create players, assign slots and open the first shop.
+export function initGameRound(setup = []) {
   initMarket();  // Initialize market prices at game start (EXE: mkt_init_defaults)
   game.playOrderLastFirstId = -1;  // EXE DS:0x51A4: reset to -1 (first round) on new game
-  computeTurnOrder();
-  if (game.turnOrder.length > 0) {
-    game.currentPlayer = game.turnOrder[0];
-  }
-
-  // Resolve wall types for first round
-  if (config.wallType === WALL.RANDOM || config.wallType === WALL.ERRATIC) {
-    resolveRandomWallType();
-  }
+  createPlayers(config.numPlayers, setup);
+  game.turnOrder = [];
+  game.turnOrderIdx = 0;
+  game.currentPlayer = 0;
 
   // EXE: initial shop before round 1 — each player buys weapons/defenses
   game.initialShop = true;
@@ -288,23 +239,32 @@ function checkRoundOver() {
   return alive.length <= 1;
 }
 
+// EXE 0x2928F selects ground color, then resolves Random/Erratic walls,
+// then generates wind before the landscape wrapper builds its sky.
+export function prepareRoundBackground() {
+  initPalette(config.landType, config.skyType, { beforeSky() {
+    if (config.wallType === WALL.RANDOM || config.wallType === WALL.ERRATIC)
+      resolveRandomWallType();
+    generateWind();
+    return { allowCavern: prepareTerrainGenerator() < 0 };
+  } });
+  initSkyBackground({ reuseStars: true, wrap: getEffectiveWallType() === WALL.WRAP });
+}
+
 // Start a new round
 function startNewRound() {
-  game.round++;
+  if (game.initialShop) game.initialShop = false;
+  else game.round++;
   game.turnCount = 0;
   game.currentPlayer = 0;
 
-  // EXE: Random wall type resolves once per round
-  if (config.wallType === WALL.RANDOM) resolveRandomWallType();
-
+  prepareRoundBackground();
   // Regenerate terrain and place tanks
   generateTerrain();
   playTerrainGenPing();
-  generateWind();
 
   // Reuse existing players (preserves score/cash/wins/inventory/aiType/name)
-  resetAndPlaceTanks();
-  computeTurnOrder();
+  resetAndPlaceTanks(computeTurnOrder());
   if (game.turnOrder.length > 0) {
     game.currentPlayer = game.turnOrder[0];
   }
@@ -352,7 +312,7 @@ function handleAimInput(player) {
   }
 
   // EXE: Tank movement with Fuel Tank (idx 55) — A/D keys move tank along terrain
-  const FUEL_TANK_IDX = 55;
+  const FUEL_TANK_IDX = WPN.FUEL_TANK;
   if (player.inventory[FUEL_TANK_IDX] > 0) {
     if (isKeyDown('KeyA')) {
       const newX = clamp(player.x - 1, 5, config.screenWidth - 5);
@@ -389,23 +349,13 @@ function handleAimInput(player) {
 // NOT shield energy consumption. It loads a string from DS:0xCC8E and calls
 // Fastgraph text display (0x3F19:0x4695). See Task 5: Talking Tanks.
 function fireWeapon(player) {
-  // EXE: barrel tip = barrel origin + barrelLen in angle direction
-  // Tank type table at DS:0x673E: barrelLen, barrelXOff, barrelYOff per type
-  const tankType = TANK_TYPES[player.tankType] || TANK_TYPES[0];
-  const dir = player.angle <= 90 ? 1 : -1;
-  const barrelOriginX = player.x + dir * tankType.barrelXOff;
-  const barrelOriginY = player.y + tankType.barrelYOff;
-  const angleRad = player.angle * Math.PI / 180;
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-  const startX = barrelOriginX + (dir === 1 ? cosA : -cosA) * tankType.barrelLen;
-  const startY = barrelOriginY - sinA * tankType.barrelLen;
+  const { endX: startX, endY: startY } = getTankBarrel(player);
 
   let weaponIdx = player.selectedWeapon;
 
-  // EXE: fire_weapon 0x3070C — Bal Guidance (DS:D54C, idx 38) replaced with
-  // Earth Disrupter (DS:D548, idx 34). Bal Guidance is intentionally non-fireable.
-  if (weaponIdx === 38) weaponIdx = WPN.EARTH_DISRUPTER;
+  // EXE 0x3070C compares DS:D54C (Bal Guidance) and substitutes DS:D548
+  // (Laser). Web indices add two to the EXE table index.
+  if (weaponIdx === WPN.BAL_GUIDANCE) weaponIdx = WPN.LASER;
 
   // EXE VERIFIED: ammo decrement at fire_weapon 0x30683; fallback to Baby Missile
   // at 0x3078E when depleted. Matches this JS implementation.
@@ -421,7 +371,7 @@ function fireWeapon(player) {
   // EXE VERIFIED: fire_weapon 0x306A8 — Super Mag (idx 52) ammo decremented per shot.
   // EXE: DS:0x1C76 flag set on projectile — bypasses enemy Mag Deflector damping.
   // EXE: Mag Deflector (idx 45) is NOT decremented at fire time (passive defense).
-  const SUPER_MAG_IDX = 52;
+  const SUPER_MAG_IDX = WPN.SUPER_MAG;
   let superMagActive = false;
   if (player.inventory[SUPER_MAG_IDX] > 0) {
     player.inventory[SUPER_MAG_IDX]--;
@@ -468,7 +418,7 @@ function processHit(proj, hitResult) {
   if (hitResult === 'hit_tank') {
     const targetPlayer = findHitPlayer(proj);
     if (targetPlayer) {
-      const magCount = (targetPlayer.inventory[45] || 0) + (targetPlayer.inventory[52] || 0);
+      const magCount = (targetPlayer.inventory[WPN.MAG_DEFLECTOR] || 0) + (targetPlayer.inventory[WPN.SUPER_MAG] || 0);
       if (magCount > 0) {
         const absorbed = applyMagDamping(proj);
         if (absorbed) return;  // projectile absorbed, no damage
@@ -896,13 +846,7 @@ export function gameTick() {
         if (game.shopPlayerIdx >= players.length) {
           // All players done shopping
           closeShop();
-          if (game.initialShop) {
-            // EXE: after initial shop, go straight to play (terrain already generated)
-            game.initialShop = false;
-            enterPlayState();
-          } else {
-            game.state = STATE.ROUND_SETUP;
-          }
+          game.state = STATE.ROUND_SETUP;
         } else {
           const rl = config.rounds - game.round + 1;
           openShop(game.shopPlayerIdx, rl);
@@ -915,8 +859,8 @@ export function gameTick() {
       // EXE: battery system — shields persist between rounds only if player has batteries
       for (const p of players) {
         if (p.activeShield !== 0) {
-          if (p.inventory[43] > 0) {
-            p.inventory[43]--;  // consume Battery (idx 43)
+          if (p.inventory[WPN.BATTERY] > 0) {
+            p.inventory[WPN.BATTERY]--;  // consume Battery (idx 43)
           } else {
             p.activeShield = 0;
             p.shieldEnergy = 0;
@@ -1030,15 +974,7 @@ export function gameTick() {
         const p = players[aim.playerIdx];
         if (!p.alive) continue;
 
-        const tt = TANK_TYPES[p.tankType] || TANK_TYPES[0];
-        const d = aim.angle <= 90 ? 1 : -1;
-        const bx = p.x + d * tt.barrelXOff;
-        const by = p.y + tt.barrelYOff;
-        const angleRad = aim.angle * Math.PI / 180;
-        const cosA = Math.cos(angleRad);
-        const sinA = Math.sin(angleRad);
-        const startX = bx + (d === 1 ? cosA : -cosA) * tt.barrelLen;
-        const startY = by - sinA * tt.barrelLen;
+        const { endX: startX, endY: startY } = getTankBarrel({ ...p, angle: aim.angle });
 
         launchProjectile(startX, startY, aim.angle, aim.power, aim.weaponIdx, aim.playerIdx);
       }

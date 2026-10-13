@@ -1,19 +1,320 @@
 # Scorched Earth v1.50 - Reverse Engineering Notes
 
-## Pixel parity audit (2026-10-12)
+## Pixel parity audit (2026-10-13)
 
 The current check uses the original EXE in `disasm/emu`, saved checkpoints,
 `web_screenshot.mjs` importing the actual renderer in Node, and exact RGB PNG
 comparison. No browser is required. Python, Node and `pngjs` are installed.
 
-At 360x480, these are the strict full-frame comparison results:
+Initial shopping now precedes landscape generation and player order/placement.
+`initGameRound()` creates player identities and inventories; the final shop
+Done enters ROUND_SETUP without incrementing round 1. Purchases survive setup.
+`verify_shop_exit.py` traces the EXE from the final human shop to landscape
+entry 0x2927E, then player-order entry 0x2AE53. `test_initial_shop.mjs`
+checks real shop input, purchase persistence, deferred RNG/placement, and the
+round counter; round-order, round-sky, menu-mode and player-input checks pass.
 
-| Checkpoint | Differing pixels | Remaining evidence |
-|---|---:|---|
-| Fresh menu boot, command below | 0 | Exact match after correcting Borland INT 3Ch segment decoding. |
-| Legacy `scratch/menu.state` | 30 | Contains the old emulator's corrupted numeric-widget state; regenerate rather than patching the screenshot. |
-| `scratch/after_p2done.state` | 1,441 | Cash positioning, list selection/scroll controls, shifted weapon names after Heavy Roller. |
-| `scratch/game_playing.state` | 530 | Full HUD and tank/playfield differences; no HUD mask. |
+At 360x480, freshly regenerated checkpoints now match exactly, using zero
+RGB tolerance and no masked pixels:
+
+| Checkpoint | Differing pixels |
+|---|---:|
+| `/tmp/scorched-menu-vga.state` | 0 |
+| `/tmp/scorched-player-vga.state` | 0 |
+| `/tmp/scorched-shop-vga.state` | 0 |
+| `/tmp/scorched-game-atan.state` | 0 |
+
+The remaining four game pixels were caused by an emulator VGA I/O bug.
+`OUT DX,AX` was treated as a byte write whenever AX <= 255, dropping a zero
+high byte. In the EXE's Mode X getpixel routine (0x4415D), writing AX=0004
+must select read plane zero. Previously it left the last plane selected,
+causing placement to erase the wrong support pixels and the barrel to skip
+(268,81). Both word OUT handlers now pass explicit width to PortIO.
+`test_vga_port_width.py` checks zero-data writes versus byte index writes,
+and executes the EXE getpixel routine across all four planes.
+Old `*-math.state` and `scratch/parity/game.state` captures contain this bug
+and should not be used as current pixel oracles.
+
+Initial tank placement now follows EXE 0x2AC02: descend from the playfield
+ceiling, erase partially supported footprint rows, and stop one pixel above
+the first fully supported row. It modifies the terrain bitmap and refreshes
+the height cache. Player setup's tank type is applied before placement.
+`verify_tank_placement.py` compares tank Y and the entire resulting bitmap
+against EXE execution for 70 normal/Cavern cases across all seven types,
+including slopes, pits, holes and overhangs. It substitutes bitmap callbacks
+for VGA I/O. Cavern uses 0x2ACF7 (selected at 0x2B193): search upward from
+bottom for center-column air, clear protrusions upward until a clear row,
+then fill gaps downward until a solid row. The floor cache starts below the
+tank, preserving the distinct ceiling. Initial single-color fills still
+consume random(1), matching EXE 0x299C0.
+
+Horizontal placement now follows 0x2B13E: spacing=(width-6)/playerCount with
+integer truncation, first X=3+spacing/2, then one spacing per slot. At 360x480
+with two players this gives x=91 and x=268. `verify_tank_slots.py` checks the
+EXE's first-slot and spacing arithmetic for 45 layouts. All four play-order
+modes assign identities to those slots before terrain settlement. The actual
+jump table at 0x2B28C maps 0=Random, 1=Losers-First, 2=Winners-First,
+3=Round-Robin. Earlier case labels and direct-entry tests had modes 1/3 wrong.
+`verify_turn_order.py` now runs the real dispatch: 96 seeded Random/Round-Robin
+cases match slots, starter, tracked identity and next RNG output. Round-Robin
+advances the starting identity each round. The menu's nonexistent fifth order
+has been removed (EXE widget at 0x3C3CC has four entries).
+
+`verify_score_order.py CHECKPOINT` runs the real dispatch, sorter and comparator
+using checkpoint heap initialization, then explicit wins/scores and RNG seeds.
+56 Losers/Winners cases match slots, starter and next RNG; 169 pair comparisons
+cover 16/32-bit limb, sign and overflow boundaries. The EXE compares wins first,
+then score, returning +1 on equality: its tie-shuffle block is unreachable.
+Its big-number subtraction zero-extends shorter operands, wraps at the longer
+operand's limb width, and can lose a negative sign while stripping FFFF limbs
+(0x12075). The port preserves these quirks and the selection algorithm.
+This verifies the normal DS:5148=0 ranking path; DS:5148=2 uses a different
+cash/inventory valuation path that remains to be ported. Score accumulation
+and values outside the tested signed 32-bit input range remain unverified.
+
+Turn order wraps without reshuffling and skips dead players.
+`test_round_order.mjs` checks integration and identity retention. Full round RNG
+stage ordering and falling remain unverified; initial aiming and default-mode
+barrel geometry are covered below.
+
+The barrel uses the EXE callback line iterator (0x1E2E3); midpoint ties take
+the diagonal step. `verify_line_iterator.py` directly executes that EXE routine
+and compares 289 paths in all octants with the JS implementation.
+
+Initial aiming exposed another emulator error: Borland INT 3Eh F2 is unary
+atan, not native x87 FPTAN. The latter pushed a constant and produced the
+old 57/-57-degree initial angles. The emulator and disassembler now handle
+the extension correctly; `test_exe_atan2.py` executes the complete EXE wrapper
+for 24 quadrant/axis cases. The regenerated game checkpoint above has local
+angles 76 (right-facing) and 27 (left-facing) and still matches exactly.
+Older `*-vga` game frames retain incorrect aiming; pre-placement checkpoints
+remain useful for the isolated generation tests.
+
+The port now calculates initial world angles with the EXE's truncated degree
+conversion, converts them to local angle/direction for HUD and rendering,
+and computes barrel tips by truncating trig components before signed 16.16
+pixel-aspect scaling. Both sequential and simultaneous firing use this same
+barrel geometry. `verify_tank_aim.py` checks 20 initial positions and 91 barrel
+endpoints across all seven tank types in the default 360x480 mode. Player-to-slot
+shuffle, projectile trajectories and other graphics-mode aspect ratios remain
+to be verified.
+
+```sh
+python3 disasm/test_exe_atan2.py
+python3 disasm/verify_tank_aim.py
+```
+
+Independent terrain generation now has a separate execution check:
+`verify_terrain_walk.py` imports the actual JS terrain module and runs EXE
+0x29808 with its own seed initializer and RNG. All columns and the subsequent
+RNG output match for 48 cases (four seeds, three dimensions, four parameter
+combinations). The old inline `test_terrain_match.mjs` compared a duplicate
+algorithm with a temporary Python fixture; it now invokes this direct check.
+The previous walk reversed LAND1's branch and replaced momentum instead of
+accumulating changes. Both errors are fixed. A live 360x480 kernel-entry
+checkpoint also establishes bounds x=3..356 and y=38..476; generation now
+excludes the three-pixel frame. These checks cover the ordinary walk. A separate wrapper check below now
+covers alternating direction and Cavern passes. Mountain-file selection and
+full round-level RNG order remain incomplete.
+
+`verify_terrain_frame.py` additionally resumes the real game's kernel-entry
+checkpoint, independently reseeds EXE and port, and compares every indexed
+pixel in the generated playfield (excluding HUD and frame). All 155,406
+terrain/sky pixels and their native 6-bit RGB colors match for seeds 0, 1, 42 and 65535 at 360x480 with shaded
+sky. It supplies dimensions and LAND parameters, but no height map, pixels,
+palette or RNG table to the port. The test reseeds palette selection and terrain generation as separate phases;
+matching the full round's RNG call order remains a separate task.
+
+```sh
+python3 disasm/emu_dialog_key.py /tmp/scorched-shop-two-vga.state /tmp/scorched-before-walk --key 0x20:100 --settle 12000000 --stop-at 0x29808
+python3 disasm/verify_terrain_frame.py /tmp/scorched-before-walk.state
+```
+
+The terrain-frame check also accepts `--sky 0`, `--sky 5`, and `--sky 6`.
+It now executes the actual LandGenerator wrapper, reseeding just before its
+first walk. Cavern includes both floor and ceiling passes without reseeding
+between them: all 155,406 playfield pixels and RGB values match for four seeds.
+Sunset's row table and sun bitmap now have independent EXE coverage (see below).
+
+`verify_terrain_passes.py` executes the wrapper, walk and RNG while intercepting
+palette setup and column drawing. Across 48 rounds it checks pass order,
+left/right sweep alternation, floor/ceiling heights and subsequent RNG output.
+The wrapper starts with direction -1 and flips once each generation, including
+both passes of a Cavern round. Floor generation runs first (midpoint to bottom),
+then ceiling (top to midpoint), ending one pixel before the walk Y. The port
+now follows this and selects Cavern geometry from the resolved sky type 5,
+as the EXE does, instead of the port's separate landType setting.
+
+```sh
+python3 disasm/verify_terrain_passes.py
+python3 disasm/verify_terrain_frame.py /tmp/scorched-before-walk.state --sky 5
+```
+
+The frame check's `--place-tanks` option also executes the EXE placement
+routines on the generated terrain and uses production `placeTanks(2)` in JS.
+It checks both positions, all terrain/sky pixels and RGB, and the next RNG
+output. This tests footprint edits but does not draw tank sprites. Shaded and
+Cavern pass for all four seeds. Mountain-file selection, player-to-slot shuffle,
+complete round RNG sequencing remain outside these checks. Initial aiming
+has its own direct execution tests below.
+
+```sh
+python3 disasm/verify_tank_slots.py
+python3 disasm/verify_terrain_frame.py /tmp/scorched-before-walk.state --sky 5 --place-tanks
+```
+
+Palette generation now has direct EXE coverage in `verify_palette_generation.py`.
+It executes ground_color_init and terrain_gen_main, then compares the production
+JS palette without injecting colors. Sunset uses (9-i)/10 with the EXE's
+operation order and truncation; the former /9 and /8 interpolation was wrong.
+Cavern uses the selected ground RGB scaled by (di+8)/45, rather than gray.
+Ground selection now precedes sky generation, and Random draws from six types
+(excluding Black). Plain uses only one DAC entry; unused stale entries are not
+compared. Black now clears ground and all tank DAC colors, matching EXE 0x39F8D;
+these entries are checked as well. Cavern's eligibility restriction for Random and
+Storm and Sunset now use the EXE's persistent filled-circle sky bitmaps.
+Sunset places a yellow sun at ((width-1)/2, bottom-5), radius (width-1)/3.
+Storm fills overlapping ceiling circles, with radius random(20)+30 and X step
+random(20)+15, temporarily multiplying pixel aspect by 1.8. Cloud brightness
+uses depth/3 at width 360 and depth/2 otherwise. Both use the doubled-coordinate
+integer circle algorithm at 0x43ACA with signed 16.16 aspect scaling and clipping.
+The old random Storm dots are removed. `verify_sunset_bitmap.py` checks every
+sun-mask pixel without terrain occlusion for all nine configured resolutions;
+it verifies use of the supplied aspect factors, not the hardware mode table.
+`verify_terrain_frame.py --sky 3/4` checks the independent production rendering
+against the EXE for four seeds at 360x480, including palette and sky/terrain RNG
+outputs. Crops are in `/tmp/scorched-storm-parity` and
+`/tmp/scorched-sunset-parity`. The fixture repeats the same palette-phase RNG
+position when the EXE wrapper invokes sky setup again: Storm regenerates each
+call, while Stars caches its bitmap. Whole-round initialization ordering,
+cache transitions and Storm palette animation remain unverified.
+
+Stars now uses the EXE's persistent point bitmap (0x1D09B), with feedback masks
+from DS:0B28 and one random(32000) value per playfield row. Brightness preserves
+signed 16-bit multiplication overflow, remainder and altitude cutoff from
+0x3AB6B. The port no longer scatters 80 fresh dots on every redraw. Crater and
+tunnel erasure restore the background at (x,y), including covered stars.
+`test_star_sky.mjs` checks Stars, Storm and Sunset across 100 stable redraws
+without RNG consumption and verifies crater restoration. `verify_terrain_frame.py --sky 2` independently seeds palette/sky
+and terrain phases, then compares all 155406 playfield pixels and 6-bit RGB
+values at 360x480 for seeds 0,1,42,65535. All four match exactly; next RNG output
+after sky initialization and after terrain generation also matches. No EXE
+pixels, heights or palette are injected into the JS renderer. Whole-round RNG
+stage ordering, sky cache transitions and other resolutions are not yet covered.
+Use `--output-dir /tmp/scorched-stars-parity` to save paired playfield crops;
+these deliberately exclude HUD, borders and tank sprites.
+Later-round setup now rebuilds the palette and sky before terrain generation.
+Previously `startNewRound()` skipped both: the ground color, Random selection
+and Storm clouds stayed frozen. Consecutive Stars rounds reuse their field,
+including consecutive Stars selections through Random. Graphics-mode/new-game buffer
+reset invalidates that cache. `test_round_sky.mjs` exercises the real
+ROUND_SETUP state transition over three additional rounds of Stars and Storm.
+`verify_sky_rounds.py CHECKPOINT` executes eight consecutive EXE sky setups for
+each of Stars, Storm and Random: all 24 match every playfield index, ground RGB,
+resolved sky and continuing RNG output. The pixel oracle decodes EXE bitmap/row
+state, complementing the direct VGA rendering comparisons above. This phase
+test includes no terrain, wind or player-order RNG between rounds; full round
+sequencing is still not verified. Switching manually back to Stars after a
+different explicit sky uses shared EXE bitmap state and remains unported.
+
+Storm circle spans now wrap across the playfield edges when the resolved wall
+mode is Wrap, following 0x439E8/0x43A2B. `verify_terrain_frame.py --sky 3 --wrap`
+matches all playfield indices/RGB and phase RNG values for four seeds at
+360x480. Saved crops are in `/tmp/scorched-storm-wrap-parity`.
+The game now uses `prepareRoundBackground()` on first and later rounds:
+ground selection precedes Random/Erratic wall resolution, then sky generation
+uses the resolved wrap setting. Previously first-round walls were resolved
+after sky and tank placement, and later-round walls preceded ground selection.
+`verify_wall_sky_order.py CHECKPOINT` executes EXE 0x2927E through its wall
+setup and then the sky initializer, comparing the actual game helper's selected
+wall, sky, ground RGB, playfield indices and next RNG output. Its cases cover
+Random/Erratic walls with explicit Storm and Random skies over eight rounds
+each. These are phase comparisons, not proof of whole-game RNG or timing.
+
+Wind initialization now runs before sky/terrain rather than after terrain.
+EXE 0x2943A always executes its random(100) doubling tests, even when max wind
+is zero; the port's early return incorrectly skipped those RNG draws.
+`verify_wind.py` runs the EXE arithmetic block through 0x29488 and compares
+wind plus the next RNG output for 320 cases (32 seeds; zero, odd and even maxima
+through 500). All match. `verify_wall_sky_order.py` now includes the actual
+EXE wind block in its ground/wall/sky phase sequence and compares game.wind.
+The mountain probability draw now also runs between wind and sky, including
+when no files are loaded. It is `R250_word / 65535 * 100 <= MTN_PERCENT`,
+not `random(100) < MTN_PERCENT`; explicit Cavern skips the draw entirely.
+Selection applies independently of the ground palette. A selected scanned
+generator makes Random sky re-roll Cavern (0x39799), previously missing.
+`verify_mountain_selection.py` compares 432 seeded cases against the EXE's
+probability branch and file-index selection, including the next RNG value;
+12 injected-word cases verify inclusive probability boundaries. Another 64
+cases check Random sky eligibility and RNG continuation against 0x3978E.
+`verify_wall_sky_order.py` includes the probability draw with files disabled,
+matching its Node fixture. MTN decoding/drawing is checked separately below;
+the joined constructor and file-selection path is now exercised by the
+landscape sequence verifier. Complete game lifecycle parity is not established.
+
+`verify_landscape_sequence.py CHECKPOINT [--wind 100]` now executes the entire
+EXE landscape routine at 0x2927E and compares the production combination
+`prepareRoundBackground(); generateTerrain(); drawSky(); drawTerrain();
+drawWindIndicator()`. A single seed runs continuously through ground color,
+wall resolution, wind, mountain probability, sky, and the procedural walk.
+No heights, palettes or pixels are imported, and no intermediate reseeding is
+used. The fixture disables scanned files, changing wind and spoiler setup;
+it excludes the HUD/border and the rest of the round lifecycle. Four seeds
+cover Shaded, Storm/Wrap, Random/Random walls, and Cavern/Erratic walls.
+
+This check exposed the wind overlay's adaptive palette index: EXE wind glyphs
+and arrows use VGA 87 over ground (80..104) and 154 elsewhere. The port now
+uses a per-pixel font callback, mapping the ground variant to web slot 127.
+The extra URL-seed reset immediately before terrain in `main.js` was removed,
+so interactive games also continue the RNG stream from landscape preparation.
+This does not yet establish seed parity across menu, shop and round transitions.
+
+The same verifier accepts `--mountains`, loads all ten shipped MTN files in the
+port, and enables the EXE's real directory scan and file constructor with
+MTN_PERCENT=100. Explicit Cavern still takes its procedural bypass. All four
+cases pass at both max wind 0 and 100, comparing pixels, RGB, wind, resolved
+sky/walls and next RNG. This joins file selection, Random sky eligibility,
+mountain cropping and drawing into the single RNG stream rather than supplying
+a preselected filename. The fixture uses the checkpoint's native stack segment
+and asserts a valid selected MTN filename when scanning is enabled.
+The verifier now accepts `--mtn-percent`, `--rounds`, `--case` and `--seed`.
+Repeated calls retain the EXE's resolved sky and caches; the port runs the same
+production landscape helpers without resetting its terrain buffers. The RNG
+check now compares all 250 R250 words and the index without advancing either
+generator, replacing the extra random draw previously used as a probe.
+
+These repeated sequences exposed two state transitions omitted from the port:
+consecutive Random-to-Stars selections reuse the star field (0x39A1C), and
+mountain selection sees the previous resolved sky, so a previous Random Cavern
+skips the next mountain probability draw (0x29488). Both are now implemented.
+The older sky-only phase fixtures were corrected to preserve the same EXE sky
+state rather than writing the requested Random value before every call.
+The menu/shop lifecycle remains outside these landscape comparisons.
+At MTN_PERCENT=20, full playfield pixels/RGB, resolved state and all 250 RNG
+words plus index match across 22 consecutive landscape generations: eight
+Shaded rounds at seed 0, eight Random-sky/Random-wall rounds at seed 42,
+and six Random-sky/Random-wall rounds at seed 3. These sequences cover
+procedural/scanned transitions, consecutive Stars, and successive Caverns.
+Reproduce with `--mountains --mtn-percent 20 --rounds 8 --case 0`,
+`--mountains --mtn-percent 20 --rounds 8 --case 2`, and
+`--mountains --mtn-percent 20 --rounds 6 --case 2 --seed 3` respectively.
+
+This exposed two more emulator file defects: `*.mtn` did not match uppercase
+filenames, and closed DOS handles were never reused, exhausting Borland's
+small handle table during the second directory scan. Directory matching now
+ignores case and allocation reuses the lowest free handle. `test_dos_find.py`
+checks mixed-case enumeration and 40 repeated open/close cycles. These fixes
+allow the actual scanned generator to run instead of silently falling back
+to procedural terrain.
+
+The sky row tables now match the EXE for Shaded, Sunset, Cavern and Black:
+Sunset uses 28 levels starting at entry 121, and Cavern mirrors its gradient
+around the midpoint. Plain uses only entry 120. The background now uses the
+same fixed playfield top as terrain rather than scaling it independently.
+
+```sh
+python3 disasm/verify_palette_generation.py /tmp/scorched-before-walk.state
+```
 
 These are renderer comparisons with injected checkpoint state, palette and
 terrain heights, **not** proof that independent terrain generation, physics or
@@ -21,22 +322,94 @@ gameplay match. The earlier game comparison automatically masked the HUD and
 tolerated RGB differences of 1. The gate now defaults to zero tolerance, no
 mask, rejects dimension mismatches, and returns nonzero for differing pixels.
 Checkpoints and screenshot outputs are ignored local artifacts, not portable
-regression fixtures yet. The pipeline still assumes graphics mode 4 and needs
-display-page-aware VGA extraction before animation checkpoints are trustworthy.
+regression fixtures yet. The pipeline now reads the displayed CRTC page (or linear memory for Mode 13h)
+and selects the web graphics mode from checkpoint dimensions. Animation timing
+and gameplay state extraction still need broader verification.
 
-Reproduce (fresh menu exits 0; legacy shop/game comparisons still exit 1):
+Reproduce current comparisons (all exit 0 after regenerating the states):
 
 ```sh
-python3 disasm/emu/__main__.py --max-steps 20000000 --break 0x460C3 --save-state /tmp/scorched-menu-fixed.state
-python3 disasm/compare_pipeline.py /tmp/scorched-menu-fixed.state --state menu --output-dir /tmp/scorched-menu
-python3 disasm/compare_pipeline.py scratch/after_p2done.state --state shop --output-dir /tmp/scorched-shop
-python3 disasm/compare_pipeline.py scratch/game_playing.state --state game --output-dir /tmp/scorched-game
+python3 disasm/emu/__main__.py --max-steps 20000000 --break 0x460C3 --save-state /tmp/scorched-menu-vga.state
+python3 disasm/compare_pipeline.py /tmp/scorched-menu-vga.state --state menu --output-dir /tmp/scorched-menu
+python3 disasm/compare_pipeline.py /tmp/scorched-shop-vga.state --state shop --output-dir /tmp/scorched-shop
+python3 disasm/compare_pipeline.py /tmp/scorched-game-atan.state --state game --output-dir /tmp/scorched-game
 python3 disasm/test_compare_screenshots.py
 python3 disasm/test_fpu_segments.py
+python3 disasm/test_fpu_math.py
+python3 disasm/test_dialog_key.py
+node disasm/test_player_setup_input.mjs
+node disasm/test_main_menu_mode.mjs
+python3 disasm/test_display_capture.py
+python3 disasm/test_vga_port_width.py
+python3 disasm/verify_tank_placement.py
+python3 disasm/verify_terrain_walk.py
 python3 disasm/verify_icons.py
+python3 disasm/verify_line_iterator.py
+python3 disasm/verify_render_tables.py --state scratch/parity/shop.state
 ```
 
+Regenerate the full path from the fresh menu above. Each command uses the
+previous checkpoint, preserving keyboard press/release and dialog readiness:
+
+```sh
+python3 disasm/emu_dialog_key.py /tmp/scorched-menu-vga.state /tmp/scorched-player-vga --key 0x1f:115
+python3 disasm/emu_dialog_key.py /tmp/scorched-player-vga.state /tmp/scorched-named-vga --key 0x1e:97
+python3 disasm/emu_dialog_key.py /tmp/scorched-named-vga.state /tmp/scorched-committed-vga --key 0x1c:13
+python3 disasm/emu_dialog_key.py /tmp/scorched-committed-vga.state /tmp/scorched-player-two-vga --key 0x20:100
+python3 disasm/emu_dialog_key.py /tmp/scorched-player-two-vga.state /tmp/scorched-named-two-vga --key 0x30:98
+python3 disasm/emu_dialog_key.py /tmp/scorched-named-two-vga.state /tmp/scorched-committed-two-vga --key 0x1c:13
+python3 disasm/emu_dialog_key.py /tmp/scorched-committed-two-vga.state /tmp/scorched-shop-vga --key 0x20:100
+python3 disasm/emu_dialog_key.py /tmp/scorched-shop-vga.state /tmp/scorched-shop-two-vga --key 0x20:100
+python3 disasm/emu_dialog_key.py /tmp/scorched-shop-two-vga.state /tmp/scorched-game-atan --key 0x20:100 --settle 12000000
+```
+
+Additional 360x480 captures now match exactly (zero differing pixels): typing
+`a`, committing it with Enter, switching to computer with Space (Tosser), and
+selecting Chooser with C. The active modal editor's buffer is DS:F15A; its
+stack frame returning to 0x46FC2 identifies when to use that buffer instead
+of the committed widget name. BP-6 provides the cursor position. Done stays
+disabled until the name is committed. The port now separates draft/committed
+names, preserves typed case, and supports cancel, type switching and AI choice.
+
+Computer choices are type-8 widgets: labels/positions at widget+1A/+1E,
+selected index at +0E. Filled circles use the EXE 0x44E93 iterator with
+aspect scaling and radii 5/3; the selected inner circle uses EF26.
+
+Player two's blank and typed-name captures also match exactly, as does the
+shop reached after completing both players with names `a` and `b`. The port
+now starts each player in blank human name entry, refreshes the backdrop when
+advancing, and centers titles using the EXE's inclusive dialog bounds. An
+empty modal editor can retain old bytes at DS:F15A; cursor-at-start identifies
+that those bytes are not active text. Backdrop/selector colors now use the
+player's full RGB values rather than the dimmed gameplay palette.
+
+The actual application loop formerly forced menus to 320x200 while isolated
+renderer comparisons used 360x480. That override is removed. Framebuffer and
+terrain buffers resize immediately after a Hardware mode change. The native
+`test_main_menu_mode.mjs` runs the real RAF loop, verifies default 360x480,
+changes Hardware to 640x400 through input, and checks setup retains that mode.
+This verifies integration dimensions; pixel parity at 640x400 remains unproven.
+
+Palette animation timing, remaining selector enabled-state rules, other
+resolutions and the remaining interactive setup transitions need verification.
+The fresh VGA checkpoints above include both corrected math and VGA I/O;
+earlier saved checkpoints must be regenerated before using them as an execution oracle.
+
 Corrections established by direct rendering/disassembly in this pass:
+
+- Borland `CD 3E EC/EE/F0 90` are sine/cosine/tangent extensions, as shown by
+  `_sin`, `_cos`, `_tan` fallback sites at 0x7C21/0x7DEE/0x7C74. Treating them
+  as D9 register instructions pushed log10(2)/zero instead of evaluating trig,
+  grew the FPU stack and drew vertical selector barrels. Native D9 constants
+  remain unchanged. Other INT 3Eh extensions still need an audit.
+- `FLDCW` now loads the rounding control used by `_ftol` (0x7EDF). Integer
+  stores and `FRNDINT` honor nearest/down/up/truncate instead of always rounding.
+- Tank body pointers start at DS:673E; geometry starts at DS:6734, stride 18,
+  with seven entries. The previous geometry read was shifted by one record.
+- Player dialog state is extracted from live widgets (committed name buffer at +0x16,
+  selector value at +0x0E), rather than the unrelated tank name pointer.
+  Name/Done and both selectors now match the regenerated human checkpoint.
+
 
 - Borland `INT 3Ch` encodes the segment in bits 6-7 of its third byte:
   DS/SS/CS/ES, respectively. Bits 0-2 select the D8-DF opcode family.
@@ -57,11 +430,73 @@ Corrections established by direct rendering/disassembly in this pass:
   including the old icon verifier, were incorrect.
 - Shop rows use individual inset frames and the shared HUD/playfield border.
   The checkpoint importer maps EXE inventory indices to web indices +2.
+- Shop cash text uses separate label/value columns (0x15FBA..0x16003), not a
+  centered string. Hollow scroll-arrow bevels follow 0x15587/0x156EF. The list
+  title starts at playfield XMIN+20, and the selection marker starts at x=6.
+- HUD state comes from the current tank pointer DS:5182/5184. Displayed power
+  is tank+0x9E (0x30269), selected weapon is tank+0x16 (0x301F1), and rounds
+  config is DS:5160. Previously the harness always used player 0, read power
+  at +2, and omitted inventory. The HUD converts web weapon indices to EXE
+  icon indices and omits the Baby Missile ammo prefix, as at 0x30355.
 
-Next: regenerate shop/game checkpoints with the corrected emulator; audit all 48 runtime weapon names
-and their index/handler mappings together; finish shop controls and game HUD;
-then capture player setup, submenus, scrolling/buying, projectiles, explosions
-and round transitions at deterministic checkpoints. Other graphics modes and
+`disasm/emu_dialog_key.py` waits for dialog/key polling, then delivers each
+press/release with IF enabled and no competing timer injection. Timed events
+in `run_fast` can drop keyboard IRQs when IF=0; a missed release can leave the
+next dialog draining a held key indefinitely. The helper avoids that without
+changing the existing emulator work in progress. For example:
+
+```sh
+python3 disasm/emu_dialog_key.py scratch/parity/menu.state /tmp/player1 --key 0x1f:115 --settle 8000000
+python3 disasm/emu_dialog_key.py /tmp/player1.state /tmp/named-player1 --key 0x1e:97
+```
+
+The helper's final settle budget does not guarantee a complete frame. Inspect
+the result or supply `--stop-at` with a known EXE file-offset breakpoint.
+Fresh shop/game captures were inspected after drawing completed; they use
+player names `a` and `nb`. Saved copies are under ignored `scratch/parity/`.
+
+Latest pass (2026-10-13):
+
+- All 48 initialized weapon names now match their EXE records, prices, bundles,
+  arms levels, handler far pointers and icon indices. Removed seven spurious
+  trailing entries; retained the two internal web slots and migrated inventory
+  consumers. Behavior dispatch still uses handler offsets and is not fully
+  audited: Plasma Blast and dirt share offset 9 in different segments.
+- Recovered all 12 generic UI icons at DS:324A. Shop selector paint follows
+  0x47DF7/0x4B0B4 and 0x15828, producing zero differing pixels for the initial
+  Weapons page. Miscellaneous ordering and selector interaction need coverage.
+- HUD widget 4 displays shield state, not weapon ammo. Widget 5 uses tank+9A
+  and a generic empty icon; widget 7 now includes the Fuel Tank icon.
+- Sky selection comes from DS:5110; DS:5112 is explosion scale. Reading the
+  latter generated spurious stars in the checkpoint renderer.
+- Tank rendering reads type at +0, direction at +94, mutable barrel offsets at
+  +4/+6 and cached endpoint at +12/+14. Corrected all six pixel tables against
+  EXE signed triples. Barrel paint preserves player pixels and skips its
+  endpoint (0x3FF55). These injected fields validate drawing, not independent
+  barrel geometry computation. Three left-tank-adjacent pixels remain.
+- `verify_render_tables.py` checks weapon numeric fields, UI icon samples and
+  tank geometry/pixels directly against EXE bytes; `--state` also checks all
+  initialized weapon names. All checks and the eight existing unit tests pass.
+
+The three remaining game pixels are sky-colored gaps below the first terrain
+pixel in column 88. Height-only terrain injection cannot represent these gaps;
+retain the failure until terrain history/state is represented correctly.
+
+The new player-setup checkpoint was produced from `scratch/parity/menu.state`
+with `emu_dialog_key.py --key 0x1f:115 --settle 8000000`. Compare using
+`compare_pipeline.py scratch/parity/player-setup.state --state player_setup`.
+Player setup improved from 156103 to 3413 differences. EXE 0x26C74 paints
+nine-pixel stripes using palette entries 180..219; 0x26B69 builds the 40-color
+ramp. The renderer now uses that pattern and the shared 202x146 dialog bounds
+from the widget builder, plus the inset panel and vertical input cursor. The
+checkpoint supplies the palette animation phase. Palette cycling outside the
+checkpoint harness still needs implementation. Remaining selectors must be
+ported: the old color-choice row is actually a tank-choice row in the EXE;
+player type uses icons and a slider. Input behavior must change with the UI.
+
+Next: port player setup, resolve the three game pixels, then capture submenus,
+scrolling/buying, projectiles, explosions and round transitions at deterministic
+checkpoints. Other graphics modes and
 independent state generation still need coverage. Existing claims of complete
 verification elsewhere in these notes should be checked against this evidence.
 
@@ -1632,83 +2067,75 @@ a direct hit transfers full velocity, while a glancing angle transfers less.
 
 ## MTN Terrain File Format
 
-**VERIFIED by decode_mtn.py / render_mtn.py (9 of 10 files decode cleanly).**
+The previous PCX-RLE interpretation was incorrect. Direct execution and
+inspection of EXE `0x32E44` shows **uncompressed, variable-height columns**.
+`web/js/mountain.js` decodes all ten shipped files to their exact byte lengths.
 
-### File List (from binary at DS:0x5F04 descriptor table)
+The 24-byte header contains these little-endian words:
 
-The descriptor table starts at DS:0x5F04 (file 0x5BC84); each entry is 8 bytes:
-`filename_far_ptr (4 bytes) + file_size_32bit (4 bytes)`. Filenames at DS:0x5F5A+.
+| Offset | Meaning |
+|--------|---------|
+| 0x00..03 | Magic bytes `4D 54 BE EF` |
+| 0x04 | Version (`0x0100`) |
+| 0x06 | Number of columns (419–1483 in the shipped files) |
+| 0x08 | Minimum column height |
+| 0x0A | Maximum column height |
+| 0x0C | Palette entries (16) |
+| 0x0E | Stored size field; not needed to decode columns |
+| 0x10 | Ground palette index (0 in shipped files) |
+| 0x12 | Bitmask selecting colors for random ground padding |
+| 0x14..17 | Unused by the rendering path |
 
-| File | Filename DS: | Size | Theme |
-|------|-----------|------|-------|
-| ice001.mtn | DS:0x5F5A | 45,972 | Ice/glacier |
-| ice002.mtn | DS:0x5F65 | 54,281 | Ice/glacier |
-| ice003.mtn | DS:0x5F70 | 139,961 | Ice/glacier |
-| rock001.mtn | DS:0x5F7B | 63,114 | Rocky terrain |
-| rock002.mtn | DS:0x5F87 | 73,730 | Rocky terrain |
-| rock003.mtn | DS:0x5F93 | 136,992 | Rocky terrain |
-| rock004.mtn | DS:0x5F9F | 69,068 | Rocky terrain |
-| rock005.mtn | DS:0x5FB7 | 41,767 | Rocky terrain |
-| rock006.mtn | DS:0x5FC3 | 33,738 | Rocky terrain |
-| snow001.mtn | DS:0x5FCF | 67,134 | Snowy mountains |
+A 16-entry RGB888 palette starts at offset 24. Pixel records start at offset
+72. Each record is a 16-bit column height followed by `ceil(height / 2)` bytes.
+The **low nibble is the bottom pixel**, followed by the high nibble one row
+above it. No run-length encoding, transparency index, second image block, or
+horizontal rescaling is involved. Every nibble maps to EXE VGA `88 + nibble`.
+The port maps those colors to slots 128–143; ground VGA 80 maps to slot 120.
 
-### Header Structure (72 bytes total)
+The EXE crops wider images at a random horizontal offset, using its fractional
+R250 generator. Narrow images extend by reflecting columns at each edge without
+repeating the edge column. Vertical cropping uses the header's minimum/maximum
+heights and 80%/95% of playfield height, with signed 16-bit intermediates and an
+even crop offset. Its sky fill overwrites the highest encoded pixel in each
+column. Columns retaining fewer than three rows receive three random ground
+pixels from the header mask; these draws also advance the gameplay RNG.
 
-| Offset | Size | Field | Value |
-|--------|------|-------|-------|
-| 0x00 | 2 | Magic `"MT"` | 0x4D54 |
-| 0x02 | 2 | Magic2 | 0xBEEF |
-| 0x04 | 2 | Version | Always 0x0100 (1.0) |
-| 0x06 | 2 | `h` — rows per column | 419–1483 |
-| 0x08 | 2 | `x_start` — first encoded column | 0–104 |
-| 0x0A | 2 | `x_end` — last encoded column + 1 | 174–294 |
-| 0x0C | 2 | `n_colors` | Always 16 (0x0010) |
-| 0x0E | 2 | `data_size` — `file_size - 24` (palette+pixels) | varies |
-| 0x10 | 2 | Unknown (always 0x0000) | 0 |
-| 0x12 | 2 | Unknown (varies) | varies |
-| 0x14 | 4 | Unknown (often 0x38FC_29FB or 0x1F31_29FC) | varies |
-| 0x18 | 48 | Palette: 16 × RGB888 (8-bit per channel) | see below |
+The old port discarded mountain colors, decoded a fictitious RLE stream, and
+scaled approximate heights. It now retains the actual per-pixel colors and
+geometry. `verify_mountain_frame.py CHECKPOINT --file NAME --seed N` invokes
+the EXE renderer with the selected file and compares the production terrain
+renderer's entire playfield, palette RGB, and next RNG output. This isolates
+the MTN rendering phase; it does not establish full-round RNG parity.
+All ten shipped files pass with seed 0 at 360x480 and Shaded sky, comparing
+155,406 playfield pixels, their RGB values, and the next RNG output per file.
+ROCK001 also passes seed 42 with a 200-row viewport inside the same hardware
+mode, exercising vertical cropping and random bottom padding. Verified image
+pairs are saved in `/tmp/scorched-mtn-parity` and
+`/tmp/scorched-mtn-crop-parity`.
 
-**Note:** `data_size` field equals `file_size - 24` for small files (rock001/ice001/ice002/rock005/rock006); for large files the field stores a different (smaller) value — interpretation unknown. Always skip this field; use `file_size - HEADER_SIZE` directly.
+The verifier now also accepts `--sky` and `--place-tanks`. ROCK001, seed 42,
+passes Plain, Stars, Storm, Sunset and Black with two type-3 tank placements:
+both positions, all footprint edits, every remaining playfield pixel/RGB,
+and the next RNG value match the EXE. These checks exclude tank sprite drawing.
+Black mode exposed an immediate-DAC bug: MTN colors are stored for later
+illumination by the EXE, not shown during setup. The port now preserves black
+visible entries; the later illumination behavior remains to be ported.
 
-### Palette (at byte offset 0x18 = 24, 48 bytes)
+A synthetic file containing the first 128 columns of ROCK006 (header width
+and height extrema updated) exercises both horizontal reflection turns inside
+the 354-column playfield. It passes with Shaded sky, seed 42, and two tanks,
+including pixels/RGB/RNG. Fixture and images are under
+`/tmp/scorched-mtn-reflection`; pass that directory via `--mountain-dir` and
+`--file ROCK006.MTN` to reproduce. This verifies the reflection algorithm,
+not the VGA drivers for wider graphics modes. Full-round sequencing and
+mode coverage remain incomplete.
 
-- 16 colors × 3 bytes (R, G, B), values 0–255 (NOT VGA 6-bit)
-- **Index 0 = (255,255,255) white = sky / transparent** (consistent across all 10 files)
-- **Index 15 = (0,0,0) black** (consistent across all 10 files)
-- Indices 1–14: terrain colors (rock/ice/snow shades, file-specific)
-- Example ROCK001 palette: index 14=(49,41,33) dark brown, index 13=(66,57,49) very dark brown, index 1=(165,156,140) light tan
-
-### Pixel Data (at byte offset 0x48 = 72)
-
-**Encoding:** PCX-RLE applied to nibble-packed (4bpp) bytes, column-major ordering.
-
-- **4-bit pixels**: each byte encodes TWO pixels — high nibble = pixel 0, low nibble = pixel 1
-- Each byte ≥ 0xC0 is a PCX-RLE run header: `count = byte & 0x3F` copies of next byte
-- Each byte < 0xC0 is a literal packed byte (2 pixels)
-- Columns encoded from `x_start` to `x_end - 1`, each column `h` pixels tall
-- Bytes per column (uncompressed): `ceil(h / 2)` packed bytes = `h` pixels
-- Column scan direction: row 0 = TOP of image (sky at top, terrain below)
-
-**Sky/terrain boundary**: for each column `x`, scan from row 0 downward. First non-zero (non-sky) pixel = terrain ceiling row. `terrain_height_fraction = first_terrain_row / h`. Terrain fills from that row to the bottom; sky is above.
-
-**Two data blocks**: each file contains TWO consecutive PCX-RLE blocks of column data (same format, same bytes_per_col). Block 1 covers columns `x_start..x_end-1`. Block 2 covers additional columns (count varies). Purpose of block 2 unknown (background layer? shadow? cached rotated view?). The game's ScannedMountain loader reads from file offset 72 onward.
-
-### Terrain Height Extraction (for web port)
-
-```
-for x in range(x_start, x_end):
-    col = decode_column(pixel_data, x)   # h pixels, nibble-unpacked from PCX-RLE
-    for row in range(h):
-        if col[row] != 0:                # first non-sky pixel from top
-            terrain_y_frac[x] = row / h  # 0=top, 1=bottom
-            break
-    else:
-        terrain_y_frac[x] = 1.0          # entirely sky column
-
-# Map x_start..x_end-1 → playfield 0..319
-# Map terrain_y_frac → playfield y 0..199
-```
+This verification also exposed two DOS emulator defects: IOCTL `4400h` marked
+disk files as character devices, breaking Borland buffered seek accounting;
+AH=42h treated negative displacements as unsigned. Both are corrected, with
+focused checks in `test_dos_seek.py`. Older MTN emulator captures made before
+these corrections are not reliable rendering references.
 
 ### MTN_PERCENT Control
 
@@ -1724,10 +2151,9 @@ for x in range(x_start, x_end):
 
 ### Reference Tools
 
-- `disasm/decode_mtn.py` — Full decoder (nibble-packed PCX-RLE from offset 72), verifies 9/10 files
-- `disasm/render_mtn.py` — ASCII silhouette renderer to visualize column data
-- `disasm/inspect_mtn_header.py` — Dumps raw header fields for all .MTN files
-- Reference parser (Python): https://github.com/zsennenga/scorched-earth-mountain
+- `web/js/mountain.js` — Native MTN decoder and crop/reflection renderer.
+- `disasm/verify_mountain_frame.py` — EXE/production playfield and RNG comparison.
+- `disasm/verify_mountain_selection.py` — Probability, file index and sky eligibility comparison.
 
 ---
 
@@ -3424,7 +3850,7 @@ All located in `disasm/` directory:
 ### RE Investigation
 
 - [x] Trace sky palette init for all 6 sky types: investigated code at 0x285A7, 0x3A0A9, 0x3A182, ranges.cpp fg_setdacs calls. **Key finding**: the handler addresses (0x3E700, 0x4758B, etc.) are menu dialog renderers (segment 0x34ED), NOT palette init functions. Sky gradient base = DS:0x6E2A = 80 (VGA 80). Sky gradient VGA 80–104 (25 entries). Player colors VGA 0–79 set by icons.cpp:0x28592. Black sky ceiling init at 0x3A0A9 (sets VGA 0–104 and 110–149 all black). Exact per-entry RGB for all types not recoverable from static analysis (runtime-computed). **Sunset gradient direction confirmed reversed in web port**: EXE goes cool-blue/indigo at top → warm-orange at bottom; web port was reversed. Fixed in web/js/palette.js: r=28+t×35, g=5+t×15, b=50-t×40 (i=0=top=cool, i=23=bottom=warm). See "Sky Palette Architecture" subsection in Sky/Landscape Mode System section.
-- [x] Decode .MTN mountain bitmap format and terrain compositing: **RESOLVED**. Format fully decoded by `disasm/decode_mtn.py` (9/10 files verified). 72-byte header (16b core + 8b unknown + 48b palette). Fields: magic=`MT\xBE\xEF`, version=0x0100, h=rows_per_column (419–1483), x_start/x_end=encoded column range, n_colors=16, palette=16×RGB888 at byte 24. Pixel data at byte 72: **PCX-RLE nibble-packed 4bpp, column-major**. Index 0=(255,255,255)=sky, indices 1–15=terrain. Terrain height at column x = first non-zero pixel row from the top (row 0=top of image). Files contain TWO consecutive PCX-RLE blocks (block2 purpose unknown, possibly background layer). MTN_PERCENT is a **selection probability** (binary choice: scanned vs. procedural), not a visual blend. Sky type jump table at file 0x39198 (CS:0x0A18 in seg 0x31D8) dispatches terrain handlers per sky type; type 5 (Cavern) handler at file 0x3F146. Descriptor table at DS:0x5F04 (8 bytes/entry: 4-byte far ptr to filename + 4-byte file_size). Reference parser: https://github.com/zsennenga/scorched-earth-mountain. See "MTN Terrain File Format" section for full spec.
+- [x] Decode .MTN columns: corrected using EXE 0x32E44. Uncompressed bottom-up columns, low nibble first, each prefixed by its height. All ten files decode exactly. See "MTN Terrain File Format" for verification scope and remaining full-round integration work.
 - [x] Trace sun/planet rendering: **RESOLVED — No explicit sun circle**. The "sun" in Sunset mode is an optical illusion from the warm palette gradient visible between terrain silhouettes. No Fastgraph circle/ellipse calls originate from terrain gen or sky palette code. Sunset case handler (file 0x39C31) only sets palette entries (VGA 120–149) and generates terrain height. Full sunset palette interpolation documented (3 gradient segments of 10 entries, FPU-computed from float32 constants at DS:0x6258–0x6270). See "Sun/Planet Rendering" subsection in Sky/Landscape Mode System section.
 - [x] Decode SCORCH.MKT binary format: **RESOLVED**. 1060-byte file = 4-byte header (version=2, count=48) + 48×22-byte records. Per-weapon record: int32 mkt_cost (weapon+0x1A), int16 unsold_rounds (+0x22), float64 price_signal (+0x24), float64 demand_avg (+0x2C). Implements a dynamic pricing economy: EMA-based market simulation with α=0.7 smoothing, demand tracks purchase rate per player, price_signal tracks squared price ratio / 10.0, adjustment = mkt_cost × (1 + (demand - signal) × 0.05). Price clamped to [base×0.1, base×100] on load. Purchase tracking via `inc sold_qty` at file 0x14A2A in buy function. Gated by FREE_MARKET config (DS:0x514A). Key constants: DS:0x5260=0.7 (α), DS:0x5268=0.1 (init), DS:0x5298=10.0 (divisor), DS:0x5190=0.05 (sensitivity). **Correction**: DS:0x5190 is MKT_SENSITIVITY (0.05), not AIR_VISCOSITY as previously labeled. See "SCORCH.MKT Market File Format" section.
 - [x] Trace SCORCH.PCX loading context: **RESOLVED — optional user background**. (a) Code runs when **'B' key** (scancode 0x30) is pressed during gameplay turn, dispatched via play loop switch table at CS:0x05DB index 46 → CS:0x0550 (file 0x2FAE0). (b) DS:0x5188 is **PLAY_MODE** (already documented) — NOT related to PCX; the DS:0x5188 check at 0x2FAD1 is a separate adjacent switch case (fire action for Sequential mode). (c) SCORCH.PCX is a **user-provided full-screen PCX background image** — loaded via fg_pcxopen→fg_pcxhead→fg_pcximage with no error handling if file missing. (d) File should **NOT** be added to v86/images/game.img — it was never shipped with the game. Only 1 real reference in entire binary (play.cpp 0x2FAE0; other xref hits are false positives matching 0x5C8D quote strings). See "SCORCH.PCX Background Image" section.
@@ -4688,62 +5114,51 @@ void setTerrainPixel(int x, int y) {
 
 ### Height Generation Kernel: Random Walk (file 0x29808)
 
+Audited by executing the original EXE in `verify_terrain_walk.py`. Earlier
+notes reversed the LAND1 branch and omitted accumulation at 0x29890.
+
 ```c
 int walk_delta = 0;
 int y = random(y_end - y_start - 60) + y_start + 40;
-int current_col = this->start_col;
-
+int col = direction == 1 ? left : right;
 while (true) {
-    drawColumn(this, screen_seg, current_col, y);
-
-    if (random(100) < this->flat_chance) {    // 20% default: maintain trajectory
-        // no change to walk_delta
-    } else {
-        walk_delta = random(3) - 1;           // {-1, 0, +1}
-        if (random(100) < this->bump_chance)  // 20% default: amplify
-            walk_delta *= 2;                  // {-2, 0, +2}
+    drawColumn(this, col, y);
+    if (random(100) < this->change_chance) {
+        int change = random(3) - 1;
+        if (random(100) < this->bump_chance) change *= 2;
+        walk_delta += change;
+        if (this->flatten_peaks && (walk_delta < -3 || walk_delta > 3))
+            walk_delta = 0;
     }
-
-    if (this->flatten_peaks && (walk_delta < -3 || walk_delta > 3))
-        walk_delta = 0;                       // suppress extreme slopes
-
     y += walk_delta;
-
-    // Clamp with bounce-back
     if (y < y_start + 40) { y = y_start + 40; if (walk_delta < 0) walk_delta = 1; }
-    if (y > y_end - 1)    { y = y_end - 1;    if (walk_delta > 0) walk_delta = 0; }
-
-    current_col += this->direction;
-    if (direction == +1 && current_col > end_col) break;
-    if (direction == -1 && current_col < start_col) break;
+    if (y > y_end - 1) { y = y_end - 1; if (walk_delta > 0) walk_delta = 0; }
+    col += direction;
+    if (direction == 1 ? col > right : col < left) break;
 }
 ```
 
-**Key properties**: Momentum (walk_delta persists), flat_chance creates plateaus, bump_chance creates ridges, no smoothing pass — single-pass generation.
+At the fresh 360x480 game's first kernel entry, arguments are left=3,
+y_end=476, right=356, y_start=38. The generation wrapper toggles direction
+at 0x295F5; the observed first pass is +1. The port now toggles this direction once per generation;
+`verify_terrain_passes.py` checks consecutive rounds.
 
 ### LandGenerator Object Layout (16 bytes)
 
-| Offset | Field | Default | Purpose |
-|--------|-------|---------|---------|
-| +0x00 | vtable (far) | DS:5078 | DefaultLand vtable |
-| +0x04 | start_col | left bound | Starting column |
-| +0x06 | end_col | right bound | Ending column |
-| +0x08 | direction | +1 | L-to-R (+1) or R-to-L (-1) |
-| +0x0A | flat_chance | 20 | % chance of maintaining delta |
-| +0x0C | bump_chance | 20 | % chance of doubling delta |
-| +0x0E | flatten_peaks | 0 | Clamp extreme deltas to ±3 |
+| Offset | Field | Observed initial value |
+|--------|-------|------------------------|
+| +0x00 | Near pointer to vtable of far methods | DS:508C |
+| +0x02 | Inverted column fill flag | 0 |
+| +0x04 | Lower Y bound | 476 |
+| +0x06 | Upper Y bound | 38 |
+| +0x08 | Direction | +1 |
+| +0x0A | Chance to change momentum (LAND1) | 20 |
+| +0x0C | Chance to double the change (LAND2) | 20 |
+| +0x0E | Suppress accumulated momentum outside -3..3 (FLATLAND) | 0 |
 
-### LAND1/LAND2 Parameter Mapping
-
-| Variable | DS Offset | Config Key | Range | Default | Maps to |
-|----------|-----------|-----------|-------|---------|---------|
-| LAND1 (bumpiness) | DS:516E | "LAND1" (DS:0483) | 0-100 | 20 | flat_chance (+0x0A): % maintain momentum |
-| LAND2 (slope) | DS:5170 | "LAND2" (DS:0489) | 0-100 | 20 | bump_chance (+0x0C): % double delta |
-| FLATLAND | DS:5172 | "FLATLAND" (DS:048F) | 0-1 | 0 | flatten_peaks (+0x0E): suppress \|delta\|>3 to 0 |
-
-Config parser writes at file 0x1A057 (LAND1), 0x1A0CD (LAND2), 0x1A14B (FLATLAND). Config writer reads at file 0x1AD81.
-
-**RANDOM_LAND** (file 0x29562, 1F7F:3372): Each round randomizes FLATLAND=rand(2), LAND1=rand(100), LAND2=rand(100).
+LAND1 is DS:516E, LAND2 DS:5170, FLATLAND DS:5172. The random-land
+initializer at 0x29562 draws rand(2), rand(100), rand(100), respectively
+for FLATLAND, LAND1, LAND2. Its invocation order remains to be matched.
 
 ### 3-Band Sky Palette (Types 3, 5, 6)
 
@@ -6440,7 +6855,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Disasm**: trace full flow from Start button → play. EXE: main_menu (0x2A850) → terrain gen (0x2A8EB via 0x223A:0x02BD) → setup_player_palette → game main loop (0x2A9FE). Game main loop: HUD layout → play_order_init → play round → end_of_round_scoring → repeat. Web: CONFIG → PLAYER_SETUP → startGame → initGameRound → SHOP (initial) → AIM → play → ROUND_OVER → SHOP → ROUND_SETUP → repeat. Flow matches EXE.
 - [x] **Emu test**: run emu through Start → player setup → shop → terrain → first turn. Capture screenshot at each transition. Compare against web flow. *(Session 160: screenshots in emu_screenshots/ — menu, player setup, shop, game playing all render correctly. Full flow confirmed working.)*
 - [x] Current web skips player setup dialogs (auto-names) — **FIXED** (sessions 146-147). Player setup dialog fully implemented: name field, color row, Human/Computer toggle, Done button, sequential per-player flow. See section 2 above.
-- [x] Current web skips shop (auto-equips) — **FIXED** (session 153). Added `initialShop` flag to game state. `initGameRound()` now opens shop for player 0 before round 1. SHOP state handler checks `initialShop` flag: if true, transitions to AIM/SYNC_AIM instead of ROUND_SETUP (no terrain regen).
+- [x] Current web skips shop (auto-equips) — Initial shop added in session 153. The original AIM/SYNC_AIM bypass was superseded by the 2026-10-13 EXE trace: final Done enters ROUND_SETUP, generating the first landscape and placing players after shopping while retaining round 1.
 - [x] Round-end → next round shop → terrain regen → play (full round cycle) — **VERIFIED** (session 153). EXE: game main loop (0x2A9FE) iterates rounds internally: compute_hud_layout → play_order_init → play → end_of_round_scoring → loop. Shop is called between rounds. Web: ROUND_OVER → SHOP (per player) → ROUND_SETUP (terrain regen) → TERRAIN_REVEAL → AIM. Order matches EXE.
 - [x] "NO KIBITZING!!" screen — **RESOLVED**. String at DS:0x2E2A (file 0x58BAA). Far pointer at DS:0x231C. `show_no_kibitzing` at file 0x43080 (seg 0x3C2F): creates dialog 155×200 at (0,0) via 0x3F19:0x00E2, draw callback at 0x4304B renders "NO KIBITZING!!" embossed at (box.X+30, box.Y+70), dismissed by any key/click (dialog_run param=1). Called from play input handler at file 0x2F7EF (icons.cpp seg 0x1F7F, switch case in action dispatch jump table at CS:0x05DB). **Web port**: already implemented as SCREEN_HIDE state in game.js (fullscreen black + centered text + player name + "press any key"). Web uses fullscreen approach vs EXE's partial-screen dialog — cosmetic difference, functionally correct. Triggered when Sequential mode, >1 human, next player is human.
 
@@ -6491,7 +6906,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 #### 13. RNG & Terrain Fidelity (session 178)
 - [x] Replace web port xorshift32 PRNG with EXE-exact Borland R250 (Kirkpatrick-Stoll) generator — **DONE**. Ported R250 table (250×16-bit, DS:0xEA12) + index (DS:0xEC06) + Borland LCG seeder (0x089A5, multiplier 0x015A4E35). Verified: Python, JS, EXE all produce identical sequences. `web/js/utils.js` seedRandom/random now match EXE file 0x32994/0x32A29 exactly.
 - [x] Add `?seed=N` URL parameter for deterministic terrain comparison — **DONE**. Re-seeds RNG right before generateTerrain() when seed param present. `web/js/main.js`
-- [x] Verify terrain generation (Rolling, type 2) matches EXE for same seed — **DONE**. All 320 height columns match between Python reference and JS web port for seed=42.
+- [x] Verify the forward terrain walk against EXE execution — **AUDITED 2026-10-13**. The earlier Python-reference result was insufficient and missed two algorithm errors. The production JS module now matches 48 directly executed EXE cases; full round generation remains incomplete. See the current audit at the top.
 - [x] Fix terrain type 1 (Slope) to use random walk kernel — **DONE**. Web port's generateSlope() was a linear gradient; now delegates to generateRolling(). EXE confirms all types share random walk kernel at 0x29808. Type 1 only differs in VGA palette (Y-gradient at 0x3999A: height_array[y]=(bottom-y)*29/height+120). **Files**: `web/js/terrain.js`
 - [x] Fix terrain types 0 (Flat), 3 (MTN), 4 (V-Shaped), 5 (Castle) to use EXE random walk — **DONE**. EXE confirmed: ALL terrain types share the same random walk kernel at 0x29808. Call chain: generate() at 0x295DF calls vtable method (random walk) for ALL types, then terrain_gen_main handles palette/coloring per type. Types only differ in VGA palette, not terrain shape. Castle (type 5) additionally runs TWO random walk passes (0x29677). **Correction (session 180)**: Castle does NOT use min(pass1, pass2). EXE drawColumn (0x29720) checks struct+0x02 flag to invert draw direction: first pass draws terrain from midY upward (ceiling), second pass draws from height downward (floor). Result is terrain on BOTH top and bottom with an air gap — like a castle hall. Fixed web port: Castle generates ceiling + floor terrain bands via ceilingTerrain[]. Removed dead generateCavern(). **Files**: `web/js/terrain.js`
 - [x] ~~Verify Cavern (type 6) terrain matches EXE~~: **RESOLVED** — EXE type 6 "Black" has NO ceiling+floor cave. It uses the same random walk terrain as all other types with an all-black sky palette. The web port's `generateCavern()` with floor+ceiling was entirely fabricated. Fixed: case 6 now delegates to `generateRolling()`. The EXE has no LAND_TYPE selector with 7 shape types — only LAND1/LAND2/FLATLAND params. All terrain shapes use the same random walk kernel (session 179).

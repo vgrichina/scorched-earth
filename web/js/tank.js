@@ -3,86 +3,33 @@
 // EXE: tank color gradient at file 0x28540, 10 base colors at DS:0x57E2
 // EXE: player struct stride 0x6C (108 bytes), far ptr base at DS:CEB8
 // EXE: tank/sub struct stride 0xCA (202 bytes), base at DS:D568
-// 6 tank types with pixel data tables at DS:0x673E (stride 0x12)
+// 7 tank types with pixel data tables at DS:0x673E (stride 0x12)
 // render_pixel_table at 0x40C19: direction-aware X mirroring
 // Barrel: Bresenham line from type-specific origin point
 
-import { setPixel } from './framebuffer.js';
-import { getTerrainY, terrain } from './terrain.js';
-import { config } from './config.js';
-import { bresenhamLine, clamp } from './utils.js';
+import { setPixel, getPixel } from './framebuffer.js';
+import { getTerrainY, terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
+import { config, GRAPHICS_MODES } from './config.js';
+import { resolvedSkyType } from './palette.js';
+import { walkExeLine, random } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
-import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE } from './constants.js';
+import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE, TERRAIN_PAL_START } from './constants.js';
 import { playParachuteDeploySound, playLandingThudSound, playCrushGlanceSound } from './sound.js';
 import { applyShieldDamage } from './shields.js';
 
-// EXE tank type pixel tables (DS:0x673E, stride 0x12, 6 types)
+// EXE tank type pixel tables (DS:0x673E, stride 0x12, 7 types)
 // Each entry: [x_offset_i8, y_offset_i8, color_slot] relative to tank center (bottom-center)
 // Terminated by sentinel 0x63 in EXE. Color slot added to player palette base.
 // render_pixel_table at file 0x40C19: direction +1 = X+offset, direction -1 = X-offset (mirrored)
+// Signed triples in EXE order; DS:673E links seven records, terminated by x=99.
 export const TANK_TYPES = [
-  { // Type 0: Classic dome (DS:0x649C, 35 pixels, 9×5)
-    pixels: [
-      [-1,-4,0],[0,-4,0],[1,-4,0],
-      [-3,-3,0],[-2,-3,0],[-1,-3,1],[0,-3,1],[1,-3,1],[2,-3,0],[3,-3,0],
-      [-3,-2,0],[-2,-2,1],[-1,-2,2],[0,-2,2],[1,-2,2],[2,-2,1],[3,-2,0],
-      [-4,-1,0],[-3,-1,1],[-2,-1,2],[-1,-1,3],[0,-1,3],[1,-1,3],[2,-1,2],[3,-1,1],[4,-1,0],
-      [-4,0,0],[-3,0,1],[-2,0,2],[-1,0,3],[0,0,3],[1,0,3],[2,0,2],[3,0,1],[4,0,0],
-    ],
-    barrelLen: 7, barrelXOff: 0, barrelYOff: -4, halfWidth: 4
-  },
-  { // Type 1: Low profile (DS:0x6640, 24 pixels, 9×4)
-    pixels: [
-      [-1,-3,2],[0,-3,2],[1,-3,2],
-      [-4,-2,2],[-1,-2,2],[0,-2,2],[1,-2,2],[4,-2,2],
-      [-4,-1,1],[-3,-1,1],[-1,-1,1],[0,-1,1],[1,-1,1],[3,-1,1],[4,-1,1],
-      [-4,0,0],[-3,0,0],[-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,0],[4,0,0],
-    ],
-    barrelLen: 8, barrelXOff: -3, barrelYOff: -4, halfWidth: 4
-  },
-  { // Type 2: Antenna tank (DS:0x6577, 31 pixels, 11×6)
-    pixels: [
-      [-4,-5,2],
-      [-4,-4,2],
-      [-3,-3,2],[-2,-3,2],
-      [-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,1],[-1,-2,1],[0,-2,1],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],[5,-2,0],
-      [-5,-1,0],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[5,-1,0],
-      [-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],
-    ],
-    barrelLen: 8, barrelXOff: -2, barrelYOff: -5, halfWidth: 5
-  },
-  { // Type 3: Tall antenna (DS:0x65D7, 34 pixels, 9×7)
-    pixels: [
-      [-3,-6,2],
-      [-3,-5,2],
-      [-2,-4,2],[-1,-4,2],
-      [-4,-3,2],[-3,-3,1],[-2,-3,1],[-1,-3,1],[0,-3,1],[1,-3,1],[2,-3,1],[3,-3,1],
-      [-4,-2,0],[-3,-2,0],[-2,-2,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],
-      [-4,-1,0],[-2,-1,7],[0,-1,7],[2,-1,7],[4,-1,0],
-      [-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],
-    ],
-    barrelLen: 5, barrelXOff: 1, barrelYOff: -5, halfWidth: 4
-  },
-  { // Type 4: Turret tank (DS:0x6508, 36 pixels, 11×5)
-    pixels: [
-      [-3,-4,2],[-2,-4,2],[-1,-4,2],[0,-4,3],[1,-4,3],[2,-4,3],
-      [-1,-3,2],[0,-3,2],[1,-3,2],
-      [-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,1],[-1,-2,1],[0,-2,1],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],[5,-2,0],
-      [-5,-1,0],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[5,-1,0],
-      [-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],
-    ],
-    barrelLen: 6, barrelXOff: -1, barrelYOff: -4, halfWidth: 5
-  },
-  { // Type 5: Small tank (DS:0x668B, 17 pixels, 7×5)
-    pixels: [
-      [-3,-4,0],
-      [-2,-3,0],
-      [-2,-2,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],
-      [-3,-1,0],[-2,-1,0],[-1,-1,7],[0,-1,7],[1,-1,0],
-      [-4,0,0],[-3,0,0],[-1,0,7],[0,0,7],[1,0,7],
-    ],
-    barrelLen: 6, barrelXOff: -1, barrelYOff: -5, halfWidth: 4
-  },
+  {"pixels":[[-1,-4,0],[0,-4,0],[1,-4,0],[-3,-3,0],[-2,-3,0],[2,-3,0],[3,-3,0],[-3,-2,0],[3,-2,0],[-4,-1,0],[4,-1,0],[-4,0,0],[4,0,0],[-1,-3,1],[0,-3,1],[1,-3,1],[-2,-2,1],[2,-2,1],[-3,-1,1],[3,-1,1],[-3,0,1],[3,0,1],[-1,-2,2],[0,-2,2],[1,-2,2],[-2,-1,2],[2,-1,2],[-2,0,2],[2,0,2],[-1,0,3],[0,0,3],[1,0,3],[0,-1,3],[-1,-1,3],[1,-1,3]],"barrelLen":8,"barrelXOff":0,"barrelYOff":0,"halfWidth":4},
+  {"pixels":[[-4,0,0],[-3,0,0],[-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,0],[4,0,0],[-4,-1,1],[-3,-1,1],[3,-1,1],[4,-1,1],[-4,-2,2],[4,-2,2],[-1,-1,1],[0,-1,1],[1,-1,1],[-1,-2,2],[0,-2,2],[1,-2,2],[-1,-3,2],[0,-3,2],[1,-3,2]],"barrelLen":7,"barrelXOff":0,"barrelYOff":-4,"halfWidth":4},
+  {"pixels":[[-5,-1,0],[5,-1,0],[-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,0],[5,-2,0],[4,-2,0],[3,-2,0],[2,-2,0],[-1,-2,1],[0,-2,1],[1,-2,1],[-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],[-4,-1,7],[-2,-1,7],[0,-1,7],[2,-1,7],[4,-1,7],[-2,-3,2],[-3,-3,2],[-4,-4,2],[-4,-5,2]],"barrelLen":8,"barrelXOff":-3,"barrelYOff":-4,"halfWidth":5},
+  {"pixels":[[-4,-1,0],[4,-1,0],[-4,-2,0],[-3,-2,0],[-2,-2,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],[3,-2,0],[4,-2,0],[-3,-3,1],[-2,-3,1],[-1,-3,1],[0,-3,1],[1,-3,1],[2,-3,1],[3,-3,1],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[-4,-3,2],[-2,-4,2],[-1,-4,2],[-3,-5,2],[-3,-6,2]],"barrelLen":8,"barrelXOff":-2,"barrelYOff":-5,"halfWidth":4},
+  {"pixels":[[-5,-1,0],[5,-1,0],[-5,-2,0],[-4,-2,0],[-3,-2,0],[-2,-2,0],[5,-2,0],[4,-2,0],[3,-2,0],[2,-2,0],[-1,-2,1],[0,-2,1],[1,-2,1],[-1,-3,2],[0,-3,2],[1,-3,2],[-4,0,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[4,0,7],[-4,-1,7],[-2,-1,7],[0,-1,7],[2,-1,7],[4,-1,7],[-3,-4,2],[-2,-4,2],[-1,-4,2],[0,-4,3],[1,-4,3],[2,-4,3]],"barrelLen":5,"barrelXOff":1,"barrelYOff":-5,"halfWidth":5},
+  {"pixels":[[-3,0,0],[-2,0,0],[-2,-1,0],[-1,-1,0],[3,-1,0],[-1,-2,0],[0,-2,0],[1,-2,0],[2,-2,0],[3,-2,0],[-1,-3,0],[-2,-4,0],[0,0,7],[0,-1,7],[1,0,7],[2,0,7],[2,-1,7]],"barrelLen":6,"barrelXOff":-1,"barrelYOff":-4,"halfWidth":3},
+  {"pixels":[[-4,-1,0],[4,-1,0],[-4,-2,0],[-3,-2,0],[-2,-2,0],[-1,-2,0],[0,-2,0],[4,-2,0],[3,-2,0],[2,-2,0],[1,-2,0],[-3,-1,7],[-1,-1,7],[1,-1,7],[3,-1,7],[-3,0,7],[-2,0,7],[-1,0,7],[0,0,7],[1,0,7],[2,0,7],[3,0,7],[-4,-3,1],[-3,-3,1],[-2,-3,1],[-1,-3,1],[0,-3,1],[2,-3,1],[1,-3,1],[-4,-4,2],[-3,-4,2],[-2,-4,2],[-1,-4,2],[0,-4,2],[-3,-5,3],[-2,-5,3]],"barrelLen":6,"barrelXOff":-1,"barrelYOff":-5,"halfWidth":4}
 ];
 
 const TANK_WIDTH = 9;       // EXE type 0: 9px wide (-4..+4)
@@ -118,13 +65,13 @@ export function createPlayer(index, name) {
     aiType: 0,           // 0 = human
     activeShield: 0,     // shield type index
     shieldEnergy: 0,
-    // batteries: use inventory[43] (Battery item) — not a separate field
+    // batteries: use inventory[WPN.BATTERY] (Battery item) — not a separate field
 
     // Color index (0-9, default = player index; overridden by player setup color picker)
     colorIndex: index,
 
-    // Tank type (0-5, EXE sub struct [0x00], default type 0)
-    tankType: 0,
+    // Tank type (0-6, EXE sub struct [0x00], initial selection 3)
+    tankType: 3,
 
     // Phase 5: scoring
     team: index,         // EXE: player struct +0x30, default = player index (each on own team)
@@ -134,42 +81,75 @@ export function createPlayer(index, name) {
   };
 }
 
-// Place tanks evenly across terrain with some randomization
-export function placeTanks(numPlayers) {
+// EXE 0x2B13E: center each slot in the inclusive playfield, using integer spacing.
+export function getTankPlacementX(slot, count) {
+  const spacing = Math.trunc((config.screenWidth - 6) / count);
+  return 3 + Math.trunc(spacing / 2) + slot * spacing;
+}
+
+// EXE 0x2B1B3: aim from the tank toward the horizontal center at playfield top.
+// Keep the port's world-angle convention; convert to EXE angle/direction at use.
+export function initializeTankAim(player) {
+  player.angle = Math.trunc(Math.atan2(player.y - PLAYFIELD_TOP,
+    Math.trunc((config.screenWidth - 1) / 2) - player.x) * 57.29577951);
+}
+
+export function getTankAim(player) {
+  // Checkpoint players carry explicit EXE direction and a local angle.
+  if (player.direction !== undefined) return { direction: player.direction, angle: player.angle };
+  return player.angle <= 90 ? { direction: 1, angle: player.angle }
+    : { direction: -1, angle: 180 - player.angle };
+}
+
+export function getTankBarrel(player) {
+  const type = TANK_TYPES[player.tankType] || TANK_TYPES[0];
+  const { direction, angle } = getTankAim(player);
+  const x = player.x + direction * (player.barrelXOff ?? type.barrelXOff);
+  const y = player.y + (player.barrelYOff ?? type.barrelYOff);
+  // EXE 0x3FD3F truncates trig components before signed 16.16 aspect scaling.
+  const radians = angle * 0.017453293;
+  const dx = Math.trunc(direction * Math.cos(radians) * type.barrelLen);
+  const dy = Math.trunc(-Math.sin(radians) * type.barrelLen);
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  return { x, y, endX: x + Math.floor(dx * sx / 65536), endY: y + Math.floor(dy * sy / 65536) };
+}
+
+// Create identities before resolving the round's player-to-slot order.
+export function createPlayers(numPlayers, setup = []) {
   players.length = 0;
-  const width = config.screenWidth;
-  const margin = 20;
-  const usable = width - 2 * margin;
-  const spacing = Math.floor(usable / numPlayers);
 
   for (let i = 0; i < numPlayers; i++) {
     const player = createPlayer(i, `Player ${i + 1}`);
 
-    // Distribute evenly with small random offset
-    const baseX = margin + Math.floor(spacing * (i + 0.5));
-    player.x = clamp(baseX, margin, width - margin - 1);
-
-    // Flatten terrain under tank for stable placement
-    flattenTerrainAt(player.x, player.tankType);
-
-    // Tank sits on terrain
-    player.y = getTerrainY(player.x);
+    if (setup[i]) {
+      const { name, aiType, colorIndex, tankType } = setup[i];
+      Object.assign(player, { name, aiType, colorIndex, tankType });
+    }
 
     players.push(player);
   }
 }
 
+export function placeTanks(numPlayers, setup = [], resolveSlots = null) {
+  createPlayers(numPlayers, setup);
+  const slots = resolveSlots ? resolveSlots() : players.map(p => p.index);
+  for (let slot = 0; slot < slots.length; slot++) {
+    const player = players[slots[slot]];
+    player.x = getTankPlacementX(slot, numPlayers);
+    settleTankForPlacement(player);
+    initializeTankAim(player);
+  }
+}
+
 // Reset existing players for a new round and reposition on terrain
 // Preserves identity (name, aiType, score, cash, wins, inventory)
-export function resetAndPlaceTanks() {
-  const width = config.screenWidth;
-  const margin = 20;
-  const usable = width - 2 * margin;
+export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
   const numPlayers = players.length;
-  const spacing = Math.floor(usable / numPlayers);
 
   for (let i = 0; i < numPlayers; i++) {
-    const p = players[i];
+    const p = players[slots[i]];
     p.alive = true;
     p.energy = 100;
     p.angle = 90;
@@ -180,10 +160,69 @@ export function resetAndPlaceTanks() {
     p.shieldEnergy = 0;
     p.activeShield = 0;
 
-    const baseX = margin + Math.floor(spacing * (i + 0.5));
-    p.x = clamp(baseX, margin, width - margin - 1);
-    flattenTerrainAt(p.x, p.tankType);
-    p.y = getTerrainY(p.x);
+    p.x = getTankPlacementX(i, numPlayers);
+    settleTankForPlacement(p);
+    initializeTankAim(p);
+  }
+}
+
+// EXE 0x2AC02: descend until every footprint pixel on the next row is
+// terrain. Clear partial support rows on the way; retain holes in the bitmap.
+export function settleTankForPlacement(player) {
+  const width = config.screenWidth, height = config.screenHeight;
+  const halfW = TANK_TYPES[player.tankType].halfWidth;
+  const left = Math.max(0, player.x - halfW);
+  const right = Math.min(width - 1, player.x + halfW);
+  const cavern = resolvedSkyType === 5;
+  if (cavern) {
+    // EXE 0x2ACF7: find the floor surface from below, then cut a level
+    // footprint by clearing upward and filling downward until an unchanged row.
+    const bottom = height - 4;
+    const middle = Math.trunc((PLAYFIELD_TOP + bottom) / 2);
+    let y = bottom;
+    while (y >= middle && terrainBitmap[y * width + player.x]) y--;
+    player.y = y;
+    let changed = true;
+    for (; y >= middle && changed; y--) {
+      changed = false;
+      for (let x = left; x <= right; x++) {
+        if (terrainBitmap[y * width + x]) {
+          terrainBitmap[y * width + x] = 0;
+          changed = true;
+        }
+      }
+    }
+    changed = true;
+    for (y = player.y + 1; y <= bottom && changed; y++) {
+      changed = false;
+      for (let x = left; x <= right; x++) {
+        if (!terrainBitmap[y * width + x]) {
+          // EXE 0x299C0 consumes RNG even with the initial single ground color.
+          random(1);
+          terrainBitmap[y * width + x] = TERRAIN_PAL_START;
+          changed = true;
+        }
+      }
+    }
+  } else {
+    player.y = PLAYFIELD_TOP;
+    while (player.y < height - 2) {
+      player.y++;
+      const row = (player.y + 1) * width;
+      let supported = true;
+      for (let x = left; x <= right; x++) {
+        if (!terrainBitmap[row + x]) supported = false;
+      }
+      if (supported) break;
+      terrainBitmap.fill(0, row + left, row + right + 1);
+    }
+  }
+  // Refresh only the affected columns; never reconstruct the bitmap from heights.
+  for (let x = left; x <= right; x++) {
+    // Cavern caches the floor below the tank, not the separate ceiling.
+    let y = cavern ? player.y + 1 : PLAYFIELD_TOP;
+    while (y < height && !terrainBitmap[y * width + x]) y++;
+    terrain[x] = y;
   }
 }
 
@@ -297,15 +336,15 @@ export function stepFallingTanks() {
     player.y += FALL_SPEED;
 
     // EXE: Parachute deployment check (0x208CD–0x20913)
-    // Guard checks (0x20871–0x208CA): sub[0x28]!=0, health>0, inventory[42]>0
-    if (!player.parachuteDeployed && player.inventory[42] > 0) {
+    // Guard checks (0x20871–0x208CA): sub[0x28]!=0, health>0, inventory[WPN.PARACHUTE]>0
+    if (!player.parachuteDeployed && player.inventory[WPN.PARACHUTE] > 0) {
       const predictedDamage = predictFallDamage(player);
       const threshold = getDeployThreshold(player);
       // EXE: deploy if predicted_damage > threshold (or threshold==0 → immediate)
       if (threshold === 0 || predictedDamage > threshold) {
         // Deploy action (0x208EA–0x20913)
         player.parachuteDeployed = true;   // sub[0x0C] = 1
-        player.inventory[42]--;            // consume parachute
+        player.inventory[WPN.PARACHUTE]--;            // consume parachute
         playParachuteDeploySound();        // sound(0x1E, 0x07D0) = 2000 Hz
         // EXE: fg_setrgb flash to white — visual flash handled by palette (omitted for simplicity)
       }
@@ -418,7 +457,7 @@ export function drawTank(player) {
   const type = TANK_TYPES[player.tankType] || TANK_TYPES[0];
 
   // Direction: EXE sub[0x94], +1=right, -1=left. Determined by angle.
-  const dir = player.angle <= 90 ? 1 : -1;
+  const dir = getTankAim(player).direction;
 
   // Draw body pixels from type table
   for (const [dx, dy, slot] of type.pixels) {
@@ -429,19 +468,16 @@ export function drawTank(player) {
 
   // Draw barrel — EXE: draw_barrel at 0x403F5
   // Barrel origin: (cx + dir*barrelXOff, groundY + barrelYOff) — from type table
-  const barrelX = cx + dir * type.barrelXOff;
-  const barrelY = groundY + type.barrelYOff;
-  const barrelColor = baseColor + 4;  // EXE: sub[0x1A]+4
+  const barrel = getTankBarrel(player);
+  const barrelX = barrel.x, barrelY = barrel.y;
+  const barrelColor = baseColor + 4;
+  const endX = player.barrelEndX ?? barrel.endX;
+  const endY = player.barrelEndY ?? barrel.endY;
 
-  const angleRad = player.angle * Math.PI / 180;
-  // EXE: dir=+1 → endX = startX + cos*len, dir=-1 → endX = startX - cos*len
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-  const endX = Math.round(barrelX + (dir === 1 ? cosA : -cosA) * type.barrelLen);
-  const endY = Math.round(barrelY - sinA * type.barrelLen);
-
-  bresenhamLine(barrelX, barrelY, endX, endY, (x, y) => {
-    setPixel(x, y, barrelColor);
+  walkExeLine(barrelX, barrelY, endX, endY, (x, y) => {
+    // EXE 0x3FF55: preserve player pixels and omit the barrel endpoint.
+    if (getPixel(x, y) > 79 && (x !== endX || y !== endY))
+      setPixel(x, y, barrelColor);
   });
 }
 

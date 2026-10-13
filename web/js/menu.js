@@ -4,10 +4,13 @@
 // EXE: small mode (320x200): row_height=17, start_y=5, font=1
 
 import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
-import { fillRect, hline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
+import { fillRect, hline, vline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
 import { drawText, drawTextEmbossed, measureText, FONT_HEIGHT } from './font.js';
-import { BLACK, initPalette } from './palette.js';
-import { consumeKey, consumeClick, mouse } from './input.js';
+import { BLACK, initPalette, getPlayerColor, setPaletteRgb, updatePalette32 } from './palette.js';
+import { consumeKey, consumeClick, consumeTextInput, mouse } from './input.js';
+import { TANK_TYPES } from './tank.js';
+import { drawUIIcon, drawIconSlider } from './hud.js';
+import { bresenhamLine } from './utils.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
 import { generateTerrain, terrain, initSkyBackground, drawSky, drawTerrain, PLAYFIELD_TOP } from './terrain.js';
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -146,8 +149,8 @@ const SUBMENUS = {
       { label: '~Useless Items', key: 'uselessItems', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: '~Mode:', key: 'playMode', min: 0, max: 2, step: 1,
         names: ['Sequential', 'Simultaneous', 'Synchronous'] },
-      { label: 'Play ~Order:', key: 'playOrder', min: 0, max: 4, step: 1,
-        names: ['Random', 'Losers-First', 'Winners-First', 'Round-Robin', 'Sequential'] },
+      { label: 'Play ~Order:', key: 'playOrder', min: 0, max: 3, step: 1,
+        names: ['Random', 'Losers-First', 'Winners-First', 'Round-Robin'] },
       { label: '~Teams:', key: 'teamMode', min: 0, max: 1, step: 1, names: ['None', 'On'] },
       { label: '~Hostile Environment', key: 'hostileEnvironment', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: 'Status ~Bar', key: 'statusBar', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
@@ -183,24 +186,29 @@ export const menu = {
 };
 
 // --- Player setup ---
-const DEFAULT_NAMES = [
-  'Wolfgang', 'Gilligan', 'Cleopatra', 'Mussolini', 'Napolean',
-  'Barbarella', 'Antoinette', 'Elizabeth', 'Persephone', 'Mata Hari',
-];
-
-// EXE: 8 color swatches visible in player setup dialog (icons.cpp 0x28333: cmp di,8)
-// 10 players supported but dialog only shows first 8 colors for selection
-const NUM_PLAYER_COLORS = 8;
-
 export const playerSetup = [];
 
+// EXE 0x26B69 builds a 40-color ramp; 0x26C74 paints nine-pixel stripes.
+function setupPlayerBackdrop(colorIndex) {
+  const rgb = getPlayerColor(colorIndex);
+  for (let i = 0; i < 40; i++) {
+    const scale = i < 20 ? i + 5 : 44 - i;
+    setPaletteRgb(180 + i, ...rgb.map(channel => Math.trunc(channel * scale / 24)));
+  }
+  updatePalette32();
+}
+
 export function initPlayerSetup() {
+  setupPlayerBackdrop(0);
   playerSetup.length = 0;
   for (let i = 0; i < config.numPlayers; i++) {
     playerSetup.push({
-      name: DEFAULT_NAMES[i] || `Player ${i + 1}`,
-      aiType: i === 0 ? AI_TYPE.HUMAN : AI_TYPE.SHOOTER,
-      colorIndex: i % NUM_PLAYER_COLORS,
+      name: '',
+      editName: '',
+      aiType: AI_TYPE.HUMAN,
+      colorIndex: i % 10,
+      tankType: 3,
+      computerType: AI_TYPE.TOSSER,
     });
   }
 }
@@ -483,91 +491,107 @@ function handleSubmenuInput() {
   return 'config';
 }
 
+function setSetupHuman(setup, human) {
+  if (setup.aiType !== AI_TYPE.HUMAN) setup.computerType = setup.aiType;
+  setup.aiType = human ? AI_TYPE.HUMAN : setup.computerType;
+  if (human && setup.tankType === 6) setup.tankType = 0;
+}
+
+function advancePlayerSetup() {
+  menu.playerSetupIdx++;
+  menu.playerSetupField = 0;
+  if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
+  setupPlayerBackdrop(playerSetup[menu.playerSetupIdx].colorIndex);
+  return 'player_setup';
+}
+
 function handlePlayerSetupInput() {
   const setup = playerSetup[menu.playerSetupIdx];
   const lay = getPlayerSetupLayout();
 
-  // Name editing — always active (field 0 is name, field 1 is color row, field 2 is type icons)
-  if (menu.playerSetupField === 0) {
-    if (consumeKey('Backspace')) {
-      setup.name = setup.name.slice(0, -1);
+  // EXE 0x49F52 edits a separate buffer. Enter commits it and returns to
+  // the dialog; a subsequent Done action advances to the next player.
+  if (setup.editName !== undefined) {
+    if (consumeKey('Backspace')) setup.editName = setup.editName.slice(0, -1);
+    setup.editName = (setup.editName + consumeTextInput()).slice(0, 15);
+    if (consumeKey('Enter')) {
+      if (setup.editName.length) setup.name = setup.editName;
+      delete setup.editName;
+    } else if (consumeKey('Escape')) {
+      delete setup.editName;
     }
-    for (let code = 65; code <= 90; code++) {
-      const keyCode = 'Key' + String.fromCharCode(code);
-      if (consumeKey(keyCode)) {
-        if (setup.name.length < 12) setup.name += String.fromCharCode(code);
-      }
-    }
-    for (let d = 0; d <= 9; d++) {
-      if (consumeKey('Digit' + d)) {
-        if (setup.name.length < 12) setup.name += String(d);
-      }
-    }
-    if (consumeKey('Space') && setup.name.length < 12) setup.name += ' ';
+    return 'player_setup';
+  }
+  if (setup.aiType === AI_TYPE.HUMAN && consumeKey('KeyN')) {
+    setup.editName = '';
+    menu.playerSetupField = 0;
+    return 'player_setup';
   }
 
-  // Color row navigation (field 1)
+  if (consumeKey('Space')) setSetupHuman(setup, setup.aiType !== AI_TYPE.HUMAN);
+  const tankCount = setup.aiType === AI_TYPE.HUMAN ? 6 : 7;
+  if (consumeKey('KeyI')) setup.tankType = (setup.tankType + 1) % tankCount;
+  if (setup.aiType !== AI_TYPE.HUMAN) {
+    for (let i = 0; i < AI_SETUP_LABELS.length; i++) {
+      const label = AI_SETUP_LABELS[i];
+      if (consumeKey('Key' + label[label.indexOf('~') + 1].toUpperCase()))
+        setup.aiType = i + 1;
+    }
+  }
+
+  // Tank selector navigation (field 1)
   if (menu.playerSetupField === 1) {
-    if (consumeKey('ArrowLeft')) setup.colorIndex = (setup.colorIndex - 1 + NUM_PLAYER_COLORS) % NUM_PLAYER_COLORS;
-    if (consumeKey('ArrowRight')) setup.colorIndex = (setup.colorIndex + 1) % NUM_PLAYER_COLORS;
+    if (consumeKey('ArrowLeft')) setup.tankType = Math.max(0, setup.tankType - 1);
+    if (consumeKey('ArrowRight')) setup.tankType = Math.min(tankCount - 1, setup.tankType + 1);
   }
 
   // AI type icons (field 2): left/right cycles type
   if (menu.playerSetupField === 2) {
-    if (consumeKey('ArrowLeft')) setup.aiType = Math.max(0, setup.aiType - 1);
-    if (consumeKey('ArrowRight')) setup.aiType = Math.min(AI_TYPE.SENTIENT, setup.aiType + 1);
+    if (consumeKey('ArrowLeft')) setSetupHuman(setup, false);
+    if (consumeKey('ArrowRight')) setSetupHuman(setup, true);
   }
 
-  // Tab/arrows cycle fields: 0=name, 1=colors, 2=type icons
+  // Tab/arrows cycle name, tank and player-type fields.
   if (consumeKey('Tab')) menu.playerSetupField = (menu.playerSetupField + 1) % 3;
   if (consumeKey('ArrowUp') && menu.playerSetupField > 0) menu.playerSetupField--;
   if (consumeKey('ArrowDown') && menu.playerSetupField < 2) menu.playerSetupField++;
 
-  // Enter or 'D' key = Done (advance to next player)
-  if (consumeKey('Enter')) {
-    menu.playerSetupIdx++;
-    menu.playerSetupField = 0;
-    if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
+  // Enter or the Done hotkey advances after the name has been committed.
+  if ((consumeKey('Enter') || consumeKey('KeyD')) && (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN)) {
+    return advancePlayerSetup();
   }
 
   // Mouse clicks
   if (mouse.over && consumeClick(0)) {
     // Name field click
-    if (mouse.x >= lay.valX && mouse.x < lay.valX + lay.inputW &&
+    if (setup.aiType !== AI_TYPE.HUMAN &&
+        mouse.x >= lay.dlgX + 20 && mouse.x <= lay.dlgX + 191 &&
+        mouse.y >= lay.dlgY + 20 && mouse.y < lay.dlgY + 65) {
+      const choice = Math.floor((mouse.x - lay.dlgX - 20) / 60) * 3 +
+        Math.floor((mouse.y - lay.dlgY - 20) / 15);
+      if (choice < 8) setup.aiType = choice + 1;
+    } else if (setup.aiType === AI_TYPE.HUMAN &&
+        mouse.x >= lay.valX && mouse.x < lay.valX + lay.inputW &&
         mouse.y >= lay.nameFieldY && mouse.y < lay.nameFieldY + lay.fieldH) {
       menu.playerSetupField = 0;
+      setup.editName = '';
     }
-    // Color squares click
-    else if (mouse.y >= lay.colorRowY && mouse.y < lay.colorRowY + lay.colorSize) {
-      for (let c = 0; c < NUM_PLAYER_COLORS; c++) {
-        const cx = lay.colorRowX + c * (lay.colorSize + 2);
-        if (mouse.x >= cx && mouse.x < cx + lay.colorSize) {
-          setup.colorIndex = c;
-          menu.playerSetupField = 1;
-          break;
-        }
-      }
+    // Tank icons and slider share the same selection positions.
+    else if (mouse.y >= lay.dlgY + 83 && mouse.y <= lay.dlgY + 108 &&
+             mouse.x >= lay.dlgX + 19 && mouse.x <= lay.dlgX + 180) {
+      const tankType = Math.round((mouse.x - lay.dlgX - 25) / 25);
+      if (tankType >= 0 && tankType < tankCount) setup.tankType = tankType;
+      menu.playerSetupField = 1;
     }
-    // Person/Computer text button click
-    else if (mouse.y >= lay.iconRowY && mouse.y < lay.iconRowY + FONT_HEIGHT + 4) {
-      const personW = measureText('~Person') + 8;
-      const computerW = measureText('~Computer') + 8;
-      const personX = lay.valX;
-      const computerX = personX + personW + 4;
-      if (mouse.x >= personX && mouse.x < personX + personW) {
-        setup.aiType = AI_TYPE.HUMAN;
-        menu.playerSetupField = 2;
-      } else if (mouse.x >= computerX && mouse.x < computerX + computerW) {
-        if (setup.aiType === AI_TYPE.HUMAN) setup.aiType = AI_TYPE.SHOOTER;
-        menu.playerSetupField = 2;
-      }
+    else if (mouse.y >= lay.dlgY + 111 && mouse.y <= lay.dlgY + 136 &&
+             mouse.x >= lay.dlgX + 42 && mouse.x <= lay.dlgX + 81) {
+      setSetupHuman(setup, mouse.x >= lay.dlgX + 62);
+      menu.playerSetupField = 2;
     }
     // Done button click
     else if (mouse.x >= lay.doneX && mouse.x < lay.doneX + lay.doneW &&
-             mouse.y >= lay.doneY && mouse.y < lay.doneY + lay.doneH) {
-      menu.playerSetupIdx++;
-      menu.playerSetupField = 0;
-      if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
+             mouse.y >= lay.doneY && mouse.y < lay.doneY + lay.doneH && (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN)) {
+      return advancePlayerSetup();
     }
   }
 
@@ -785,34 +809,47 @@ function drawSubmenu() {
 }
 
 // --- Player setup dialog layout (EXE: dialog widget system, centered) ---
-// EXE: player setup dialog with name field, color row, Human/Computer icons, Done button
+// EXE: name field, tank silhouettes, computer/human icons and Done button.
 function getPlayerSetupLayout() {
-  const rowH = isSmallMode() ? 16 : 22;
-  const labelW = measureText('~Name:') + 6;
-  const inputW = measureText('WWWWWWWWWWWW_') + 8;
-  const colorSize = isSmallMode() ? 11 : 13;
-  const colorRowW = NUM_PLAYER_COLORS * (colorSize + 2) - 2;
-  const typeBtnH = FONT_HEIGHT + 4;
-  const doneW = measureText('~Done') + 12;
-  const doneH = isSmallMode() ? 14 : 18;
-  const dlgW = Math.max(labelW + inputW + 24, colorRowW + 20, 180);
-  // title + sep + name field + color row + sep + type row + padding
-  const dlgH = 22 + rowH + 4 + colorSize + 8 + Math.max(typeBtnH, doneH) + 6;
+  // EXE 0x2782E / 0x284EB: both person/computer dialogs share these bounds.
+  // D08A=73; the highest widget bottom is 135, with a ten-pixel margin.
+  const dlgW = 202, dlgH = 146;
   const dlgX = Math.floor((getScreenW() - dlgW) / 2);
   const dlgY = Math.floor((getScreenH() - dlgH) / 2);
-  const fieldH = rowH + 2;
-  const labelX = dlgX + 10;
-  const valX = dlgX + 10 + labelW;
-  const nameFieldY = dlgY + 22;
-  const colorRowY = nameFieldY + fieldH + 4;
-  const colorRowX = dlgX + Math.floor((dlgW - colorRowW) / 2);
-  const iconRowY = colorRowY + colorSize + 8;
-  const doneX = dlgX + dlgW - doneW - 8;
-  const doneY = iconRowY;
-  return { dlgX, dlgY, dlgW, dlgH, rowH, labelX, valX, inputW, nameFieldY, fieldH,
-           colorRowY, colorRowX, colorSize, iconRowY,
-           doneX, doneY, doneW, doneH };
+  const labelX = dlgX + 23, valX = dlgX + 52;
+  const inputW = 109, nameFieldY = dlgY + 19, fieldH = 14;
+  const colorSize = 13, colorRowX = dlgX + 19, colorRowY = dlgY + 83;
+  const iconRowY = dlgY + 111;
+  const doneX = dlgX + 122, doneY = dlgY + 117, doneW = 36, doneH = 19;
+  return { dlgX, dlgY, dlgW, dlgH, rowH: 22, labelX, valX, inputW,
+    nameFieldY, fieldH, colorRowY, colorRowX, colorSize, iconRowY,
+    doneX, doneY, doneW, doneH };
 }
+
+// EXE 0x44E93 circle iterator with aspect scaling; radio rings use radii 5/3.
+function drawSetupRadio(cx, cy, selected) {
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  const ring = (radius, color) => {
+    const span = (x, y) => hline(cx + Math.floor(-x * sx / 65536),
+      cx + Math.floor(x * sx / 65536), cy + Math.floor(y * sy / 65536), color);
+    const mirror = (x, y) => { span(x, y); span(x, -y); span(y, x); span(y, -x); };
+    let x = 0, y = radius * 2, error = 0;
+    while (x <= y) {
+      if (!(x & 1)) mirror(x >> 1, (y + 1) >> 1);
+      error += x * 2 + 1;
+      x++;
+      if (error > 0) { error -= y * 2 - 1; y--; }
+    }
+    mirror(x >> 1, (y + 1) >> 1);
+  };
+  ring(5, UI_DEEP_SHADOW);
+  ring(3, selected ? UI_DARK_BORDER : UI_DARK_TEXT);
+}
+
+const AI_SETUP_LABELS = ['~Moron', 'S~hooter', '~Poolshark', '~Tosser',
+  '~Chooser', '~Spoiler', 'C~yborg', '~Unknown'];
 
 export function drawPlayerSetupScreen() {
   // EXE: full-screen player-colored fill hides the menu behind the dialog.
@@ -822,11 +859,13 @@ export function drawPlayerSetupScreen() {
   if (idx >= config.numPlayers) return;
 
   const setup = playerSetup[idx];
-  const baseColor = setup.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
+  setPaletteRgb(164, ...getPlayerColor(setup.colorIndex));
+  updatePalette32();
 
-  // Fill entire screen with solid player color
-  // EXE: full-screen fill before dialog (player_struct+0x1A color)
-  fillRect(0, 0, getScreenW() - 1, getScreenH() - 1, baseColor);
+  for (let x = 0; x < getScreenW(); x += 9) {
+    fillRect(x, 0, Math.min(x + 8, getScreenW() - 1), getScreenH() - 1,
+      180 + Math.floor(x / 9) % 40);
+  }
 
   const lay = getPlayerSetupLayout();
 
@@ -836,68 +875,67 @@ export function drawPlayerSetupScreen() {
   // Title: "Player N (of M)" centered in dialog, in player color
   // EXE: x = dlg.left + (dlg.right - dlg.left - textWidth) / 2  (0x26F09-0x26F1D)
   const titleStr = `Player ${idx + 1} (of ${config.numPlayers})`;
-  const titleX = lay.dlgX + Math.floor((lay.dlgW - measureText(titleStr)) / 2);
-  drawText(titleX, lay.dlgY + 5, titleStr, baseColor);
-  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, lay.dlgY + 17, UI_MED_BORDER);
+  const titleX = lay.dlgX + Math.floor((lay.dlgW - 1 - measureText(titleStr)) / 2);
+  drawText(titleX, lay.dlgY + 2, titleStr, UI_HIGHLIGHT);
+  boxSunken(lay.dlgX + 10, lay.dlgY + 15, lay.dlgW - 20, 59, UI_BACKGROUND);
 
-  // Name field — label + sunken input box
-  const nameSelected = menu.playerSetupField === 0;
-  const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  drawText(lay.labelX, lay.nameFieldY + 2, '~Name:', nameColor);
-  boxSunken(lay.valX, lay.nameFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
-  drawText(lay.valX + 3, lay.nameFieldY + 2, setup.name, baseColor);
-  if (nameSelected && Math.floor(menu.blinkTimer / 20) % 2 === 0) {
-    drawText(lay.valX + 3 + measureText(setup.name), lay.nameFieldY + 2, '_', UI_HIGHLIGHT);
-  }
-
-  // Color selector row — 10 colored squares (EXE: 8 visible, we show all 10)
-  const colorSelected = menu.playerSetupField === 1;
-  for (let c = 0; c < NUM_PLAYER_COLORS; c++) {
-    const cx = lay.colorRowX + c * (lay.colorSize + 2);
-    const cy = lay.colorRowY;
-    const palIdx = c * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-    if (c === setup.colorIndex) {
-      // Selected: sunken with highlight border
-      boxSunken(cx, cy, lay.colorSize, lay.colorSize, palIdx);
-    } else {
-      // Unselected: raised with color fill
-      drawBox3DRaised(cx, cy, lay.colorSize, lay.colorSize, palIdx,
-        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+  if (setup.aiType === AI_TYPE.HUMAN) {
+    // Name field — label + sunken input box
+    const nameSelected = menu.playerSetupField === 0;
+    const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
+    drawText(lay.labelX, lay.nameFieldY + 1, '~Name:', nameColor);
+    boxSunken(lay.valX, lay.nameFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
+    const displayName = setup.editName ?? setup.name;
+    drawText(lay.valX + 2, lay.nameFieldY + 1, displayName, UI_HIGHLIGHT);
+    if (setup.editName !== undefined && Math.floor(menu.blinkTimer / 20) % 2 === 0) {
+      vline(setup.cursorX ?? (lay.valX + 2 + measureText(displayName) + (displayName.length ? 1 : 0)), lay.nameFieldY + 2, lay.nameFieldY + 11, 162);
+    }
+  } else {
+    for (let i = 0; i < AI_SETUP_LABELS.length; i++) {
+      const x = lay.dlgX + 20 + Math.floor(i / 3) * 60;
+      const y = lay.dlgY + 20 + (i % 3) * 15;
+      drawText(x + 10, y, AI_SETUP_LABELS[i], UI_HIGHLIGHT);
+      drawSetupRadio(x + 5, y + 5, setup.aiType === i + 1);
     }
   }
 
-  // Separator
-  const sepY = lay.colorRowY + lay.colorSize + 3;
-  hline(lay.dlgX + 4, lay.dlgX + lay.dlgW - 5, sepY, UI_MED_BORDER);
+  // EXE 0x27081: tank silhouettes, followed by the type-6 slider.
+  for (let i = 0; i < TANK_TYPES.length; i++) {
+    const cx = lay.dlgX + 25 + i * 25, cy = lay.dlgY + 95;
+    const enabled = i < 6 || setup.aiType !== AI_TYPE.HUMAN;
+    boxSunken(cx - 6, cy - 12, 14, 15, enabled ? UI_DEEP_SHADOW : UI_DARK_TEXT);
+    const tank = TANK_TYPES[i];
+    const color = 164;
+    for (const [dx, dy] of tank.pixels) setPixel(cx + dx, cy + dy, color);
+    // EXE 0x40747 uses a fixed 45-degree angle and an inclusive line.
+    const angle = 0.785398185;
+    const bx = cx + tank.barrelXOff, by = cy + tank.barrelYOff;
+    // Fastgraph's upward lines resolve midpoint ties from the upper endpoint.
+    bresenhamLine(Math.trunc(bx + Math.cos(angle) * tank.barrelLen),
+      Math.trunc(by - Math.sin(angle) * tank.barrelLen), bx, by,
+      (x, y) => setPixel(x, y, color));
+  }
+  drawText(lay.dlgX + 12, lay.dlgY + 99, '~I', UI_HIGHLIGHT);
+  drawIconSlider(lay.dlgX + 20, lay.dlgX + 180, lay.dlgY + 100,
+    lay.dlgX + 25 + setup.tankType * 25);
 
-  // Type selector (EXE: text labels "~Person" / "~Computer" in list widget, DS:0x21F8)
-  const isHuman = setup.aiType === AI_TYPE.HUMAN;
-  const typeSelected = menu.playerSetupField === 2;
-  const typeColor = typeSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-  drawText(lay.labelX, lay.iconRowY + 2, '~Type:', typeColor);
-  const personW = measureText('~Person') + 8;
-  const computerW = measureText('~Computer') + 8;
-  const btnH = FONT_HEIGHT + 4;
-  const personX = lay.valX;
-  const computerX = personX + personW + 4;
-  if (isHuman) {
-    boxSunken(personX, lay.iconRowY, personW, btnH, UI_BACKGROUND);
-  } else {
-    boxRaised(personX, lay.iconRowY, personW, btnH);
+  // EXE 0x27265: computer and human icons.
+  for (let i = 0; i < 2; i++) {
+    const cx = lay.dlgX + 49 + i * 25, cy = lay.dlgY + 123;
+    boxSunken(cx - 7, cy - 12, 15, 15, UI_DEEP_SHADOW);
+    drawUIIcon(cx - 5, cy - 10, i === 0 ? 11 : 10, UI_DARK_BORDER);
   }
-  drawText(personX + 4, lay.iconRowY + 2, '~Person', isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT);
-  if (!isHuman) {
-    boxSunken(computerX, lay.iconRowY, computerW, btnH, UI_BACKGROUND);
-  } else {
-    boxRaised(computerX, lay.iconRowY, computerW, btnH);
-  }
-  drawText(computerX + 4, lay.iconRowY + 2, '~Computer', !isHuman ? UI_HIGHLIGHT : UI_DARK_TEXT);
+  drawIconSlider(lay.dlgX + 44, lay.dlgX + 79, lay.dlgY + 128,
+    lay.dlgX + (setup.aiType === AI_TYPE.HUMAN ? 74 : 49));
 
   // Done button (EXE: raised 3D button at bottom-right)
   boxRaised(lay.doneX, lay.doneY, lay.doneW, lay.doneH);
-  const doneTx = lay.doneX + Math.floor((lay.doneW - measureText('~Done')) / 2);
+  const doneTx = lay.doneX + 5;
   const doneTy = lay.doneY + Math.floor((lay.doneH - FONT_HEIGHT) / 2);
-  drawText(doneTx, doneTy, '~Done', UI_DARK_TEXT);
+  if (!(setup.doneEnabled ?? (setup.aiType !== AI_TYPE.HUMAN || !!setup.name.trim()))) {
+    drawText(doneTx + 1, doneTy, '~Done', UI_LIGHT_BORDER);
+    drawText(doneTx, doneTy, '~Done', UI_DARK_TEXT);
+  } else drawText(doneTx, doneTy, '~Done', UI_HIGHLIGHT);
 }
 
 // Reset menu state when re-entering from game over / system menu

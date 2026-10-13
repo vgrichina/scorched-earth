@@ -7,10 +7,13 @@
 // EXE: LAND1 = bumpiness (flat chance), LAND2 = slope component
 
 import { random, clamp } from './utils.js';
-import { config } from './config.js';
-import { setPixel, setBackground, clearToBackground } from './framebuffer.js';
+import { createStarSky, createSunsetSky, createStormSky } from './sky.js';
+import { config, GRAPHICS_MODES } from './config.js';
+import { setPixel, setBackground, setBackgroundPixels, clearToBackground } from './framebuffer.js';
 import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START } from './constants.js';
-import { resolvedSkyType } from './palette.js';
+import { resolvedSkyType, setPaletteRgb } from './palette.js';
+import { selectScannedMountain } from './mountain-selection.js';
+import { decodeMountain, renderMountain } from './mountain.js';
 
 // Terrain height map: terrain[x] = top Y of ground at column x
 // NOTE: This is a DERIVED index for collision lookups only. The authoritative
@@ -28,6 +31,10 @@ export let ceilingTerrain = new Uint16Array(config.screenWidth);
 // filling solid columns from terrain[x], which would lose sub-column detail.
 let WIDTH = config.screenWidth;
 let HEIGHT = config.screenHeight;
+let cachedStars = null;
+let previousSkyType = -1;
+let generationDirection = -1; // EXE LandGenerator constructor 0x295C8
+let selectedMountain = -1;
 export let terrainBitmap = new Uint8Array(WIDTH * HEIGHT);
 
 // Sky region: HUD occupies top rows, rest is playfield
@@ -39,6 +46,10 @@ let PLAYFIELD_BOTTOM = config.screenHeight - 1;
 
 // Reinitialize terrain buffers for new graphics mode dimensions
 export function reinitTerrainBuffers() {
+  cachedStars = null;
+  previousSkyType = -1;
+  generationDirection = -1;
+  selectedMountain = -1;
   WIDTH = config.screenWidth;
   HEIGHT = config.screenHeight;
   PLAYFIELD_BOTTOM = config.screenHeight - 1;
@@ -51,10 +62,21 @@ export function reinitTerrainBuffers() {
 export function generateTerrain() {
   const width = config.screenWidth;
   const yStart = PLAYFIELD_TOP;
-  const yEnd = PLAYFIELD_BOTTOM;
+  const yEnd = config.screenHeight - 4; // EXE EF38: inside the 3px bottom border
 
-  // Reset ceiling terrain
   ceilingTerrain.fill(0);
+  if (selectedMountain >= 0) {
+    applyMountain(scannedMountains[selectedMountain]);
+    return;
+  }
+  // EXE 0x295F5 toggles the selected generator object's direction. Scanned
+  // rounds must not advance the procedural object's direction.
+  generationDirection = -generationDirection;
+  if (resolvedSkyType === 5) {
+    generateCastle(width, yStart, yEnd);
+    buildTerrainBitmap();
+    return;
+  }
 
   switch (config.landType) {
     case 0: // Flat
@@ -67,14 +89,14 @@ export function generateTerrain() {
     default:
       generateRolling(width, yStart, yEnd);
       break;
-    case 3: // Mountain
-      generateMountain(width, yStart, yEnd);
+    case 3:
+      generateRolling(width, yStart, yEnd);
       break;
     case 4: // V-Shaped
       generateVShaped(width, yStart, yEnd);
       break;
-    case 5: // Castle
-      generateCastle(width, yStart, yEnd);
+    case 5: // Cavern geometry is selected by the resolved sky, above.
+      generateRolling(width, yStart, yEnd);
       break;
     case 6: // EXE: No separate "Cavern" terrain shape exists. The EXE's
             // TERRAIN_TYPE 6 is "Black" sky mode with standard random walk terrain.
@@ -108,12 +130,8 @@ function generateVShaped(width, yStart, yEnd) {
 
 // ======================================================================
 // MTN TERRAIN FILE LOADER
-// EXE: ScannedMountain class, file 0x029AAE; descriptor table at DS:0x5F04
-// Format: 72-byte header + PCX-RLE nibble-packed 4bpp, column-major
-// Header: magic=MT\xBE\xEF, h=rows/col, x_start/x_end, n_colors=16, palette@0x18
-// Pixel data @0x48: byte>=0xC0 → run (count=b&0x3F, repeat next byte); byte<0xC0 → literal
-// High nibble = first pixel, low nibble = second pixel; index 0 = sky (transparent)
-// Height = first non-zero row from top per column; fraction 0=top, 1=bottom
+// EXE 0x32E44: variable-height columns of bottom-up nibble-packed colors.
+// See mountain.js for the decoder and crop/reflection renderer.
 
 const MTN_FILENAMES = [
   'ICE001.MTN', 'ICE002.MTN', 'ICE003.MTN',
@@ -121,128 +139,76 @@ const MTN_FILENAMES = [
   'ROCK005.MTN', 'ROCK006.MTN', 'SNOW001.MTN',
 ];
 
-// Array of parsed height maps: { xStart, xEnd, heights: Float32Array }
-const mtnHeightMaps = [];
+const scannedMountains = [];
 
-function parseMTNFile(buffer) {
-  const d = new Uint8Array(buffer);
-  if (d.length < 72) return null;
-  // Verify magic: 'MT' 0xBE 0xEF
-  if (d[0] !== 0x4D || d[1] !== 0x54 || d[2] !== 0xBE || d[3] !== 0xEF) return null;
-
-  const h       = d[6]  | (d[7]  << 8);  // rows per column
-  const xStart  = d[8]  | (d[9]  << 8);  // first encoded column
-  const xEnd    = d[10] | (d[11] << 8);  // last encoded column + 1
-  const numCols = xEnd - xStart;
-  if (numCols <= 0 || h <= 0) return null;
-
-  // Decode PCX-RLE into packed nibble bytes (column-major)
-  const bytesPerCol = Math.ceil(h / 2);
-  const totalBytes  = numCols * bytesPerCol;
-  const packed = new Uint8Array(totalBytes);
-  let outIdx = 0, i = 72;
-  while (outIdx < totalBytes && i < d.length) {
-    const b = d[i++];
-    if (b >= 0xC0) {
-      const count = b & 0x3F;
-      const val   = d[i++];
-      const end   = Math.min(outIdx + count, totalBytes);
-      while (outIdx < end) packed[outIdx++] = val;
-    } else {
-      packed[outIdx++] = b;
-    }
-  }
-
-  // Extract terrain height fraction for each column
-  // For column c, scan rows 0..h-1 and find first non-zero (non-sky) pixel
-  const heights = new Float32Array(numCols);
-  for (let c = 0; c < numCols; c++) {
-    const base = c * bytesPerCol;
-    let found = false;
-    for (let row = 0; row < h; row++) {
-      const nibble = (row & 1) === 0
-        ? (packed[base + (row >> 1)] >> 4) & 0xF
-        :  packed[base + (row >> 1)]       & 0xF;
-      if (nibble !== 0) {
-        heights[c] = row / h;
-        found = true;
-        break;
-      }
-    }
-    if (!found) heights[c] = 1.0;
-  }
-
-  return { xStart, xEnd, heights };
-}
-
-// Pre-load all MTN files into mtnHeightMaps[]. Called once at startup.
+// Pre-load all MTN files into scannedMountains[]. Called once at startup.
 export async function loadMTNFiles() {
   for (const filename of MTN_FILENAMES) {
     try {
       const resp = await fetch(`earth/${filename}`);
       if (!resp.ok) continue;
-      const parsed = parseMTNFile(await resp.arrayBuffer());
-      if (parsed) mtnHeightMaps.push(parsed);
+      const parsed = decodeMountain(await resp.arrayBuffer());
+      if (parsed) scannedMountains.push(parsed);
     } catch (_) { /* silently skip missing files */ }
   }
 }
 
-// Apply a parsed MTN height map to the terrain[] array.
-// EXE: MTN data is 320px-wide; scale to current screen width.
-function applyMTNHeights(mtn, width, yStart, yEnd) {
-  const { xStart, xEnd, heights } = mtn;
-  const playH = yEnd - yStart;
-  const scale = width / 320;  // MTN columns are indexed in 320px space
-  for (let x = 0; x < width; x++) {
-    const mtnX = Math.floor(x / scale);
-    let frac;
-    if (mtnX < xStart)       frac = heights[0];
-    else if (mtnX >= xEnd)   frac = heights[heights.length - 1];
-    else                     frac = heights[mtnX - xStart];
-    terrain[x] = clamp(Math.round(yStart + frac * playH), yStart, yEnd - 1);
+// Preserve scanned colors and per-pixel geometry instead of reducing them to
+// a scaled height map. Web slots 128..143 map original VGA slots 88..103.
+function applyMountain(mountain) {
+  const bitmap = renderMountain(mountain, WIDTH, HEIGHT);
+  terrainBitmap.fill(0);
+  terrain.fill(HEIGHT - 4);
+  for (let y = PLAYFIELD_TOP; y <= HEIGHT - 4; y++) {
+    for (let x = 3; x <= WIDTH - 4; x++) {
+      const color = bitmap[y * WIDTH + x];
+      if (!color) continue;
+      terrainBitmap[y * WIDTH + x] = color === 80 ? 120 : color + 40;
+      if (y < terrain[x]) terrain[x] = y;
+    }
   }
+  // EXE 0x32FF4 stores dim colors for later illumination in Black mode,
+  // but does not write them to the visible DAC during landscape generation.
+  // Keep the black entries established by sky setup.
+  if (resolvedSkyType === 6) return;
+  const shift = 2;
+  for (let i = 0; i < 16; i++) {
+    setPaletteRgb(128 + i, ...mountain.palette.slice(i * 3, i * 3 + 3).map(c => c >> shift));
+  }
+  const base = mountain.groundIndex * 3;
+  setPaletteRgb(120, ...mountain.palette.slice(base, base + 3).map(c => c >> shift));
 }
 
-// EXE: Type 3 (Mountain) uses ScannedMountain (MTN files) or the same random walk.
-// The EXE selects ScannedMountain vs LandGenerator based on MTN_PERCENT probability.
-// When LandGenerator is selected, it's the same random walk as all other types.
-function generateMountain(width, yStart, yEnd) {
-  // EXE: MTN_PERCENT% chance of ScannedMountain class (default 20%)
-  if (mtnHeightMaps.length > 0 && random(100) < config.mtnPercent) {
-    applyMTNHeights(mtnHeightMaps[random(mtnHeightMaps.length)], width, yStart, yEnd);
-    return;
-  }
-  // Non-MTN: same random walk kernel as all types
-  generateRolling(width, yStart, yEnd);
+// Run between wind and sky initialization, independently of ground palette.
+// Scanned pixels are decoded and rendered by mountain.js.
+export function prepareTerrainGenerator() {
+  // The EXE retains the last resolved sky between Random rounds. A previous
+  // Cavern therefore skips this round's mountain probability draw as well.
+  const selectionSky = config.skyType === 7 && previousSkyType >= 0
+    ? previousSkyType : config.skyType;
+  selectedMountain = selectScannedMountain(selectionSky, config.mtnPercent, scannedMountains.length);
+  return selectedMountain;
 }
 
-// EXE: Type 5 (Castle) uses TWO random walk passes (file 0x29677).
-// First pass generates ceiling terrain (yStart to midY), second pass generates
-// floor terrain (midY to yEnd). drawColumn's +0x02 flag (set between passes)
-// inverts draw direction: first pass fills from midY up, second from height down.
-// Result: terrain on both top and bottom with an air gap between, like a castle hall.
+// EXE 0x29677: floor pass first, then an inverted ceiling pass, using
+// the same horizontal direction. The ceiling ends just before the walk Y.
 function generateCastle(width, yStart, yEnd) {
-  const midY = Math.floor((yStart + yEnd) / 2);
-
-  // First pass: ceiling terrain — random walk in upper half
-  generateRolling(width, yStart, midY);
-  // Save as ceiling heights (terrain drawn from PLAYFIELD_TOP down to this height)
-  for (let x = 0; x < width; x++) {
-    ceilingTerrain[x] = terrain[x];
-  }
-
-  // Second pass: floor terrain — random walk in lower half
+  const midY = Math.trunc((yStart + yEnd) / 2);
   generateRolling(width, midY, yEnd);
-  // terrain[] now holds floor heights (terrain drawn from this height down to bottom)
+  generateRolling(width, yStart, midY, ceilingTerrain);
+  for (let x = 3; x <= width - 4; x++) ceilingTerrain[x]--;
+  // No ceiling outside the playfield frame.
+  ceilingTerrain.fill(0, 0, 3);
+  ceilingTerrain.fill(0, width - 3);
 }
 
 // Main random walk algorithm
 // EXE: height generation kernel at file 0x29808, ranges.cpp
-// EXE: LAND1 controls flat chance (% momentum maintained), LAND2 controls bump chance
+// EXE: LAND1 is the chance to change momentum; LAND2 doubles that change
 // EXE: LandGenerator struct +0x0A=flat_chance, +0x0C=bump_chance, +0x0E=flatten_peaks
 // EXE: flatten_peaks (DS:5172=FLATLAND): suppresses walk_delta to 0 when |delta| > 3
-function generateRolling(width, yStart, yEnd) {
-  const flatChance = config.land1;         // default 20: % chance to maintain momentum
+function generateRolling(width, yStart, yEnd, heights = terrain) {
+  const changeChance = config.land1;       // default 20: % chance to alter momentum
   const bumpChance = config.land2;         // default 20: % chance to double delta
   const flattenPeaks = config.flattenPeaks; // EXE: DS:5172=FLATLAND, struct+0x0E
 
@@ -250,21 +216,22 @@ function generateRolling(width, yStart, yEnd) {
   let y = random(yEnd - yStart - 60) + yStart + 40;
   let walkDelta = 0;
 
-  for (let col = 0; col < width; col++) {
-    terrain[col] = clamp(Math.floor(y), yStart + 20, yEnd - 1);
+  // EXE EF42..EF3C: inclusive horizontal bounds inside the 3px frame.
+  heights.fill(yEnd);
+  const first = generationDirection === 1 ? 3 : width - 4;
+  const last = generationDirection === 1 ? width - 4 : 3;
+  for (let col = first; generationDirection === 1 ? col <= last : col >= last; col += generationDirection) {
+    heights[col] = clamp(Math.floor(y), yStart + 20, yEnd - 1);
 
-    if (random(100) < flatChance) {
-      // Maintain current momentum (no change to walkDelta)
-    } else {
-      walkDelta = random(3) - 1;           // {-1, 0, +1}
-      if (random(100) < bumpChance) {
-        walkDelta *= 2;                     // {-2, 0, +2}
-      }
+    if (random(100) < changeChance) {
+      let change = random(3) - 1;
+      if (random(100) < bumpChance) change *= 2;
+      walkDelta += change;
+
+      // EXE 0x29890: accumulate the change, then suppress extreme momentum.
+      if (flattenPeaks && (walkDelta < -3 || walkDelta > 3))
+        walkDelta = 0;
     }
-
-    // EXE file 0x29849: if flatten_peaks and |delta| > 3, suppress to 0
-    if (flattenPeaks && (walkDelta < -3 || walkDelta > 3))
-      walkDelta = 0;
 
     y += walkDelta;
 
@@ -280,56 +247,50 @@ function generateRolling(width, yStart, yEnd) {
   }
 }
 
-// Precompute per-row sky gradient palette indices into framebuffer background table.
-// Called once when sky type changes. The row→palette index mapping (80-109) is
-// independent of the palette RGB values — those are set by setupSkyPalette().
-// This enables clearToBackground() to fill the entire framebuffer in a single
-// memcpy, emulating VGA hardware where every pixel always has a valid DAC color.
-export function initSkyBackground() {
-  // EXE: fill_height_array_palIdx (0x3999A) — uniform gradient, NOT per-column.
-  // Formula: height_array[y] = (MAXY - y) * 29 / playfield_height + 120
-  // where MAXY = screenHeight - 4 (DS:EF38), playfield_height = MAXY - YMIN (DS:ECB8)
-  // EXE: YMIN (DS:EF40) = 38 at 480px, MAXY (DS:EF38) = 476 at 480px
+// Build the persistent sky background: row gradients plus any bitmap pattern.
+// Redraws copy these pixels; only initialization may consume gameplay RNG.
+export function initSkyBackground({ reuseStars = false, wrap = config.wallType === 1 } = {}) {
+  // EXE row tables: shaded/black use 29 levels (0x3999A), Sunset uses
+  // 28 levels above entry 121 (0x39DF1), Cavern mirrors about mid-height (0x39EFC).
   const MAXY = config.screenHeight - 4;
-  const YMIN = Math.round(38 * config.screenHeight / 480);
+  const YMIN = PLAYFIELD_TOP;
   const playH = MAXY - YMIN;
+  const middle = Math.trunc((MAXY + YMIN) / 2);
+  const halfHeight = Math.trunc(playH / 2);
   const rowColors = new Uint8Array(config.screenHeight);
   for (let y = 0; y < config.screenHeight; y++) {
-    // Clamp to valid range: rows above YMIN get darkest, rows below MAXY get brightest
-    const idx = Math.floor((MAXY - Math.max(YMIN, Math.min(y, MAXY))) * 29 / playH);
+    const row = clamp(y, YMIN, MAXY);
+    let idx;
+    if (resolvedSkyType === 0) {
+      idx = 0; // Plain uses just VGA entry 120.
+    } else if (resolvedSkyType === 4) {
+      idx = 1 + Math.trunc((MAXY - row) * 28 / playH);
+    } else if (resolvedSkyType === 5) {
+      idx = Math.trunc(Math.abs(row - middle) * 29 / halfHeight);
+    } else {
+      idx = Math.trunc((MAXY - row) * 29 / playH);
+    }
     rowColors[y] = SKY_PAL_START + Math.min(idx, SKY_PAL_COUNT - 1);
   }
   setBackground(rowColors);
+  if (resolvedSkyType === 2) {
+    // EXE 0x39A1C compares the prior resolved sky with the new one. Consecutive
+    // Stars retain their field even when both were selected through Random.
+    if (!reuseStars || previousSkyType !== 2 || !cachedStars)
+      cachedStars = createStarSky(config.screenWidth, config.screenHeight);
+    setBackgroundPixels(cachedStars);
+  }
+  if (resolvedSkyType === 3) setBackgroundPixels(createStormSky(config.screenWidth, config.screenHeight,
+    GRAPHICS_MODES[config.graphicsMode].displayAspect, wrap));
+  if (resolvedSkyType === 4) setBackgroundPixels(createSunsetSky(config.screenWidth, config.screenHeight,
+    GRAPHICS_MODES[config.graphicsMode].displayAspect));
+  previousSkyType = resolvedSkyType;
 }
 
 // Draw sky (VGA 80-109 mapped to screen rows, 30 entries matching EXE VGA 120-149)
 // Supports: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black
 export function drawSky() {
-  const width = config.screenWidth;
-
-  // Base gradient fill from precomputed background table (single memcpy)
   clearToBackground();
-
-  // Stars: scatter pixels (use resolvedSkyType for Random support)
-  // EXE: palette 154 (VGA 0x9A) = (40,40,63) light blue-white, same as wind indicator
-  if (resolvedSkyType === 2) {
-    for (let i = 0; i < 80; i++) {
-      const sx = random(width);
-      const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
-      const brightness = random(3);  // EXE consumes this RNG call but uses single color
-      setPixel(sx, sy, 154);
-    }
-  }
-
-  // Storm: occasional bright lightning pixels (use resolvedSkyType for Random support)
-  // EXE: also uses palette 154 for storm pixels
-  if (resolvedSkyType === 3) {
-    for (let i = 0; i < 15; i++) {
-      const sx = random(width);
-      const sy = random(PLAYFIELD_BOTTOM - HUD_HEIGHT) + HUD_HEIGHT;
-      setPixel(sx, sy, 154);
-    }
-  }
 }
 
 // Build per-pixel terrain bitmap from the height map arrays.
@@ -347,7 +308,7 @@ export function buildTerrainBitmap() {
       terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START;
     }
     // Ceiling terrain (Castle mode — EXE type 5 draws terrain on both top and bottom)
-    if (config.landType === 5 && ceilingTerrain[x] > 0) {
+    if (ceilingTerrain[x] > 0) {
       for (let y = PLAYFIELD_TOP; y <= ceilingTerrain[x]; y++) {
         terrainBitmap[y * WIDTH + x] = TERRAIN_PAL_START;
       }

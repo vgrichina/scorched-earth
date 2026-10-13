@@ -44,10 +44,11 @@
 //   Each widget: clear sub-area, draw icon, display count, color by ammo>0
 
 import { config } from './config.js';
-import { hline, vline, fillRect, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
+import { hline, vline, fillRect, setPixel, getPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
+import { setPaletteRgb } from './palette.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
-import { players } from './tank.js';
+import { players, getTankAim } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND,
          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
@@ -107,10 +108,47 @@ const ICONS = [
   {"x":2,"y":4,"w":7,"h":3,"px":[0,0,1,1,1,0,0,0,1,14,14,14,1,0,1,1,1,1,1,1,1]}
 ];
 
+// Generic UI icons: DS:324A, 12 records; caller 0x26320.
+const UI_ICONS = [
+  {"x":1,"y":2,"w":9,"h":6,"px":[0,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,1,0,1,0,1,0,0,0,1,0,1,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0]},
+  {"x":1,"y":2,"w":9,"h":6,"px":[0,0,1,1,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,1,0,1,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0]},
+  {"x":2,"y":2,"w":5,"h":6,"px":[0,0,1,0,0,0,1,1,1,0,1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0]},
+  {"x":2,"y":2,"w":5,"h":6,"px":[0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,1,1,1,1,0,1,1,1,0,0,0,1,0,0]},
+  {"x":0,"y":0,"w":9,"h":9,"px":[0,0,0,0,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,1,0,1,0,0,0,1,0,0,1,0,0,1,0,1,1,1,1,0,1,1,1,1,0,1,0,0,1,0,0,1,0,0,0,1,0,1,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0,0,0]},
+  {"x":1,"y":2,"w":9,"h":7,"px":[0,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0]},
+  {"x":1,"y":0,"w":9,"h":11,"px":[0,0,0,1,1,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,1,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,1,0,0,0,0,0,1,0,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1]},
+  {"x":0,"y":1,"w":11,"h":9,"px":[0,0,0,1,1,1,1,1,1,1,1,0,0,1,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,1,-14,1,1,1,1,1,1,1,1,1,-14,-14,1,1,0,0,0,0,0,0,1,-14,-14,1,1,0,1,1,1,1,0,1,-14,-14,1,1,0,0,0,0,0,0,1,-14,1,0,1,0,0,0,0,0,0,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0]},
+  {"x":0,"y":2,"w":11,"h":6,"px":[0,0,0,1,1,1,1,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {"x":0,"y":1,"w":11,"h":9,"px":[0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0]},
+  {"x":1,"y":0,"w":9,"h":11,"px":[0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,1,0,0,1,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,1,1,0]},
+  {"x":0,"y":1,"w":11,"h":9,"px":[0,0,1,1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,1,1,1,0,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}
+];
+
+export function drawUIIcon(x, y, iconIdx, color) {
+  drawIconRecord(x, y, UI_ICONS[iconIdx], color, false);
+}
+
+// EXE type-6 track (0x47DF7) and beveled thumb (0x4B0B4).
+export function drawIconSlider(left, right, y, thumbX) {
+  drawBox3DSunken(left, y + 3, right - left + 1, 5, UI_BACKGROUND,
+    UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
+  setPixel(thumbX, y + 1, UI_BACKGROUND);
+  fillRect(thumbX - 1, y + 2, thumbX + 1, y + 7, UI_BACKGROUND);
+  setPixel(thumbX, y, UI_DARK_BORDER);
+  setPixel(thumbX - 1, y + 1, UI_DARK_BORDER);
+  vline(thumbX - 2, y + 2, y + 8, UI_DARK_BORDER);
+  hline(thumbX - 1, thumbX + 2, y + 8, UI_BRIGHT_BORDER);
+  setPixel(thumbX + 1, y + 1, UI_MED_BORDER);
+  vline(thumbX + 2, y + 2, y + 7, UI_MED_BORDER);
+}
+
 // EXE 0x26110: live icons draw positive samples in the caller's color;
 // shaded icons draw every nonzero sample using palette 169 + abs(sample).
 export function drawIcon(x, y, iconIdx, color, shaded = false) {
-  const icon = ICONS[iconIdx];
+  drawIconRecord(x, y, ICONS[iconIdx], color, shaded);
+}
+
+function drawIconRecord(x, y, icon, color, shaded) {
   if (!icon) return;
   for (let i = 0; i < icon.px.length; i++) {
     const sample = icon.px[i];
@@ -137,7 +175,6 @@ const AFTER_BAR_GAP = 10;  // EXE: add ax, 0xA at file 0x2FC2E — gap after bar
 const ICON_PARACHUTE = 38;       // DS:D554 — parachute icon (2×11px)
 const ICON_BATTERY = 39;         // DS:D556 — battery icon (2×11px)
 const ICON_CONTACT_TRIGGER = 47; // DS:D566 — contact trigger icon (4×7px)
-const ICON_NO_SHIELD = 32;       // DS:D548 — sentinel value meaning "no shield active"
 
 // Draw a per-player column inside a multi-player bar
 // EXE: bar_column at file 0x39482 — fills 6px-wide column from bottom up
@@ -268,7 +305,7 @@ export function drawHud(player, wind, round, opts) {
     drawText(x, HUD_Y, 'Angle:', hudTextColor);
     x += measureText('Angle') + 8; // EXE: E9DA = E9D8 + measureText("Angle") + 8
     // EXE: sprintf(buf, "%2d", player.angle) at [E9DA] — DS:0x57BE = "%2d"
-    drawText(x, HUD_Y, String(player.angle).padStart(2), hudTextColor);
+    drawText(x, HUD_Y, String(getTankAim(player).angle).padStart(2), hudTextColor);
     x += measureText('99  '); // EXE: DS:0x577E = "99  " (2 digits + 2 spaces)
     // EXE: fg_setrgb(0xA3, R, G, B) sets palette 163 = player color
     // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws PLAYER NAME in palette 163
@@ -279,11 +316,12 @@ export function drawHud(player, wind, round, opts) {
     // EXE: E9E0 = E9DE + 15 → weapon text position
     const wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
     // EXE: draw_player_icon([E9DE], HUD_Y, wpn_idx) — draws selected weapon's icon
-    if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
-      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon, hudTextColor);
+    if (player.selectedWeapon >= 2 && player.selectedWeapon - 2 < ICONS.length) {
+      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon - 2, hudTextColor);
     }
     const wpnX = wpnIconX + 15; // E9E0 = E9DE + 15
-    const wpnFull = ammo === -1 ? weaponName : ammo + ': ' + weaponName;
+    const wpnFull = player.selectedWeapon === WPN.BABY_MISSILE || ammo === -1
+      ? weaponName : ammo + ': ' + weaponName;
     drawText(wpnX, HUD_Y, wpnFull, hudTextColor);
   }
 
@@ -386,53 +424,44 @@ export function drawHud(player, wind, round, opts) {
     drawIcon(x, ROW2_Y, ICON_PARACHUTE, paraColor);
     x += 25; // → E9F4
 
-    // Widget 4 (0x3DB30): item display at E9F4, weapon icon at E9F6, % at E9F8
-    // EXE: clears E9F4 to E9FA-1, shows count text, draws weapon icon, shows percentage
-    const itemCount = ammo === -1 ? 0 : Math.max(0, ammo || 0);
-    const itemColor = (ammo === -1 || itemCount > 0) ? hudTextColor : dimColor;
-    drawText(x, ROW2_Y, String(Math.min(99, itemCount)), itemColor);
-    x += countFieldW; // → E9F6
-    // EXE: draw_icon_alive(E9F6, ROW2_Y, item_index, color) — draws selected weapon icon
-    if (player.selectedWeapon >= 0 && player.selectedWeapon < ICONS.length) {
-      drawIcon(x, ROW2_Y, player.selectedWeapon, itemColor);
+    // Widget 4 (0x3DB30): active shield config +0x0E selects the item;
+    // a negative index draws a generic empty-defense symbol, with no count.
+    const shieldWeapon = player.shieldWeapon ?? (player.activeShield > 0
+      ? WPN.MAG_DEFLECTOR + player.activeShield - 1 : -1);
+    const shieldEnergy = player.shieldEnergy || 0;
+    if (shieldWeapon >= 2) {
+      drawText(x, ROW2_Y, String(player.inventory?.[shieldWeapon] || 0), hudTextColor);
     }
-    x += 20; // → E9F8
-    // EXE: "%d%%" format at E9F8 — percentage = floor(current * 100 / max)
-    // EXE: caps at 99 if not exactly full, min 1 if non-zero (file 0x31D7F)
-    // DS:0x5830 = 100.0f multiplier. Web port: use weapon.bundle as max reference.
-    let itemPct;
-    if (ammo === -1) {
-      itemPct = 100;
-    } else if (itemCount <= 0) {
-      itemPct = 0;
+    x += countFieldW; // E9F6
+    if (shieldWeapon < 0) {
+      drawUIIcon(x, ROW2_Y, shieldEnergy > 0 ? 3 : 10,
+        shieldEnergy > 0 ? UI_DEEP_SHADOW : dimColor);
     } else {
-      const maxAmmo = weapon ? weapon.bundle : 1;
-      itemPct = Math.floor(itemCount * 100 / Math.max(1, maxAmmo));
-      if (itemPct >= 100 && itemCount < maxAmmo) itemPct = 99;
-      if (itemPct <= 0) itemPct = 1;
-      itemPct = Math.min(100, itemPct);
+      drawIcon(x, ROW2_Y, shieldWeapon - 2,
+        shieldEnergy > 0 ? player.colorBase + 5 : hudTextColor);
     }
-    drawText(x, ROW2_Y, itemPct + '%', itemColor);
-    x += pctFieldW; // → E9FA
+    x += 20; // E9F8
+    const shieldMax = player.shieldMaxEnergy ?? SHIELD_CONFIG[player.activeShield || 0]?.energy ?? 0;
+    let shieldPct = shieldEnergy === 0 ? 0 : Math.max(1,
+      Math.floor(shieldEnergy * 100 / Math.max(1, shieldMax)));
+    if (shieldPct === 100 && shieldEnergy !== shieldMax) shieldPct = 99;
+    drawText(x, ROW2_Y, shieldPct + '%', shieldEnergy > 0 ? hudTextColor : dimColor);
+    x += pctFieldW; // E9FA
 
-    // Widget 5 (0x3DC94): shield count at E9FA ("%d" DS:6476), icon at E9FC
-    // EXE: clears E9FA to E9FE-1, shows count text, draws shield icon
-    // EXE: if struct[+0x9A] == D548 sentinel (32) → draw_icon_dead (blank, h=10, color=[EF22])
-    //      else → draw_icon_alive(E9FC, ROW2_Y, struct[+0x9A], [EF22])
-    const shieldType = player.activeShield || 0;
-    const shieldInvCount = (player.inventory && shieldType !== ICON_NO_SHIELD)
-      ? (player.inventory[shieldType] || 0) : 0;
-    drawText(x, ROW2_Y, String(Math.min(99, shieldInvCount)), shieldInvCount > 0 ? hudTextColor : dimColor);
-    x += countFieldW; // → E9FC
-    // EXE: draws shield icon by activeShield type, always in [EF22] color
-    if (shieldType !== ICON_NO_SHIELD && shieldType >= 0 && shieldType < ICONS.length) {
-      drawIcon(x, ROW2_Y, shieldType, hudTextColor);
+    // Widget 5 (0x3DC94): tank+0x9A selected guidance. EXE item 32 is
+    // the empty sentinel here; generic icon 10 replaces both count and icon.
+    const guidanceWeapon = player.guidanceWeapon ?? WPN.LASER;
+    if (guidanceWeapon !== WPN.LASER) {
+      drawText(x, ROW2_Y, String(player.inventory?.[guidanceWeapon] || 0), hudTextColor);
     }
-    x += 20; // → E9FE
+    x += countFieldW; // E9FC
+    if (guidanceWeapon === WPN.LASER) drawUIIcon(x, ROW2_Y, 10, hudTextColor);
+    else drawIcon(x, ROW2_Y, guidanceWeapon - 2, hudTextColor);
+    x += 20; // E9FE
 
     // Inline (draw_hud_full 0x303CC): contact trigger count at E9FE, format "%2d" [DS:57D4]
     // EXE: inventory[D566=47] = contact trigger count
-    const trigCount = player.inventory ? (player.inventory[WPN.SUPER_MAG] || 0) : 0;
+    const trigCount = player.inventory ? (player.inventory[WPN.CONTACT_TRIGGER] || 0) : 0;
     const trigColor = trigCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(trigCount).padStart(2), trigColor);
     x += countFieldW; // → EA00
@@ -456,6 +485,7 @@ export function drawHud(player, wind, round, opts) {
       const shieldTotal = fuelCount * 10 + fuelEnergy;
       const w7Color = shieldTotal > 0 ? hudTextColor : dimColor;
       drawText(x, ROW2_Y, String(shieldTotal).padStart(3), w7Color);
+      drawIcon(x + 20, ROW2_Y, WPN.FUEL_TANK - 2, w7Color);
     }
   }
 
@@ -476,7 +506,13 @@ export function drawHud(player, wind, round, opts) {
 // plus a directional pixel-arrow triangle (5 columns, narrowing).
 // Color: VGA 154 (0x9A). Position: top-right viewport area.
 const WIND_COLOR = 154; // VGA 0x9A — wind indicator text + arrow color
+function drawWindPixel(x, y) {
+  // EXE 0x28E43: original VGA 80..104 uses wind-on-ground color 87.
+  const under = getPixel(x, y);
+  setPixel(x, y, under >= 120 && under <= 144 ? 127 : WIND_COLOR);
+}
 export function drawWindIndicator(wind) {
+  setPaletteRgb(127, 40, 40, 63); // Remapped EXE VGA 87.
   const viewportY = PLAYFIELD_TOP;
   let direction, text;
   if (wind < 0) {
@@ -495,7 +531,7 @@ export function drawWindIndicator(wind) {
   const FG_MAXX = config.screenWidth - 1;
   const x = FG_MAXX - textW - 20;
   const y = viewportY + 5;
-  drawText(x, y, text, WIND_COLOR);
+  drawText(x, y, text, WIND_COLOR, drawWindPixel);
 
   if (direction === 0) return;
 
@@ -515,8 +551,8 @@ export function drawWindIndicator(wind) {
   //   arrowX += direction
   for (let col = 4; col >= 0; col--) {
     for (let di = 0; di <= col; di++) {
-      setPixel(arrowX, arrowCenterY + di, WIND_COLOR);
-      if (di > 0) setPixel(arrowX, arrowCenterY - di, WIND_COLOR);
+      drawWindPixel(arrowX, arrowCenterY + di);
+      if (di > 0) drawWindPixel(arrowX, arrowCenterY - di);
     }
     arrowX += direction;
   }

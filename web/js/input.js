@@ -6,6 +6,7 @@
 // Web: tracks key state array + mouse position/buttons/delta
 
 const keys = {};
+const keyText = {};
 
 import { config } from './config.js';
 
@@ -25,6 +26,7 @@ export function initInput(canvas) {
 
   window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
+    keyText[e.code] = e.key;
     e.preventDefault();
   });
   window.addEventListener('keyup', (e) => {
@@ -78,6 +80,22 @@ export function consumeKey(code) {
     return true;
   }
   return false;
+}
+
+// Use the character produced by the keyboard, preserving Shift/Caps Lock.
+// Only currently pending keys are consumed, so gameplay input cannot leave
+// stale characters waiting for a later text field.
+export function consumeTextInput() {
+  let text = '';
+  for (const code in keys) {
+    const value = keyText[code];
+    if (keys[code] && value?.length === 1 && value.charCodeAt(0) >= 32 &&
+        value.charCodeAt(0) < 127) {
+      text += value;
+      keys[code] = false;
+    }
+  }
+  return text;
 }
 
 // Consume ANY key press — returns true if any key was down and clears it

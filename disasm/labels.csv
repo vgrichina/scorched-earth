@@ -191,9 +191,9 @@ DS:0x673E,tank_type_table,data/table:18
 0x2A95A,round_over_cleanup
 0x2AE53,play_order_init
 0x2AE77,play_order_case0_random
-0x2AF29,play_order_case1_losers_first
-0x2B03B,play_order_case2_winners_first
-0x2B0BB,play_order_case3_round_robin
+0x2AF29,play_order_case3_round_robin
+0x2B03B,play_order_case1_losers_first
+0x2B0BB,play_order_case2_winners_first
 0x2B4A8,setup_explosion_scale
 0x2B80A,mkt_init_defaults
 0x2B873,mkt_load

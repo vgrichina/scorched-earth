@@ -65,6 +65,18 @@ def extract_terrain_from_vga(pixels, width, height, playfield_top):
     return heights
 
 
+def extract_display_pixels(mem, ports):
+    """Read the visible VGA page; Mode 13h uses linear memory, Mode X planes."""
+    width, height = ports.get_resolution()
+    if not ports.mode_x:
+        return list(mem.data[0xA0000:0xA0000 + width * height])
+    start = (ports.crtc_regs[0x0C] << 8) | ports.crtc_regs[0x0D]
+    stride = width // 4
+    return [mem.vga_planes[x & 3][offset] if offset < mem.VGA_PLANE_SIZE else 0
+            for y in range(height) for x in range(width)
+            for offset in [start + y * stride + (x >> 2)]]
+
+
 def extract_state(state_path):
     """Extract full game state from emulator checkpoint."""
     mem = Memory()
@@ -83,24 +95,8 @@ def extract_state(state_path):
         r, g, b = ports.palette[i]
         palette.append([r, g, b])
 
-    # Read framebuffer pixels
-    if hasattr(mem, 'vga_planes') and len(mem.vga_planes) == 4:
-        plane_stride = width // 4
-        pixels = []
-        for y in range(height):
-            for x in range(width):
-                plane = x & 3
-                offset = y * plane_stride + (x >> 2)
-                if offset < len(mem.vga_planes[plane]):
-                    pixels.append(mem.vga_planes[plane][offset])
-                else:
-                    pixels.append(0)
-    else:
-        pixels = []
-        for y in range(height):
-            for x in range(width):
-                addr = 0xA0000 + y * width + x
-                pixels.append(mem.read8(addr))
+    # Capture the displayed page, not whichever page happens to start at zero.
+    pixels = extract_display_pixels(mem, ports)
 
     # Game state
     num_players = mem.read16(ds_base + 0x50D4)
@@ -109,7 +105,8 @@ def extract_state(state_path):
         wind -= 0x10000
     terrain_type = mem.read16(ds_base + 0x5110)
     layout_mode = mem.read16(ds_base + 0xED58)
-    sky_type = mem.read16(ds_base + 0x5112)
+    # Sky dispatch reads DS:5110 (0x39796 / 0x3AB39); DS:5112 is explosion scale.
+    sky_type = terrain_type
     land_type = mem.read16(ds_base + 0x5114)
 
     # HUD area height (layout_mode 0 = spacious/25px, 1 = compact/17px)
@@ -119,8 +116,12 @@ def extract_state(state_path):
 
     # Round number
     round_number = mem.read16(ds_base + 0xE340)
-    # Total rounds config — not yet located in DS; use default
-    num_rounds = 10
+    num_rounds = mem.read16(ds_base + 0x5160)
+    current_ptr = (mem.read16(ds_base + 0x5184) << 4) + mem.read16(ds_base + 0x5182)
+    current_offset = current_ptr - (ds_base + 0xD568)
+    current_player = current_offset // 0xCA if current_offset >= 0 and current_offset % 0xCA == 0 else None
+    if current_player is not None and current_player >= num_players:
+        current_player = None
     arms_level = mem.read16(ds_base + 0x518A)
     weapon_count = mem.read16(ds_base + 0x1BB6)
 
@@ -151,11 +152,18 @@ def extract_state(state_path):
             'alive': mem.read16(base + 0x18),
             'colorBase': mem.read16(base + 0x1A),
             'turretAngle': mem.read16(base + 0x92),
-            'power': mem.read16(base + 0x02),
-            'tankType': mem.read16(base + 0x12),
+            'power': mem.read16(base + 0x9E),
+            'tankType': mem.read16(base),
             'weaponIdx': mem.read16(base + 0x26),
             'name': name,
         }
+        # Renderer consumes mutable barrel geometry and cached endpoint (0x3FB27).
+        signed16 = lambda value: value if value < 0x8000 else value - 0x10000
+        tank['direction'] = signed16(mem.read16(base + 0x94))
+        tank['barrelXOff'] = signed16(mem.read16(base + 4))
+        tank['barrelYOff'] = signed16(mem.read16(base + 6))
+        tank['barrelEndX'] = mem.read16(base + 0x12)
+        tank['barrelEndY'] = mem.read16(base + 0x14)
         # Signed angle
         if tank['turretAngle'] > 0x7FFF:
             tank['turretAngle'] -= 0x10000
@@ -182,11 +190,16 @@ def extract_state(state_path):
         tank['inventory'] = inventory
 
         # Selected weapon for shop display
-        tank['selectedWeapon'] = mem.read16(base + 0x26)
+        tank['selectedWeapon'] = mem.read16(base + 0x16)
 
         # Shield energy
         tank['shieldEnergy'] = mem.read16(base + 0x96)
         tank['activeShield'] = mem.read16(base + 0x22)
+        shield_ptr = (mem.read16(base + 0xC8) << 4) + mem.read16(base + 0xC6)
+        shield_weapon = mem.read16(shield_ptr + 0x0E)
+        tank['shieldWeaponIdx'] = shield_weapon if shield_weapon < 0x8000 else shield_weapon - 0x10000
+        tank['shieldMaxEnergy'] = mem.read16(shield_ptr + 2)
+        tank['guidanceWeaponIdx'] = mem.read16(base + 0x9A)
 
         tanks.append(tank)
 
@@ -195,12 +208,64 @@ def extract_state(state_path):
         pixels, width, height, playfield_top
     )
 
+    # Player setup keeps uncommitted edits in dialog widgets, not tank structs.
+    def far_pointer(address):
+        return mem.read16(address) + (mem.read16(address + 2) << 4)
+
+    player_setup = None
+    human = bool(mem.read16(ds_base + 0xD0AC))
+    dialog = far_pointer(ds_base + (0xD0A4 if human else 0xD0A0))
+    if dialog and mem.read16(dialog + 0x20 + 4 * 5 + 2):
+        human_dialog = far_pointer(ds_base + 0xD0A4)
+        name_widget = far_pointer(human_dialog + 0x20 + 4 * 5)
+        tank_widget = far_pointer(dialog + 0x20 + 4 * 4)
+        type_widget = far_pointer(dialog + 0x20)
+        if (mem.read16(name_widget) == 4 and mem.read16(tank_widget) == 6
+                and mem.read16(type_widget) == 6):
+            name_address = far_pointer(name_widget + 0x16)
+            name = bytearray()
+            for j in range(80):
+                value = mem.read8(name_address + j)
+                if not value:
+                    break
+                name.append(value)
+            done_widget = far_pointer(dialog + 0x24)
+            player_setup = dict(name=name.decode('ascii', errors='replace'),
+                                doneEnabled=bool(mem.read16(done_widget + 2)),
+                                tankType=mem.read16(tank_widget + 0x0E),
+                                human=human)
+            if not human:
+                ai_widget = far_pointer(dialog + 0x20 + 4 * 5)
+                player_setup['aiType'] = mem.read16(ai_widget + 0x0E) + 1
+            # text editor 0x49F52 is modal. Its buffer at DS:F15A is copied
+            # to widget+16 only on return to 0x46FC2; BP-6 holds cursor X.
+            frame = cpu.regs[5]
+            stack = cpu.segs[2] << 4
+            for _ in range(32):
+                address = stack + frame
+                return_file = far_pointer(address + 2) + 0x6100
+                if return_file == 0x46FC2 and far_pointer(address + 6) == dialog:
+                    buffer = bytes(mem.data[ds_base + 0xF15A:ds_base + 0xF15A + 100])
+                    player_setup['editName'] = buffer.split(b'\0', 1)[0].decode('ascii', errors='replace')
+                    player_setup['cursorX'] = mem.read16(address - 6)
+                    # The editor starts with SI=0 but does not clear F15A.
+                    # Its cursor remains at the initial X until text is entered.
+                    if player_setup['cursorX'] == mem.read16(address + 0x0A):
+                        player_setup['editName'] = ''
+                    break
+                parent = mem.read16(address)
+                if not frame < parent < 0xFFF0:
+                    break
+                frame = parent
+
     return {
+        'playerSetup': player_setup,
         'width': width,
         'height': height,
         'palette': palette,
         'pixels': pixels,
         'numPlayers': num_players,
+        'currentPlayer': current_player,
         'wind': wind,
         'terrainType': terrain_type,
         'skyType': sky_type,
@@ -263,10 +328,12 @@ def write_state_json(state, out_path):
     """Write state JSON for web_screenshot.mjs --from-state."""
     # Don't include raw pixels (too large) — just game state + terrain
     state_for_web = {
+        'playerSetup': state['playerSetup'],
         'width': state['width'],
         'height': state['height'],
         'palette': state['palette'],
         'numPlayers': state['numPlayers'],
+        'currentPlayer': state['currentPlayer'],
         'wind': state['wind'],
         'terrainType': state['terrainType'],
         'skyType': state['skyType'],
@@ -325,8 +392,8 @@ def main():
     #   'game' → renderFromState (terrain + tanks + HUD from emulator state)
     #   'menu' → renderMenu (main menu with terrain preview)
     #   'shop' → renderShop (weapon shop UI)
-    cmd = ['node', web_screenshot, render_state, web_png, '--mode', '4']
-    if render_state in ('game', 'shop', 'menu'):
+    cmd = ['node', web_screenshot, render_state, web_png]
+    if render_state in ('game', 'shop', 'menu', 'player', 'player_setup'):
         cmd += ['--from-state', state_json]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

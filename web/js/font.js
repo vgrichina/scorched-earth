@@ -276,7 +276,7 @@ function charWidth(code) {
 
 // Draw a single character at (x, y) using palette colorIndex
 // Returns the advance width (glyph width + 1px spacing), matching EXE text_measure
-function drawChar(ch, x, y, colorIndex) {
+function drawChar(ch, x, y, colorIndex, drawPixel = setPixel) {
   const code = ch.charCodeAt(0);
   let glyphArr, idx;
   if (code >= 32 && code <= 126) {
@@ -296,7 +296,7 @@ function drawChar(ch, x, y, colorIndex) {
     const bits = glyphArr[offset + row];
     for (let col = 0; col < width; col++) {
       if (bits & (0x80 >> col)) {
-        setPixel(x + col, y + row, colorIndex);
+        drawPixel(x + col, y + row, colorIndex);
       }
     }
   }
@@ -307,12 +307,12 @@ function drawChar(ch, x, y, colorIndex) {
 // Returns the width in pixels
 // EXE text_display (0x4C97E): '~' colors the next glyph cyan when the
 // base color is 152. It does not draw an underline.
-export function drawText(x, y, str, colorIndex) {
+export function drawText(x, y, str, colorIndex, drawPixel = setPixel) {
   let cx = x;
   let hotkey = false;
   for (const ch of str) {
     if (ch === '~') { hotkey = true; continue; }
-    cx += drawChar(ch, cx, y, hotkey && colorIndex === 152 ? 161 : colorIndex);
+    cx += drawChar(ch, cx, y, hotkey && colorIndex === 152 ? 161 : colorIndex, drawPixel);
     hotkey = false;
   }
   return cx - x;

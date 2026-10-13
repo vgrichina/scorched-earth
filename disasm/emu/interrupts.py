@@ -287,8 +287,15 @@ class InterruptHandler:
         if ah == 0x44:  # IOCTL
             al = self.cpu.get_reg8(0)
             if al == 0x00:  # Get device info
-                self.cpu.dx = 0x80  # character device
-                self.cpu.cf = 0
+                if self.cpu.bx in self._files:
+                    self.cpu.dx = 0  # disk file, not a character device
+                    self.cpu.cf = 0
+                elif self.cpu.bx < 5:
+                    self.cpu.dx = 0x80  # standard devices
+                    self.cpu.cf = 0
+                else:
+                    self.cpu.ax = 6  # invalid handle
+                    self.cpu.cf = 1
             elif al == 0x01:  # Set device info
                 self.cpu.cf = 0
             else:
@@ -354,14 +361,22 @@ class InterruptHandler:
         fname = os.path.basename(dos_path)
         return os.path.join(self.earth_dir, fname)
 
+    def _allocate_file_handle(self, file):
+        # DOS reuses the lowest free handle. Monotonically increasing handles
+        # exhaust the guest C runtime's handle table during repeated MTN scans.
+        handle = 5
+        while handle in self._files:
+            handle += 1
+        self._files[handle] = file
+        self._next_handle = handle + 1
+        return handle
+
     def _dos_create(self):
         dos_path = self._read_dos_string(self.cpu.segs[3], self.cpu.dx)
         local_path = self._resolve_path(dos_path)
         try:
             f = open(local_path, 'w+b')
-            handle = self._next_handle
-            self._next_handle += 1
-            self._files[handle] = f
+            handle = self._allocate_file_handle(f)
             self.cpu.ax = handle
             self.cpu.cf = 0
         except Exception:
@@ -380,9 +395,7 @@ class InterruptHandler:
                 f = open(local_path, 'r+b')
             else:
                 f = open(local_path, 'r+b')
-            handle = self._next_handle
-            self._next_handle += 1
-            self._files[handle] = f
+            handle = self._allocate_file_handle(f)
             self.cpu.ax = handle
             self.cpu.cf = 0
         except FileNotFoundError:
@@ -436,8 +449,17 @@ class InterruptHandler:
         handle = self.cpu.bx
         method = self.cpu.get_reg8(0)  # AL
         offset = (self.cpu.cx << 16) | self.cpu.dx
+        # DOS AH=42h takes a signed 32-bit displacement. Buffered stdio seeks
+        # backwards to account for unread bytes before advancing MTN columns.
+        if offset & 0x80000000:
+            offset -= 0x100000000
         if handle in self._files:
-            self._files[handle].seek(offset, method)
+            try:
+                self._files[handle].seek(offset, method)
+            except (OSError, ValueError):
+                self.cpu.ax = 25  # seek error
+                self.cpu.cf = 1
+                return True
             pos = self._files[handle].tell()
             self.cpu.dx = (pos >> 16) & 0xFFFF
             self.cpu.ax = pos & 0xFFFF
@@ -450,8 +472,14 @@ class InterruptHandler:
     def _dos_find_first(self):
         pattern = self._read_dos_string(self.cpu.segs[3], self.cpu.dx)
         local_pattern = self._resolve_path(pattern)
-        import glob
-        matches = sorted(glob.glob(local_pattern))
+        import fnmatch
+        directory, wildcard = os.path.split(local_pattern)
+        # DOS wildcard matching is case-insensitive. Python glob would miss
+        # the shipped uppercase MTN filenames when the EXE requests *.mtn.
+        names = os.listdir(directory) if os.path.isdir(directory) else []
+        matches = sorted((os.path.join(directory, name) for name in names
+                          if fnmatch.fnmatchcase(name.casefold(), wildcard.casefold())),
+                         key=str.casefold)
         if matches:
             self._find_results = matches
             self._find_idx = 0

@@ -6,6 +6,7 @@ Usage:
   python3 disasm/emu_screenshot.py <state_file> <output.png> --run <steps> --fire
   python3 disasm/emu_screenshot.py <state_file> <output.png> --run <steps> --keys STEP:SC:ASC,...
   python3 disasm/emu_screenshot.py <state_file> <output.png> --run <steps> --poke DS:OFF=VAL,...
+  python3 disasm/emu_screenshot.py <state_file> <output.png> --run <steps> --wait-flip
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +32,7 @@ def main():
     poke_spec = None
     save_path = None
     timer_period = 1000
+    wait_flip = False
     i = 3
     while i < len(sys.argv):
         if sys.argv[i] == '--run':
@@ -48,6 +50,9 @@ def main():
         elif sys.argv[i] == '--timer':
             timer_period = int(sys.argv[i+1])
             i += 2
+        elif sys.argv[i] == '--wait-flip':
+            wait_flip = True
+            i += 1
         elif sys.argv[i] == '--save':
             save_path = sys.argv[i+1]
             i += 2
@@ -107,7 +112,8 @@ def main():
         reason, result = run_fast(cpu, mem, ports, int_handler, steps,
                                   timer_period=timer_period,
                                   scheduled_keys=scheduled_keys if scheduled_keys else None,
-                                  tick_addr=tick_phys, isr_divisor=200)
+                                  tick_addr=tick_phys, isr_divisor=200,
+                                  stop_on_flip=wait_flip)
         print(f"  -> {reason}")
         print(f"CS:IP = {cpu.segs[1]:04X}:{cpu.ip:04X}")
 

@@ -18,6 +18,7 @@ class PortIO:
         # VGA CRTC (port 0x3D4/0x3D5)
         self._crtc_index = 0
         self.crtc_regs = [0] * 64
+        self.page_flip_count = 0  # incremented on display start address change (reg 0x0C)
 
         # VGA Graphics Controller (port 0x3CE/0x3CF)
         self._gc_index = 0
@@ -95,9 +96,10 @@ class PortIO:
         # All other ports: return 0xFF
         return 0xFF
 
-    def port_out(self, port, val):
-        # VGA 16-bit OUT to even index ports: low byte = index, high byte = data
-        if val > 0xFF and port in (0x3C4, 0x3CE, 0x3D4):
+    def port_out(self, port, val, width=8):
+        # VGA word OUT writes both bytes, including a zero data byte.
+        # Operand width cannot be inferred from the numeric value.
+        if width == 16 and port in (0x3C4, 0x3CE, 0x3D4):
             self.port_out(port, val & 0xFF)
             self.port_out(port + 1, (val >> 8) & 0xFF)
             return
@@ -132,7 +134,10 @@ class PortIO:
         elif port == 0x3D4:
             self._crtc_index = val & 0xFF
         elif port == 0x3D5:
-            self.crtc_regs[self._crtc_index & 0x3F] = val & 0xFF
+            idx_c = self._crtc_index & 0x3F
+            self.crtc_regs[idx_c] = val & 0xFF
+            if idx_c == 0x0C:
+                self.page_flip_count += 1
         elif port == 0x3CE:
             self._gc_index = val & 0xFF
         elif port == 0x3CF:

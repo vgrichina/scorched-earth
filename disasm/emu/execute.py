@@ -74,7 +74,8 @@ def step(cpu, mem, ports, int_handler, hooks=None, trace=False):
 
 
 def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
-             timer_period=0, scheduled_keys=None, tick_addr=0, isr_divisor=0):
+             timer_period=0, scheduled_keys=None, tick_addr=0, isr_divisor=0,
+             stop_on_flip=False):
     """Tight execution loop — merges step+dispatch to avoid function call overhead.
 
     timer_period: if >0, fire INT 08h every N instructions (simulates hardware timer).
@@ -94,6 +95,7 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
     timer_counter = timer_period
     isr_divisor_counter = isr_divisor
     has_sched_keys = scheduled_keys is not None and len(scheduled_keys) > 0
+    flip_baseline = ports.page_flip_count if stop_on_flip else 0
 
     i = 0
     try:
@@ -230,6 +232,9 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
             total = pfx_len + length
             if cpu.ip == (save_ip + pfx_len) & 0xFFFF:
                 cpu.ip = (save_ip + total) & 0xFFFF
+
+            if stop_on_flip and ports.page_flip_count > flip_baseline:
+                return 'page_flip', i
 
         return 'max_steps', max_steps
 
@@ -642,7 +647,7 @@ def _h_out_imm8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handle
     return 2
 
 def _h_out_imm16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    ports.port_out(mem.data[ip_phys + 1], cpu.regs[0])
+    ports.port_out(mem.data[ip_phys + 1], cpu.regs[0], width=16)
     return 2
 
 def _h_in_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
@@ -658,7 +663,7 @@ def _h_out_dx8(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler
     return 1
 
 def _h_out_dx16(op, cpu, mem, ip_phys, seg_override, rep_mode, ports, int_handler):
-    ports.port_out(cpu.regs[2], cpu.regs[0])
+    ports.port_out(cpu.regs[2], cpu.regs[0], width=16)
     return 1
 
 

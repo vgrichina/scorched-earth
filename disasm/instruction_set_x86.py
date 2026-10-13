@@ -271,11 +271,13 @@ def _decode_fpu_int(data, pos):
     if int_num == 0x3D:
         return 2, 'fwait', '', None
 
-    # Register D9 form: CD 3E modrm 90  (always mod=3, e.g. D9 E8 = fld1)
+    # Borland software math extensions (distinct from native D9).
     if int_num == 0x3E:
         if pos + 2 >= len(data):
             return 2, 'db', f'0xCD, 0x3E ; truncated', None
         d9_byte = data[pos + 2]
+        if d9_byte in (0xEC, 0xEE, 0xF0, 0xF2):
+            return 4, {0xEC: 'fsin', 0xEE: 'fcos', 0xF0: 'ftan', 0xF2: 'fatan'}[d9_byte], '', None
         mn, op = _d9_reg(d9_byte)
         return 4, mn, op, None
 

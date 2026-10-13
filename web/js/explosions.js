@@ -36,7 +36,7 @@ export function createCrater(cx, cy, radius) {
 
       if (terrainBitmap[y * W + x]) {
         terrainBitmap[y * W + x] = 0;
-        setPixel(x, y, getBackgroundColor(y));
+        setPixel(x, y, getBackgroundColor(y, x));
       }
     }
 
@@ -117,7 +117,7 @@ export function createTunnel(cx, cy, depth, goesDown) {
       if (x < 0 || x >= W) continue;
       if (terrainBitmap[y * W + x]) {
         terrainBitmap[y * W + x] = 0;
-        setPixel(x, y, getBackgroundColor(y));
+        setPixel(x, y, getBackgroundColor(y, x));
       }
     }
   }
@@ -145,7 +145,7 @@ export function applyDisrupter(cx, cy, radius) {
           // Move this terrain pixel down
           terrainBitmap[y * W + x] = 0;
           terrainBitmap[writeY * W + x] = color;
-          setPixel(x, y, getBackgroundColor(y));
+          setPixel(x, y, getBackgroundColor(y, x));
           setPixel(x, writeY, color);
         }
         writeY--;
@@ -155,7 +155,7 @@ export function applyDisrupter(cx, cy, radius) {
     for (let y = writeY; y >= PLAYFIELD_TOP; y--) {
       if (terrainBitmap[y * W + x]) {
         terrainBitmap[y * W + x] = 0;
-        setPixel(x, y, getBackgroundColor(y));
+        setPixel(x, y, getBackgroundColor(y, x));
       }
     }
     updateTerrainColumn(x);

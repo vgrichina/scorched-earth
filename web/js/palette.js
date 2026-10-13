@@ -18,7 +18,7 @@ import { vga6to8, random } from './utils.js';
 // Palette buffer: 256 entries × 3 channels (R, G, B) in 6-bit VGA space
 export const palette6 = new Uint8Array(256 * 3);
 
-// Resolved sky type after Random (6) resolution — used by terrain.js drawSky()
+// Resolved sky type after Random (7) resolution — used by terrain.js drawSky()
 export let resolvedSkyType = 0;
 
 // Pre-computed 32-bit RGBA lookup for fast blit (updated when palette changes)
@@ -100,14 +100,16 @@ export function setupPlayerPalette() {
 }
 
 // --- Sky palette (VGA 80-109, 30 entries) ---
-// 7 sky types: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Black, 6=Random
-// EXE Random resolution (file 0x3978E): random(6)→0-5, re-rolls Cavern if no .mtn
-export function setupSkyPalette(skyType) {
+// Explicit types 0..6; Random (7) selects among 0..5.
+// EXE 0x3978E: re-roll Cavern when the scanned generator is selected.
+export function setupSkyPalette(skyType, { allowCavern = true } = {}) {
   // EXE: TERRAIN_TYPE (DS:0x5110) controls sky palette via setTerrainPixel (0x3AB39)
   // EXE uses VGA 120-149 (30 entries); web uses VGA 80-109 (30 entries, 1:1 mapping)
   // EXE sky names: 0=Plain, 1=Shaded, 2=Stars, 3=Storm, 4=Sunset, 5=Cavern, 6=Black, 7=Random
-  // Resolve Random (7) to a concrete type (0-6)
-  if (skyType === 7) skyType = random(7);
+  // EXE 0x3978E: Random excludes Black. Cavern eligibility is handled by terrain setup.
+  if (skyType === 7) {
+    do { skyType = random(6); } while (skyType === 5 && !allowCavern);
+  }
   resolvedSkyType = skyType;
   const N = 30; // 30 entries matching EXE VGA 120-149
   switch (skyType) {
@@ -133,45 +135,33 @@ export function setupSkyPalette(skyType) {
         }
       }
       break;
-    case 4: { // Sunset — EXE 0x39C45: 3-band gradient VGA 120-149
-      // VGA 120 = (63,63,0) yellow base
-      // Band 1 (di=1..10, VGA 121-130): yellow(63,63,0) → red(63,20,20)
-      // Band 2 (di=11..20, VGA 131-140): red(63,20,20) → blue(29,29,63)
-      // Band 3 (di=21..29, VGA 141-149): blue(29,29,63) → indigo(9,9,31)
+    case 4: { // EXE 0x39C45: three bands, preserving operation order before _ftol.
       setEntry(80, 63, 63, 0);
-      for (let di = 1; di < N; di++) {
-        let r, g, b;
-        if (di <= 10) {
-          const t = (di - 1) / 9;
-          r = 63;
-          g = Math.floor(63 * (1 - t) + 20 * t);
-          b = Math.floor(0 * (1 - t) + 20 * t);
-        } else if (di <= 20) {
-          const t = (di - 11) / 9;
-          r = Math.floor(63 * (1 - t) + 29 * t);
-          g = Math.floor(20 * (1 - t) + 29 * t);
-          b = Math.floor(20 * (1 - t) + 63 * t);
-        } else {
-          const t = (di - 21) / 8;
-          r = Math.floor(29 * (1 - t) + 9 * t);
-          g = Math.floor(29 * (1 - t) + 9 * t);
-          b = Math.floor(63 * (1 - t) + 31 * t);
+      const from = [[63, 63, 0], [63, 20, 20], [29, 29, 63]];
+      const to = [[63, 20, 20], [29, 29, 63], [9, 9, 31]];
+      for (let band = 0; band < 3; band++) {
+        for (let i = 0; i < (band === 2 ? 9 : 10); i++) {
+          const t = (9 - i) / 10;
+          const u = 1 - t;
+          const rgb = from[band].map((v, c) => Math.trunc(t * v + u * to[band][c]));
+          setEntry(81 + band * 10 + i, ...rgb);
         }
-        setEntry(80 + di, r, g, b);
       }
       break;
     }
-    case 5: // Cavern — EXE 0x3A263: same gray gradient as Stars
-      setEntry(80, 5, 5, 10);
-      for (let di = 1; di < N; di++) {
-        const v = (di - 1) * 2 + 7;
-        setEntry(80 + di, v, v, v);
+    case 5: // EXE 0x39E8C: ground color scaled by (di+8)/45.
+      for (let di = 0; di < N; di++) {
+        const fraction = (di + 8) / 45;
+        setEntry(80 + di, ...groundColor.map(c => Math.trunc(c * fraction)));
       }
       break;
     case 6: // Black — EXE: all VGA 120-149 = (0,0,0)
       for (let di = 0; di < N; di++) {
         setEntry(80 + di, 0, 0, 0);
+        setEntry(120 + di, 0, 0, 0); // EXE ground index 80 is also black.
       }
+      // EXE 0x39F8D clears DAC 0..103, including all tank colors.
+      for (let i = 0; i < 80; i++) setEntry(i, 0, 0, 0);
       break;
     case 0: // Plain — EXE: flat VGA 120 = (9,9,31) dark blue, all entries same
     default:
@@ -184,6 +174,7 @@ export function setupSkyPalette(skyType) {
 
 // --- Ground color table (EXE DS:0x5036, 6 entries × 3 words R,G,B) ---
 // random(6) selects one per round; used as solid terrain fill for types 1,5,6
+let groundColor = [38, 25, 17];
 const GROUND_COLORS = [
   [38, 25, 17],  // Brown
   [54, 36, 28],  // Salmon
@@ -199,7 +190,7 @@ const GROUND_COLORS = [
 // Web: terrain body pixels use VGA 120+ for collision (>= TERRAIN_THRESHOLD=105),
 // so we set ALL 30 entries to the same solid ground color, matching EXE visuals.
 export function setupTerrainPalette(terrainType) {
-  const gc = GROUND_COLORS[random(GROUND_COLORS.length)];
+  const gc = groundColor = GROUND_COLORS[random(GROUND_COLORS.length)];
   for (let di = 0; di < 30; di++) {
     setEntry(120 + di, gc[0], gc[1], gc[2]);
   }
@@ -375,13 +366,15 @@ export function tickAccentPalette(frame) {
 }
 
 // Initialize entire palette
-export function initPalette(terrainType, skyType) {
+export function initPalette(terrainType, skyType, { beforeSky } = {}) {
   // Clear all to black
   palette6.fill(0);
 
   setupPlayerPalette();
-  setupSkyPalette(skyType);
+  // EXE ground_color_init runs before sky selection/palette generation.
   setupTerrainPalette(terrainType);
+  const skyOptions = beforeSky ? beforeSky() : undefined;
+  setupSkyPalette(skyType, skyOptions);
   setupExplosionPalette();
   setupWallPalette();
   setupSystemColors();

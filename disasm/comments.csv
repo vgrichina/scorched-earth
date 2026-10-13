@@ -16,7 +16,7 @@
 # ---- Known functions ----
 0x25DE9,ai_inject_noise: scanning architecture — freq_base=PI/(2*noise_amp) freq_cap=2PI/10 amp=rand01*budget*0.5
 0x24F01,ai_solver: AI trajectory solver start
-0x2943A,generate_wind: formula rand(max_wind)-max_wind/4 range [-max/4 +3max/4); nested doubling 8% total
+0x2943A,generate_wind block: rand(max_wind/2)-max_wind/4; nested 20/40 percent doubling; doubling RNG consumed even at max_wind=0
 0x28E99,update_wind: per-turn wind update with +-MAX_WIND clamp
 0x19B54,viscosity_clamp: clamp AIR_VISCOSITY to [0..20]; max constant DS:0x0408=20.0
 0x21C56,apply_viscosity: formula 1.0-AIR_VISCOSITY/10000 per-step; skip when 1.0
@@ -274,11 +274,11 @@ DS:0x50F0,FLIGHT_SOUND_STATE: current flight sound state tracker
 0x4C278,fg_nosound: stop speaker via AND port 0x61 with 0xFC (same hw as fg_sound_off; different call site)
 
 # ---- Play Order System ----
-0x2AE53,play_order_init: switch on DS:519C (0=Random,1=Losers-First,2=Winners-First,3=Round-Robin,4=Sequential)
-0x2AE77,case 0 Random: fill order array sequentially then Fisher-Yates shuffle 50 swaps + random(2) start
-0x2AF29,case 1 Losers-First: fill+shuffle then rotate start via DS:51A4 tracking (player_id+1 next round)
-0x2B03B,case 2 Winners-First: sort by score + fill order in REVERSE (highest first) + random start
-0x2B0BB,case 3 Round-Robin: sort by score + fill order FORWARD (lowest first) + random start
+0x2AE53,play_order_init: actual dispatch 0=Random 1=Losers-First 2=Winners-First 3=Round-Robin; table 0x2B28C
+0x2AE77,case 0 Random: 49/50 swaps of distinct random slots then random starting slot
+0x2AF29,case 3 Round-Robin: same slot shuffle; tracked first identity advances each round
+0x2B03B,case 1 Losers-First: reverse selection ranking; place starting at random slot
+0x2B0BB,case 2 Winners-First: forward selection ranking; place starting at random slot
 DS:0x519C,PLAY_ORDER: enum 0-4 (Random/Losers-First/Winners-First/Round-Robin/Sequential)
 DS:0x51A4,PLAY_ORDER_LAST_STARTER: tracks first player's ID (struct+0xA0) for Losers-First rotation
 DS:0xE4F4,TURN_START_INDEX: which slot in order array fires first this round

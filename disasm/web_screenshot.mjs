@@ -65,7 +65,7 @@ const fb = await import(WEB + 'framebuffer.js');
 const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } = await import(WEB + 'terrain.js');
 const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
 const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
-const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu } = await import(WEB + 'menu.js');
+const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu, playerSetup } = await import(WEB + 'menu.js');
 const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
 const { isShopActive, drawShop, openShop } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
@@ -158,6 +158,32 @@ function renderPlayerSetup() {
   drawPlayerSetupScreen();
 }
 
+function renderPlayerSetupFromState(stateJsonPath) {
+  const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
+  config.numPlayers = state.numPlayers;
+  initPlayerSetup();
+  menu.playerSetupIdx = state.currentPlayer ?? 0;
+  for (let i = 0; i < playerSetup.length; i++) {
+    const tank = state.tanks?.[i];
+    if (tank?.name !== undefined) playerSetup[i].name = tank.name;
+    if (tank?.colorBase !== undefined) playerSetup[i].colorIndex = Math.floor(tank.colorBase / 8);
+  }
+  if (state.playerSetup) {
+    const current = playerSetup[menu.playerSetupIdx];
+    current.name = state.playerSetup.name;
+    current.editName = state.playerSetup.editName;
+    current.doneEnabled = state.playerSetup.doneEnabled;
+    current.cursorX = state.playerSetup.cursorX;
+    current.tankType = state.playerSetup.tankType;
+    current.aiType = state.playerSetup.human ? 0 : state.playerSetup.aiType;
+  }
+  if (state.palette?.length === 256) {
+    state.palette.forEach((rgb, i) => paletteMod.setPaletteRgb(i, ...rgb));
+    paletteMod.updatePalette32();
+  }
+  drawPlayerSetupScreen();
+}
+
 function renderShop() {
   config.numPlayers = 2;
   config.numRounds = 10;
@@ -245,15 +271,17 @@ function renderShopFromState(stateJsonPath) {
   const roundNumber = state.roundNumber || 0;
   const roundsLeft = Math.max(1, config.numRounds - roundNumber);
 
-  // Open shop for player 0 and draw
-  openShop(0, roundsLeft);
+  // Use the active tank from the checkpoint for subsequent shoppers.
+  const playerIndex = state.currentPlayer ?? 0;
+  // --state shop denotes the visible shop, after any privacy prompt.
+  openShop(playerIndex, roundsLeft, { showPrivacy: false });
   game.state = STATE.SHOP;
-  game.shopPlayerIdx = 0;
+  game.shopPlayerIdx = playerIndex;
   // Match the checkpoint's animated DAC phase, just as menu/game captures do.
   if (state.palette) {
     for (let i = 0; i < 256; i++) paletteMod.setPaletteRgb(i, ...state.palette[i]);
   }
-  drawShop(players[0]);
+  drawShop(players[playerIndex]);
 }
 
 // ─── Render from emulator state JSON ─────────────────────────────────────
@@ -327,9 +355,21 @@ function renderFromState(stateJsonPath) {
       if (t.name !== undefined) players[i].name = t.name;
       players[i].turretAngle = t.turretAngle;
       players[i].power = t.power;
+      players[i].tankType = t.tankType;
+      for (const key of ['direction', 'barrelXOff', 'barrelYOff', 'barrelEndX', 'barrelEndY'])
+        players[i][key] = t[key];
+      if (t.inventory) {
+        players[i].inventory.fill(0);
+        for (let w = 0; w < t.inventory.length && w + 2 < players[i].inventory.length; w++)
+          players[i].inventory[w + 2] = t.inventory[w];
+      }
+      players[i].shieldEnergy = t.shieldEnergy ?? 0;
+      players[i].shieldMaxEnergy = t.shieldMaxEnergy;
+      players[i].shieldWeapon = t.shieldWeaponIdx >= 0 ? t.shieldWeaponIdx + 2 : -1;
+      players[i].guidanceWeapon = (t.guidanceWeaponIdx ?? 32) + 2;
       players[i].angle = t.turretAngle || 0;
-      if (t.selectedWeapon !== undefined) players[i].selectedWeapon = t.selectedWeapon;
-      else if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx;
+      if (t.selectedWeapon !== undefined) players[i].selectedWeapon = t.selectedWeapon + 2;
+      else if (t.weaponIdx !== undefined) players[i].selectedWeapon = t.weaponIdx + 2;
       if (t.colorBase !== undefined) {
         players[i].colorBase = t.colorBase;
         players[i].colorIndex = Math.floor(t.colorBase / 8);
@@ -343,10 +383,10 @@ function renderFromState(stateJsonPath) {
 
   // Set wind and draw HUD
   if (state.wind !== undefined) game.wind = state.wind;
-  game.currentPlayer = 0;
+  game.currentPlayer = state.currentPlayer ?? 0;
   game.round = 1;
   game.state = STATE.AIM;
-  const player = players[0] || { x: 0, y: 0, power: 100, turretAngle: 0, weaponIdx: 0, score: 0 };
+  const player = players[game.currentPlayer] || { x: 0, y: 0, power: 100, turretAngle: 0, weaponIdx: 0, score: 0 };
   drawHud(player, game.wind, game.round, {});
   drawWindIndicator(game.wind);
 }
@@ -393,13 +433,20 @@ if (!stateName || !outPath) {
   process.exit(1);
 }
 
+if (fromStatePath) {
+  const state = JSON.parse(readFileSync(fromStatePath, 'utf-8'));
+  modeIndex = GRAPHICS_MODES.findIndex(mode => mode.w === state.width && mode.h === state.height);
+  if (modeIndex < 0) throw new Error(`Unsupported checkpoint resolution ${state.width}x${state.height}`);
+}
 initHeadless(modeIndex);
 
 if (fromStatePath && stateName === 'shop') {
   renderShopFromState(fromStatePath);
 } else if (fromStatePath && stateName === 'menu') {
   renderMenuFromState(fromStatePath);
-} else if (fromStatePath) {
+} else if (fromStatePath && ['player', 'player_setup'].includes(stateName)) {
+  renderPlayerSetupFromState(fromStatePath);
+} else if (fromStatePath && stateName === 'game') {
   renderFromState(fromStatePath);
 } else {
   switch (stateName) {

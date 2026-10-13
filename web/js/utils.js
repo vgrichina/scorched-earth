@@ -75,6 +75,16 @@ export function random(max) {
   return r250Next() % max;
 }
 
+// EXE 0x32A87: unsigned R250 word divided by 65535 (both endpoints included).
+export function randomFraction() {
+  return r250Next() / 65535;
+}
+
+// Read-only snapshot for comparing complete RNG state without advancing it.
+export function getRandomState() {
+  return { index: _r250Index, words: Array.from(_r250Table) };
+}
+
 // Default seed — overridden by main.js init()
 seedRandom(1);
 
@@ -106,5 +116,25 @@ export function bresenhamLine(x0, y0, x1, y1, callback) {
     const e2 = 2 * err;
     if (e2 > -dy) { err -= dy; x0 += sx; }
     if (e2 < dx) { err += dx; y0 += sy; }
+  }
+}
+
+// EXE callback line iterator 0x1E2E3: visit both endpoints; ties take the
+// diagonal step (error >= 0). Used by the tank barrel callback at 0x3FF55.
+export function walkExeLine(x, y, endX, endY, callback) {
+  const dx = Math.abs(endX - x), dy = Math.abs(endY - y);
+  const sx = endX < x ? -1 : 1, sy = endY < y ? -1 : 1;
+  const major = Math.max(dx, dy), minor = Math.min(dx, dy);
+  let error = 2 * minor - major;
+  for (let i = 0; i <= major; i++) {
+    if (callback(x, y) === false) return;
+    if (error >= 0) {
+      x += sx; y += sy;
+      error += 2 * (minor - major);
+    } else {
+      if (dx >= dy) x += sx;
+      else y += sy;
+      error += 2 * minor;
+    }
   }
 }

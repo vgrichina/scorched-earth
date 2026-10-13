@@ -19,9 +19,15 @@ def exec_fpu_int(cpu, mem, seg_override):
     if int_num == 0x3D:  # FWAIT — no-op
         return 2
 
-    if int_num == 0x3E:  # Register D9 form: CD 3E modrm 90
-        d9_byte = mem.read8(ip_phys + 2)
-        _exec_d9_reg(cpu, d9_byte)
+    if int_num == 0x3E:
+        # Borland software math extensions, not native D9 register opcodes.
+        # EXE _sin/_cos/_tan fallback sites: 0x7C21/0x7DEE/0x7C74.
+        operation = mem.read8(ip_phys + 2)
+        functions = {0xEC: math.sin, 0xEE: math.cos, 0xF0: math.tan, 0xF2: math.atan}
+        if operation in functions:
+            cpu.fpu_set_st(0, functions[operation](cpu.fpu_st(0)))
+        else:
+            _exec_d9_reg(cpu, operation)
         return 4
 
     # Normal ESC: CD 34..3B modrm [disp]
@@ -84,7 +90,7 @@ def _write_mem_float(mem, cpu, mod, rm, disp, seg_override, size, val):
 
 def _write_mem_int(mem, cpu, mod, rm, disp, seg_override, size, val):
     phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
-    ival = int(round(val))
+    ival = _round_integer(cpu, val)
     if size == 16:
         mem.write16(phys, ival & 0xFFFF)
     elif size == 32:
@@ -93,6 +99,11 @@ def _write_mem_int(mem, cpu, mod, rm, disp, seg_override, size, val):
         # Write as two 32-bit words
         mem.write32(phys, ival & 0xFFFFFFFF)
         mem.write32(phys + 4, (ival >> 32) & 0xFFFFFFFF)
+
+
+def _round_integer(cpu, value):
+    mode = (cpu.fpu_cw >> 10) & 3
+    return (round, math.floor, math.ceil, math.trunc)[mode](value)
 
 
 def _fpu_compare(cpu, a, b):
@@ -158,7 +169,7 @@ def _exec_d9_reg(cpu, modrm_byte):
         cpu.fpu_set_st(0, math.sin(v))
         cpu.fpu_push(math.cos(v))
     elif modrm_byte == 0xFC:  # FRNDINT
-        cpu.fpu_set_st(0, float(round(cpu.fpu_st(0))))
+        cpu.fpu_set_st(0, float(_round_integer(cpu, cpu.fpu_st(0))))
     elif modrm_byte == 0xFD:  # FSCALE
         cpu.fpu_set_st(0, cpu.fpu_st(0) * (2.0 ** int(cpu.fpu_st(1))))
     elif modrm_byte == 0xFE:  # FSIN
@@ -202,7 +213,8 @@ def _exec_esc(cpu, mem, base_op, mod, reg, rm, disp, seg_override):
             elif reg == 3:  # FSTP dword
                 _write_mem_float(mem, cpu, mod, rm, disp, seg_override, 32, cpu.fpu_pop())
             elif reg == 5:  # FLDCW
-                pass  # no-op
+                phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
+                cpu.fpu_cw = mem.read16(phys)
             elif reg == 7:  # FNSTCW
                 phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
                 mem.write16(phys, cpu.fpu_cw)
