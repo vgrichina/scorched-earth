@@ -74,7 +74,7 @@ export function setPaletteRgb(index, r, g, b) {
 
 // --- Player colors (VGA 0-79): 10 players × 8 gradient slots ---
 // EXE: setup_player_palette (0x28592) copies each tank's stored RGB.
-// Initial tanks have full base colors; 0x326EA's 80% color is a later pulse.
+// Full base colors may be dimmed by the background contrast check at 0x32638.
 //   slot 5 = white(63,63,63), slot 7 = grey(30,30,30)
 // Black sky suppresses all player entries, including white and grey.
 export function setupPlayerPalette({ black = false } = {}) {

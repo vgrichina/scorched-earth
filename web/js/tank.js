@@ -10,7 +10,7 @@
 import { setPixel, getPixel } from './framebuffer.js';
 import { getTerrainY, terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { config, GRAPHICS_MODES } from './config.js';
-import { resolvedSkyType } from './palette.js';
+import { resolvedSkyType, getPlayerColor, palette6, setPaletteRgb } from './palette.js';
 import { walkExeLine, random } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
 import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE, TERRAIN_PAL_START } from './constants.js';
@@ -154,6 +154,7 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.energy = 100;
     p.angle = 90;
     p.power = 200; // EXE 0x30E66 initializes each round to 200.
+    p.contrastPending = true;
     p.falling = false;
     p.fallDamageAccum = 0;
     p.parachuteDeployed = false;
@@ -482,10 +483,43 @@ export function drawTank(player) {
 }
 
 // Draw all tanks
-export function drawAllTanks() {
+export function drawAllTanks({ updateContrast = true } = {}) {
   for (const player of players) {
     drawTank(player);
+    if (updateContrast && player.alive && player.contrastPending) {
+      updateTankContrast(player);
+      player.contrastPending = false;
+    }
   }
+}
+
+// EXE 0x32638 / 0x32580: count similar-colored background samples around
+// body and barrel pixels. Repeated samples count separately.
+export function updateTankContrast(player) {
+  const base = getPlayerColor(player.colorIndex);
+  const direction = getTankAim(player).direction;
+  let similar = 0;
+  const sampleNeighbors = (x, y) => {
+    for (const [sx, sy] of [[x-1,y], [x+1,y], [x,y+1], [x,y-1]]) {
+      const index = getPixel(sx, sy);
+      if (index < 80) continue;
+      let distance = 0;
+      for (let channel = 0; channel < 3; channel++)
+        distance += (palette6[index * 3 + channel] - base[channel]) ** 2;
+      if (distance <= 100) similar++;
+    }
+  };
+  for (const [dx, dy] of TANK_TYPES[player.tankType].pixels)
+    sampleNeighbors(player.x + direction * dx, player.y + dy);
+  const barrel = getTankBarrel(player);
+  walkExeLine(barrel.x, barrel.y, player.barrelEndX ?? barrel.endX,
+    player.barrelEndY ?? barrel.endY, sampleNeighbors);
+  player.displayColor = similar > 15 ? base.map(c => Math.trunc(c * 8 / 10)) : [...base];
+  if (resolvedSkyType !== 6) {
+    for (const slot of [0, 1, 2, 3, 4, 6])
+      setPaletteRgb(player.colorIndex * PLAYER_PALETTE_STRIDE + slot, ...player.displayColor);
+  }
+  return similar;
 }
 
 // --- Tank death animation system ---

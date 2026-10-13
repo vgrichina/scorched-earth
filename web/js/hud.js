@@ -317,7 +317,7 @@ export function drawHud(player, wind, round, opts) {
     const nameX = x;  // E9DC — player name x position
     // The name uses its own DAC entry, remaining visible even when Black
     // sky suppresses all tank sprite entries 0..79.
-    setPaletteRgb(163, ...getPlayerColor(player.colorIndex));
+    setPaletteRgb(163, ...(player.displayColor || getPlayerColor(player.colorIndex)));
     drawText(nameX, HUD_Y, player.name, 163);
     // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
     // EXE: E9E0 = E9DE + 15 → weapon text position

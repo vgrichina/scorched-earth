@@ -801,6 +801,7 @@ export function gameTick() {
           } else {
             // EXE: No Kibitzing — show interstitial between human turns in hotseat
             const nextPlayer = getCurrentPlayer();
+            if (!isAI(nextPlayer)) nextPlayer.contrastPending = true;
             const humanCount = players.filter(p => p.alive && !isAI(p)).length;
             if (humanCount > 1 && !isAI(nextPlayer)) {
               game.screenHideTarget = nextPlayer.index;

@@ -35,6 +35,7 @@ parser.add_argument('--sky',type=int,choices=range(8),help='Override sky in sele
 parser.add_argument('--wall',type=int,choices=range(8),help='Override wall in selected cases')
 parser.add_argument('--output-dir',type=Path,help='Save PNG pairs, including diagnostic images on pixel mismatch')
 parser.add_argument('--players',action='store_true',help='Compare two-player round setup and sprites as well')
+parser.add_argument('--tank-types',type=int,nargs=2,choices=range(7),default=[3,3],help='Tank shapes for the two players')
 parser.add_argument('--full-frame',action='store_true',help='Include HUD and border; implies --players')
 args=parser.parse_args()
 if args.full_frame: args.players=True
@@ -59,7 +60,12 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         assert mem.read16(ds+0x50D4)==2, 'Use a two-player checkpoint'
         mem.write16(ds+0x519C,0)
         mem.write16(ds+0x51A4,65535)
-        assert all(mem.read16(ds+0xD568+i*0xCA)==3 for i in range(2)), 'Use default type-3 tanks'
+        for i,kind in enumerate(args.tank_types):
+            tank=ds+0xD568+i*0xCA
+            mem.write16(tank,kind)
+            # Player-setup input geometry comes from the original type table.
+            for off in range(0,10,2):
+                mem.write16(tank+2+off,mem.read16(ds+0x6734+kind*18+off))
     names=[]
     for i in range(2):
         base=ds+0xD568+i*0xCA
@@ -83,17 +89,17 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {palette6,resolvedSkyType} from './web/js/palette.js';"
         "import * as t from './web/js/terrain.js';import {pixels} from './web/js/framebuffer.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const names=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2});"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2});"
         "if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
-        "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>p.name=names[i]);game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
+        "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fullFrame){drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
         "results.push({wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
-        "players:players.map(p=>({x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
+        "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps(names)],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -105,7 +111,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
             for i,player in enumerate(actual['players']):
                 base=ds+0xD568+i*0xCA
                 expected_player={key:mem.read16(base+off) for key,off in
-                                 (('x',14),('y',16),('power',0x9E),('angle',0x92),('direction',0x94),('endX',18),('endY',20))}
+                                 (('tankType',0),('x',14),('y',16),('power',0x9E),('angle',0x92),('direction',0x94),('endX',18),('endY',20))}
                 if expected_player['direction']>=32768: expected_player['direction']-=65536
                 assert player==expected_player,(seed,round,i,player,expected_player)
             if args.full_frame:
@@ -147,4 +153,4 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                               args.output_dir/f'seed-{seed}-sky-{sky}-round-{round+1}-{name}.png')
         assert not differences,(seed,len(differences),differences[:10])
         scope='full frame' if args.full_frame else 'landscape + player setup' if args.players else 'landscape'
-        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)
+        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)

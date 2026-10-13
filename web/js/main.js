@@ -452,7 +452,7 @@ function gameLoop() {
     drawSky();
     drawTerrain(game.terrainRevealCol);
     // Draw tanks only for revealed columns
-    drawAllTanks();
+    drawAllTanks({ updateContrast: game.terrainRevealCol >= config.screenWidth });
     blit();
     requestAnimationFrame(gameLoop);
     return;

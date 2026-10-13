@@ -7,7 +7,7 @@
 // EXE: no explicit speed limit — velocity bounded naturally by viscosity damping
 
 import { WPN } from './weapons.js';
-import { config } from './config.js';
+import { config, GRAPHICS_MODES } from './config.js';
 import { clamp } from './utils.js';
 import { players } from './tank.js';
 import { PLAYFIELD_TOP, terrainBitmap } from './terrain.js';
@@ -16,14 +16,12 @@ import { PLAYER_COLOR_MAX } from './constants.js';
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
 export const DT = 0.02;           // EXE: default timestep (DS:0x1CFA = 0.02)
-const MAX_SPEED = 400;             // Web velocity scale: power × (MAX_SPEED/1000)
 
 // EXE-derived gravity/wind constants (from setup_physics_constants at file 0x21064)
 // EXE: gravity_accel = 2500 × GRAVITY_CONFIG px/sec² (DS:1CF2=50.0, gravity_step=50²×G×dt)
 // EXE: wind_accel = 1.25 × wind px/sec² (DS:1CF6=40.0, wind_step=wind×50/(40)×dt)
-// Web scaling: k = MAX_SPEED/1000 = 0.4, k² = 0.16 — preserves trajectory shape & range
-const GRAVITY_FACTOR = 400.0;     // EXE: 2500 × k² = 2500 × 0.16 (config-scaled)
-const WIND_FACTOR = 0.2;          // EXE: 1.25 × k² = 1.25 × 0.16
+export const GRAVITY_FACTOR = 2500.0;
+export const WIND_FACTOR = 1.25;
 
 // Wall types — EXE: ELASTIC config variable DS:0x5154, dispatch at file 0x2220F
 // Enum ordering verified from config parser at 0x29290 and dispatch code
@@ -92,10 +90,8 @@ function applyMagDeflection(proj) {
 
 // EXE: velocity damping constants (shared by Mag Deflector defense and TUNNELLING)
 // DS:1D54 = 0.75 (damping coefficient), DS:1D58 = 2000.0 (absorption threshold in EXE units)
-// Web threshold: 2000 × k²=0.16 = 320 (terrain tunneling uses this scaled value inline)
-// applyMagDamping uses raw 2000 for Mag Deflector tank defense (separate mechanic, needs audit)
 const MAG_DAMP_COEFF = 0.75;
-const MAG_ABSORB_THRESHOLD = 2000.0;  // EXE units; terrain tunneling uses 320 (scaled)
+const MAG_ABSORB_THRESHOLD = 2000.0;
 
 export function applyMagDamping(proj) {
   if (proj.superMagActive) return false;  // Super Mag bypasses damping
@@ -139,11 +135,19 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
 }
 
 // Launch projectile from tank position at given angle/power
+export function getLaunchVelocity(angleDeg, power) {
+  // EXE 0x211AD / 0x212BF: truncate trig components before applying the
+  // graphics mode's signed 16.16 aspect transform (0x44761).
+  const angleRad = angleDeg * 0.017453293;
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  return { vx: Math.floor(Math.trunc(Math.cos(angleRad) * power) * sx / 65536),
+    vy: Math.floor(Math.trunc(Math.sin(angleRad) * power) * sy / 65536) };
+}
+
 export function launchProjectile(startX, startY, angleDeg, power, weaponIdx, attackerIdx) {
-  const angleRad = angleDeg * Math.PI / 180;
-  const speed = (power / 1000) * MAX_SPEED;
-  const vx = Math.cos(angleRad) * speed;
-  const vy = Math.sin(angleRad) * speed;
+  const { vx, vy } = getLaunchVelocity(angleDeg, power);
 
   const proj = createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx);
   projectiles.push(proj);
@@ -273,7 +277,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   proj.vx *= visc;
   proj.vy *= visc;
 
-  // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt, scaled by k²)
+  // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt)
   proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
 
   // 5. Wind (EXE: vx += 1.25 × wind × dt, scaled by k²)
@@ -309,13 +313,12 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
       // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
       // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
       // EXE: if speedSq <  DS:1D58 (2000) → same as normal terrain hit (detonate, create crater)
-      // Web threshold: 2000 × k²=0.16 = 320 (velocities scaled by k=MAX_SPEED/1000=0.4)
       // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
       if (config.tunneling && !proj.heatTarget) {
         proj.vx *= MAG_DAMP_COEFF;
         proj.vy *= MAG_DAMP_COEFF;
         const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-        if (speedSq < 320) return 'hit_terrain';  // too slow → detonate (EXE 2000 × k²)
+        if (speedSq < MAG_ABSORB_THRESHOLD) return 'hit_terrain';
         return 'flying';  // fast enough → tunnel through
       }
       return 'hit_terrain';
