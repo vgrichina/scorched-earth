@@ -6,11 +6,12 @@ The current check uses the original EXE in `disasm/emu`, saved checkpoints,
 `web_screenshot.mjs` importing the actual renderer in Node, and exact RGB PNG
 comparison. No browser is required. Python, Node and `pngjs` are installed.
 
-At 360x480, these checkpoints currently fail strict full-frame comparison:
+At 360x480, these are the strict full-frame comparison results:
 
 | Checkpoint | Differing pixels | Remaining evidence |
 |---|---:|---|
-| `scratch/menu.state` | 30 | Player-count glyph only: screen shows 10, DS:50D4 stores 2. A fresh emulator boot reproduces this discrepancy. Investigate numeric-widget/FPU state before changing the web value. |
+| Fresh menu boot, command below | 0 | Exact match after correcting Borland INT 3Ch segment decoding. |
+| Legacy `scratch/menu.state` | 30 | Contains the old emulator's corrupted numeric-widget state; regenerate rather than patching the screenshot. |
 | `scratch/after_p2done.state` | 1,441 | Cash positioning, list selection/scroll controls, shifted weapon names after Heavy Roller. |
 | `scratch/game_playing.state` | 530 | Full HUD and tank/playfield differences; no HUD mask. |
 
@@ -23,18 +24,28 @@ Checkpoints and screenshot outputs are ignored local artifacts, not portable
 regression fixtures yet. The pipeline still assumes graphics mode 4 and needs
 display-page-aware VGA extraction before animation checkpoints are trustworthy.
 
-Reproduce (each comparison is expected to exit 1 until its differences are fixed):
+Reproduce (fresh menu exits 0; legacy shop/game comparisons still exit 1):
 
 ```sh
-python3 disasm/compare_pipeline.py scratch/menu.state --state menu --output-dir /tmp/scorched-menu
+python3 disasm/emu/__main__.py --max-steps 20000000 --break 0x460C3 --save-state /tmp/scorched-menu-fixed.state
+python3 disasm/compare_pipeline.py /tmp/scorched-menu-fixed.state --state menu --output-dir /tmp/scorched-menu
 python3 disasm/compare_pipeline.py scratch/after_p2done.state --state shop --output-dir /tmp/scorched-shop
 python3 disasm/compare_pipeline.py scratch/game_playing.state --state game --output-dir /tmp/scorched-game
 python3 disasm/test_compare_screenshots.py
+python3 disasm/test_fpu_segments.py
 python3 disasm/verify_icons.py
 ```
 
 Corrections established by direct rendering/disassembly in this pass:
 
+- Borland `INT 3Ch` encodes the segment in bits 6-7 of its third byte:
+  DS/SS/CS/ES, respectively. Bits 0-2 select the D8-DF opcode family.
+  The executable's software handler at 0x54ACB..0x54AE8 confirms this.
+  The old emulator used DS for `CD 3C DD` instead of ES, making distinct
+  menu widgets alias; the disassembler also consumed the wrong length.
+  A fresh boot with corrected execution produces two players and ten rounds,
+  and an exact menu screenshot match. Existing checkpoints retain prior
+  memory corruption and must be regenerated for subsequent oracle work.
 - Text hotkeys use cyan palette 161, not an underline; embossed glyphs are
   doubled and corner-smoothed (0x4C97E, 0x4CCE1, 0x4CB31).
 - Menu layout uses auto-sized buttons and a one-pixel preview inset. Its
@@ -47,7 +58,7 @@ Corrections established by direct rendering/disassembly in this pass:
 - Shop rows use individual inset frames and the shared HUD/playfield border.
   The checkpoint importer maps EXE inventory indices to web indices +2.
 
-Next: resolve the menu oracle discrepancy; audit all 48 runtime weapon names
+Next: regenerate shop/game checkpoints with the corrected emulator; audit all 48 runtime weapon names
 and their index/handler mappings together; finish shop controls and game HUD;
 then capture player setup, submenus, scrolling/buying, projectiles, explosions
 and round transitions at deterministic checkpoints. Other graphics modes and

@@ -279,26 +279,34 @@ def _decode_fpu_int(data, pos):
         mn, op = _d9_reg(d9_byte)
         return 4, mn, op, None
 
-    # Normal ESC: CD 34..3C modrm [disp]
+    # Normal ESC: CD 34..3B modrm [disp]
     INT_TO_ESC = {
         0x34: 0xD8, 0x35: 0xD9, 0x36: 0xDA, 0x37: 0xDB,
         0x38: 0xDC, 0x39: 0xDD, 0x3A: 0xDE, 0x3B: 0xDF,
-        0x3C: 0xD8,  # DS: segment override variant
     }
-    seg_pfx = 'ds' if int_num == 0x3C else ''
-    base_op = INT_TO_ESC[int_num]
-
     if pos + 2 >= len(data):
         return 2, 'db', f'0xCD, 0x{int_num:02X} ; truncated', None
 
-    modrm_len, ea, mod, reg, rm = _parse_ea(data, pos + 2, seg_pfx)
-    total = 2 + modrm_len
+    prefix_len = 2
+    seg_pfx = ''
+    if int_num == 0x3C:
+        # Borland runtime 0x54ACB..0x54AE8: encoded segment + ESC family.
+        encoded = data[pos + 2]
+        base_op = 0xD8 | (encoded & 7)
+        seg_pfx = ('ds', 'ss', 'cs', 'es')[encoded >> 6]
+        prefix_len = 3
+        if pos + 3 >= len(data):
+            return 3, 'db', '0xCD, 0x3C ; truncated', None
+    else:
+        base_op = INT_TO_ESC[int_num]
+    modrm_len, ea, mod, reg, rm = _parse_ea(data, pos + prefix_len, seg_pfx)
+    total = prefix_len + modrm_len
 
     # Extract DS reference for annotation
     ds_ref = None
-    if mod == 0 and rm == 6 and not seg_pfx:
-        if pos + 4 < len(data):
-            ds_ref = struct.unpack_from('<H', data, pos + 3)[0]
+    if mod == 0 and rm == 6 and seg_pfx in ('', 'ds'):
+        if pos + prefix_len + 2 < len(data):
+            ds_ref = struct.unpack_from('<H', data, pos + prefix_len + 1)[0]
 
     if mod == 3:
         # Register operand: ea is None, use R8/R16 based on opcode
