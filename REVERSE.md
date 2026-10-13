@@ -61,8 +61,8 @@ The port now matches that order, including boundary and repeated-cap cases.
 The oracle supplies the default .02 timestep and force constants; it excludes
 calibration, projectile callbacks, sound, collision traversal and drawing.
 
-Physics remains incomplete: adaptive timing, collision traversal and projectile
-drawing still need matching. AI aiming still uses an approximation. Its old
+Physics remains incomplete: adaptive timing, wall/shield collision responses and
+weapon-specific projectile drawing still need matching. AI aiming still uses an approximation. Its old
 400-based power conversion algebraically cancels to the native 2500-based
 formula, but omits the EXE's barrel-origin offsets and aspect correction;
 its wind approximation also differs from 0x254E9. Merely replacing constants
@@ -200,14 +200,297 @@ truncated old position to truncated new position, stopping at the first hit
 and storing its integer coordinates for impact effects. Endpoint-only sampling
 could skip thin terrain entirely. `verify_projectile_collision.py` executes
 the actual iterator at 0x1E2E3 with native callback 0x221E9 and substitutes
-only pixel reads, head erasure and the impact-effect entry. Its 45 fixtures
+only pixel reads, head erasure and the impact-effect entry. Its 561 fixtures
 match production status/coordinates over shallow/steep and signed directions,
 horizontal/vertical/zero motion, thin obstacles, solid starts and empty paths.
+Terrain cases run at ages 0, 1 and 2. Tank cases cover all 70 ordinary player
+palette slots plus the owner's shield slot, at all three ages with Hostile
+Environment both off and on. Current-player identity is fixed to player 0.
 
-This covers interior non-tunnelling terrain after the port's existing launch
-grace. Native wall/bottom handling, own-tank/shield logic, tunnelling force order
-and the first two steps remain unmatched. The previous grace policy is retained
-pending a tank-origin launch comparison; the terrain oracle starts at age 2.
+The native callback has no two-step launch immunity. Ordinary tank pixels,
+including palette index 0 and the shooter's body, stop the shot regardless of
+Hostile Environment. Only the owner's shield-color slot (remainder 5) passes
+through at 0x224DA. The port now follows these rules and removes its invented
+per-pixel flight damage. Older notes below attributing the unrelated 0x3EB72
+handler to ordinary projectile collision are superseded by this execution
+check. Barrel drawing already excludes its endpoint, which is the launch
+position; full tank-origin launch through impact still needs an oracle.
+
+This covers interior non-tunnelling terrain and ordinary tank hits. Native
+wall/bottom handling, enemy shield responses and impact effects remain unmatched.
+
+Tunnelling now removes each crossed terrain pixel and restores its cached sky
+color. EXE 0x2253A damps the capped pre-force velocity by .75 for each solid
+sample; speed squared below 2000 stops at that pixel without erasing it.
+The post-walk code at 0x21D6C replaces the force-adjusted velocity with those
+saved damped components and sets projectile+4A to 1. That flag suppresses
+viscosity, gravity and wind until a later undamped movement step resets it.
+Native initialization 0x218BE disables tunnelling for Roller, Smoke Tracer and
+Dirt Charge handlers. Super Mag also bypasses tunnelling, causing normal impact;
+heat guidance itself is not the exclusion previously claimed by the port.
+
+`verify_projectile_tunnelling.py` executes native initialization, speed cap,
+integration, line traversal, collision callback and post-walk state updates.
+180 sequences (up to four steps each) match velocity, position, flag, impact
+status and the exact set of erased terrain coordinates. Inputs cover five
+velocities including zero and over-cap, three terrain patterns, two gravities,
+wind/viscosity, Super Mag and all three excluded handler families. Pixel reads
+and sky restoration are synthetic; impact effects and drawing are intercepted.
+This does not prove terrain settling, actual shot rendering through impact,
+weapon callbacks, guidance or wall interactions. The 20-frame Stars/trace
+free-flight comparison and collision/motion/lifecycle regressions also pass.
+
+None/Concrete boundaries now run inside the inclusive collision walker, so a
+terrain hit earlier in the step takes precedence over crossing a wall. Native
+0x22200 uses x=3..width-4; Concrete impacts at the first pixel outside that
+range or above y=38. None removes the shot only beyond those horizontal bounds
+plus/minus EDGES_EXTEND (DS:513E, not the old comment's DS:5158). Both impact at
+y>=height-4. The invented upper cutoff y<-500 has been removed for these modes;
+HUD/border pixels are excluded from tank/terrain reads.
+
+`verify_projectile_boundaries.py` matches 168 native line-walker/callback cases:
+left/right/top/bottom crossings, exact boundary points, stationary starts,
+high-altitude flight, three extension distances and obstacles before walls.
+It substitutes sky/obstacle reads and intercepts impact/removal/erasure.
+It does not cover bounce/wrap, cavern ceilings, offscreen extended terrain or
+impact rendering. Wrap and bouncing walls are covered by the additional oracles below. The separate edge-cache check below covers extended terrain.
+
+Extended-side terrain now uses the native launch snapshot. When EDGES_EXTEND
+is positive, 0x21264 calls 0x20ECD to scan each interior edge (x=3,width-4)
+upward from y=height-4. The first pixel outside native terrain indices 80..104
+sets the cached height; if the column is all terrain, the result is y=38.
+Holes, tank pixels and trace pixels therefore terminate the scan. The shot
+hits extended terrain strictly below the cached height. This is a global
+snapshot refreshed at launch, not after every terrain change or sub-projectile.
+
+`verify_projectile_edges.py` matches 288 cases against the actual native launch
+condition/call, edge scanner, line walker and collision callback. It covers
+both edges, all-solid/all-sky columns, different left/right heights, holes,
+tank and trace pixels, exact height boundaries, and terrain edits after launch
+with and without another launch. Native reads are synthetic and impact/erasure
+are intercepted. No full-rendered offscreen-impact or simultaneous-play proof
+is claimed. Launch, collision, boundary, tunnelling and 20 composed flight-frame
+regressions still pass.
+
+Wrap now stops traversal at the first pixel outside x=3..width-4 and places
+the shot at the opposite interior edge, using that sample's integer y. Native
+0x22266 calls the drawing wrapper with those coordinates, and 0x21E63 copies
+them into floating position. It discards the remaining movement distance;
+velocity retains the usual force update. The old port preserved overshoot and
+could run collision samples all the way across the screen. Terrain before the
+edge now wins; terrain at the destination is sampled on the following step.
+Wrap has the same bottom impact as None and no arbitrary high-altitude cutoff.
+
+`verify_projectile_wrap.py` matches 60 sequences, up to four steps each, against
+native integration, line traversal/collision, actual tracking wrapper and the
+post-collision coordinate transfer. Cases cover both directions, exact edges,
+fractional starts, above-HUD/high-altitude travel, bottom/corner crossings,
+speed capping, gravity/wind/viscosity, and obstacles at departure/destination.
+Native pixel writes and head drawing are stubbed, as are impact effects; this
+proves motion/collision ordering, not full rendered wrap-frame parity. Existing
+boundary/edge/collision/tunnelling/motion/lifecycle regressions and the 20-frame
+Stars/trace free-flight comparison still pass.
+
+Padded/Rubber/Spring now also use native per-pixel boundary traversal. Side and
+ceiling bounces stop at the boundary drawing coordinate and discard the step's
+unused movement. Reflection applies to the force-adjusted velocity component
+with coefficients -.5/-1/-2 respectively. Each bounce increments projectile+30;
+after bounce six the coefficient is additionally scaled by projectile+32,
+initialized to .8 and itself multiplied by .8 after each subsequent bounce.
+Padded impacts at the bottom. Rubber/Spring impact at exactly y=height-4 if the
+saved pre-force vertical velocity is strictly between -50 and 50; otherwise
+that row still gets ordinary collision checks, with a bounce only after crossing
+below it. Boundary ordering remains horizontal first at corners.
+
+`verify_projectile_bounce.py` matches 1,080 native sequences (up to four steps),
+including all three types, both axes, fractional/boundary starts, the exact
+floor-speed thresholds, force updates, over-cap velocity, obstacles and seeded
+bounce counts 0/5/6/7. It executes the tracking wrapper and native post-collision
+reflection/attenuation. Terrain reads are synthetic; drawing, impact effects
+and sound are stubbed. This does not prove rendered bounce frames, shield-
+triggered special reflection, wall/tunnelling combinations or cavern ceilings.
+Wrap/boundary/tunnelling/motion/lifecycle regressions and the 20-frame Stars/trace
+free-flight comparison pass. The legacy endpoint wall handler is removed.
+
+The full-frame landscape oracle now supports `--flight-collisions`, replacing
+the earlier isolated motion/draw composition with actual native 0x21AA2 through
+0x22064 execution. Native pixel reads, collision traversal, wall callbacks,
+head erasure/drawing, tracking marks and post-wall position/velocity updates
+all run. Only bounce sound dispatch is intercepted; any native impact fails
+the fixture rather than skipping effects. The port now uses its real framebuffer
+reader for tank collision in these sequences instead of a constant sky return.
+
+Four 20-step Stars/Big/Trace sequences starting at (350,100), angle 45/power 200,
+match every 360x480 RGB pixel and all four motion doubles after every step:
+Wrap, Padded, Rubber and Spring (80 complete frames total). These replace the
+prior missing rendered-wall evidence for those exact inputs. They do not prove
+all icons/skies, left-wall/ceiling/floor rendering, repeated bounces, actual
+tank-origin firing, impact effects or runtime cadence. Latest paired PNGs are
+in `/tmp/scorched-wrap-frames` and `/tmp/scorched-wall-{2,3,4}-frames`.
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --wall 1 --projectile-head 350 100 --flight-steps 20 --flight-collisions --trace --output-dir /tmp/scorched-wrap-frames
+```
+
+Known failing ceiling audit: `audit_projectile_ceiling.py` executes native
+0x397A9..0x397BE and confirms DS:50D8 is the resolved Cavern flag (sky=5),
+not the disassembler's stale "is_castle_terrain" label. It then runs native
+line traversal with the collision callback for None/Wrap and compares the port.
+Six Plain-sky controls dispatch no impacts. All six Cavern cases expose the
+port gap: the port keeps flying while native CE98 becomes 1 and impact calls
+occur above y=38. A 1/4/12-pixel upward traversal dispatches 1/4/12 impact calls
+when their effects are intercepted. This is an audit reporting mismatches,
+not a passing parity test.
+
+At 0x222EF..0x22305 the ceiling branch invokes 0x230C8 but does not return zero
+to stop the walker. The impact dispatcher actually calls the weapon handler at
+0x23140; its effects may change subsequent samples. Current `gameTick` instead
+calls `processHit` only after `stepSingleProjectile` returns a single result.
+Do not replace this with an assumed first-hit ceiling rule or claim the audit
+proves repeated real explosions: it stubs weapon effects. Next integration work
+must execute native impact dispatch and model its effects/order, including this
+ceiling path. Ordinary crater/explosion rendering remains unverified.
+
+Explosion geometry now applies the native signed 16.16 aspect transform before
+clipping to x=3..width-4 and y=38..height-4. The old renderer drew unscaled
+circles and could overwrite HUD/border pixels. `verify_explosion_geometry.py`
+executes 0x43690, its mirror/scanline helpers and transform 0x43B4E against the
+production `bresenhamCircleFill` mask. It uses synthetic pixel reads/writes and
+an empty protected-color interval; wrap is disabled. Mode aspect factors are
+shared fixtures, not proof of hardware setup. Coverage includes nine modes,
+center/edge/offscreen centers, radii 0/1/5/10, and centered radii 20/40/70.
+
+The ordinary missile handler is 0x43C01 (3D1E:0021). Its blast call at 0x43C84
+goes to 0x43D3A, wrongly labelled "ai_buy_item_scroll" by the disassembler.
+The native growth loop starts at radius 1 and increments by 1 below radius 40,
+otherwise by 2. It passes color 220-trunc(currentRadius*20/maxRadius) and a
+protected-color interval to the circle routine. Radius>30 has additional palette
+cycling; restoration uses 0x43E97's callback circle. The port's existing radius-0
+start, 170-based colors, large-blast flash, protected-color handling, wrap and
+restoration remain unmatched. Geometry parity alone does not prove explosion
+animation, terrain damage or full-shot parity.
+
+Ordinary explosion growth now follows 0x43D87..0x43DE7: radii start at 1,
+advance by 1 for maximum radius<40 and by 2 otherwise, and use color
+220-trunc(currentRadius*20/maxRadius). Launching the animation uploads the
+40-entry native red ramp at 200..239 (0x43C8E). Scanlines fill inward from both
+ends until they encounter a pixel in [currentColor+1,240], preserving earlier
+rings and protected pixels. The animation retains its writes across the main
+loop's clean-world repaint. The unsupported white screen flash is removed;
+large-blast palette cycling has not yet been ported in its place.
+
+`verify_explosion_growth.py` executes native palette setup, growth loop, circle,
+scanline and aspect helpers with synthetic framebuffer callbacks. All 164 frames
+and ten palette initializations match for radii 1/10/30/40/41, both clear and
+protected-pixel backgrounds. Every port step starts with a base-world repaint.
+The check covers mode-4 aspect and boundary clipping in an 80x120 fixture; it
+ends at the end of growth and does not claim full explosion lifecycle parity.
+The 207 geometry masks and trace lifecycle regression also pass. Native wrapping,
+large-blast cycling, final sky restoration, blast damage, queue timing and full
+shot-through-impact integration remain outstanding.
+
+Explosion growth wrapping now follows native 0x434AE/0x4352A. Left spill is
+drawn from its far-left wrapped coordinate toward the right interior edge;
+right spill is drawn from its far-right wrapped coordinate toward the left
+edge. Each spill stops on the first protected pixel, independently of the
+central scanline fill. The central span is clipped afterward. Wrapping uses
+the effective wall type, matching DS:510E selection from resolved ELASTIC=1
+at 0x292C3 and 0x22157, rather than the unresolved Random/Erratic setting.
+
+The growth oracle now includes both edges and partially offscreen centers
+x=0/3/76/79, radii 10/40, and clear/protected backgrounds. All 404 growth frames
+and 26 palette initializations match native, with base-world repaint between
+port steps. The 207 non-wrapping geometry masks and trace lifecycle checks pass.
+This covers wrapping growth only: final restoration, large-blast palette cycling,
+terrain/damage side effects and complete impact-to-aftermath rendering remain
+unverified.
+
+Large-blast palette phases are now implemented after growth for radius>30.
+Native 0x43DEF..0x43E42 performs 49 rotations of the 40-entry buffer; the actual
+callback at 0x443EB shifts RGB entries toward lower indices, moves the first
+entry to the end and uploads to VGA 200..239. Native 0x43E50 then clears buffer
+entries 0..24 and uploads all 40, leaving entries 225..239 at their rotated
+values. The port retains blast pixels during these phases across world repaint.
+Queued animations reset the ordinary blast palette when activated.
+
+`verify_explosion_cycle.py` executes the native palette initialization and
+post-growth loop with actual callback functions/VGA port writes. All 150 palette
+states match for radii 31/40/70 (49 rotations plus blackening each). It also
+checks retained port blast pixels after every clean-world repaint. Sound, delay
+and input servicing are intercepted: this proves palette order/state, not the
+EXE's wall-clock cadence. The growth oracle separately verifies only growth
+frames while draining later phases; 404 growth frames/26 initial palettes and
+the trace lifecycle regression pass. Native restoration, queue scheduling,
+damage and full shot-through-impact frames remain outstanding.
+
+Ordinary blast restoration now runs when the animation finishes, after growth
+and large-blast palette cycling. Native 0x43E97 calls the unconditional callback
+circle 0x43ACA, with the sky-restoration callback for every covered pixel.
+`restoreExplosionTerrain` uses that aspect-scaled, clipped and wrapped footprint,
+clears terrain bits, restores cached sky and refreshes touched height columns.
+The game no longer pre-cuts the old Euclidean crater before starting ordinary
+explosion animation (both impact and in-flight explode-here paths). Generic
+`createCrater` remains for other existing callers; its geometry is not newly
+claimed native-correct. Previous pre-crater extra-dirt scattering is not carried
+into this path; native debris behavior still requires matching.
+
+`verify_explosion_restoration.py` matches 414 native callback-circle masks:
+all nine mode aspect factors, center/edge/offscreen positions, radii through 70,
+and wrapping off/on. It verifies the exact cleared terrain bits and framebuffer
+footprint. The native sky callback is intercepted; cached-sky RGB equivalence is
+covered separately by the earlier all-sky restoration grid. The lifecycle test
+`test_explosion_restoration.mjs` proves terrain remains intact through growth
+and cycling, then clears the center/wrapped spill while preserving HUD and
+outside pixels. Growth/cycle/trace regressions pass. Actual native timing,
+post-restoration damage/debris, multiple-impact ordering and full-shot composite
+screenshots remain outstanding; mask parity is not full aftermath parity.
+
+Full-frame explosion composition is now checked with `--explosion X Y RADIUS`
+in the landscape oracle. It independently generates each native/port landscape,
+then runs the actual native ordinary blast routine at 0x43D3A through restoration
+at 0x43E9F. Drawing, palette uploads/rotations and sky restoration are real;
+input servicing and delays are intercepted, sound is disabled, and the alternate
+blast path (DS:5104/5106) is explicitly off. It stops before damage/debris and
+height/settling work. Port frames repaint the complete world before stepping the
+production animation. Each stage compares all 172,800 RGB pixels, using that
+stage's palette; paired PNGs are written for every stage.
+
+Two sequences pass with exact RGB and unchanged RNG/state: Stars radius-10 at
+(100,440), 11 frames; Sunset/Wrap radius-40 at (3,300), 71 frames including all
+49 palette rotations, blackening and final restoration. Total: 82 complete
+explosion frames. These strengthen the earlier mask/palette kernel evidence but
+still do not include projectile-to-impact dispatch, player damage, debris or
+native cadence. Images are in `/tmp/scorched-blast-small` and
+`/tmp/scorched-blast-wrap`, with `explosion-NNN-{web,emulator}.png` pairs.
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 4 --wall 1 --explosion 3 300 40 --output-dir /tmp/scorched-blast-wrap
+```
+
+Ordinary area-damage requests now follow 0x43EAB..0x43F69, replacing the port's
+unrelated velocity-reflection formula. Native 0x4312B converts absolute dx/dy
+back through the mode's fixed-point aspect factor (truncating each), then uses
+Euclidean distance. Wrap chooses the shorter distance using width-7 as the
+horizontal displacement, matching the EXE's interior-edge difference. Only
+distance<radius enters damage calculation: trunc((radius-distance)*100/radius)
+is multiplied by native weapon index+1 (web index-1); requests above 100 become
+110. Projectile speed and player iteration order do not alter this request.
+
+`verify_explosion_damage.py` executes the real native distance/sqrt/damage loop
+and intercepts its final shield-and-damage call. All 756 requests match across
+nine mode aspects, None/Wrap, seven offsets, two radii and three weapon indices.
+The oracle uses the native BP-0x14 stack layout, required for the sqrt argument;
+sharing another routine's stack depth produces invalid results. It does not
+verify shield absorption, score updates or final player state.
+
+Explosion completion now invokes an optional callback after crater restoration.
+The game schedules area damage/death handling there instead of before growth,
+including the existing in-flight explode-here path. The lifecycle test asserts
+no callback during growth/cycling and exactly one after restored terrain is
+visible. Direct tank contact at 0x43C5C has a separate pre-blast kill path, and
+shield contact at 0x43C2E can return without a blast; those are not yet matched.
+Multiple-impact scheduling remains asynchronous in the port and needs further
+native integration work. Existing shield/score accounting is still unverified.
 
 ```sh
 python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 100 --flight-steps 20 --trace --output-dir /tmp/scorched-flight-trace

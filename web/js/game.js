@@ -16,7 +16,7 @@ import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles, applyMagDamping,
          WALL, setResolvedWallType, getEffectiveWallType } from './physics.js';
 import { getPixel, setPixel } from './framebuffer.js';
-import { createCrater, startExplosion, stepExplosion, isExplosionActive,
+import { startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
 import { isKeyDown, consumeKey, consumeClick, consumeAnyKey, getMouseDelta, mouse } from './input.js';
@@ -467,26 +467,26 @@ function processHit(proj, hitResult) {
       addDirt(cx, cy, result.radius);
     }
   } else if (result.explode && result.radius > 0) {
-    // Apply damage before crater
-    if (!result.skipDamage) {
-      // Track deaths for scoring
-      const beforeAlive = players.filter(p => p.alive).map(p => p.index);
-      applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.vx, proj.vy);
-      const afterAlive = players.filter(p => p.alive).map(p => p.index);
+    const afterRestoration = () => {
+      if (!result.skipDamage) {
+        // Track deaths for scoring
+        const beforeAlive = players.filter(p => p.alive).map(p => p.index);
+        applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.weaponIdx);
+        const afterAlive = players.filter(p => p.alive).map(p => p.index);
 
-      // Score deaths and trigger death speech + death animation
-      const attacker = players[proj.attackerIdx];
-      for (const idx of beforeAlive) {
-        if (!afterAlive.includes(idx)) {
-          scoreOnDeath(attacker, players[idx]);
-          triggerDeathSpeech(players[idx]);
-          startDeathAnimation(players[idx]);
-          playDeathSound();
+        // Score deaths and trigger death speech + death animation
+        const attacker = players[proj.attackerIdx];
+        for (const idx of beforeAlive) {
+          if (!afterAlive.includes(idx)) {
+            scoreOnDeath(attacker, players[idx]);
+            triggerDeathSpeech(players[idx]);
+            startDeathAnimation(players[idx]);
+            playDeathSound();
+          }
         }
       }
-    }
-    createCrater(cx, cy, result.radius);
-    startExplosion(cx, cy, result.radius, proj.attackerIdx);
+    };
+    startExplosion(cx, cy, result.radius, proj.attackerIdx, afterRestoration);
   }
 
   // Remove projectile unless behavior says to keep it alive
@@ -681,9 +681,8 @@ export function gameTick() {
               const radius = flightResult.radius || 10;
               const cx = Math.round(proj.x);
               const cy = Math.round(proj.y);
-              applyExplosionDamage(cx, cy, radius, proj.attackerIdx);
-              createCrater(cx, cy, radius);
-              startExplosion(cx, cy, radius, proj.attackerIdx);
+              startExplosion(cx, cy, radius, proj.attackerIdx,
+                () => applyExplosionDamage(cx, cy, radius, proj.attackerIdx, proj.weaponIdx));
             }
             if (flightResult.remove) {
               proj.active = false;

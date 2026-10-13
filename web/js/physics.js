@@ -6,14 +6,15 @@
 // EXE: wind_accel = 1.25 × wind px/sec² (horizontal only)
 // EXE: speed capped at 1000 before position integration (0x21AA2).
 
-import { WPN } from './weapons.js';
+import { WPN, WEAPONS } from './weapons.js';
 import { config, GRAPHICS_MODES } from './config.js';
-import { clamp, walkExeLine } from './utils.js';
+import { walkExeLine } from './utils.js';
 import { players } from './tank.js';
 import { PLAYFIELD_TOP, terrainBitmap } from './terrain.js';
 import { PLAYER_COLOR_MAX } from './constants.js';
 import { setPaletteRgb } from './palette.js';
-import { projectileDrawing } from './projectile-render.js';
+import { getPixel, getBackgroundColor } from './framebuffer.js';
+import { projectileDrawing, writeWorldPixel } from './projectile-render.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -119,6 +120,14 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     vy,
     trail: [],
     age: 0,
+    // EXE projectile+4A: 0 disables tunnelling, 1 suppresses forces while
+    // tunnelling, -1 is ordinary flight (native initialization 0x218BE).
+    tunnelState: (() => {
+      const w = WEAPONS[weaponIdx ?? 2];
+      return (w?.handlerSegment === 0x2fbd && w.bhv === 3) ||
+        (w?.handlerSegment === 0x3d1e && w.bhv === 2) ||
+        (w?.handlerSegment === 0x15a0 && w.bhv === 0x81) ? 0 : -1;
+    })(),
     weaponIdx: weaponIdx ?? 2,
     attackerIdx: attackerIdx ?? 0,
     // EXE 0x2186F: snapshot TRACE / Smoke Tracer at projectile creation.
@@ -132,6 +141,7 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     napalmLife: opts.napalmLife || 0,
     rolling: false,
     bounceCount: 0,
+    wallBounceScale: 0.8, // EXE +32, multiplied by .8 after the sixth bounce
     hasSplit: false,
     prevVy: undefined,
     superMagActive: opts.superMagActive || false,  // EXE: DS:0x1C76 — bypasses Mag Deflector defense
@@ -151,7 +161,23 @@ export function getLaunchVelocity(angleDeg, power) {
     vy: Math.floor(Math.trunc(Math.sin(angleRad) * power) * sy / 65536) };
 }
 
+// EXE 0x20ECD, called by launch at 0x21264 when EDGES_EXTEND > 0.
+// This is a snapshot of the visible edge columns, not the terrain height map.
+let extendedEdgeHeights = null;
+export function refreshProjectileEdges(getPixelFn = getPixel) {
+  extendedEdgeHeights = [3, config.screenWidth - 4].map(x => {
+    for (let y = config.screenHeight - 4; y > PLAYFIELD_TOP; y--) {
+      // Native terrain 80..104 is relocated to port indices 120..144.
+      const pixel = getPixelFn(x, y);
+      if (pixel < 120 || pixel > 144) return y;
+    }
+    return PLAYFIELD_TOP;
+  });
+  return [...extendedEdgeHeights];
+}
+
 export function launchProjectile(startX, startY, angleDeg, power, weaponIdx, attackerIdx) {
+  if (config.edgesExtend > 0) refreshProjectileEdges();
   // EXE 0x21296 uploads white to DAC 255 for each launch.
   setPaletteRgb(255, 63, 63, 63);
   const { vx, vy } = getLaunchVelocity(angleDeg, power);
@@ -197,58 +223,6 @@ export function getEffectiveWallType() {
   return wt;
 }
 
-// Wall collision handling
-function handleWallCollision(proj) {
-  const wallType = getEffectiveWallType();
-  const w = config.screenWidth;
-
-  // Wrap-around (type 3)
-  if (wallType === WALL.WRAP) {
-    if (proj.x < 0) proj.x += w;
-    if (proj.x >= w) proj.x -= w;
-    return 'flying';
-  }
-
-  // Check if projectile hit left or right wall
-  const hitLeft = proj.x < 0;
-  const hitRight = proj.x >= w;
-
-  if (!hitLeft && !hitRight) return 'flying';
-
-  switch (wallType) {
-    case WALL.CONCRETE:
-      // Detonate on wall impact
-      proj.x = clamp(proj.x, 0, w - 1);
-      return 'hit_wall';
-
-    case WALL.RUBBER:
-      // EXE: coeff = -1.0 (DS:0x1D34) — perfect reflection, no energy loss
-      proj.vx = -proj.vx;
-      proj.x = hitLeft ? 1 : w - 2;
-      return 'flying';
-
-    case WALL.PADDED:
-      // EXE: coeff = -0.5 (DS:0x1D3C) — half velocity reflection
-      proj.vx = -proj.vx * 0.5;
-      proj.x = hitLeft ? 1 : w - 2;
-      return 'flying';
-
-    case WALL.SPRING:
-      // EXE: coeff = -2.0 (DS:0x1D44) — doubled velocity reflection
-      proj.vx = -proj.vx * 2.0;
-      proj.x = hitLeft ? 1 : w - 2;
-      return 'flying';
-
-    case WALL.NONE:
-    default:
-      // EXE: EDGES_EXTEND=75 (DS:0x5158, default 75px)
-      if (proj.x < -75 || proj.x > w + 75) return 'offscreen';
-      return 'flying';
-  }
-}
-
-// Advance a single projectile one physics step
-// Returns: 'flying' | 'hit_terrain' | 'hit_tank' | 'hit_wall' | 'offscreen'
 export function stepSingleProjectile(proj, getPixelFn, wind) {
   if (!proj.active) return 'offscreen';
 
@@ -261,7 +235,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // Neither is related to napalm. See napalmParticleStep() in behaviors.js.
   if (proj.isNapalmParticle) return 'flying';
 
-  // Track projectile age for spawn grace period
+  // Track projectile age for weapon behaviors
   proj.age++;
 
   // Store trail point
@@ -285,74 +259,97 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   proj.x += proj.vx * DT;
   proj.y -= proj.vy * DT;  // subtract because screen y is inverted
 
-  // 3. Viscosity (air resistance)
-  const visc = getViscosityFactor();
-  proj.vx *= visc;
-  proj.vy *= visc;
+  // EXE saves the capped, pre-force velocity for collision damping.
+  let tunnelVx = proj.vx, tunnelVy = proj.vy;
+  let tunnelDamped = false;
 
-  // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt)
-  proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
+  if (proj.tunnelState !== 1) {
+    // 3. Viscosity (air resistance)
+    const visc = getViscosityFactor();
+    proj.vx *= visc;
+    proj.vy *= visc;
 
-  // 5. Wind (EXE: vx += 1.25 × wind × dt)
-  proj.vx += WIND_FACTOR * wind * DT;
+    // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt)
+    proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
 
-  // 6. Wall collision
-  const wallResult = handleWallCollision(proj);
-  if (wallResult === 'hit_wall') return 'hit_wall';
-  if (wallResult === 'offscreen') return 'offscreen';
-
-  const sx = Math.trunc(proj.x);
-  const sy = Math.trunc(proj.y);
-
-  // 7. Vertical bounds check
-  if (sy > config.screenHeight + 50) {
-    proj.active = false;
-    return 'offscreen';
+    // 5. Wind (EXE: vx += 1.25 × wind × dt)
+    proj.vx += WIND_FACTOR * wind * DT;
   }
-  if (sy < -500) {
-    proj.active = false;
-    return 'offscreen';
-  }
+
+  const wallType = getEffectiveWallType();
+  const sx = Math.trunc(proj.x), sy = Math.trunc(proj.y);
+  const bouncingWall = wallType === WALL.PADDED || wallType === WALL.RUBBER || wallType === WALL.SPRING;
 
   // 8. EXE 0x21D15 calls the inclusive line walker at 0x1E2E3.
   // Visit every crossed pixel, stopping at the first collision.
+  let boundaryPosition = null, bounceAxis = null;
   const sampleCollision = (sx, sy) => {
+    const left = 3, right = config.screenWidth - 4;
+    const outside = sx < left || sx > right;
+    if (outside) {
+      if (wallType === WALL.CONCRETE) return 'hit_wall';
+      if (wallType === WALL.WRAP) {
+        boundaryPosition = [sx < left ? right : left, sy];
+        return 'wrapped';
+      }
+      if (bouncingWall) {
+        boundaryPosition = [sx < left ? left : right, sy];
+        bounceAxis = 'vx';
+        return 'bounced';
+      }
+      if (sx < left - config.edgesExtend || sx > right + config.edgesExtend) {
+        proj.active = false;
+        return 'offscreen';
+      }
+    }
+    if (wallType === WALL.CONCRETE && sy < PLAYFIELD_TOP) return 'hit_wall';
+    if (bouncingWall && sy < PLAYFIELD_TOP) {
+      boundaryPosition = [sx, PLAYFIELD_TOP]; bounceAxis = 'vy';
+      return 'bounced';
+    }
+    const bottom = config.screenHeight - 4;
+    if (sy >= bottom) {
+      if (wallType !== WALL.RUBBER && wallType !== WALL.SPRING) return 'hit_wall';
+      if (sy === bottom && tunnelVy > -50 && tunnelVy < 50) return 'hit_wall';
+      if (sy > bottom) {
+        boundaryPosition = [sx, bottom]; bounceAxis = 'vy';
+        return 'bounced';
+      }
+    }
+    // EXE does not read HUD or border pixels as tank/terrain collision data.
+    if (outside) {
+      const edgeY = extendedEdgeHeights?.[sx < left ? 0 : 1] ?? config.screenHeight - 4;
+      if (sy > edgeY) return 'hit_terrain';
+      return 'flying';
+    }
+    if (sy < PLAYFIELD_TOP) return 'flying';
     // EXE 0x223CD: native 80..104 is solid terrain, >=105 continues.
     // The port stores terrain separately because its palette indices differ.
-    // Existing launch grace and tank/shield policies remain to be matched.
-    if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
+    // The native walker also checks the launch point on the first step.
+    if (sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
       // Terrain hit: check the relocated native terrain bitmap.
       if (terrainBitmap[sy * config.screenWidth + sx]) {
-        // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
-        // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
-        // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
-        // EXE: if speedSq <  DS:1D58 (2000) → same as normal terrain hit (detonate, create crater)
-        // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
-        if (config.tunneling && !proj.heatTarget) {
-          proj.vx *= MAG_DAMP_COEFF;
-          proj.vy *= MAG_DAMP_COEFF;
-          const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-          if (speedSq < MAG_ABSORB_THRESHOLD) return 'hit_terrain';
-          return 'flying';  // fast enough → tunnel through
+        // EXE 0x2253A damps the saved pre-force velocity per solid pixel.
+        if (config.tunneling && proj.tunnelState !== 0 && !proj.superMagActive) {
+          tunnelVx *= MAG_DAMP_COEFF;
+          tunnelVy *= MAG_DAMP_COEFF;
+          tunnelDamped = true;
+          if (tunnelVx * tunnelVx + tunnelVy * tunnelVy < MAG_ABSORB_THRESHOLD)
+            return 'hit_terrain';
+          terrainBitmap[sy * config.screenWidth + sx] = 0;
+          writeWorldPixel(sx, sy, getBackgroundColor(sy, sx));
+          return 'flying';
         }
         return 'hit_terrain';
       }
 
-      // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
+      // EXE 0x223E2: every player slot is collidable, including index 0.
+      // Slot 5 is shield color; the firing tank's shield passes its own shot
+      // (0x224DA). Other shield responses still need matching.
       const pixel = getPixelFn(sx, sy);
-      if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
-        // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
-        // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
-        // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
-        if (config.hostileEnvironment) {
-          const pIdx = Math.floor(pixel / 8);
-          const p = players[pIdx];
-          if (p && p.alive) {
-            p.energy = Math.max(0, p.energy - 1);
-            if (p.energy === 0) p.alive = false;
-          }
-          return 'flying';  // continue through tank body (EXE: return 0)
-        }
+      if (pixel >= 0 && pixel < PLAYER_COLOR_MAX) {
+        const ownerColor = players[proj.attackerIdx]?.colorIndex ?? proj.attackerIdx;
+        if (pixel === ownerColor * 8 + 5) return 'flying';
         return 'hit_tank';
       }
     }
@@ -368,6 +365,26 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     return false;
   });
 
+  // EXE 0x21D6C discards this step's forces after any tunnelling damping.
+  if (tunnelDamped) {
+    proj.vx = tunnelVx; proj.vy = tunnelVy;
+    proj.tunnelState = 1;
+  } else if (proj.tunnelState === 1 && (proj.x !== startX || proj.y !== startY)) {
+    proj.tunnelState = -1;
+  }
+  if (boundaryPosition) {
+    if (bounceAxis) {
+      let coefficient = wallType === WALL.RUBBER ? -1 : wallType === WALL.PADDED ? -.5 : -2;
+      proj.bounceCount++;
+      if (proj.bounceCount > 6) {
+        coefficient *= proj.wallBounceScale;
+        proj.wallBounceScale *= .8;
+      }
+      proj[bounceAxis] *= coefficient;
+    }
+    [proj.x, proj.y] = boundaryPosition;
+    return 'flying';
+  }
   return collision;
 }
 

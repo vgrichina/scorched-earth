@@ -8,13 +8,15 @@
 //   0.7x attenuation per hit [DS:1D60 = f64 0.7], threshold [DS:1D68 = f64 0.001]
 // EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
-import { config } from './config.js';
-import { getBackgroundColor } from './framebuffer.js';
+import { config, GRAPHICS_MODES } from './config.js';
+import { palette6, setPaletteRgb } from './palette.js';
+import { getEffectiveWallType, WALL } from './physics.js';
+import { getPixel, getBackgroundColor } from './framebuffer.js';
 import { writeWorldPixel as setPixel } from './projectile-render.js';
 import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
-import { playExplosionSound, playShieldHitSound, playImpactFrame } from './sound.js';
+import { playExplosionSound, playShieldHitSound } from './sound.js';
 import { random } from './utils.js';
 import { TERRAIN_PAL_START, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
@@ -177,25 +179,33 @@ function updateTerrainColumn(x) {
   terrain[x] = config.screenHeight;
 }
 
-// Screen flash state — triggered by large explosions (nukes)
+// Legacy overlay state; ordinary native blasts do not trigger a white flash.
 export const screenFlash = { active: false, frames: 0 };
 
 // Explosion animation state — supports queue of multiple explosions
 const explosionQueue = [];
 let currentExplosion = null;
 
-export function startExplosion(cx, cy, radius, attackerIndex) {
-  // EXE: large explosions (radius > 30) trigger screen flash
-  if (radius > 30) {
-    screenFlash.active = true;
-    screenFlash.frames = 3;
+function setupExplosionPalette() {
+  // EXE 0x43C8E uploads a 40-entry red ramp at native indices 200..239.
+  for (let i = 0; i < 20; i++) {
+    setPaletteRgb(200 + i, Math.trunc(i * 63 / 19), 0, 0);
+    setPaletteRgb(220 + i, Math.trunc((19 - i) * 63 / 19), 0, 0);
   }
+}
+
+export function startExplosion(cx, cy, radius, attackerIndex, onComplete = null) {
+  setupExplosionPalette();
   playExplosionSound(radius);
   const anim = {
-    cx, cy, radius, attackerIndex,
+    cx, cy, radius, attackerIndex, onComplete,
     frame: 0,
-    maxFrames: radius,  // EXE: loops di from 0 to radius (one Bresenham circle per frame)
-    currentRadius: 0,
+    maxFrames: Math.ceil(radius / (radius < 40 ? 1 : 2)),
+    currentRadius: 1,
+    radiusStep: radius < 40 ? 1 : 2,
+    pixels: new Map(),
+    cycleCount: 0,
+    blackened: false,
   };
   if (!currentExplosion) {
     currentExplosion = anim;
@@ -206,22 +216,55 @@ export function startExplosion(cx, cy, radius, attackerIndex) {
 
 // Bresenham filled circle — matches EXE bresenham_circle_fill at file 0x43690
 // Draws horizontal scanlines with 4-fold symmetry using doubled-coordinate Bresenham
-function bresenhamCircleFill(cx, cy, radius, colorIdx) {
+export function bresenhamCircleFill(cx, cy, radius, colorIdx,
+  { protectedMin = 1, protectedMax = 0, writePixel = setPixel,
+    wrap = getEffectiveWallType() === WALL.WRAP } = {}) {
   const W = config.screenWidth;
   const H = config.screenHeight;
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const scaleX = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const scaleY = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   let si = 0;             // x step (doubled coords)
   let di = 2 * radius;    // y step (doubled coords)
   let decision = 0;
 
   // Draw scanline: horizontal line from (cx-halfW, y) to (cx+halfW, y)
   const scanline = (halfW, offsetY) => {
-    const y = cy + offsetY;
-    if (y < 0 || y >= H) return;
-    const x0 = Math.max(0, cx - halfW);
-    const x1 = Math.min(W - 1, cx + halfW);
-    for (let x = x0; x <= x1; x++) {
-      setPixel(x, y, colorIdx);
+    // EXE 0x43B4E: signed fixed-point transform before playfield clipping.
+    const y = cy + Math.floor(offsetY * scaleY / 65536);
+    if (y < PLAYFIELD_TOP || y > H - 4) return;
+    let x0 = cx + Math.floor(-halfW * scaleX / 65536);
+    let x1 = cx + Math.floor(halfW * scaleX / 65536);
+    // Native scanline fills inward from both ends until a protected pixel.
+    const protectedAt = x => {
+      const color = getPixel(x, y);
+      return color >= protectedMin && color <= protectedMax;
+    };
+    // Native 0x434AE/0x4352A draws each spill inward from its far end,
+    // stopping at a protected pixel before clipping the central span.
+    if (x0 < 3) {
+      if (wrap) {
+        for (let x = W - 4 - (3 - x0 - 1); x <= W - 4; x++) {
+          if (protectedAt(x)) break;
+          writePixel(x, y, colorIdx);
+        }
+      }
+      x0 = 3;
+      if (x0 > x1) return;
     }
+    if (x1 > W - 4) {
+      if (wrap) {
+        for (let x = x1 - (W - 4) + 3 - 1; x >= 3; x--) {
+          if (protectedAt(x)) break;
+          writePixel(x, y, colorIdx);
+        }
+      }
+      x1 = W - 4;
+      if (x0 > x1) return;
+    }
+    let left = x0, right = x1;
+    while (left <= right && !protectedAt(left)) writePixel(left++, y, colorIdx);
+    while (right >= left && !protectedAt(right)) writePixel(right--, y, colorIdx);
   };
 
   while (si <= di) {
@@ -251,32 +294,60 @@ function bresenhamCircleFill(cx, cy, radius, colorIdx) {
   scanline(h, -hw);
 }
 
-// Step the explosion animation, returns true while active
-// EXE: draw_explosion_expanding at file 0x2476B — one filled circle per frame,
-// expanding from radius 0 to max. Color gradient: palette base+8 down to base.
+// EXE 0x43E97 invokes the unconditional callback circle at 0x43ACA.
+// Restore every covered pixel, including blast colors and traces, to sky.
+export function restoreExplosionTerrain(cx, cy, radius) {
+  const columns = new Set();
+  bresenhamCircleFill(cx, cy, radius, 0, {
+    writePixel(x, y) {
+      terrainBitmap[y * config.screenWidth + x] = 0;
+      setPixel(x, y, getBackgroundColor(y, x));
+      columns.add(x);
+    },
+  });
+  for (const x of columns) updateTerrainColumn(x);
+}
+
+// Native ordinary-blast growth, then large-blast palette cycling.
+// Native delay timing and post-restoration damage still need matching.
 export function stepExplosion() {
   if (!currentExplosion) return false;
-
-  // Check if done BEFORE drawing — prevents fire pixels on the transition frame
-  if (currentExplosion.frame >= currentExplosion.maxFrames) {
+  const anim = currentExplosion;
+  if (anim.currentRadius > anim.radius && (anim.radius <= 30 || anim.blackened)) {
+    restoreExplosionTerrain(anim.cx, anim.cy, anim.radius);
+    anim.onComplete?.();
     currentExplosion = explosionQueue.shift() || null;
+    if (currentExplosion) setupExplosionPalette();
     return currentExplosion !== null;
   }
-
-  const { cx, cy, radius, maxFrames } = currentExplosion;
-
-  // EXE: random(3000) Hz tone per explosion frame (extras.cpp 0x247BA)
-  playImpactFrame();
-
-  // EXE: palette_base(170) += 6 → 176, then color = 176+2 - (frame*6/radius)
-  // Range: 178 (bright, frame 0) → 172 (darker, last frame)
-  const colorOffset = Math.floor(currentExplosion.frame * 6 / maxFrames);
-  const colorIdx = Math.max(FIRE_PAL_BASE, FIRE_PAL_BASE + 8 - colorOffset);
-
-  // EXE: frame di draws filled circle of radius di (1:1 frame-to-radius)
-  bresenhamCircleFill(cx, cy, currentExplosion.frame, colorIdx);
-
-  currentExplosion.frame++;
+  // Keep the earlier color bands across the main loop's clean-world repaint.
+  for (const [index, color] of anim.pixels)
+    setPixel(index % config.screenWidth, Math.floor(index / config.screenWidth), color);
+  if (anim.currentRadius > anim.radius) {
+    if (anim.cycleCount < 49) {
+      // EXE 0x443EB rotates entries 200..239 one position toward lower indices.
+      const first = [...palette6.slice(600, 603)];
+      for (let i = 200; i < 239; i++)
+        setPaletteRgb(i, ...palette6.slice((i + 1) * 3, (i + 2) * 3));
+      setPaletteRgb(239, ...first);
+      anim.cycleCount++;
+    } else {
+      // EXE 0x43E50 clears only the first 25 entries before the final upload.
+      for (let i = 200; i < 225; i++) setPaletteRgb(i, 0, 0, 0);
+      anim.blackened = true;
+    }
+    return true;
+  }
+  const colorIdx = 220 - Math.trunc(anim.currentRadius * 20 / anim.radius);
+  bresenhamCircleFill(anim.cx, anim.cy, anim.currentRadius, colorIdx, {
+    protectedMin: colorIdx + 1, protectedMax: 240,
+    writePixel(x, y, color) {
+      anim.pixels.set(y * config.screenWidth + x, color);
+      setPixel(x, y, color);
+    },
+  });
+  anim.currentRadius += anim.radiusStep;
+  anim.frame++;
   return true;
 }
 
@@ -284,55 +355,29 @@ export function isExplosionActive() {
   return currentExplosion !== null;
 }
 
-// Calculate and apply damage to all players from explosion at (cx, cy)
-// EXE: damage function at file 0x23327 (seg 0x1C90:0x0027) in extras.cpp
-// EXE: reads velocity from DS:E4DC (vx) and DS:E4E4 (vy)
-// EXE: calls _atan2 at file 0x1421, _cos at 0x13D1, _sin at 0x1204
-// EXE: doubling constant at DS:1D5C (f32 2.0)
-// EXE: 0.7x attenuation at DS:1D60 (f64 0.7), threshold at DS:1D68 (f64 0.001)
-// EXE: sign comparison — checks if projectile approaching via velocity vs displacement
-export function applyExplosionDamage(cx, cy, radius, attackerIndex, projVx, projVy) {
-  // If we have projectile velocity, use the RE velocity-rotation formula
-  // Otherwise fall back to distance-based damage
-  const useVelocityDamage = (projVx !== undefined && projVy !== undefined);
-  let vx = projVx || 0;
-  let vy = projVy || 0;
+// Native area-damage request at 0x43EAB, before shield/energy accounting.
+export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const scaleX = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const scaleY = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  const squared = dx => {
+    const ax = Math.trunc(Math.abs(dx) * 65536 / scaleX);
+    const ay = Math.trunc(Math.abs(y - cy) * 65536 / scaleY);
+    return ax * ax + ay * ay;
+  };
+  let distanceSquared = squared(x - cx);
+  if (getEffectiveWallType() === WALL.WRAP)
+    distanceSquared = Math.min(distanceSquared, squared(Math.abs(x - cx) - (config.screenWidth - 7)));
+  const distance = Math.sqrt(distanceSquared);
+  if (distance >= radius) return 0;
+  const damage = Math.trunc((radius - distance) * 100 / radius) * (weaponIdx - 1);
+  return damage > 100 ? 110 : damage;
+}
 
+export function applyExplosionDamage(cx, cy, radius, attackerIndex, weaponIdx = 2) {
   for (const player of players) {
     if (!player.alive) continue;
-
-    const dx = player.x - cx;
-    const dy = cy - player.y;  // world coords: positive = up
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist > radius + 10) continue;
-
-    let damage;
-    if (useVelocityDamage && (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1)) {
-      // RE velocity-rotation formula
-      const angle1 = Math.atan2(dy, dx);
-      const angle2 = Math.atan2(vy, vx);
-      const adjusted = (angle2 - angle1) * 2.0;
-      const cosVal = Math.cos(adjusted);
-      const sinVal = Math.sin(adjusted);
-
-      // Negate velocity for impact
-      const nvx = -vx;
-      const nvy = -vy;
-
-      // 2D rotation
-      const newVx = cosVal * nvx + sinVal * nvy;
-      const newVy = cosVal * nvy - sinVal * nvx;
-
-      damage = Math.floor(Math.sqrt(newVx * newVx + newVy * newVy) / 100.0 * radius);
-
-      // Attenuate velocity 0.7x for subsequent hits (RE: DS:1D60)
-      vx *= 0.7;
-      vy *= 0.7;
-    } else {
-      // Fallback: linear distance-based
-      damage = Math.max(0, Math.floor((1 - dist / (radius + 10)) * radius));
-    }
+    let damage = getExplosionDamage(cx, cy, radius, player.x, player.y, weaponIdx);
 
     if (damage > 0) {
       const attacker = players[attackerIndex];
