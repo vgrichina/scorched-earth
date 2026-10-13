@@ -1,3 +1,4 @@
+import { projectileDrawing } from './projectile-render.js';
 // Scorched Earth - Game State Machine
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
 // EXE: main game loop dispatch at file 0x2F78A
@@ -242,6 +243,7 @@ function checkRoundOver() {
 // EXE 0x2928F selects ground color, then resolves Random/Erratic walls,
 // then generates wind before the landscape wrapper builds its sky.
 export function prepareRoundBackground() {
+  projectileDrawing.clear();
   initPalette(config.landType, config.skyType, { beforeSky() {
     if (config.wallType === WALL.RANDOM || config.wallType === WALL.ERRATIC)
       resolveRandomWallType();
@@ -694,6 +696,7 @@ export function gameTick() {
 
           // Physics step
           const result = stepSingleProjectile(proj, getPixel, game.wind);
+          if (result === 'flying') projectileDrawing.advance(proj);
 
           if (result === 'hit_terrain' || result === 'hit_tank' || result === 'hit_wall') {
             // EXE: rising tone on terrain hit (extras.cpp 0x24DCD), starts 1000 Hz, +200/step
@@ -708,7 +711,10 @@ export function gameTick() {
 
         // Clean up inactive projectiles
         for (let i = projectiles.length - 1; i >= 0; i--) {
-          if (!projectiles[i].active) projectiles.splice(i, 1);
+          if (!projectiles[i].active) {
+            projectileDrawing.finish(projectiles[i]);
+            projectiles.splice(i, 1);
+          }
         }
 
         if (!anyActive) {

@@ -3,7 +3,7 @@
 // EXE: palette ranges:
 //   0-79:   player colors (10 players × 8 gradient slots) — DS:0x57E2 base colors
 //   80-109: sky gradient (30 entries) — varies by sky type (maps EXE VGA 120-149)
-//   110-119: unused
+//   110-119: player-colored projectile traces
 //   120-149: terrain gradient (30 entries) — varies by terrain type
 //   150:    wall color
 //   170-199: explosion fire palette (3 bands × 10)
@@ -87,6 +87,11 @@ export function setupPlayerPalette({ black = false } = {}) {
       setEntry(base + s, ...rgb);
     }
   }
+}
+
+// EXE 0x32430: trace colors use full base RGB, including on Black skies.
+export function setupTracePalette() {
+  PLAYER_COLORS.forEach((rgb, i) => setPaletteRgb(110 + i, ...rgb));
 }
 
 // --- Sky palette (VGA 80-109, 30 entries) ---
@@ -365,6 +370,7 @@ export function initPalette(terrainType, skyType, { beforeSky } = {}) {
   const skyOptions = beforeSky ? beforeSky() : undefined;
   setupSkyPalette(skyType, skyOptions);
   setupPlayerPalette({ black: resolvedSkyType === 6 });
+  setupTracePalette();
   setupExplosionPalette();
   setupWallPalette();
   setupSystemColors();

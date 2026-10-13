@@ -9,7 +9,8 @@
 // EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
 import { config } from './config.js';
-import { setPixel, getBackgroundColor } from './framebuffer.js';
+import { getBackgroundColor } from './framebuffer.js';
+import { writeWorldPixel as setPixel } from './projectile-render.js';
 import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';

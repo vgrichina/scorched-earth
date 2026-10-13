@@ -4,14 +4,16 @@
 // EXE: viscosity factor = 1.0 - config/10000 (multiplicative per step)
 // EXE: gravity_accel = 2500 × GRAVITY_CONFIG px/sec² (DS:512A, default 0.2, range 0.05-10.0)
 // EXE: wind_accel = 1.25 × wind px/sec² (horizontal only)
-// EXE: no explicit speed limit — velocity bounded naturally by viscosity damping
+// EXE: speed capped at 1000 before position integration (0x21AA2).
 
 import { WPN } from './weapons.js';
 import { config, GRAPHICS_MODES } from './config.js';
-import { clamp } from './utils.js';
+import { clamp, walkExeLine } from './utils.js';
 import { players } from './tank.js';
 import { PLAYFIELD_TOP, terrainBitmap } from './terrain.js';
 import { PLAYER_COLOR_MAX } from './constants.js';
+import { setPaletteRgb } from './palette.js';
+import { projectileDrawing } from './projectile-render.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -119,6 +121,9 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     age: 0,
     weaponIdx: weaponIdx ?? 2,
     attackerIdx: attackerIdx ?? 0,
+    // EXE 0x2186F: snapshot TRACE / Smoke Tracer at projectile creation.
+    traceColor: config.tracePaths || weaponIdx === WPN.SMOKE_TRACER
+      ? 110 + (players[attackerIdx ?? 0]?.colorIndex ?? (attackerIdx ?? 0)) : null,
     // Optional fields set by behaviors
     isSubWarhead: opts.isSubWarhead || false,
     subRadius: opts.subRadius || 0,
@@ -147,6 +152,8 @@ export function getLaunchVelocity(angleDeg, power) {
 }
 
 export function launchProjectile(startX, startY, angleDeg, power, weaponIdx, attackerIdx) {
+  // EXE 0x21296 uploads white to DAC 255 for each launch.
+  setPaletteRgb(255, 63, 63, 63);
   const { vx, vy } = getLaunchVelocity(angleDeg, power);
 
   const proj = createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx);
@@ -171,6 +178,7 @@ export function removeProjectile(proj) {
 
 // Clear all projectiles
 export function clearProjectiles() {
+  for (const proj of projectiles) projectileDrawing.finish(proj);
   projectiles.length = 0;
   projectile.active = false;
 }
@@ -260,13 +268,18 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   proj.trail.push({ x: Math.round(proj.x), y: Math.round(proj.y) });
   if (proj.trail.length > 200) proj.trail.shift();
 
-  // EXE physics order: Mag → Position → Viscosity → Gravity → Wind
-  // NOTE: The EXE has NO explicit speed limit check. DS:1CA2 = 1.5 is only
-  // used as a sound frequency multiplier in Mag Deflector (sqrt(dist)*1.5+1000),
-  // not a speed threshold. Speed is bounded naturally by viscosity damping.
-
   // 1. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
   applyMagDeflection(proj);
+
+  // EXE 0x21AA2..0x21B73: cap velocity magnitude before integrating position.
+  const speedSquared = proj.vx * proj.vx + proj.vy * proj.vy;
+  if (speedSquared > 1000000) {
+    const divisor = Math.sqrt(speedSquared) / 1000;
+    proj.vx /= divisor;
+    proj.vy /= divisor;
+  }
+
+  const startX = Math.trunc(proj.x), startY = Math.trunc(proj.y);
 
   // 2. Integrate position (screen coords: y increases downward)
   proj.x += proj.vx * DT;
@@ -280,7 +293,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // 4. Gravity (EXE: vy -= 2500 × GRAVITY_CONFIG × dt)
   proj.vy -= GRAVITY_FACTOR * config.gravity * DT;
 
-  // 5. Wind (EXE: vx += 1.25 × wind × dt, scaled by k²)
+  // 5. Wind (EXE: vx += 1.25 × wind × dt)
   proj.vx += WIND_FACTOR * wind * DT;
 
   // 6. Wall collision
@@ -288,8 +301,8 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   if (wallResult === 'hit_wall') return 'hit_wall';
   if (wallResult === 'offscreen') return 'offscreen';
 
-  const sx = Math.round(proj.x);
-  const sy = Math.round(proj.y);
+  const sx = Math.trunc(proj.x);
+  const sy = Math.trunc(proj.y);
 
   // 7. Vertical bounds check
   if (sy > config.screenHeight + 50) {
@@ -301,49 +314,61 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     return 'offscreen';
   }
 
-  // 8. Collision detection (only when on-screen and below HUD)
-  // EXE uses Fastgraph dual-page: display page has sky gradient (VGA 120-149),
-  // collision page has sky=0. Web emulates this by checking terrainBitmap[] for
-  // terrain hits and framebuffer pixels for tank hits (player colors 0-79).
-  // Skip first 2 steps (grace period) to clear barrel/body pixels at low power
-  if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
-    // Terrain hit: check terrainBitmap (EXE: collision page has terrain at VGA 120+)
-    if (terrainBitmap[sy * config.screenWidth + sx]) {
-      // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
-      // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
-      // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
-      // EXE: if speedSq <  DS:1D58 (2000) → same as normal terrain hit (detonate, create crater)
-      // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
-      if (config.tunneling && !proj.heatTarget) {
-        proj.vx *= MAG_DAMP_COEFF;
-        proj.vy *= MAG_DAMP_COEFF;
-        const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
-        if (speedSq < MAG_ABSORB_THRESHOLD) return 'hit_terrain';
-        return 'flying';  // fast enough → tunnel through
-      }
-      return 'hit_terrain';
-    }
-
-    // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
-    const pixel = getPixelFn(sx, sy);
-    if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
-      // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
-      // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
-      // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
-      if (config.hostileEnvironment) {
-        const pIdx = Math.floor(pixel / 8);
-        const p = players[pIdx];
-        if (p && p.alive) {
-          p.energy = Math.max(0, p.energy - 1);
-          if (p.energy === 0) p.alive = false;
+  // 8. EXE 0x21D15 calls the inclusive line walker at 0x1E2E3.
+  // Visit every crossed pixel, stopping at the first collision.
+  const sampleCollision = (sx, sy) => {
+    // EXE 0x223CD: native 80..104 is solid terrain, >=105 continues.
+    // The port stores terrain separately because its palette indices differ.
+    // Existing launch grace and tank/shield policies remain to be matched.
+    if (proj.age > 2 && sx >= 0 && sx < config.screenWidth && sy >= PLAYFIELD_TOP && sy < config.screenHeight) {
+      // Terrain hit: check the relocated native terrain bitmap.
+      if (terrainBitmap[sy * config.screenWidth + sx]) {
+        // EXE: TUNNELLING (DS:0x513A) — non-homing projectiles phase through terrain
+        // EXE: extras.cpp 0x224F7: apply MAG_DAMP_COEFF (0.75×, DS:1D54) per terrain hit;
+        // EXE: if speedSq >= DS:1D58 (2000) → keep tunneling through terrain
+        // EXE: if speedSq <  DS:1D58 (2000) → same as normal terrain hit (detonate, create crater)
+        // Homing missiles (proj.heatTarget set) cannot tunnel (EXE: E1E4/E1E6 != 0 → explode).
+        if (config.tunneling && !proj.heatTarget) {
+          proj.vx *= MAG_DAMP_COEFF;
+          proj.vy *= MAG_DAMP_COEFF;
+          const speedSq = proj.vx * proj.vx + proj.vy * proj.vy;
+          if (speedSq < MAG_ABSORB_THRESHOLD) return 'hit_terrain';
+          return 'flying';  // fast enough → tunnel through
         }
-        return 'flying';  // continue through tank body (EXE: return 0)
+        return 'hit_terrain';
       }
-      return 'hit_tank';
-    }
-  }
 
-  return 'flying';
+      // Tank hit: pixel < PLAYER_COLOR_MAX and pixel > 0 (player colors are 0-79)
+      const pixel = getPixelFn(sx, sy);
+      if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
+        // EXE (file 0x3EB72): projectiles pass THROUGH tank pixels (return AX=0=continue).
+        // HOSTILE_ENVIRONMENT (DS:0x513C): each tank pixel traversed → deal 1 damage via
+        // shield_and_damage(tank_ptr, 10, 1); player_index = pixel / 8 (stride-8 palette).
+        if (config.hostileEnvironment) {
+          const pIdx = Math.floor(pixel / 8);
+          const p = players[pIdx];
+          if (p && p.alive) {
+            p.energy = Math.max(0, p.energy - 1);
+            if (p.energy === 0) p.alive = false;
+          }
+          return 'flying';  // continue through tank body (EXE: return 0)
+        }
+        return 'hit_tank';
+      }
+    }
+
+    return 'flying';
+  };
+  let collision = 'flying';
+  walkExeLine(startX, startY, sx, sy, (x, y) => {
+    const result = sampleCollision(x, y);
+    if (result === 'flying') return true;
+    proj.x = x; proj.y = y;
+    collision = result;
+    return false;
+  });
+
+  return collision;
 }
 
 // Legacy compatibility: step the first projectile (used by old game.js)

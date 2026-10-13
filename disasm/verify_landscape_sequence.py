@@ -37,7 +37,16 @@ parser.add_argument('--output-dir',type=Path,help='Save PNG pairs, including dia
 parser.add_argument('--players',action='store_true',help='Compare two-player round setup and sprites as well')
 parser.add_argument('--tank-types',type=int,nargs=2,choices=range(7),default=[3,3],help='Tank shapes for the two players')
 parser.add_argument('--full-frame',action='store_true',help='Include HUD and border; implies --players')
+parser.add_argument('--projectile-head',type=int,nargs=2,metavar=('X','Y'),help='Draw a launch-colored head at fixed input coordinates (not a flight simulation)')
+parser.add_argument('--bomb-icon',type=int,choices=range(3),default=1)
+parser.add_argument('--erase-head',action='store_true',help='Erase the head through the native callback before comparing')
+parser.add_argument('--restore-sky-grid',action='store_true',help='Compare native setTerrainPixel against cached sky on a 7-pixel grid')
+parser.add_argument('--flight-steps',type=int,default=0,help='Compose launch, free-flight and drawing for up to 30 steps; no native collisions')
+parser.add_argument('--trace',action='store_true',help='Enable trace color for composed flight')
 args=parser.parse_args()
+if not 0<=args.flight_steps<=30: parser.error('--flight-steps must be 0..30')
+if args.flight_steps and (not args.projectile_head or not args.full_frame or args.erase_head or args.restore_sky_grid): parser.error('--flight-steps requires --full-frame and --projectile-head, without erasure/grid')
+if args.erase_head and not args.projectile_head: parser.error('--erase-head requires --projectile-head')
 if args.full_frame: args.players=True
 root=Path(__file__).resolve().parent.parent
 for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
@@ -84,22 +93,30 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {config} from './web/js/config.js';import {prepareRoundBackground,game} from './web/js/game.js';"
         "import {drawWindIndicator,drawHud,drawPlayfieldBorder} from './web/js/hud.js';import {gameTick,STATE} from './web/js/game.js';"
         "import {createPlayers,players,drawAllTanks,getTankAim,getTankBarrel} from './web/js/tank.js';"
-        "import {getEffectiveWallType} from './web/js/physics.js';"
+        "import {getEffectiveWallType,launchProjectile,clearProjectiles,projectiles,stepSingleProjectile} from './web/js/physics.js';import {projectileDrawing,drawProjectileHead,drawProjectileTrackingMarks} from './web/js/projectile-render.js';"
         "import {seedRandom,getRandomState} from './web/js/utils.js';"
         "import {palette6,resolvedSkyType} from './web/js/palette.js';"
-        "import * as t from './web/js/terrain.js';import {pixels} from './web/js/framebuffer.js';"
+        "import * as t from './web/js/terrain.js';import {pixels,setPixel,getBackgroundColor} from './web/js/framebuffer.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2});"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
         "if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
         "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fullFrame){drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
+        "const frames=[],motion=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
+        "if(head){clearProjectiles();launchProjectile(head[0],head[1],45,200,2,0);drawProjectileTrackingMarks(head[0],head[1],icon);if(erase){config.bombIcon=icon;projectileDrawing.advance(projectiles[0]);projectileDrawing.draw();projectileDrawing.finish(projectiles[0]);projectileDrawing.draw();}else if(!flightSteps)drawProjectileHead(head[0],head[1],icon);}"
+        "if(flightSteps){config.bombIcon=icon;const shot=projectiles[0];for(let i=0;i<flightSteps;i++){"
+        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
+        "const status=stepSingleProjectile(shot,()=>120,game.wind);if(status!=='flying')throw new Error('fixture hit '+status);"
+        "projectileDrawing.advance(shot);projectileDrawing.draw();drawProjectileTrackingMarks(shot.x,shot.y,icon);"
+        "frames.push(encode());motion.push([shot.vx,shot.vy,shot.x,shot.y]);}}"
+        "if(restoreGrid)for(let y=38;y<=476;y+=7)for(let x=3;x<=356;x+=7)setPixel(x,y,getBackgroundColor(y,x));"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
-        "results.push({wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
+        "results.push({frames,motion,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types])],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -120,6 +137,52 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                 call(0x290A8,0x22CA)
                 call(0x2FEBE,0x2945)
                 call(0x301B2,0x2945,[0xD568+slots[start]*0xCA,0x4FC8])
+        if args.projectile_head:
+            # Execute the actual launch palette block, including VGA upload.
+            cpu.segs[1]=0x1ADA;cpu.ip=0x21296-0x6100-0x1ADA0;cpu.regs[4]=0x2400
+            reason,_=run_fast(cpu,mem,ports,handler,100000,bp_set={0x212A7-0x6100})
+            assert reason=='breakpoint'
+            # Fixture has no previous head; retain real VGA read/write callbacks.
+            for off,value in ((0xE4DA,0),(0xCEB8,0),(0xCEBA,0x9000),
+                              (0xE34A,0),(0xE412,0),(0x514E,int(args.bomb_icon==2)),
+                              (0x1C8A,0x1B74 if args.bomb_icon==1 else 0x1A3B),(0x1C8C,0x1ADA)):
+                mem.write16(ds+off,value)
+            mem.write16(0x90048,0)
+            mem.write16(ds+0xE4EC,110 if args.trace else 120)
+            if not args.flight_steps: call(0x22DFA,0x1ADA,args.projectile_head)
+            if args.flight_steps:
+                def block(start, stop):
+                    cpu.segs[1]=0x1ADA;cpu.ip=start-0x6100-0x1ADA0
+                    cpu.regs[5]=0x2400;cpu.regs[4]=0x23E6 if start<0x21400 else 0x23E0;cpu.regs[6]=0
+                    reason,_=run_fast(cpu,mem,ports,handler,100000,bp_set={stop-0x6100})
+                    assert reason=='breakpoint'
+                mem.write16(stack+10,200);mem.write16(stack+12,45)
+                block(0x211A3,0x211B8);block(0x212BF,0x21325)
+                signed=lambda v:v if v<32768 else v-65536
+                vx=signed(mem.read16(stack-14));vy=signed(mem.read16(stack-16))
+                for off,value in ((4,vx),(12,vy),(20,args.projectile_head[0]),(28,args.projectile_head[1])):
+                    struct.pack_into('<d',mem.data,0x90000+off,value)
+                mem.write16(0x9004A,0);mem.write16(ds+0x5146,0)
+                wind=signed(mem.read16(ds+0x515A))
+                for off,value in ((0xCEAC,.02),(0xCE9C,10),(0xCEA4,wind/40),(0x5178,1)):
+                    struct.pack_into('<d',mem.data,ds+off,value)
+                for step in range(args.flight_steps):
+                    block(0x21AA2,0x21D09)
+                    motion=[mem.read_float64(0x90000+off) for off in (4,12,20,28)]
+                    assert motion==actual['motion'][step],(step,motion,actual['motion'][step])
+                    call(0x22DFA,0x1ADA,[int(motion[2])&65535,int(motion[3])&65535])
+                    native_frame=extract_display_pixels(mem,ports)
+                    port_frame=base64.b64decode(actual['frames'][step])
+                    for index,(native_color,port_color) in enumerate(zip(native_frame,port_frame)):
+                        pi=port_color-40 if 120<=port_color<150 else 120 if port_color==80 else port_color+40 if 87<=port_color<=103 else port_color
+                        assert actual['palette'][pi*3:pi*3+3]==list(ports.palette[native_color]),(seed,step,index%360,index//360,native_color,port_color)
+
+            if args.erase_head:
+                call(0x22A14 if args.bomb_icon==1 else 0x228DB,0x1ADA,[*args.projectile_head,1])
+        if args.restore_sky_grid:
+            for y in range(38,477,7):
+                for x in range(3,357,7):
+                    call(0x3AB39,0x3352,[x,y])
         selected = 'procedural'
         if mem.read16(ds+0xD4DC) == 0xD4CE:
             filename = mem.read16(ds+0xD4D8) + (mem.read16(ds+0xD4DA)<<4)
@@ -153,4 +216,4 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                               args.output_dir/f'seed-{seed}-sky-{sky}-round-{round+1}-{name}.png')
         assert not differences,(seed,len(differences),differences[:10])
         scope='full frame' if args.full_frame else 'landscape + player setup' if args.players else 'landscape'
-        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)
+        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}, head {args.projectile_head}, icon {args.bomb_icon}, erased {args.erase_head}, sky grid {args.restore_sky_grid}, flight steps {args.flight_steps}, trace {args.trace}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)

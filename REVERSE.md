@@ -51,9 +51,173 @@ aspect transform, with native velocity, gravity and wind units. Running
 `python3 disasm/verify_projectile_launch.py` matches 585 launch vectors across
 nine configured modes, 13 angles and five powers. Mode aspect values are shared
 fixture inputs; this does not verify hardware mode setup or subsequent flight.
-This physics work is incomplete: free-flight arithmetic still needs an EXE
-oracle, AI aiming still uses the previous scaled constants, and adaptive timing,
-collision traversal and projectile drawing remain to be matched.
+`python3 disasm/verify_projectile_motion.py` now compares 756 free-flight steps
+against actual EXE 0x21AA2..0x21D09 execution, with exact double equality for
+position and velocity. Fixtures cover seven initial velocities, three gravity
+settings, three winds and three viscosities over four steps. This exposed a
+missing 1000-unit speed cap: the EXE divides both components by speed/1000
+before integrating position whenever speed squared exceeds 1,000,000.
+The port now matches that order, including boundary and repeated-cap cases.
+The oracle supplies the default .02 timestep and force constants; it excludes
+calibration, projectile callbacks, sound, collision traversal and drawing.
+
+Physics remains incomplete: adaptive timing, collision traversal and projectile
+drawing still need matching. AI aiming still uses an approximation. Its old
+400-based power conversion algebraically cancels to the native 2500-based
+formula, but omits the EXE's barrel-origin offsets and aspect correction;
+its wind approximation also differs from 0x254E9. Merely replacing constants
+does not establish AI fidelity; that routine needs an execution oracle.
+
+Projectile head rendering now calls `web/js/projectile-render.js` from the
+production loop. `python3 disasm/verify_projectile_draw.py` compares 252 indexed
+frames against actual Small/Big draw routines (0x228DB / 0x22A14), substituting
+framebuffer callbacks and placing the old head offscreen. It covers sizes,
+invisibility, clipping and palette boundaries. Small draws index 255 without a
+background test; Big draws each cross pixel only when the underlying native
+index exceeds 119. Native sky 120..149 maps to port 80..109. Big clips all four
+playfield edges; Small omits the bottom-edge check. Coordinates use truncation.
+The port no longer adds a 20-point ordinary trail when Trace Paths is off.
+
+This is indexed head-raster evidence, not a verified shot animation. The
+pre-shot checkpoint has DAC 255=(0,0,0), but launch block 0x21296..0x212A7
+uploads (63,63,63). Production `launchProjectile` now performs that upload.
+The launch oracle executes the real fg_setrgb call through VGA ports and
+compares DAC RGB in all 585 cases, including resetting a previously colored
+port entry. Erasure, Trace Paths persistence, drawing cadence and napalm
+rendering remain unverified.
+
+The landscape oracle also accepts `--projectile-head X Y --bomb-icon 0|1|2`.
+This adds the launch palette block and real native VGA draw routine to the
+independently generated round frame; the port uses production launch and head
+drawing. Coordinates are explicit fixture inputs, not a simulated trajectory.
+For example:
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --projectile-head 180 100 --output-dir /tmp/scorched-shot-head
+```
+
+The projectile wrapper at 0x22DFA also draws three white tracking marks on the
+middle border: x=1 and width-2 at max(y,37), plus y=36 at x clamped to
+[2,width-3]. Invisible bombs suppress the marks. Production drawing now includes
+these marks after the world redraw. `verify_projectile_tracking.py` compares
+60 consecutive frames against that EXE wrapper, using a stubbed head callback
+and a uniform middle-border background. It verifies old-mark erasure, clipping,
+same-coordinate steps and both movement directions. The wrapper suppresses
+head callbacks when integer coordinates do not change; the production loop's
+head repaint is still used because its world frame is rebuilt each tick.
+
+`--projectile-head` now includes this wrapper and tracking marks in full-frame
+comparisons. This remains a fixed-position fixture. Head erasure can call
+setTerrainPixel for cross arms and conditionally restore the saved center;
+the full-world repaint is not yet proven equivalent on Stars or overlapping
+shots. Trace Paths behavior still needs tracing through its configuration and
+callback selection; no persistent-path fidelity claim follows from these tests.
+
+Trace initialization is now verified separately by
+`python3 disasm/verify_projectile_trace.py`. TRACE is DS:5168 (config parser
+0x1A751). EXE 0x2186F stores restoration color 110+the owner's color index when
+TRACE is on or the weapon is Smoke Tracer; otherwise it stores sky sentinel
+120. This is selected at creation, not read from config while drawing. All
+40 combinations of ten player colors, TRACE on/off and ordinary/Smoke Tracer
+weapons match execution. EXE 0x32430 uploads full base RGB to DAC 110..119;
+all ten entries match the new production trace palette, including on Black
+skies. Existing trail drawing now uses this stored color instead of white.
+
+The former capped trail replay has now been replaced for ordinary projectiles
+by the persistent indexed drawing layer described below. Trace color selection
+alone does not establish full path geometry or timing parity.
+
+`verify_projectile_erasure.py` now executes 243 consecutive indexed frames
+through the native Small/Big routines and compares them with
+`transitionProjectileHead`. Cases cover repeated positions, retraced paths,
+overlapping consecutive crosses, clipping, trace colors and final erasure.
+Framebuffer callbacks and sky restoration are substituted; the restoration
+fixture returns native sky index 120, so this does not verify Stars recovery.
+Small draws the new head before restoring the old center. Big restores its
+old center/arms only where the existing pixel is still 255, before drawing
+the new cross. Only the center is colored by Trace Paths; arms restore sky.
+
+The stateful kernel is now connected through `ProjectileDrawingLayer`.
+Game FLIGHT advances it after each successful ordinary physics step, and the
+render loop also updates behavior-driven positions. Removing or clearing a
+projectile erases its head and releases its drawing state while retaining trace
+writes. Round background setup clears the layer. The layer renders indexed
+writes after the clean-world repaint; ordinary trails no longer replay the
+200-point physics history array. Napalm remains on its separate renderer.
+
+`verify_projectile_erasure.py --layer` passes all 243 native comparisons while
+repainting the fixture world between transitions, then checks survival after
+removal and explicit reset. `node disasm/test_projectile_lifecycle.mjs` verifies
+250 trace centers survive production `clearProjectiles()` and another repaint,
+then disappear on production round background setup.
+
+This establishes static-background erasure and trace lifetime in the port,
+not complete flight parity. The layer uses cached background pixels for native
+setTerrainPixel restoration; generated-background coverage is described below.
+Explosion-module writes (fire, craters, dirt, tunnels
+and disrupter movement) and the behavior module's particle writes now use
+`writeWorldPixel`, which drops the retained projectile pixel before writing
+its replacement. Full-world repaint deliberately bypasses that operation.
+The lifecycle test checks dirt replacing a trace, crater removal without trace
+resurrection, explosion fire overwriting a trace, and unaffected traces surviving
+both. This verifies overwrite integration with current production mutations;
+it does not prove native explosion geometry or audit every renderer that can
+overwrite a pixel. Tank movement and other effect writers still need review.
+Native trace clearing across turns versus rounds still needs lifecycle evidence.
+
+The landscape oracle now supports `--erase-head` with `--projectile-head`.
+The port uses the production persistent layer and its cached background; the
+EXE runs the real head draw/erase functions, setTerrainPixel and VGA callbacks.
+Full 360x480 frames match after Big-head erasure at (180,100) on seed-0 Stars,
+Storm and Sunset. Tracking marks remain visible in both frames.
+
+`--restore-sky-grid` calls actual EXE setTerrainPixel at 3,213 positions across
+the playfield and compares the resulting full frame against the independently
+generated cached sky. This includes restoring sky over terrain pixels, with
+no generated pixel injection. All seven explicit sky types pass at seed 0:
+22,491 native restorations in total, followed by full-frame RGB comparisons.
+This verifies restoration at sampled positions, not all possible seeds/modes
+or a complete moving-shot simulation.
+
+`--flight-steps N` now composes native launch arithmetic, capped free-flight
+integration and the head/tracking wrapper over the independently generated
+round frame. Each step compares position/velocity exactly and all 172,800
+native RGB pixels, not just the final frame. Production Node code uses
+launchProjectile, stepSingleProjectile and ProjectileDrawingLayer while
+repainting its world before each step. Four 20-step sequences pass (80 frames):
+Stars Big, Stars Big with `--trace`, Sunset Small with maximum wind 100, and
+Storm Invisible. Final screenshot pairs are available through --output-dir.
+
+These fixtures start at explicit (180,100), angle 45, power 200, use dt=.02,
+gravity=.2 and viscosity=0. Native collision traversal and weapon callbacks are
+skipped; the port requires each fixture step to remain flying. Launch blocks
+and motion blocks use their own native stack layouts. This proves composed
+free-flight frames for those inputs, not adaptive timing, actual tank-origin
+launch, a complete shot through impact, or the live main-loop cadence.
+
+Ordinary collision sampling now uses the inclusive EXE line iterator from
+truncated old position to truncated new position, stopping at the first hit
+and storing its integer coordinates for impact effects. Endpoint-only sampling
+could skip thin terrain entirely. `verify_projectile_collision.py` executes
+the actual iterator at 0x1E2E3 with native callback 0x221E9 and substitutes
+only pixel reads, head erasure and the impact-effect entry. Its 45 fixtures
+match production status/coordinates over shallow/steep and signed directions,
+horizontal/vertical/zero motion, thin obstacles, solid starts and empty paths.
+
+This covers interior non-tunnelling terrain after the port's existing launch
+grace. Native wall/bottom handling, own-tank/shield logic, tunnelling force order
+and the first two steps remain unmatched. The previous grace policy is retained
+pending a tank-origin launch comparison; the terrain oracle starts at age 2.
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 100 --flight-steps 20 --trace --output-dir /tmp/scorched-flight-trace
+```
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 100 --erase-head
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --restore-sky-grid
+```
+
 
 ```sh
 python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --players
@@ -1787,11 +1951,11 @@ void sim_step(projectile_t *proj) {
     //    DS:1CA2 = 1.5 is ONLY used here as a sound frequency multiplier.
     //    It is NOT a speed limit threshold (earlier doc was wrong).
 
-    // NOTE: There is NO explicit speed limit check in the EXE physics loop.
-    // DS:1CA2 = 1.5 appears only in: (a) MIPS benchmark timing loop
-    // (file 0x21000), and (b) Mag Deflector sound distance scaling here.
-    // Speed is bounded naturally by viscosity damping per step.
-    // The web port's `speedSq > 160000` check is non-original.
+    // CORRECTION (2026-10-13): 0x21AA2..0x21B73 is a speed cap,
+    // not the Mag Deflector distance calculation described above.
+    // speedSq = vx*vx + vy*vy; if > DS:1D2C (1000000), divide
+    // both velocities by sqrt(speedSq)/DS:1D30 (1000).
+    // See verify_projectile_motion.py for executed evidence.
 
     // 1. Position update (screen Y inverted)
     proj->x += proj->vx * dt;       // DS:CEAC
@@ -3962,7 +4126,7 @@ All located in `disasm/` directory:
 - [x] Trace SCORCH.PCX loading context: **RESOLVED — optional user background**. (a) Code runs when **'B' key** (scancode 0x30) is pressed during gameplay turn, dispatched via play loop switch table at CS:0x05DB index 46 → CS:0x0550 (file 0x2FAE0). (b) DS:0x5188 is **PLAY_MODE** (already documented) — NOT related to PCX; the DS:0x5188 check at 0x2FAD1 is a separate adjacent switch case (fire action for Sequential mode). (c) SCORCH.PCX is a **user-provided full-screen PCX background image** — loaded via fg_pcxopen→fg_pcxhead→fg_pcximage with no error handling if file missing. (d) File should **NOT** be added to v86/images/game.img — it was never shipped with the game. Only 1 real reference in entire binary (play.cpp 0x2FAE0; other xref hits are false positives matching 0x5C8D quote strings). See "SCORCH.PCX Background Image" section.
 - [x] Trace terrain generation for each sky type: **RESOLVED**. All 7 terrain types fully decoded. Main function at file 0x3971F, setTerrainPixel at 0x3AB39 (7-way switch, jump table at CS:0x16E5 partially corrupted by MZ relocations). **Type 0 (Flat)**: solid VGA 120, constant height. **Type 1 (Slope)**: linear Y-gradient height_array, gray palette. **Type 2 (Rolling)**: bitmap texture + aux_array(rand(32000)×x%30) pattern; falls back to Flat if no bitmap. **Type 3 (MTN)**: scanned mountain data; depth gradient VGA 130–150 for recesses; falls back to Flat if no .MTN file. **Type 4 (V-Shaped)**: reversed bitmap logic, shallow 9-level gradient, Sunset-style 3-band FPU palette. **Type 5 (Castle)**: multiple LandGenerator segments with random gaps creating rampart shapes; Sunset palette. **Type 6 (Cavern)**: mountains+slope underground, 3-band gradient. Types 1/5/6 share identical setTerrainPixel code (pure height_array[y] lookup); visual difference is palette only. **HOSTILE_ENVIRONMENT** at **DS:0x513C**: config flag (On/Off); when enabled, projectiles inflict 1 damage per pixel traversed through tank body (file 0x3EB72: `damage_tank(10, tank_ptr, 1)` when pixel < 0x50). See "Per-Type Height Generation Handlers" and "HOSTILE_ENVIRONMENT System" subsections in Terrain Generation section.
 - [x] Trace TALK1.CFG / TALK2.CFG parsing: **RESOLVED**. Source: `comments.cpp` (seg 0x1144, file base ~0x17E40). Plain text files, one phrase per line, max 79 chars. **Loader** `load_talk_file` (0x17F50): fopen(filename, "rt"), 2-pass (count lines, then strdup each into malloc'd pointer array). **Data struct** (6 bytes, at DS:0xCC8E for attack, DS:0xCC94 for die): {word count, dword far_ptr_to_line_array}. **Selection**: `get_random_line` (0x17F09) returns `lines[random(count)]` or empty string if count==0. **Trigger**: `show_attack_comment` (0x181A1) called on fire — has 1% random-player taunt special case (`random(100)==2`, i.e. 1/100); `show_die_comment` (0x18155) called on tank death. **Display**: `display_talk_bubble` (0x182FD) checks TALKING_TANKS(DS:0x5118)!=0, TALK_PROBABILITY(DS:0x511A)!=0; rolls random(100)<TALK_PROBABILITY; measures text, positions bubble at tank.y-19, clamps X to screen, draws bordered box, renders text, delays TALK_DELAY(DS:0x511C, default 18) ticks. **Web port** `web/js/talk.js` exists and is functional with all 54 attack + 61 death phrases, including 1% random-player taunt (`random(100)===2`); minor gaps: treats talkingTanks as boolean (EXE has Off/Computers/All), no bordered rectangle style. See "Talk Files" section.
-- [x] Verify physics speed limit: traced DS:1CA2 = 1.5 — confirmed it is NOT a speed limit; it is only used in (a) MIPS benchmark timing loop (file 0x21000) and (b) Mag Deflector sound distance scaling (`sqrt(distSq)*1.5+1000 → _ftol → sound call`). The EXE has NO explicit speed-squared check in the per-step physics loop. Speed is bounded naturally by viscosity. Removed the false `speedSq > 160000` check from physics.js and corrected the DS offsets table and pseudocode in RE doc.
+- [x] Verify physics speed limit: corrected 2026-10-13 with EXE execution. File 0x21AA2..0x21B73 caps speed at 1000 before integration; DS:1D2C is the squared threshold 1000000 and DS:1D30 is 1000. The previous claim of no cap was wrong. See `verify_projectile_motion.py` and the audit above.
 - [x] Decode MIRV/Death's Head spread table: Confirmed — DS:0x529E is NOT angle offsets; it is three packed 2-word arrays indexed by `weapon.param * 2`. Handler at file 0x2C989 (seg 0x25D5:0x0239). Sub-warhead parameters: **count** = DS:0x52A2[param] = {5, 9}, **explosion radius** = DS:0x529E[param] = {20, 35}, **vx spread coeff** = DS:0x52A6[param] = {50, 20}. Spread formula (file 0x2CBFE): `vx_offset = (i − (count+1)) × coeff` — all offsets are negative (left-biased relative to parent vx); no angle math used. EXE uses linear integer vx offsets only; vy for sub-warheads is unchanged from parent. Web port updated: subCount 6→5/9, subRadius 15/25→20/35, spread replaced with symmetric linear vx model. See "MIRV / Death's Head" section for full pseudocode.
 - [x] Verify AI noise calibration: traced shark.cpp `ai_inject_noise` at file 0x25DE9-0x2610F. The EXE uses a SCANNING architecture (not noise injection): freq_base = π/(2×noise_amp), freq_cap = 2π/10, amp = rand01×budget×0.5, budget reduction = 2×amp, 4× freq multiplier per harmonic, phase = rand(300), 2–5 harmonics. DS constants: DS:0x322E=π, DS:0x3236=2π, DS:0x323E=4.0, DS:0x3242=0.5, DS:0x3246=2.0. Web port multipliers 0.15 (angle) and 3.0 (power) have no basis in EXE — the model is architecturally different. See updated ai_inject_noise pseudocode section.
 - [x] Verify viscosity formula scaling: confirmed formula `1.0 - AIR_VISCOSITY/10000` per-step, range 0–20 (clamped by EXE at file 0x19B54; max constant DS:0x0408 = 20.0). Divisor DS:0x040C = DS:0x637C = 10000.0. Integer intermediate DS:0x5180. Skip-when-1.0 optimization at file 0x21C56. Two application sites: extras.cpp (0x21C56) and earlier trajectory module (0x14391). Web port formula and range are correct.
@@ -6985,7 +7149,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Player color gradient** — Corrected by the 2026-10-13 integrated round setup comparison. EXE 0x28592 copies stored player RGB to slots 0-4 and 6, with white slot 5 and grey slot 7. Initial players use full base RGB; the 80% value at 0x326EA is background contrast adjustment, not a timed pulse. Sky 6 is Black (not Cavern), and suppresses all player entries.
 - [x] **Dialog framework**: **ANALYZED** (session 155). EXE dialog system at segment 0x3F19 (file base 0x45B90). Key functions: dialog_create (0x45C72, allocs 0x14C=332 bytes), dialog_position (0x45D2C, centers on screen), dialog_draw (0x45DDC), dialog_run (0x45FED). Dialog struct: +0x00=x, +0x02=y, +0x04=width, +0x06=height, +0x08=item_count, +0x0E=flags, items at +0x20 (far ptrs, stride 4), hidden flags at +0xE8 (stride 2, up to 100 items). Widget types: 0=text, 3=list, 8=button. Centering: `(screen - margin - dialog_size) / 2` — matches web's `Math.floor()`. **Submenu dialog**: hard-coded 310×140 at (110,50) via `dialog_create(0x6E, 0x32, 0x0136, 0x008C)`. Row height=15 (unconditional). Items placed at (x=10, y=5+i*15). Web: dynamically computes width from content, height=30+N*rowH, items at y+18+i*rowH — structurally different but functionally equivalent (web adds title+separator that EXE handles inside list widget). **Confirm dialog**: text width padded +20px (0x14), button gap +30px (0x1E), height=53 (0x35), text at y=10, buttons at y=27. **draw_3d_box** (0x444BB): 2px left/right borders, 2px (lo-res) or 3px (hi-res, FG_PAGES==3) top/bottom borders; colors LEFT=EF26, TOP=EF2E, RIGHT=EF30, BOTTOM=EF32; fill inset by (2,bV). Web drawBox3DRaised matches geometry and color assignments. **draw_border** (0x1826C): 1px border in EF2C + interior fill in EF26; used for simple flat frames. No web port fixes needed — dialog layout is functionally correct.
 - [x] **Explosion rendering**: **ANALYZED** (session 153). EXE uses Bresenham filled circle algorithm (0x43690) expanding over N frames. draw_explosion_expanding (0x2476B) receives (cx, cy, palette_base=170, num_frames=20). Each frame: palette_base+=6→176, ring_inner=176-(frame*6/N), circle drawn at expanding radius with fire palette. Per-pixel check: skips pixels already in fire range [inner,outer] to prevent overdraw. Color 0x50 (80) triggers setTerrainPixel for terrain-aware drawing. Web uses trig-based ring (cos/sin at 3° steps) with ringWidth=30% of radius, inner=attacker color, outer=fire palette — visually similar, algorithmically different. Acceptable divergence for reimplementation.
-- [x] **Projectile trail**: **VERIFIED** (session 153). EXE draws projectile head as VGA 255 (white), only over pixels >0x77 (terrain range). Small bomb = 1px, Big bomb = 5px cross (center + 4 cardinal). NO color-fading trail in EXE — when Trace Paths=off, previous positions are immediately restored; when on, white pixels remain permanently. Web adds cosmetic age-fading (white→orange→dark) which is an enhancement not in EXE — acceptable divergence. Erase logic restores terrain via setTerrainPixel (for laser color 0x78) or draws stored pixel color. Big cross pattern matches web BOMB_ICON handling.
+- [ ] **Projectile trail**: Older claims of verified white heads and acceptable cosmetic trails were unsupported. The 2026-10-13 head oracle verifies index 255, clipping and Big background tests; Trace Paths persistence, erasure and shot-time DAC state still need execution comparisons. Production no longer adds an ordinary trail with Trace Paths off.
 
 #### 9. Architecture Documentation
 - [x] `docs/architecture_exe.md` — binary layout, segment/bank boundaries, call graph with entry points + file offsets, module map, per-turn execution flow, data flow, shared data regions (already written, 370 lines)

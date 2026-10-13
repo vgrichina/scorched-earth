@@ -13,6 +13,7 @@ import { initInput } from './input.js';
 import { drawHud, drawWindIndicator, drawPlayfieldBorder } from './hud.js';
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { projectiles } from './physics.js';
+import { projectileDrawing, drawProjectileTrackingMarks } from './projectile-render.js';
 import { gameTick, game, STATE, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
@@ -93,43 +94,31 @@ function redrawWorld() {
 }
 
 function drawAllProjectiles() {
+  // Behavior-driven projectiles can move outside the ordinary physics path.
+  for (const proj of projectiles)
+    if (proj.active) projectileDrawing.advance(proj);
+  projectileDrawing.draw();
   for (const proj of projectiles) {
     if (!proj.active) continue;
 
-    // Draw trail — EXE: Trace Paths=on keeps white pixels permanently, off restores immediately
-    // EXE: NO color-fading trail — all trail pixels are white (VGA 255)
+    // Napalm retains its separate, still-unverified particle renderer.
     const trail = proj.trail;
-    const trailLen = config.tracePaths ? trail.length : (proj.isNapalmParticle ? 5 : 20);
+    const trailLen = proj.isNapalmParticle ? 5 : 0;
     for (let i = Math.max(0, trail.length - trailLen); i < trail.length; i++) {
       const p = trail[i];
       if (p.x >= 0 && p.x < config.screenWidth && p.y >= 0 && p.y < config.screenHeight) {
         if (proj.isNapalmParticle) {
           setPixel(p.x, p.y, proj.isDirtParticle ? 140 : COLOR_HUD_HIGHLIGHT);
-        } else {
-          setPixel(p.x, p.y, COLOR_HUD_HIGHLIGHT);
         }
       }
     }
 
-    // Draw projectile head
-    // EXE: BOMB_ICON (DS:0x51A2): 0=Small(1px), 1=Big(5px cross), 2=Invisible(skip)
-    // EXE: DS:0x514E=BOMB_INVISIBLE_FLAG suppresses drawing in both draw functions
-    const hx = Math.round(proj.x);
-    const hy = Math.round(proj.y);
-    if (hx >= 0 && hx < config.screenWidth && hy >= 0 && hy < config.screenHeight) {
-      if (proj.isNapalmParticle) {
-        setPixel(hx, hy, proj.isDirtParticle ? 145 : COLOR_HUD_HIGHLIGHT);
-      } else if (config.bombIcon !== 2) {
-        // Small (0): single white pixel; Big (1, default): 5-pixel cross
-        setPixel(hx, hy, COLOR_HUD_HIGHLIGHT);
-        if (config.bombIcon !== 0) {
-          if (hx + 1 < config.screenWidth) setPixel(hx + 1, hy, FIRE_PAL_BASE + 19);
-          if (hx - 1 >= 0) setPixel(hx - 1, hy, FIRE_PAL_BASE + 19);
-          if (hy + 1 < config.screenHeight) setPixel(hx, hy + 1, FIRE_PAL_BASE + 19);
-          if (hy - 1 >= 0) setPixel(hx, hy - 1, FIRE_PAL_BASE + 19);
-        }
-      }
-      // bombIcon===2: Invisible — draw nothing
+    if (proj.isNapalmParticle) {
+      setPixel(Math.round(proj.x), Math.round(proj.y),
+        proj.isDirtParticle ? 145 : COLOR_HUD_HIGHLIGHT);
+    } else {
+      drawProjectileTrackingMarks(proj.x, proj.y);
+
     }
   }
 }
