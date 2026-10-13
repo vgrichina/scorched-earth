@@ -50,7 +50,7 @@ export const config = {
   scoringMode: 0,      // EXE: SCORING=Standard (0=Standard, 1=Corporate, 2=Vicious)
 
   // Walls — EXE: ELASTIC config variable DS:0x5154
-  wallType: 5,         // EXE: WALLS=Concrete (0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete,6=Random,7=Erratic)
+  wallType: 0,         // Shipped SCORCH.CFG: ELASTIC=None (0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete,6=Random,7=Erratic)
 
   // Economy — EXE: equip.cpp shop system
   startCash: 1000000,  // EXE: INITIAL_CASH=1000000

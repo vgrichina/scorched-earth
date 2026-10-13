@@ -267,6 +267,8 @@ def extract_state(state_path):
         'numPlayers': num_players,
         'currentPlayer': current_player,
         'wind': wind,
+        'wallType': mem.read16(ds_base + 0x5156),
+        'resolvedWallType': mem.read16(ds_base + 0x5154),
         'terrainType': terrain_type,
         'skyType': sky_type,
         'landType': land_type,

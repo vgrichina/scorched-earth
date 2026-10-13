@@ -60,6 +60,7 @@ globalThis.localStorage = {
 const WEB = new URL('../web/js/', import.meta.url).pathname;
 
 const { config } = await import(WEB + 'config.js');
+const { setResolvedWallType } = await import(WEB + 'physics.js');
 const { initPalette, palette32 } = await import(WEB + 'palette.js');
 const fb = await import(WEB + 'framebuffer.js');
 const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } = await import(WEB + 'terrain.js');
@@ -112,6 +113,8 @@ function renderMenuFromState(stateJsonPath) {
   config.rounds = state.numRounds;
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
+  if (state.wallType !== undefined) config.wallType = state.wallType;
+  if (state.resolvedWallType !== undefined) setResolvedWallType(state.resolvedWallType);
   if (state.seed !== undefined) seedRandom(state.seed);
   initPalette(config.landType, config.skyType);
   // Inject EXE palette if available
@@ -230,6 +233,8 @@ function renderShopFromState(stateJsonPath) {
   if (state.armsLevel !== undefined) config.armsLevel = state.armsLevel;
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
+  if (state.wallType !== undefined) config.wallType = state.wallType;
+  if (state.resolvedWallType !== undefined) setResolvedWallType(state.resolvedWallType);
   initPalette(config.landType, config.skyType);
 
   // Create players and inject state from emulator checkpoint
@@ -292,6 +297,8 @@ function renderFromState(stateJsonPath) {
   // Set config from state and init base palette
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
+  if (state.wallType !== undefined) config.wallType = state.wallType;
+  if (state.resolvedWallType !== undefined) setResolvedWallType(state.resolvedWallType);
   initPalette(config.landType, config.skyType);
 
   // Inject EXE palette with index remapping:

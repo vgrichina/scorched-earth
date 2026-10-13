@@ -45,7 +45,8 @@
 
 import { config } from './config.js';
 import { hline, vline, fillRect, setPixel, getPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
-import { setPaletteRgb } from './palette.js';
+import { setPaletteRgb, getPlayerColor } from './palette.js';
+import { getEffectiveWallType } from './physics.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
 import { players, getTankAim } from './tank.js';
@@ -219,9 +220,12 @@ export function drawPlayfieldBorder() {
   hline(XMIN - 3, XMAX + 3, YMAX + 3, L0); // bottom
   vline(XMIN - 3, YMIN - 3, YMAX + 3, L0); // left
   vline(XMAX + 3, YMIN - 3, YMAX + 3, L0); // right
-  // Layer 1 (file 0x29168–0x291B1): pal 157 — gray highlight, innermost (offset ±1)
-  // EXE pal 157 = (50,50,50) = same RGB as pal 150, so reuse wall color index
-  const L1 = 150;
+  // EXE 0x29505 colors VGA 157 by resolved wall type. Keep it separate
+  // from the port's UI accent alias at 157 and the fixed outer grey at 150.
+  const wallColors = [[50,50,50], [63,63,23], [23,63,23],
+    [63,23,63], [23,63,63], [63,63,63]];
+  const L1 = 165;
+  setPaletteRgb(L1, ...wallColors[getEffectiveWallType()]);
   hline(XMIN - 1, XMAX + 1, YMIN - 1, L1); // top
   hline(XMIN - 1, XMAX + 1, YMAX + 1, L1); // bottom
   vline(XMIN - 1, YMIN - 1, YMAX + 1, L1); // left
@@ -311,7 +315,10 @@ export function drawHud(player, wind, round, opts) {
     // EXE: text_display(E9DC, HUD_Y, struct+0xB6) draws PLAYER NAME in palette 163
     // struct+0xB6 is a far pointer to the player name string (not wind!)
     const nameX = x;  // E9DC — player name x position
-    drawText(nameX, HUD_Y, player.name, baseColor); // player name in player's color
+    // The name uses its own DAC entry, remaining visible even when Black
+    // sky suppresses all tank sprite entries 0..79.
+    setPaletteRgb(163, ...getPlayerColor(player.colorIndex));
+    drawText(nameX, HUD_Y, player.name, 163);
     // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
     // EXE: E9E0 = E9DE + 15 → weapon text position
     const wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE

@@ -73,29 +73,19 @@ export function setPaletteRgb(index, r, g, b) {
 }
 
 // --- Player colors (VGA 0-79): 10 players × 8 gradient slots ---
-// EXE: tank color gradient setup at file 0x28540 (icons.cpp)
-// EXE: setup_player_palette (0x285A2) — slots 0-4,6 all get same color: base*8/10
+// EXE: setup_player_palette (0x28592) copies each tank's stored RGB.
+// Initial tanks have full base colors; 0x326EA's 80% color is a later pulse.
 //   slot 5 = white(63,63,63), slot 7 = grey(30,30,30)
-//   Color stored in tank struct +0x1C/+0x1E/+0x20 at player.cpp 0x326EA
-export function setupPlayerPalette() {
+// Black sky suppresses all player entries, including white and grey.
+export function setupPlayerPalette({ black = false } = {}) {
   for (let p = 0; p < 10; p++) {
     const [br, bg, bb] = PLAYER_COLORS[p];
     const base = p * 8;
-    // EXE: base_color * 8 / 10 (integer division, 80% brightness)
-    const r80 = Math.floor(br * 8 / 10);
-    const g80 = Math.floor(bg * 8 / 10);
-    const b80 = Math.floor(bb * 8 / 10);
-
-    // Slots 0-4: all same 80% color
-    for (let s = 0; s < 5; s++) {
-      setEntry(base + s, r80, g80, b80);
+    for (let s = 0; s < 8; s++) {
+      const rgb = black ? [0, 0, 0] : s === 5 ? [63, 63, 63]
+        : s === 7 ? [30, 30, 30] : [br, bg, bb];
+      setEntry(base + s, ...rgb);
     }
-    // Slot 5: white flash
-    setEntry(base + 5, 63, 63, 63);
-    // Slot 6: same 80% color
-    setEntry(base + 6, r80, g80, b80);
-    // Slot 7: grey smoke
-    setEntry(base + 7, 30, 30, 30);
   }
 }
 
@@ -370,11 +360,11 @@ export function initPalette(terrainType, skyType, { beforeSky } = {}) {
   // Clear all to black
   palette6.fill(0);
 
-  setupPlayerPalette();
   // EXE ground_color_init runs before sky selection/palette generation.
   setupTerrainPalette(terrainType);
   const skyOptions = beforeSky ? beforeSky() : undefined;
   setupSkyPalette(skyType, skyOptions);
+  setupPlayerPalette({ black: resolvedSkyType === 6 });
   setupExplosionPalette();
   setupWallPalette();
   setupSystemColors();

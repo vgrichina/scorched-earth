@@ -14,6 +14,66 @@ entry 0x2927E, then player-order entry 0x2AE53. `test_initial_shop.mjs`
 checks real shop input, purchase persistence, deferred RNG/placement, and the
 round counter; round-order, round-sky, menu-mode and player-input checks pass.
 
+The landscape verifier now has `--players`, which runs production ROUND_SETUP
+and EXE 0x2927E followed by the complete 0x2AE53 routine without reseeding.
+It compares two type-3 tanks' positions, initial aim, barrel endpoints, turn
+order, all 250 RNG words/index, and every playfield pixel and native RGB value
+including tank sprites. Four procedural cases pass, plus three consecutive
+scanned Random-sky rounds with maximum wind 100, and two scanned Black-sky
+rounds. No terrain, tank coordinates or palettes are injected into the port.
+HUD/border, shopping, timed color pulses and later gameplay are outside this
+playfield-only mode. The full-frame mode below includes HUD and border.
+
+This combined check exposed incorrectly dim initial tank colors. EXE 0x28592
+copies full stored RGB at round setup; the 80% values at 0x326EA belong to a
+later color pulse. The port now starts with full RGB and preserves Black-sky
+suppression of all player colors. Pulse timing remains unverified.
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --players
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --players --mountains --wind 100 --case 2 --rounds 3 --output-dir /tmp/scorched-round-setup
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --players --mountains --case 0 --sky 6 --rounds 2 --output-dir /tmp/scorched-round-black
+```
+
+The optional output directory receives 354x439 playfield PNG pairs (360x480
+with `--full-frame`), including diagnostic pairs when the pixel assertion
+fails. These are independent round setup renders, unlike the
+checkpoint-injected full-frame comparisons below.
+
+`--full-frame` extends this sequence through EXE border drawing (0x290A8),
+HUD layout (0x2FEBE), and HUD drawing (0x301B2), enabling the HUD-active flag
+as the play loop does at 0x2AB88. It compares every one of 172800 RGB pixels
+with zero tolerance and no masks, plus generated player state and the full
+RNG state. Player names are shared inputs from the checkpoint; generated
+terrain, palette, power, aim and positions are not imported into the port.
+Eleven frames pass: four procedural cases, three consecutive scanned
+Random-sky rounds with wind 100, one scanned Black frame, and explicit
+Rubber/Spring/Concrete cases. Together these exercise all six resolved wall
+colors. This covers composed round setup, not the entire boot/shop/play loop,
+timed animation, arbitrary inventories, other tank types or other resolutions.
+
+The expanded check exposed three rendering/state bugs now fixed:
+
+- Initial power was 500; EXE 0x30E66 sets 200 every round.
+- The inner border reused the outer border's grey. EXE 0x29505 colors VGA 157
+  according to resolved wall type, not AI type. The port uses separate entry
+  165 so its existing UI accent alias remains independent. The shipped
+  `SCORCH.CFG` also specifies `ELASTIC=None`, now the port default.
+- Black sky hid the HUD player name along with the tank colors. The EXE
+  gives the name a separate full-color entry at 163; the port now does too.
+
+The checkpoint importer now restores configured and resolved wall types;
+the existing full-frame game capture still matches with zero differing pixels.
+
+```sh
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --output-dir /tmp/scorched-full-procedural
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --mountains --wind 100 --case 2 --rounds 3 --output-dir /tmp/scorched-full-mountains
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --mountains --case 0 --sky 6 --output-dir /tmp/scorched-full-black
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --wall 3
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --wall 4
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --wall 5
+```
+
 At 360x480, freshly regenerated checkpoints now match exactly, using zero
 RGB tolerance and no masked pixels:
 
@@ -6876,7 +6936,7 @@ Reference screenshots from emulator trace (boot → menu → player setup → sh
 - [x] **Font rendering**: **VERIFIED** (session 154). font_verify.py reads EXE font pointer table (font_init at 0x4C290, 161 custom glyphs, formula DS:[char*4-0xCA6]→far ptr→width+bitmap). All 94 ASCII glyphs (32-126 minus 34) have identical widths AND pixel-perfect bitmaps vs web font.js. All 126 extended glyphs (0x80-0xFD) also match exactly. Only discrepancy: char 34 (`"`) has width=0 in EXE (Fastgraph font omission) vs width=3 in web (handcrafted improvement). measureText spacing (width+1 per char, skip `~`) matches EXE text_measure at 0x4CE17. No fixes needed.
 - [x] **3D box styles**: **VERIFIED**. EXE draw_3d_box (0x444BB): LEFT=EF26(VGA155=63,63,63), TOP=EF2E(VGA159=55,55,55), RIGHT=EF30(VGA158=5,5,5), BOTTOM=EF32(VGA156=15,15,15). Web boxRaised passes UI_DARK_BORDER(202=63,63,63), UI_LIGHT_BORDER(206=55,55,55), UI_MED_BORDER(207=5,5,5), UI_BRIGHT_BORDER(208=15,15,15). All 4 edges match. Sunken box (draw_flat_box 0x44630) has reversed bevel with 1px border — web drawBox3DSunken matches. No fix needed.
 - [x] **Palette accuracy**: **VERIFIED** (session 153). Extracted all 210 fg_setrgb call sites from EXE. All gameplay-critical palette entries match web: UI colors (151-159→web 200-208), explosion fire (170-199, formula si*2+43/si+10 exact match), wall (150=50,50,50), wind color (154=40,40,63), player gradients (0-79), laser (253-254). Unset in web but harmless: VGA 157 (menu-only grey 50,50,50), VGA 160-161 (font init colors, overwritten), VGA 230-232 (shield flash teal/green/blue, cosmetic), VGA 250 (menu sky preview orange), VGA 255 (white, unused by web). No fixes needed — web palette is accurate for all visible rendering.
-- [x] **Player color gradient** — **DISCREPANCY FOUND** (session 146). EXE setup_player_palette (0x285A2) assigns ALL non-special slots (0,1,2,3,4,6) the SAME color: `base_color * 8 / 10` (80% brightness, stored in tank struct +0x1C/+0x1E/+0x20 at player.cpp 0x326EA). Slot 5 = white (63,63,63), slot 7 = grey (30,30,30). Terrain type 6 (Cavern) = all black. Web WRONG: uses `base * (s+1) / 5` creating 5 different brightness levels (20%/40%/60%/80%/100%). **Fix**: slots 0-4,6 should all be `floor(base * 8 / 10)`, slot 5 = white, slot 7 = grey.
+- [x] **Player color gradient** — Corrected by the 2026-10-13 integrated round setup comparison. EXE 0x28592 copies stored player RGB to slots 0-4 and 6, with white slot 5 and grey slot 7. Initial players use full base RGB; the 80% value at 0x326EA is a later pulse, not the initial palette. Sky 6 is Black (not Cavern), and suppresses all player entries.
 - [x] **Dialog framework**: **ANALYZED** (session 155). EXE dialog system at segment 0x3F19 (file base 0x45B90). Key functions: dialog_create (0x45C72, allocs 0x14C=332 bytes), dialog_position (0x45D2C, centers on screen), dialog_draw (0x45DDC), dialog_run (0x45FED). Dialog struct: +0x00=x, +0x02=y, +0x04=width, +0x06=height, +0x08=item_count, +0x0E=flags, items at +0x20 (far ptrs, stride 4), hidden flags at +0xE8 (stride 2, up to 100 items). Widget types: 0=text, 3=list, 8=button. Centering: `(screen - margin - dialog_size) / 2` — matches web's `Math.floor()`. **Submenu dialog**: hard-coded 310×140 at (110,50) via `dialog_create(0x6E, 0x32, 0x0136, 0x008C)`. Row height=15 (unconditional). Items placed at (x=10, y=5+i*15). Web: dynamically computes width from content, height=30+N*rowH, items at y+18+i*rowH — structurally different but functionally equivalent (web adds title+separator that EXE handles inside list widget). **Confirm dialog**: text width padded +20px (0x14), button gap +30px (0x1E), height=53 (0x35), text at y=10, buttons at y=27. **draw_3d_box** (0x444BB): 2px left/right borders, 2px (lo-res) or 3px (hi-res, FG_PAGES==3) top/bottom borders; colors LEFT=EF26, TOP=EF2E, RIGHT=EF30, BOTTOM=EF32; fill inset by (2,bV). Web drawBox3DRaised matches geometry and color assignments. **draw_border** (0x1826C): 1px border in EF2C + interior fill in EF26; used for simple flat frames. No web port fixes needed — dialog layout is functionally correct.
 - [x] **Explosion rendering**: **ANALYZED** (session 153). EXE uses Bresenham filled circle algorithm (0x43690) expanding over N frames. draw_explosion_expanding (0x2476B) receives (cx, cy, palette_base=170, num_frames=20). Each frame: palette_base+=6→176, ring_inner=176-(frame*6/N), circle drawn at expanding radius with fire palette. Per-pixel check: skips pixels already in fire range [inner,outer] to prevent overdraw. Color 0x50 (80) triggers setTerrainPixel for terrain-aware drawing. Web uses trig-based ring (cos/sin at 3° steps) with ringWidth=30% of radius, inner=attacker color, outer=fire palette — visually similar, algorithmically different. Acceptable divergence for reimplementation.
 - [x] **Projectile trail**: **VERIFIED** (session 153). EXE draws projectile head as VGA 255 (white), only over pixels >0x77 (terrain range). Small bomb = 1px, Big bomb = 5px cross (center + 4 cardinal). NO color-fading trail in EXE — when Trace Paths=off, previous positions are immediately restored; when on, white pixels remain permanently. Web adds cosmetic age-fading (white→orange→dark) which is an enhancement not in EXE — acceptable divergence. Erase logic restores terrain via setTerrainPixel (for laser color 0x78) or draws stored pixel color. Big cross pattern matches web BOMB_ICON handling.

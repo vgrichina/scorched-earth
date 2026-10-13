@@ -46,7 +46,7 @@ export function createPlayer(index, name) {
     x: 0,                // center X on screen
     y: 0,                // ground Y (bottom of tank body)
     angle: 90,           // 0=right, 90=up, 180=left (degrees)
-    power: 500,          // 0-1000
+    power: 200,          // EXE player_round_init (0x30E66); range 0-1000
     alive: true,
     energy: 100,
     cash: config.startCash,
@@ -153,7 +153,7 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.alive = true;
     p.energy = 100;
     p.angle = 90;
-    p.power = 500;
+    p.power = 200; // EXE 0x30E66 initializes each round to 200.
     p.falling = false;
     p.fallDamageAccum = 0;
     p.parachuteDeployed = false;

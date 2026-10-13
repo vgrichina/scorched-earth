@@ -203,7 +203,7 @@ function advancePlayer() {
   return false;  // no living players
 }
 
-// Called after landscape setup to create players, assign slots and open the first shop.
+// Create player identities and open shopping before the first landscape setup.
 export function initGameRound(setup = []) {
   initMarket();  // Initialize market prices at game start (EXE: mkt_init_defaults)
   game.playOrderLastFirstId = -1;  // EXE DS:0x51A4: reset to -1 (first round) on new game
