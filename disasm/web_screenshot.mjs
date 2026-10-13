@@ -108,6 +108,8 @@ function renderMenu() {
 
 function renderMenuFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
+  config.numPlayers = state.numPlayers;
+  config.rounds = state.numRounds;
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
   if (state.seed !== undefined) seedRandom(state.seed);
@@ -130,8 +132,8 @@ function renderMenuFromState(stateJsonPath) {
     for (let i = 170; i < 200; i++) {
       paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
     }
-    // UI palette (151-160)
-    for (let i = 151; i <= 160; i++) {
+    // UI palette including cyan hotkey color (151-161)
+    for (let i = 151; i <= 161; i++) {
       paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
     }
     paletteMod.updatePalette32();
@@ -230,7 +232,7 @@ function renderShopFromState(stateJsonPath) {
       }
       if (t.inventory) {
         for (let w = 0; w < t.inventory.length && w < p.inventory.length; w++) {
-          p.inventory[w] = t.inventory[w];
+          if (w + 2 < p.inventory.length) p.inventory[w + 2] = t.inventory[w];
         }
       }
       if (t.selectedWeapon !== undefined) p.selectedWeapon = t.selectedWeapon;
@@ -247,6 +249,10 @@ function renderShopFromState(stateJsonPath) {
   openShop(0, roundsLeft);
   game.state = STATE.SHOP;
   game.shopPlayerIdx = 0;
+  // Match the checkpoint's animated DAC phase, just as menu/game captures do.
+  if (state.palette) {
+    for (let i = 0; i < 256; i++) paletteMod.setPaletteRgb(i, ...state.palette[i]);
+  }
   drawShop(players[0]);
 }
 

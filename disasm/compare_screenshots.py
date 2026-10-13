@@ -9,6 +9,7 @@ Also prints diff statistics (total pixels, % match, worst regions).
 """
 
 import sys
+import argparse
 import struct
 import zlib
 
@@ -142,16 +143,14 @@ def write_png(path, width, height, rgba):
         f.write(chunk(b'IEND', b''))
 
 
-def compare(emu_path, web_path, diff_path=None, mask_hud=0):
+def compare(emu_path, web_path, diff_path=None, mask_hud=0, tolerance=0):
     ew, eh, epx = read_png(emu_path)
     ww, wh, wpx = read_png(web_path)
 
     print(f"EMU: {ew}x{eh}  WEB: {ww}x{wh}")
 
     if ew != ww or eh != wh:
-        print(f"WARNING: size mismatch ({ew}x{eh} vs {ww}x{wh})")
-        # Compare overlapping region
-        cw, ch = min(ew, ww), min(eh, wh)
+        raise ValueError(f"Size mismatch ({ew}x{eh} vs {ww}x{wh})")
     else:
         cw, ch = ew, eh
 
@@ -162,7 +161,7 @@ def compare(emu_path, web_path, diff_path=None, mask_hud=0):
 
     for y in range(ch):
         for x in range(cw):
-            # Skip HUD text region from diff (state mismatch artifact)
+            # Optional diagnostic mask; full frame is compared by default.
             if mask_hud and y < mask_hud:
                 masked += 1
                 continue
@@ -171,15 +170,15 @@ def compare(emu_path, web_path, diff_path=None, mask_hud=0):
             er, eg, eb = epx[ei], epx[ei+1], epx[ei+2]
             wr, wg, wb = wpx[wi], wpx[wi+1], wpx[wi+2]
             if er != wr or eg != wg or eb != wb:
-                # Use a small tolerance for VGA 6-bit DAC rounding
-                if abs(er-wr) > 1 or abs(eg-wg) > 1 or abs(eb-wb) > 1:
+                # Exact RGB by default; tolerance must be explicitly requested.
+                if abs(er-wr) > tolerance or abs(eg-wg) > tolerance or abs(eb-wb) > tolerance:
                     diff_count += 1
                     diff_map[y * cw + x] = 1
 
     compared = total - masked
     match_pct = (compared - diff_count) / compared * 100 if compared else 0
     hud_note = f"  (HUD masked: y<{mask_hud})" if mask_hud else ""
-    print(f"Pixels: {compared}  Match: {compared - diff_count} ({match_pct:.1f}%)  Diff: {diff_count} ({100-match_pct:.1f}%){hud_note}")
+    print(f"Pixels: {compared}  Match: {compared - diff_count} ({match_pct:.4f}%)  Diff: {diff_count} ({100-match_pct:.4f}%){hud_note}")
 
     # Find bounding box of differences
     if diff_count > 0:
@@ -231,15 +230,25 @@ def compare(emu_path, web_path, diff_path=None, mask_hud=0):
         write_png(diff_path, out_w, out_h, out)
         print(f"Diff image: {diff_path}")
 
+    return diff_count
+
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print(__doc__)
-        sys.exit(1)
-    mask_hud = 0
-    args = list(sys.argv[1:])
-    if '--mask-hud' in args:
-        idx = args.index('--mask-hud')
-        mask_hud = int(args[idx + 1])
-        del args[idx:idx+2]
-    compare(args[0], args[1], args[2] if len(args) > 2 else None, mask_hud=mask_hud)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('emu')
+    parser.add_argument('web')
+    parser.add_argument('diff', nargs='?')
+    parser.add_argument('--mask-hud', type=int, default=0,
+                        help='Explicit diagnostic exclusion of the top N rows')
+    parser.add_argument('--tolerance', type=int, default=0)
+    parser.add_argument('--max-diff', type=int, default=0,
+                        help='Allowed differing pixels; default requires exact match')
+    args = parser.parse_args()
+    if min(args.mask_hud, args.tolerance, args.max_diff) < 0:
+        parser.error('mask, tolerance and max-diff must be nonnegative')
+    try:
+        count = compare(args.emu, args.web, args.diff,
+                        mask_hud=args.mask_hud, tolerance=args.tolerance)
+    except ValueError as error:
+        parser.exit(2, f'{error}\n')
+    sys.exit(0 if count <= args.max_diff else 1)

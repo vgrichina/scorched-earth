@@ -331,18 +331,18 @@ def main():
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  ERROR: {result.stderr.strip()}")
+        sys.exit(result.returncode)
     else:
         print(f"  {result.stdout.strip()}")
 
     print(f"[4/4] Comparing pixels → {diff_png}")
     compare_script = os.path.join(script_dir, 'compare_screenshots.py')
-    # Mask HUD text rows from diff (EXE framebuffer retains stale rendered values)
-    mask_hud = state['playfieldTop'] if render_state == 'game' else 0
-    compare_cmd = ['python3', compare_script, emu_png, web_png, diff_png]
-    if mask_hud:
-        compare_cmd += ['--mask-hud', str(mask_hud)]
+    compare_cmd = [sys.executable, compare_script, emu_png, web_png, diff_png]
     result = subprocess.run(compare_cmd, capture_output=True, text=True)
     print(f"  {result.stdout.strip()}")
+    if result.stderr.strip():
+        print(result.stderr.strip(), file=sys.stderr)
+    comparison_status = result.returncode
 
     print(f"\n[4b/4] Comparing terrain shape...")
     shape_script = os.path.join(script_dir, 'compare_terrain_shape.py')
@@ -359,6 +359,7 @@ def main():
     print(f"  {basename}_web.png  — web port render")
     print(f"  {basename}_diff.png — pixel diff overlay")
     print(f"  {basename}_state.json — extracted game state")
+    sys.exit(comparison_status)
 
 
 if __name__ == '__main__':

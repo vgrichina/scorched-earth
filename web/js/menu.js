@@ -20,11 +20,10 @@ import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
 // EXE at 0x3D161: if screenHeight <= 200 → small mode, else large mode
 // EXE: DS:0x6316 row height table: [0]=25 (large), [1]=17 (small)
 // EXE: item list width = 0x50 (80px); terrain frame x = dialog.x1 + max(item.x+w-1) + getBtnX
-// EXE: terrain_frame_x = 0 + (getBtnX+80-1) + getBtnX = 2*getBtnX+79
-// EXE: large mode (getBtnX=12): 2*12+80-1=103; small (getBtnX=5): 2*5+80-1=89
+// EXE: terrain_frame_x follows the widest auto-sized menu button plus the margins.
 const BTN_W = 80;  // EXE: 0x50 — item list/button width
-function getLeftW()  { return 2 * getBtnX() + BTN_W - 2; }  // terrain_frame_x - 1
-function getRightX() { return getLeftW() + 1; }  // = terrain_frame_x = 2*getBtnX+BTN_W-1
+function getLeftW()  { return 2 * getBtnX() + Math.max(BTN_W, ...MENU_ITEMS.filter(i => i.type !== 'spinner').map(i => measureText(i.label) + 12)) - 2; }  // terrain_frame_x - 1
+function getRightX() { return getLeftW() + 1; }  // terrain_frame_x
 
 function isSmallMode() { return config.screenHeight <= 200; }
 function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
@@ -44,11 +43,11 @@ function getFrameW() { return getScreenW() - 6 - getRightX(); }
 // EXE: draw_flat_box(minx, 6, maxx, maxy) where maxy = fg_getmaxy - 36 = screenH-37 (inclusive)
 // Height = maxy - miny + 1 = (screenH-37) - 6 + 1 = screenH - 42
 function getFrameH() { return getScreenH() - 42; }
-// Interior (2px inset)
-function getPrevX() { return getFrameX() + 2; }
-function getPrevY() { return getFrameY() + 2; }
-function getPrevW() { return getFrameW() - 4; }
-function getPrevH() { return getFrameH() - 4; }
+// Interior (1px inset)
+function getPrevX() { return getFrameX() + 1; }
+function getPrevY() { return getFrameY() + 1; }
+function getPrevW() { return getFrameW() - 2; }
+function getPrevH() { return getFrameH() - 2; }
 
 // --- Main menu items (EXE string table at DS:0x212C-0x2154) ---
 // EXE string table at DS:0x212C-0x2154: labels include ~ for hotkey markers
@@ -59,8 +58,8 @@ const MENU_ITEMS = [
   { label: 'S~ound...',        type: 'submenu', submenu: 'sound' },
   { label: '~Hardware...',     type: 'submenu', submenu: 'hardware' },
   { label: '~Economics...',    type: 'submenu', submenu: 'economics' },
-  { label: '~Landscape...',    type: 'submenu', submenu: 'landscape' },
   { label: 'Ph~ysics...',      type: 'submenu', submenu: 'physics' },
+  { label: '~Landscape...',    type: 'submenu', submenu: 'landscape' },
   { label: 'Play Op~tions...', type: 'submenu', submenu: 'playoptions' },
   { label: '~Weapons...',      type: 'submenu', submenu: 'weapons' },
   { label: 'Save ~Changes',    type: 'button',  action: 'save' },
@@ -296,7 +295,12 @@ export function menuTick() {
 function hitTestMenuButton(mx, my) {
   for (let i = 0; i < MENU_ITEMS.length; i++) {
     const bx = getBtnX(), by = getStartY() + i * getRowH();
-    if (mx >= bx && mx < bx + BTN_W && my >= by && my < by + getBtnH()) return i;
+    const item = MENU_ITEMS[i];
+    const spinner = item.type === 'spinner';
+    const width = spinner ? 10 + measureText(item.label) + measureText(String(config[item.key]))
+      : item.action === 'start' ? BTN_W : measureText(item.label) + 12;
+    const top = spinner ? by : by - (getScreenH() >= 400 ? 3 : 2);
+    if (mx >= bx && mx < bx + width && my >= top && my < top + (spinner ? 12 : getBtnH())) return i;
   }
   return -1;
 }
@@ -599,25 +603,26 @@ export function drawMainMenu() {
     const item = MENU_ITEMS[i];
     const bx = getBtnX();
     const by = getStartY() + i * getRowH();
-    const selected = i === menu.selectedOption && !menu.activeSubmenu;
-
-    if (selected) {
-      boxSunken(bx, by, BTN_W, getBtnH(), UI_BACKGROUND);
-    } else {
-      boxRaised(bx, by, BTN_W, getBtnH());
-    }
-
-    const textColor = selected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-    const textY = by + Math.floor((getBtnH() - FONT_HEIGHT) / 2);
 
     if (item.type === 'spinner') {
-      // Label on left, value right-aligned (EXE: no < > arrows, just the value)
-      drawText(bx + 4, textY, item.label, textColor);
-      const valStr = String(config[item.key]);
-      drawText(bx + BTN_W - measureText(valStr), textY, valStr, textColor);
+      // EXE spinner is an unboxed label/value with two small arrow glyphs.
+      drawText(bx + 8, by, item.label, UI_HIGHLIGHT);
+      drawText(bx + 10 + measureText(item.label), by, String(config[item.key]), UI_HIGHLIGHT);
+      // Spinner arrow edge pixels, EXE 0x478EF..0x47A6E.
+      hline(bx, bx + 6, by + 5, UI_BRIGHT_BORDER);
+      hline(bx, bx + 6, by + 7, UI_LIGHT_BORDER);
+      for (let k = 0; k < 4; k++) {
+        setPixel(bx + k, by + 4 - k, UI_DARK_BORDER);
+        if (k < 3) setPixel(bx + 6 - k, by + 4 - k, UI_MED_BORDER);
+        setPixel(bx + k, by + 8 + k, k === 3 ? UI_MED_BORDER : UI_DARK_BORDER);
+        setPixel(bx + 6 - k, by + 8 + k, UI_MED_BORDER);
+      }
     } else {
-      // EXE: left-aligned at button_X + 8 (file 0x47AE1: add ax, 0x08)
-      drawText(bx + 8, textY, item.label, textColor);
+      const width = item.action === 'start' ? BTN_W : measureText(item.label) + 12;
+      // dialog_create_button subtracts DS:6E28 (2 or 3) from the text baseline.
+      boxRaised(bx, by - (getScreenH() >= 400 ? 3 : 2), width, getBtnH());
+      if (item.action === 'save') drawText(bx + 6, by, item.label, UI_LIGHT_BORDER);
+      drawText(bx + 5, by, item.label, item.action === 'save' ? UI_DARK_TEXT : UI_HIGHLIGHT);
     }
   }
 
@@ -638,7 +643,7 @@ export function drawMainMenu() {
   const titleX = Math.floor((getScreenW() - 1 - getRightX() - embossCenterW) / 2) + getRightX();
   const titleY = isSmallMode() ? 2 : 11;   // EXE: Y=2 (small) / Y=11 (large)
   drawTextEmbossed(titleX, titleY, titleStr, [
-    UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
+    UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_BACKGROUND, UI_DARK_BORDER
   ]);
 
   // 6. Subtitle "The Mother of All Games" (EXE: Y=27 small / Y=41 large)
@@ -690,7 +695,7 @@ function drawTerrainPreview() {
   // to the sunken frame area. Render 1:1 (no scaling) — frame interior shows
   // the screen columns that fall within it.
   // Sky gradient: EXE menu has YMIN=0, MAXY=screenH-1 (full screen, no HUD offset)
-  // Formula: height_array[y] = (MAXY - y) * 29 / playH + 120 (file 0x3999A)
+  // Sunset gradient: 121 + floor((MAXY - y) * 28 / playH), file 0x39DF1.
   const MAXY = getScreenH() - 1;
   const YMIN = 0;
   const playH = MAXY - YMIN;
@@ -704,26 +709,36 @@ function drawTerrainPreview() {
         // Terrain body — solid ground color
         setPixel(x, y, TERRAIN_PAL_START);
       } else {
-        // Sky — EXE: height_array[y] = (MAXY - y) * 29 / playH + 120
-        // Web: SKY_PAL_START + idx (VGA 80-109 maps to EXE VGA 120-149)
-        const idx = Math.floor((MAXY - Math.max(YMIN, Math.min(y, MAXY))) * 29 / playH);
+        // Menu preview always uses the sunset gradient.
+        const idx = 1 + Math.floor((MAXY - Math.max(YMIN, Math.min(y, MAXY))) * 28 / playH);
         setPixel(x, y, SKY_PAL_START + Math.min(idx, SKY_PAL_COUNT - 1));
       }
     }
   }
 
-  // EXE: sky type 2 (Stars) scatters 80 star pixels at palette 154
-  // EXE: sky type 3 (Storm) scatters 15 bright pixels at palette 154
-  const sky = config.skyType;
-  const starCount = sky === 2 ? 80 : sky === 3 ? 15 : 0;
-  const pw = getPrevW(), ph = getPrevH();
-  for (let i = 0; i < starCount; i++) {
-    const sx = x0 + Math.floor(Math.random() * pw);
-    const sy = y0 + Math.floor(Math.random() * ph);
-    if (sx < x0 + pw && sy < y0 + ph && sy < (sx < terrain.length ? terrain[sx] : getScreenH())) {
-      setPixel(sx, sy, 154);
-    }
+  // Sunset bitmap: EXE 0x39E42 calls the filled-circle iterator at 0x43ACA.
+  // Its X coordinate uses signed 16.16 pixel-aspect scaling (0x43B4E).
+  const centerX = (getScreenW() - 1) >> 1, centerY = MAXY - 5;
+  const radius = Math.trunc((getScreenW() - 1) / 3);
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const xScale = aspect < 1 ? Math.round(aspect * 65536) : 65536;
+  const span = (dx, dy) => {
+    const y = centerY + dy;
+    if (y < y0 || y >= y1) return;
+    const left = Math.max(x0, centerX + Math.floor(-dx * xScale / 65536));
+    const right = Math.min(x1 - 1, centerX + Math.floor(dx * xScale / 65536));
+    for (let x = left; x <= right; x++)
+      if (y < terrain[x]) setPixel(x, y, SKY_PAL_START);
+  };
+  const mirror = (dx, dy) => { span(dx, dy); span(dx, -dy); span(dy, dx); span(dy, -dx); };
+  let dx = 0, dy = radius * 2, error = 0;
+  while (dx <= dy) {
+    if ((dx & 1) === 0) mirror(dx >> 1, (dy + 1) >> 1);
+    error += dx * 2 + 1;
+    dx++;
+    if (error > 0) { error -= dy * 2 - 1; dy--; }
   }
+  mirror(dx >> 1, (dy + 1) >> 1);
 }
 
 function drawSubmenu() {

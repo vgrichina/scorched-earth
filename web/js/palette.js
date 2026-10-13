@@ -249,17 +249,18 @@ function setupSystemColors() {
 //   fg_setrgb(158,  5, 5, 5) → EF30 — sunken outer top, near-black
 //   fg_setrgb(159, 55,55,55) → EF2E — raised inner highlight, light gray (inner top-left)
 // EXE: UI_HIGHLIGHT (EF22) is dynamic — set to current player's base color before HUD draw
-//   Web uses static white (63,63,63) as substitute since menus aren't per-player
+//   Menus initialize palette 152 to black; HUD can set player-specific colors.
 function setupUIPalette() {
   // Aligned to EXE VGA indices (fg_setrgb calls at file 0x2A640-0x2A770)
   setEntry(151, 45, 45, 45);  // UI_BACKGROUND  — EF28→pal 151, medium gray
-  setEntry(152, 63, 63, 63);  // UI_HIGHLIGHT — EF22→pal 152 (EXE: dynamic per-player, web: white)
+  setEntry(152, 0, 0, 0);  // UI_HIGHLIGHT — EF22→pal 152 (black in menus)
   setEntry(153, 30, 30, 30);  // UI_DARK_TEXT  — EF24→pal 153, dark gray
   setEntry(155, 63, 63, 63);  // UI_DARK_BORDER — EF26→pal 155, white outer highlight
   setEntry(156, 15, 15, 15);  // UI_BRIGHT_BORDER — EF32→pal 156, dark gray
   setEntry(157, 45, 45, 45);  // UI_LIGHT_ACCENT — EF2A, same RGB as background
   setEntry(158,  5,  5,  5);  // UI_MED_BORDER  — EF30→pal 158, near-black
   setEntry(159, 55, 55, 55);  // UI_LIGHT_BORDER — EF2E→pal 159, light gray
+  setEntry(161, 10, 63, 63); // Hotkey character (DS:F2D8)
   setEntry(160,  0,  0,  0);  // UI_DEEP_SHADOW — EF2C, black
 }
 

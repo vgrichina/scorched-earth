@@ -305,26 +305,15 @@ function drawChar(ch, x, y, colorIndex) {
 
 // Draw a string at (x, y) with given palette color index
 // Returns the width in pixels
-// EXE: text_display at file 0x4C914 (0x4C97E) SILENTLY SKIPS '~' (0x7E) — no underline drawn.
-// Web port draws a 1px underline under the next char after '~' as a web-only UX enhancement.
+// EXE text_display (0x4C97E): '~' colors the next glyph cyan when the
+// base color is 152. It does not draw an underline.
 export function drawText(x, y, str, colorIndex) {
   let cx = x;
-  let underlineNext = false;
-  for (let i = 0; i < str.length; i++) {
-    if (str.charCodeAt(i) === 0x7E) {
-      underlineNext = true;
-      continue;
-    }
-    const code = str.charCodeAt(i);
-    const w = charWidth(code);
-    if (underlineNext && w > 0) {
-      // Draw underline spanning the hotkey character width
-      for (let col = 0; col < w; col++) {
-        setPixel(cx + col, y + FONT_HEIGHT - 1, colorIndex);
-      }
-      underlineNext = false;
-    }
-    cx += drawChar(str[i], cx, y, colorIndex);
+  let hotkey = false;
+  for (const ch of str) {
+    if (ch === '~') { hotkey = true; continue; }
+    cx += drawChar(ch, cx, y, hotkey && colorIndex === 152 ? 161 : colorIndex);
+    hotkey = false;
   }
   return cx - x;
 }
@@ -339,9 +328,40 @@ export function drawTextShadow(x, y, str, colorIndex, shadowIndex) {
 // Renders same string 5 times at pixel offsets (0,0)→(4,4), each in a different color.
 // EXE layer order: DS:0xEF2C(deep shadow), DS:0xEF32(bright), DS:0xEF24(dark),
 //   DS:0xEF2A(light), DS:0xEF26(dark border/top surface)
+// EXE 0x4CCE1 doubles glyph pixels; 0x4CB31 fills a single corner of
+// an empty 2x2 cell when exactly two adjacent neighbors are set and their
+// diagonal is empty. This smooths diagonals without changing the source font.
 export function drawTextEmbossed(x, y, str, colors) {
-  for (let i = 0; i < colors.length; i++) {
-    drawText(x + i, y + i, str, colors[i]);
+  for (let layer = 0; layer < colors.length; layer++) {
+    let cx = x + layer;
+    for (const ch of str) {
+      const code = ch.charCodeAt(0);
+      if (code === 126) continue;
+      const extended = code >= 128;
+      const idx = code - (extended ? 128 : 32);
+      const glyphs = extended ? GLYPHS_EXT : GLYPHS;
+      const width = charWidth(code);
+      const bit = (col, row) => col >= 0 && col < width && row >= 0 && row < FONT_HEIGHT
+        && !!(glyphs[idx * FONT_HEIGHT + row] & (128 >> col));
+      for (let row = 0; row < FONT_HEIGHT; row++) {
+        for (let col = 0; col < width; col++) {
+          const px = cx + col * 2, py = y + layer + row * 2;
+          if (bit(col, row)) {
+            for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++)
+              setPixel(px + dx, py + dy, colors[layer]);
+          } else {
+            const left = bit(col - 1, row), down = bit(col, row + 1);
+            const right = bit(col + 1, row), up = bit(col, row - 1);
+            if (Number(left) + Number(down) + Number(right) + Number(up) !== 2) continue;
+            if (left && down && !bit(col - 1, row + 1)) setPixel(px, py + 1, colors[layer]);
+            if (down && right && !bit(col + 1, row + 1)) setPixel(px + 1, py + 1, colors[layer]);
+            if (right && up && !bit(col + 1, row - 1)) setPixel(px + 1, py, colors[layer]);
+            if (up && left && !bit(col - 1, row - 1)) setPixel(px, py, colors[layer]);
+          }
+        }
+      }
+      cx += 2 * (width + 1);
+    }
   }
 }
 

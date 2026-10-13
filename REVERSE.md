@@ -1,5 +1,59 @@
 # Scorched Earth v1.50 - Reverse Engineering Notes
 
+## Pixel parity audit (2026-10-12)
+
+The current check uses the original EXE in `disasm/emu`, saved checkpoints,
+`web_screenshot.mjs` importing the actual renderer in Node, and exact RGB PNG
+comparison. No browser is required. Python, Node and `pngjs` are installed.
+
+At 360x480, these checkpoints currently fail strict full-frame comparison:
+
+| Checkpoint | Differing pixels | Remaining evidence |
+|---|---:|---|
+| `scratch/menu.state` | 30 | Player-count glyph only: screen shows 10, DS:50D4 stores 2. A fresh emulator boot reproduces this discrepancy. Investigate numeric-widget/FPU state before changing the web value. |
+| `scratch/after_p2done.state` | 1,441 | Cash positioning, list selection/scroll controls, shifted weapon names after Heavy Roller. |
+| `scratch/game_playing.state` | 530 | Full HUD and tank/playfield differences; no HUD mask. |
+
+These are renderer comparisons with injected checkpoint state, palette and
+terrain heights, **not** proof that independent terrain generation, physics or
+gameplay match. The earlier game comparison automatically masked the HUD and
+tolerated RGB differences of 1. The gate now defaults to zero tolerance, no
+mask, rejects dimension mismatches, and returns nonzero for differing pixels.
+Checkpoints and screenshot outputs are ignored local artifacts, not portable
+regression fixtures yet. The pipeline still assumes graphics mode 4 and needs
+display-page-aware VGA extraction before animation checkpoints are trustworthy.
+
+Reproduce (each comparison is expected to exit 1 until its differences are fixed):
+
+```sh
+python3 disasm/compare_pipeline.py scratch/menu.state --state menu --output-dir /tmp/scorched-menu
+python3 disasm/compare_pipeline.py scratch/after_p2done.state --state shop --output-dir /tmp/scorched-shop
+python3 disasm/compare_pipeline.py scratch/game_playing.state --state game --output-dir /tmp/scorched-game
+python3 disasm/test_compare_screenshots.py
+python3 disasm/verify_icons.py
+```
+
+Corrections established by direct rendering/disassembly in this pass:
+
+- Text hotkeys use cyan palette 161, not an underline; embossed glyphs are
+  doubled and corner-smoothed (0x4C97E, 0x4CCE1, 0x4CB31).
+- Menu layout uses auto-sized buttons and a one-pixel preview inset. Its
+  sunset gradient and aspect-scaled sun follow 0x39DF1/0x39E42/0x43ACA.
+- Icon records at DS:3826 are **x offset, y offset, row width**, followed by
+  signed row-major samples ending at -99. Live rendering draws positive
+  samples; shaded rendering uses palette `169 + abs(sample)` for nonzero
+  samples (0x26110). Earlier type/width/height and column-major descriptions,
+  including the old icon verifier, were incorrect.
+- Shop rows use individual inset frames and the shared HUD/playfield border.
+  The checkpoint importer maps EXE inventory indices to web indices +2.
+
+Next: resolve the menu oracle discrepancy; audit all 48 runtime weapon names
+and their index/handler mappings together; finish shop controls and game HUD;
+then capture player setup, submenus, scrolling/buying, projectiles, explosions
+and round transitions at deterministic checkpoints. Other graphics modes and
+independent state generation still need coverage. Existing claims of complete
+verification elsewhere in these notes should be checked against this evidence.
+
 ## Overview
 
 - **Game**: Scorched Earth - "The Mother of All Games"

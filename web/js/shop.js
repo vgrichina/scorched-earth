@@ -72,7 +72,7 @@ import { isAI } from './ai.js';
 import { SHIELD_TYPE, activateShield } from './shields.js';
 import { players } from './tank.js';
 import { getLeaderboard } from './score.js';
-import { drawIcon } from './hud.js';
+import { drawIcon, drawPlayfieldBorder } from './hud.js';
 import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
          PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
@@ -218,7 +218,7 @@ const SB_H    = 14;   // scrollbar arrow height (EXE: 14px, file 0x15C40 bp+0x10
 
 // EXE: right-side buttons at X=0xFA=250 (shopDialogBuild at file 0x15AF6)
 function getRightBtnX() { return 250; }
-function getRightBtnW() { return config.screenWidth - getRightBtnX() - 6; }
+function getRightBtnW() { return Math.max(...['~Update', '~Inventory', '~Done'].map(measureText)) + 12; }
 // EXE: resolution check at file 0x15D37: cmp [FG_MAXY], 0x190 → di=0 or 5
 function getExtraSpacing() { return config.screenHeight >= 400 ? 5 : 0; }
 // EXE: button height at file 0x48755: cmp [FG_MAXY], 0x12C → 17 if <300, 19 if >=300
@@ -622,18 +622,18 @@ export function shopTick(player) {
     // Right-side buttons: Score, Weapons, Misc, Update, Inventory, Done
     if (mx >= rbX && mx < rbX + rbW) {
       // Action buttons (top right)
-      const updateY = di + 0x32;
+      const updateY = di + 0x32 - (SH >= 400 ? 3 : 2);
       if (my >= updateY && my < updateY + btnH) {
         updateItemList();
       }
-      const invY = di * 2 + 0x46;
+      const invY = di * 2 + 0x46 - (SH >= 400 ? 3 : 2);
       if (my >= invY && my < invY + btnH) {
         shop.category = TAB_MISC;
         shop.selectedItem = 0;
         shop.scrollOffset = 0;
         updateItemList();
       }
-      const doneY = di * 3 + 0x5A;
+      const doneY = di * 3 + 0x5A - (SH >= 400 ? 3 : 2);
       if (my >= doneY && my < doneY + btnH) {
         shop.active = false;
         return true;
@@ -655,16 +655,16 @@ export function shopTick(player) {
     }
     // Scrollbar interaction
     else if (hasSbTick) {
-      const sbX    = PANEL_X + panelW - SB_W - 3;
-      const panelHSb = SH - PANEL_Y - 4;
-      const sbBot  = PANEL_Y + panelHSb - 3;
+      const sbX = 200;
+      const sbTop = ITEM_Y_START - (SH >= 400 ? 3 : 2);
+      const sbBot = sbTop + (perPage - 1) * 20 + SB_H;
       const btnHSb = SB_H;
-      const trkTop = listY + btnHSb;
+      const trkTop = sbTop + btnHSb;
       const trkBot = sbBot - btnHSb;
       const maxScroll = shop.items.length - perPage;
 
       if (mx >= sbX && mx < sbX + SB_W) {
-        if (my >= listY && my < listY + btnHSb) {
+        if (my >= sbTop && my < sbTop + btnHSb) {
           shop.scrollOffset = Math.max(0, shop.scrollOffset - 1);
         } else if (my >= trkBot && my < trkBot + btnHSb) {
           shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + 1);
@@ -739,22 +739,16 @@ export function drawShop(player) {
   }
 
   const baseColor = player.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-  const selFill = baseColor;
 
-  // Full-screen 3D raised box (EXE: dialog_alloc creates full-screen modal)
-  drawBox3DRaised(0, 0, SW, SH, UI_BACKGROUND,
-    UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
+  // Shared HUD frame and three-layer playfield border.
+  fillRect(0, 0, SW - 1, SH - 1, UI_BACKGROUND);
+  drawPlayfieldBorder();
 
   // === Header row 1 (EXE: cash_display at file 0x16A7C) ===
-  // EXE: player initial icon at top-left via player+0x1A color
   // EXE: "Cash: $N" (DS:0x275D "Cash") centered, "%s rounds remain" (DS:0x2C1A) right
-  // EXE: player initial + small color swatch block at top-left
   // EXE: header row 1 at Y = HUD_Y (DS:0x518E, typically 5)
   const hdr1Y = 5;
-  const initial = player.name.charAt(0).toUpperCase();
-  drawText(6, hdr1Y, initial, baseColor);
-  const swatchX = 6 + measureText(initial) + 2;
-  fillRect(swatchX, hdr1Y + 1, swatchX + 7, hdr1Y + 9, baseColor);
+  drawText(10, hdr1Y, player.name, baseColor);
 
   const cashStr = `Cash: $${player.cash.toLocaleString()}`;
   const cashTxtX = Math.floor((SW - measureText(cashStr)) / 2);
@@ -762,7 +756,7 @@ export function drawShop(player) {
 
   // EXE: "%s rounds remain" DS:0x2C1A / "1 round remains" DS:0x2C2B
   const roundsStr = shop.roundsLeft === 1 ? '1 round remains' : `${shop.roundsLeft} rounds remain`;
-  drawText(SW - measureText(roundsStr) - 6, hdr1Y, roundsStr, UI_DARK_TEXT);
+  drawText(SW - 100, hdr1Y, roundsStr, UI_HIGHLIGHT);
 
   // === Header row 2 (EXE: cash_display at 0x16A7C, Y = HUD_Y + 12 = 17) ===
   // EXE: "Cash Left:" DS:0x2DDD at X=5, bar at CASH_LABEL_X+textW+10
@@ -774,18 +768,21 @@ export function drawShop(player) {
   const barX = cashLabelX + measureText(cashLabelStr) + 10; // EXE: DS:0xCC80
   const barW = players.length * 6; // EXE: NUM_PLAYERS * 6
   const barH = 10;
-  const cashRatio = config.startCash > 0 ? Math.min(1, player.cash / config.startCash) : 0;
-  const fillW = Math.floor(barW * cashRatio);
-  drawBox3DSunken(barX, hdr2Y, barW, barH, BLACK,
+  drawBox3DSunken(barX - 1, hdr2Y, barW + 2, 12, BLACK,
     UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-  if (fillW > 0) fillRect(barX + 1, hdr2Y + 1, barX + fillW, hdr2Y + barH - 2, baseColor);
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const height = Math.min(10, Math.floor(10 * p.cash / Math.max(1, config.startCash)));
+    if (height > 0) fillRect(barX + i * 6, hdr2Y + 11 - height,
+      barX + i * 6 + 5, hdr2Y + 10, p.colorIndex * PLAYER_PALETTE_STRIDE);
+  }
 
   const intLabelStr = 'Earned interest';
-  const intLabelX = barX + barW + 8; // EXE: DS:0xCC82 = CASH_BAR_X + 0x48
+  const intLabelX = barX + 72; // EXE: DS:0xCC82 = CASH_BAR_X + 0x48
   drawText(intLabelX, hdr2Y, intLabelStr, UI_HIGHLIGHT);
   // EXE: always draws the interest bar frame (even when empty)
   const intBarX = intLabelX + measureText(intLabelStr) + 10; // EXE: DS:0xCC84
-  drawBox3DSunken(intBarX, hdr2Y, barW, barH, BLACK,
+  drawBox3DSunken(intBarX - 1, hdr2Y, barW + 2, 12, BLACK,
     UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
   if (player.earnedInterest > 0) {
     const intRatio = config.startCash > 0 ? Math.min(1, player.earnedInterest / config.startCash) : 0;
@@ -793,21 +790,12 @@ export function drawShop(player) {
     if (intFillW > 0) fillRect(intBarX + 1, hdr2Y + 1, intBarX + intFillW, hdr2Y + barH - 2, baseColor);
   }
 
-  // EXE: horizontal separator below cash bars (before panel area)
-  hline(4, SW - 5, PANEL_Y - 2, UI_MED_BORDER);
-
   // Layout: left item panel (200px) + right-side buttons
   // EXE: panel sunken box from (ITEM_X-2, ITEM_Y_START-2) to bottom
   const panelW = Math.min(PANEL_W_MAX, SW - 8);
-  const panelH = SH - PANEL_Y - 4;
   const rbX = getRightBtnX();
 
-  // Left item panel — sunken inset
-  drawBox3DSunken(PANEL_X, PANEL_Y, panelW, panelH, UI_BACKGROUND,
-    UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-
-  // Column headers inside panel
-  const hdrY   = PANEL_Y + 3;
+  const hdrY = 40;
 
   // Panel content — either Score tab or item list
   if (shop.category === TAB_SCORE) {
@@ -841,8 +829,7 @@ export function drawShop(player) {
     const listRight = PANEL_X + panelW - 3 - (hasSb ? SB_W + 1 : 0);
 
     // EXE column headers: qty, icon, weapon name, $price/max
-    drawText(PANEL_X + 3, hdrY, TAB_NAMES[shop.category], UI_HIGHLIGHT);
-    hline(PANEL_X + 2, listRight, PANEL_Y + 13, UI_MED_BORDER);
+    drawText(22, hdrY, TAB_NAMES[shop.category], UI_HIGHLIGHT);
     const endIdx  = Math.min(shop.items.length, shop.scrollOffset + perPage);
 
     // EXE item row format (paint callback file 0x1580D, item_click_handler file 0x1503B):
@@ -866,21 +853,19 @@ export function drawShop(player) {
 
       const selected  = i === shop.selectedItem;
       const itemPrice = getWeaponPrice(item.idx);
-      const canAfford = player.cash >= itemPrice;
       const owned     = player.inventory[item.idx];
 
-      // EXE: selection box = draw_flat_box(X-2, Y-2, X+168, Y+13) color=EF22
+      drawBox3DSunken(ITEM_X - 2, y - 2, 171, 16, UI_BACKGROUND,
+        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
+      const txtColor = UI_HIGHLIGHT;
       if (selected) {
-        fillRect(ITEM_X - 2, y - 2, ITEM_X + 168, y + 13, selFill);
+        for (let dy = -2; dy <= 2; dy++)
+          for (let dx = 0; dx <= 2 - Math.abs(dy); dx++) setPixel(4 + dx, y + 6 + dy, txtColor);
       }
-
-      const txtColor = selected   ? UI_HIGHLIGHT
-                     : canAfford ? UI_DARK_TEXT
-                     :             UI_MED_BORDER;
       // Qty column (EXE: left-most, shows owned count)
-      drawText(qtyCol, y, owned > 0 ? String(owned) : '0', owned > 0 ? baseColor : txtColor);
+      drawText(qtyCol, y, owned > 0 ? String(owned) : '0', txtColor);
       // EXE: draws weapon icon at X+13
-      drawIcon(ITEM_X + 13, y, item.idx, txtColor);
+      drawIcon(ITEM_X + 13, y, item.idx - 2, txtColor, true);
       // Weapon name at X+27
       drawText(nameCol, y, item.weapon.name, txtColor);
       // Price/bundle at X+115 (EXE: "$price/max")
@@ -891,9 +876,9 @@ export function drawShop(player) {
     // EXE-style scrollbar (right side of panel) — arrow buttons only, no track/thumb
     const perPageSb = getItemsPerPage();
     if (shop.items.length > perPageSb) {
-      const sbX   = PANEL_X + panelW - SB_W - 3; // inside panel border
-      const sbTop = ITEM_Y_START;
-      const sbBot = PANEL_Y + panelH - 3;
+      const sbX   = 200; // inside panel border
+      const sbTop = ITEM_Y_START - (SH >= 400 ? 3 : 2);
+      const sbBot = ITEM_Y_START + (perPageSb - 1) * 20 - (SH >= 400 ? 3 : 2) + SB_H;
       const sbH   = sbBot - sbTop;
       const btnH  = SB_H;          // arrow button height (EXE: 14px)
       const trkTop = sbTop + btnH;  // track starts below up arrow
@@ -956,21 +941,21 @@ export function drawShop(player) {
 
   // "~Update" at X=250, Y=di+0x32
   const updateY = di + 0x32;
-  drawBox3DRaised(rbX, updateY, rbW, btnH, UI_BACKGROUND,
+  drawBox3DRaised(rbX, updateY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawText(rbX + 4, updateY + 2, '~Update', UI_DARK_TEXT);
+  drawText(rbX + 5, updateY, '~Update', UI_HIGHLIGHT);
 
   // "~Inventory" at X=250, Y=di*2+0x46
   const invY = di * 2 + 0x46;
-  drawBox3DRaised(rbX, invY, rbW, btnH, UI_BACKGROUND,
+  drawBox3DRaised(rbX, invY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawText(rbX + 4, invY + 2, '~Inventory', UI_DARK_TEXT);
+  drawText(rbX + 5, invY, '~Inventory', UI_HIGHLIGHT);
 
   // "~Done" at X=250, Y=di*3+0x5A
   const doneY = di * 3 + 0x5A;
-  drawBox3DRaised(rbX, doneY, rbW, btnH, UI_BACKGROUND,
+  drawBox3DRaised(rbX, doneY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawText(rbX + 4, doneY + 2, '~Done', UI_DARK_TEXT);
+  drawText(rbX + 5, doneY, '~Done', UI_HIGHLIGHT);
 
   // NOTE: Item detail panel below action buttons is a web-only addition.
   // EXE shows no item details in the right panel area — details are in the
