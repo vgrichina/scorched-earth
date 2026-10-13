@@ -44,8 +44,20 @@ parser.add_argument('--restore-sky-grid',action='store_true',help='Compare nativ
 parser.add_argument('--flight-steps',type=int,default=0,help='Compose launch, free-flight and drawing for up to 30 steps; no native collisions')
 parser.add_argument('--flight-collisions',action='store_true',help='Execute native collision traversal and wall response during flight; impacts fail the fixture')
 parser.add_argument('--explosion',type=int,nargs=3,metavar=('X','Y','RADIUS'),help='Compare ordinary blast growth/cycling/restoration before damage')
+parser.add_argument('--shields',type=int,nargs=2,choices=range(6),help='Compose settled shield drawing for both tanks after HUD setup')
+parser.add_argument('--shield-hole',action='store_true',help='Erase the top shield pixel before the break fade fixture')
+parser.add_argument('--shield-break',type=int,choices=range(1,6),help='Compare all 51 fade frames of player 1 shield destruction')
+parser.add_argument('--shield-shot',action='store_true',help='Start flight at the top of player 1 Warp Shield')
 parser.add_argument('--trace',action='store_true',help='Enable trace color for composed flight')
 args=parser.parse_args()
+if args.shield_hole and not args.shield_break: parser.error('--shield-hole requires --shield-break')
+if args.shield_break:
+    if args.shield_shot or args.flight_steps or args.rounds!=1: parser.error('--shield-break requires a single round and no flight')
+    args.shields=[0,args.shield_break]
+if args.shield_shot:
+    args.shields=[0,3];args.projectile_head=[0,0];args.flight_collisions=True
+    if not args.flight_steps: parser.error('--shield-shot requires --flight-steps')
+if args.shields and (not args.full_frame or (args.projectile_head and not args.shield_shot) or args.explosion or args.restore_sky_grid): parser.error('--shields requires --full-frame without projectile/explosion/sky-grid')
 if args.explosion and (not args.full_frame or args.projectile_head or args.restore_sky_grid or args.explosion[2]<=0): parser.error('--explosion requires --full-frame, positive radius, and no head/sky-grid')
 if args.flight_collisions and not args.flight_steps: parser.error('--flight-collisions requires --flight-steps')
 if not 0<=args.flight_steps<=30: parser.error('--flight-steps must be 0..30')
@@ -94,7 +106,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         assert reason=='breakpoint',(hex(offset),reason,count)
     actual_rounds=json.loads(subprocess.check_output([
         'node','--input-type=module','-e',
-        "import {config} from './web/js/config.js';import {prepareRoundBackground,game} from './web/js/game.js';"
+        "import {config} from './web/js/config.js';import {prepareRoundBackground,game,processHit} from './web/js/game.js';"
         "import {drawWindIndicator,drawHud,drawPlayfieldBorder} from './web/js/hud.js';import {gameTick,STATE} from './web/js/game.js';"
         "import {createPlayers,players,drawAllTanks,getTankAim,getTankBarrel} from './web/js/tank.js';"
         "import {getEffectiveWallType,launchProjectile,clearProjectiles,projectiles,stepSingleProjectile} from './web/js/physics.js';import {projectileDrawing,drawProjectileHead,drawProjectileTrackingMarks} from './web/js/projectile-render.js';"
@@ -102,29 +114,38 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {palette6,resolvedSkyType} from './web/js/palette.js';"
         "import * as t from './web/js/terrain.js';import {pixels,setPixel,getPixel,getBackgroundColor} from './web/js/framebuffer.js';"
         "import {startExplosion,stepExplosion,isExplosionActive} from './web/js/explosions.js';"
+        "import {drawShield,SHIELD_CONFIG,applyShieldDamage,drawShieldBreak,shieldBreak,eraseShieldContact} from './web/js/shields.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
         "if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
         "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fullFrame){drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
-        "const frames=[],motion=[],explosionPalettes=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
+        "if(shields)players.forEach((p,i)=>{p.activeShield=shields[i];p.shieldEnergy=SHIELD_CONFIG[shields[i]].energy;drawShield(p);});"
+        "if(breakShield){game.currentPlayer=0;drawHud(players[0],game.wind,game.round,{});}"
+        "if(shieldShot){game.currentPlayer=0;head.splice(0,2,players[1].x,players[1].y-SHIELD_CONFIG[3].radius);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
+        "const frames=[],motion=[],flightPalettes=[],explosionPalettes=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
+        "if(breakShield){if(shieldHole)eraseShieldContact(players[1],players[1].x,players[1].y-SHIELD_CONFIG[breakShield].radius);applyShieldDamage(players[1],players[1].shieldEnergy);while(shieldBreak.active){"
+        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[0],game.wind,game.round,{});drawWindIndicator(game.wind);"
+        "drawShieldBreak();frames.push(encode());flightPalettes.push([...palette6]);}"
+        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[0],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();"
+        "frames.push(encode());flightPalettes.push([...palette6]);}"
         "if(head){clearProjectiles();launchProjectile(head[0],head[1],45,200,2,0);drawProjectileTrackingMarks(head[0],head[1],icon);if(erase){config.bombIcon=icon;projectileDrawing.advance(projectiles[0]);projectileDrawing.draw();projectileDrawing.finish(projectiles[0]);projectileDrawing.draw();}else if(!flightSteps)drawProjectileHead(head[0],head[1],icon);}"
         "if(flightSteps){config.bombIcon=icon;const shot=projectiles[0];for(let i=0;i<flightSteps;i++){"
         "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
-        "const status=stepSingleProjectile(shot,getPixel,game.wind);if(status!=='flying')throw new Error('fixture hit '+status);"
+        "if(shields)players.forEach(drawShield);const status=stepSingleProjectile(shot,getPixel,game.wind);if(shieldShot&&status==='hit_tank')processHit(shot,status);else if(status!=='flying')throw new Error('fixture hit '+status);"
         "projectileDrawing.advance(shot);projectileDrawing.draw();drawProjectileTrackingMarks(shot.x,shot.y,icon);"
-        "frames.push(encode());motion.push([shot.vx,shot.vy,shot.x,shot.y]);}}"
+        "frames.push(encode());flightPalettes.push([...palette6]);motion.push([shot.vx,shot.vy,shot.x,shot.y]);}}"
         "if(explosion){startExplosion(...explosion,0);while(isExplosionActive()){"
         "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
         "stepExplosion();frames.push(encode());explosionPalettes.push([...palette6]);}}"
         "if(restoreGrid)for(let y=38;y<=476;y+=7)for(let x=3;x<=356;x+=7)setPixel(x,y,getBackgroundColor(y,x));"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
-        "results.push({frames,motion,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
+        "results.push({frames,motion,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion])],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -145,6 +166,52 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                 call(0x290A8,0x22CA)
                 call(0x2FEBE,0x2945)
                 call(0x301B2,0x2945,[0xD568+slots[start]*0xCA,0x4FC8])
+        if args.shields:
+            # Settled shape composition, not the timed activation wrapper.
+            mem.write16(ds+0xEC7C,0);mem.write16(ds+0xEC7E,0)
+            mem.write16(ds+0x510E,int(mem.read16(ds+0x5154)==1))
+            for i,kind in enumerate(args.shields):
+                if not kind: continue
+                tank=0xD568+i*0xCA;cfg=0x616C+kind*16
+                mem.write16(ds+tank+0xC6,cfg);mem.write16(ds+tank+0xC8,0x4FC8)
+                mem.write16(ds+tank+0x96,mem.read16(ds+cfg+2))
+                color=mem.read16(ds+tank+0x1A)+5
+                mem.write16(ds+0xEC80,color)
+                call(0x3A046,0x3352,[color,*[mem.read16(ds+cfg+o) for o in (6,8,10)],1])
+                call(0x404C9,0x39A2,[tank,0x4FC8,0x339,0x3221])
+                call(0x389DA,0x3221,[tank,0x4FC8])
+        if args.shield_break:
+            call(0x301B2,0x2945,[0xD568,0x4FC8])
+            mem.write16(ds+0x5182,0xD568);mem.write16(ds+0x5184,0x4FC8)
+            if args.shield_hole:
+                cfg=0x616C+args.shield_break*16
+                call(0x3AB39,0x3352,[mem.read16(ds+0xD632+14),mem.read16(ds+0xD632+16)-mem.read16(ds+cfg+4)])
+            cpu.segs[1]=0x3221;cpu.ip=0x34;cpu.regs[4]=0x2400
+            for j,value in enumerate((0x110,0x60,0xD632,0x4FC8,mem.read16(ds+0xD632+0x96))):mem.write16(stack+2*j,value)
+            stage=0
+            while stage<52:
+                reason,count=run_fast(cpu,mem,ports,handler,1000000,bp_set={0x38502-0x6100,0x38528-0x6100,0x4C117-0x6100})
+                assert reason=='breakpoint',('shield break',stage,reason,count)
+                if cpu.segs[1]*16+cpu.ip==0x4C117-0x6100:
+                    sp=(cpu.segs[2]<<4)+cpu.regs[4]
+                    cpu.ip=mem.read16(sp);cpu.segs[1]=mem.read16(sp+2);cpu.regs[4]+=4
+                    continue
+                native_frame=extract_display_pixels(mem,ports)
+                port_frame=base64.b64decode(actual['frames'][stage]);pal=actual['flightPalettes'][stage]
+                mapped=[pal[(i-40 if 120<=i<150 else 120 if i==80 else i+40 if 87<=i<=103 else i)*3:][:3] for i in range(256)]
+                differences=[(i%360,i//360,n,p) for i,(n,p) in enumerate(zip(native_frame,port_frame)) if list(ports.palette[n])!=mapped[p]]
+                if args.output_dir:
+                    args.output_dir.mkdir(parents=True,exist_ok=True)
+                    for name,frame,palette in (('emulator',native_frame,ports.palette),('web',port_frame,mapped)):
+                        write_emu_png(dict(width=360,height=480,pixels=frame,palette=palette),args.output_dir/f'shield-break-{stage:03d}-{name}.png')
+                assert not differences,('shield break',stage,len(differences),differences[:10])
+                stage+=1
+                if stage<52:cpu.regs[4]+=8;cpu.ip+=3
+            print('52 complete shield-break RGB frames match through outline erasure.',flush=True)
+        if args.shield_shot:
+            call(0x301B2,0x2945,[0xD568,0x4FC8])
+            args.projectile_head=[mem.read16(ds+0xD632+14),mem.read16(ds+0xD632+16)-15]
+            mem.write16(ds+0x5182,0xD568);mem.write16(ds+0x5184,0x4FC8)
         if args.projectile_head:
             # Execute the actual launch palette block, including VGA upload.
             cpu.segs[1]=0x1ADA;cpu.ip=0x21296-0x6100-0x1ADA0;cpu.regs[4]=0x2400
@@ -204,9 +271,15 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                     if not args.flight_collisions: call(0x22DFA,0x1ADA,[int(motion[2])&65535,int(motion[3])&65535])
                     native_frame=extract_display_pixels(mem,ports)
                     port_frame=base64.b64decode(actual['frames'][step])
+                    if args.output_dir:
+                        args.output_dir.mkdir(parents=True,exist_ok=True)
+                        pal=actual['flightPalettes'][step]
+                        mapped=[pal[(i-40 if 120<=i<150 else 120 if i==80 else i+40 if 87<=i<=103 else i)*3:][:3] for i in range(256)]
+                        for name,frame,palette in (('emulator',native_frame,ports.palette),('web',port_frame,mapped)):
+                            write_emu_png(dict(width=360,height=480,pixels=frame,palette=palette),args.output_dir/f'flight-{step:03d}-{name}.png')
                     for index,(native_color,port_color) in enumerate(zip(native_frame,port_frame)):
                         pi=port_color-40 if 120<=port_color<150 else 120 if port_color==80 else port_color+40 if 87<=port_color<=103 else port_color
-                        assert actual['palette'][pi*3:pi*3+3]==list(ports.palette[native_color]),(seed,step,index%360,index//360,native_color,port_color)
+                        assert actual['flightPalettes'][step][pi*3:pi*3+3]==list(ports.palette[native_color]),(seed,step,index%360,index//360,native_color,port_color)
 
             if args.erase_head:
                 call(0x22A14 if args.bomb_icon==1 else 0x228DB,0x1ADA,[*args.projectile_head,1])
@@ -281,4 +354,4 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                               args.output_dir/f'seed-{seed}-sky-{sky}-round-{round+1}-{name}.png')
         assert not differences,(seed,len(differences),differences[:10])
         scope='full frame' if args.full_frame else 'landscape + player setup' if args.players else 'landscape'
-        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}, head {args.projectile_head}, icon {args.bomb_icon}, erased {args.erase_head}, sky grid {args.restore_sky_grid}, flight steps {args.flight_steps}, native collisions {args.flight_collisions}, explosion {args.explosion}, trace {args.trace}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)
+        print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}, head {args.projectile_head}, icon {args.bomb_icon}, erased {args.erase_head}, sky grid {args.restore_sky_grid}, flight steps {args.flight_steps}, native collisions {args.flight_collisions}, explosion {args.explosion}, trace {args.trace}, shields {args.shields}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)

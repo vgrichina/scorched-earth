@@ -160,6 +160,8 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.parachuteDeployed = false;
     p.shieldEnergy = 0;
     p.activeShield = 0;
+    p.shieldContactHoles = null;
+    p.shieldLowerColor = null;
 
     p.x = getTankPlacementX(i, numPlayers);
     settleTankForPlacement(p);

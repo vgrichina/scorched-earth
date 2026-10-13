@@ -13,18 +13,18 @@ import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
 import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, getTankBarrel } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
-         clearProjectiles, hasActiveProjectiles, applyMagDamping,
+         clearProjectiles, hasActiveProjectiles,
          WALL, setResolvedWallType, getEffectiveWallType } from './physics.js';
 import { getPixel, setPixel } from './framebuffer.js';
 import { startExplosion, stepExplosion, isExplosionActive,
-         applyExplosionDamage, addDirt, addDirtTower, createTunnel,
+         applyExplosionDamage, resumeExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
 import { isKeyDown, consumeKey, consumeClick, consumeAnyKey, getMouseDelta, mouse } from './input.js';
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
-import { checkShieldDeflection, applyShieldDamage } from './shields.js';
+import { checkShieldDeflection, applyShieldDamage, shieldBreak } from './shields.js';
 import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
@@ -405,8 +405,8 @@ function fireWeapon(player) {
 function findHitPlayer(proj) {
   const px = Math.round(proj.x);
   const py = Math.round(proj.y);
-  const pixel = getPixel(px, py);
-  if (pixel > 0 && pixel < PLAYER_COLOR_MAX) {
+  const pixel = proj.hitPixel ?? getPixel(px, py);
+  if (pixel >= 0 && pixel < PLAYER_COLOR_MAX) {
     const playerIdx = Math.floor(pixel / PLAYER_PALETTE_STRIDE);
     return players[playerIdx] || null;
   }
@@ -414,29 +414,35 @@ function findHitPlayer(proj) {
 }
 
 // Process a projectile hit
-function processHit(proj, hitResult) {
-  // EXE 0x2251A: Mag Deflector collision damping
-  // If target player has Mag Deflector and attacker has no Super Mag, dampen velocity
+export function processHit(proj, hitResult) {
+  // Native reflecting-shield contact; body hits continue to weapon dispatch.
   if (hitResult === 'hit_tank') {
     const targetPlayer = findHitPlayer(proj);
-    if (targetPlayer) {
-      const magCount = (targetPlayer.inventory[WPN.MAG_DEFLECTOR] || 0) + (targetPlayer.inventory[WPN.SUPER_MAG] || 0);
-      if (magCount > 0) {
-        const absorbed = applyMagDamping(proj);
-        if (absorbed) return;  // projectile absorbed, no damage
-      }
+    if (targetPlayer?.activeShield === 3 && proj.hitPixel % 8 === 5 &&
+        targetPlayer.index !== proj.attackerIdx) {
+      // Native 0x22498 draws/tracks the contact head before reflection erases
+      // its center; the retained drawing layer must observe that same order.
+      projectileDrawing.advance(proj);
+      projectileDrawing.draw();
     }
-  }
-
-  // EXE: Force/Heavy shield deflection — reverse and scatter projectile
-  if (hitResult === 'hit_tank') {
-    const targetPlayer = findHitPlayer(proj);
     if (targetPlayer && checkShieldDeflection(targetPlayer, proj)) {
       return;  // projectile deflected, no explosion
     }
   }
 
   const result = handleBehavior(proj, hitResult);
+  if (result.directHit) {
+    const target = findHitPlayer(proj);
+    const attacker = players[proj.attackerIdx];
+    if (target && result.directHit === 'shield') {
+      const remainder = applyShieldDamage(target, 10);
+      if (attacker) scoreOnDamage(attacker, target, 10 - remainder, true);
+    } else if (target) {
+      if (attacker) scoreOnDamage(attacker, target, target.energy, false);
+      target.energy = 0;
+      // Native leaves alive set here; aftermath handles death after the blast.
+    }
+  }
 
   // EXE: explosion scale is resolution-dependent (file 0x2B4A8, icons.cpp)
   // 320×200 (FG_MAXX==319): Normal=0.5, Medium=0.75, Large=1.0 (DS:0x5250/0x5254/default)
@@ -471,19 +477,20 @@ function processHit(proj, hitResult) {
       if (!result.skipDamage) {
         // Track deaths for scoring
         const beforeAlive = players.filter(p => p.alive).map(p => p.index);
-        applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.weaponIdx);
-        const afterAlive = players.filter(p => p.alive).map(p => p.index);
+        applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.weaponIdx, () => {
+          const afterAlive = players.filter(p => p.alive).map(p => p.index);
 
-        // Score deaths and trigger death speech + death animation
-        const attacker = players[proj.attackerIdx];
-        for (const idx of beforeAlive) {
-          if (!afterAlive.includes(idx)) {
-            scoreOnDeath(attacker, players[idx]);
-            triggerDeathSpeech(players[idx]);
-            startDeathAnimation(players[idx]);
-            playDeathSound();
+          // Score deaths and trigger death speech + death animation
+          const attacker = players[proj.attackerIdx];
+          for (const idx of beforeAlive) {
+            if (!afterAlive.includes(idx)) {
+              scoreOnDeath(attacker, players[idx]);
+              triggerDeathSpeech(players[idx]);
+              startDeathAnimation(players[idx]);
+              playDeathSound();
+            }
           }
-        }
+        });
       }
     };
     startExplosion(cx, cy, result.radius, proj.attackerIdx, afterRestoration);
@@ -538,6 +545,10 @@ function executeSystemMenuAction(action) {
 
 // Main game tick (called every frame)
 export function gameTick() {
+  // Native shield absorption does not return until its fade/erase completes.
+  // Rendering advances the fade; gameplay must not run ahead of that call.
+  if (shieldBreak.active) return;
+  if (!resumeExplosionDamage() || shieldBreak.active) return;
   stepDeathAnimations();
   switch (game.state) {
     case STATE.AIM: {
@@ -619,6 +630,7 @@ export function gameTick() {
 
         // Step all projectiles
         for (let i = projectiles.length - 1; i >= 0; i--) {
+          if (shieldBreak.active) return;
           const proj = projectiles[i];
           if (!proj.active) continue;
 
@@ -701,6 +713,13 @@ export function gameTick() {
             // EXE: rising tone on terrain hit (extras.cpp 0x24DCD), starts 1000 Hz, +200/step
             if (result === 'hit_terrain') playTerrainHitSound(3);
             processHit(proj, result);
+            if (shieldBreak.active) {
+              if (!proj.active) {
+                projectileDrawing.finish(proj);
+                projectiles.splice(i, 1);
+              }
+              return;
+            }
           } else if (result === 'offscreen') {
             proj.active = false;
           }
@@ -716,6 +735,7 @@ export function gameTick() {
           }
         }
 
+        if (shieldBreak.active) return;
         if (!anyActive) {
           // No more projectiles — transition to explosion state
           // (stepExplosion will animate any active explosions before checking aftermath)
@@ -750,7 +770,8 @@ export function gameTick() {
     }
 
     case STATE.EXPLOSION: {
-      if (stepExplosion()) {
+      const explosionActive = stepExplosion();
+      if (explosionActive || shieldBreak.active) {
         // Explosion still animating
         break;
       }

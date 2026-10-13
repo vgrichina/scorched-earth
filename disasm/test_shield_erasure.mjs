@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {config} from '../web/js/config.js';
+import {pixels,getPixel,reinitFramebuffer} from '../web/js/framebuffer.js';
+import {createPlayer} from '../web/js/tank.js';
+import {drawShield,applyShieldDamage,drawShieldBreak,shieldBreak} from '../web/js/shields.js';
+import {projectileDrawing,writeWorldPixel} from '../web/js/projectile-render.js';
+Object.assign(config,{screenWidth:360,screenHeight:480,graphicsMode:4,wallType:0});
+reinitFramebuffer();projectileDrawing.clear();pixels.fill(80);
+const p=createPlayer(1,'Shield');
+Object.assign(p,{x:100,y:100,activeShield:3,shieldEnergy:100});
+drawShield(p);applyShieldDamage(p,100);
+while(shieldBreak.active){pixels.fill(80);drawShieldBreak();}
+pixels.fill(80);projectileDrawing.draw();
+assert.equal(getPixel(100,85),80,'upper outline must disappear after break');
+assert.equal(getPixel(100,115),201,'native lower palette pixels survive upper erasure');
+writeWorldPixel(100,115,120);
+pixels.fill(80);projectileDrawing.draw();
+assert.equal(getPixel(100,115),80,'world writes must invalidate retained shield pixels');
+projectileDrawing.clear();pixels.fill(80);projectileDrawing.draw();
+assert(pixels.every(c=>c===80),'round reset must clear all retained shield remnants');
+console.log('Shield erasure retains lower pixels; world mutation and round reset invalidate them.');

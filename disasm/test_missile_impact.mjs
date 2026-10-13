@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import {config} from '../web/js/config.js';
+import {players,createPlayer} from '../web/js/tank.js';
+import {createProjectile} from '../web/js/physics.js';
+import {processHit} from '../web/js/game.js';
+import {isExplosionActive,stepExplosion,resumeExplosionDamage} from '../web/js/explosions.js';
+import {shieldBreak,drawShieldBreak} from '../web/js/shields.js';
+import {WPN} from '../web/js/weapons.js';
+Object.assign(config,{screenWidth:360,screenHeight:480,wallType:0,explosionScale:0});
+for(const energy of [5,10,100]) {
+ const target=createPlayer(0,'Target'),attacker=createPlayer(1,'Attacker');
+ Object.assign(target,{x:100,y:100,activeShield:2,shieldEnergy:energy});
+ players.splice(0,players.length,target,attacker);shieldBreak.active=false;
+ const shot=createProjectile(100,100,100,-100,2,1);shot.hitPixel=5;
+ processHit(shot,'hit_tank');
+ assert.equal(shot.active,false);
+ assert.equal(isExplosionActive(),false,'shield contact must not explode');
+ assert.equal(target.energy,100,'shield overflow must not reach tank energy');
+ assert.equal(target.shieldEnergy,Math.max(0,energy-10));
+ assert.equal(shieldBreak.active,energy<=10);
+}
+const target=createPlayer(0,'Target'),attacker=createPlayer(1,'Attacker');
+Object.assign(target,{x:100,y:100,energy:55,activeShield:2,shieldEnergy:100});
+target.inventory[WPN.MAG_DEFLECTOR]=10;
+Object.assign(attacker,{x:250,y:100});
+players.splice(0,players.length,target,attacker);
+const shot=createProjectile(100,100,100,-100,2,1);shot.hitPixel=0;
+processHit(shot,'hit_tank');
+assert.equal(target.energy,0,'body hit must remove current energy, including black pixel 0');
+assert.equal(target.shieldEnergy,100,'body request bypasses absorption');
+assert.equal(target.alive,true,'death handling must wait for blast aftermath');
+assert.equal(isExplosionActive(),true);
+while(isExplosionActive())stepExplosion();
+assert.equal(target.alive,true,'area damage continuation waits for exact shield depletion fade');
+while(shieldBreak.active)drawShieldBreak();
+resumeExplosionDamage();
+assert.equal(target.alive,false);
+console.log('Ordinary shield hits consume 10 shield-only HP without a blast; body hits remove energy before blast and resolve death afterward.');
+// Warp reflection uses the saved pre-force velocity and only shield pixels.
+{
+ const warp=createPlayer(0,'Warp'),attacker=createPlayer(1,'Attacker');
+ Object.assign(warp,{x:100,y:100,activeShield:3,shieldEnergy:100});
+ players.splice(0,players.length,warp,attacker);
+ const incoming=createProjectile(85,100,103,-10,2,1);
+ incoming.hitPixel=5;incoming.hitVelocity={vx:100,vy:0};
+ processHit(incoming,'hit_tank');
+ assert(Math.abs(incoming.vx+70)<1e-9);
+ assert(Math.abs(incoming.vy)<1e-9);
+ assert.equal(warp.shieldEnergy,99);
+ assert.equal(incoming.active,true);
+ assert.equal(isExplosionActive(),false);
+ const outgoing=createProjectile(85,100,-103,-10,2,1);
+ outgoing.hitPixel=5;outgoing.hitVelocity={vx:-100,vy:0};
+ processHit(outgoing,'hit_tank');
+ assert.equal(outgoing.vx,-103);
+ assert.equal(outgoing.vy,-10);
+ assert.equal(warp.shieldEnergy,99);
+ assert.equal(isExplosionActive(),false);
+}
+console.log('Warp shield contact reflects saved incoming velocity, consumes shield HP, and lets outward velocity continue without a blast.');

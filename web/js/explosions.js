@@ -16,7 +16,8 @@ import { writeWorldPixel as setPixel } from './projectile-render.js';
 import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { players } from './tank.js';
 import { scoreOnDamage } from './score.js';
-import { playExplosionSound, playShieldHitSound } from './sound.js';
+import { playExplosionSound } from './sound.js';
+import { applyShieldDamage, shieldBreak } from './shields.js';
 import { random } from './utils.js';
 import { TERRAIN_PAL_START, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
@@ -374,37 +375,49 @@ export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
   return damage > 100 ? 110 : damage;
 }
 
-export function applyExplosionDamage(cx, cy, radius, attackerIndex, weaponIdx = 2) {
-  for (const player of players) {
-    if (!player.alive) continue;
-    let damage = getExplosionDamage(cx, cy, radius, player.x, player.y, weaponIdx);
+// Native area damage resumes after each blocking shield fade, before visiting
+// the next tank. Keep that continuation explicit in the frame-driven port.
+const damageJobs = [];
+function applyTankDamage(player, damage, attacker) {
+  if (damage > 0 && attacker)
+    scoreOnDamage(attacker, player, Math.min(damage, Math.max(0, player.energy)), false);
+  player.energy = Math.max(0, player.energy - damage);
+  if (player.energy === 0) player.alive = false;
+}
 
-    if (damage > 0) {
-      const attacker = players[attackerIndex];
-
-      // Check shield first (Phase 4)
-      if (player.shieldEnergy > 0) {
-        const shieldDmg = Math.min(damage, player.shieldEnergy);
-        player.shieldEnergy -= shieldDmg;
-        damage -= shieldDmg;
-        // EXE: random(50) Hz tone per shield hit (shields.cpp 0x3AF33)
-        playShieldHitSound();
-        // EXE: score_on_damage for shield absorption (+2x enemy, -1x friendly)
-        if (attacker) scoreOnDamage(attacker, player, shieldDmg, true);
-      }
-
-      // EXE: score_on_damage for HP damage (+30x enemy, -15x friendly)
-      if (damage > 0 && attacker) {
-        scoreOnDamage(attacker, player, damage, false);
-      }
-
-      player.energy -= damage;
-      if (player.energy <= 0) {
-        player.energy = 0;
-        player.alive = false;
-      }
+export function resumeExplosionDamage() {
+  while (damageJobs.length && !shieldBreak.active) {
+    const job = damageJobs[0];
+    const attacker = players[job.attackerIndex];
+    if (job.pendingTank) {
+      applyTankDamage(job.pendingTank.player, job.pendingTank.damage, attacker);
+      job.pendingTank = null;
     }
+    while (job.next < players.length) {
+      const player = players[job.next++];
+      if (!player.alive) continue;
+      let damage = getExplosionDamage(job.cx,job.cy,job.radius,player.x,player.y,job.weaponIdx);
+      if (damage <= 0) continue;
+      if (player.shieldEnergy > 0) {
+        const requested = damage;
+        damage = applyShieldDamage(player,damage);
+        if (attacker) scoreOnDamage(attacker,player,requested-damage,true);
+        if (shieldBreak.active) {
+          job.pendingTank = {player,damage};
+          return false;
+        }
+      }
+      applyTankDamage(player,damage,attacker);
+    }
+    damageJobs.shift();
+    job.onComplete?.();
   }
+  return damageJobs.length === 0;
+}
+
+export function applyExplosionDamage(cx, cy, radius, attackerIndex, weaponIdx = 2, onComplete = null) {
+  damageJobs.push({cx,cy,radius,attackerIndex,weaponIdx,onComplete,next:0,pendingTank:null});
+  return resumeExplosionDamage();
 }
 
 export function getDefaultRadius() {

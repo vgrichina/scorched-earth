@@ -3,7 +3,8 @@
 
 Pixel reads use synthetic terrain; head erasure/impact effects are intercepted.
 Covers first-step terrain and ordinary tank pixels, including owner pixels.
-Excludes wall behavior, enemy shields, impact effects and tunnelling.
+Includes ordinary absorption shields and Mag Deflector arcs.
+Excludes wall behavior, reflecting shields, impact effects and tunnelling.
 """
 import json
 from pathlib import Path
@@ -22,13 +23,17 @@ cases=[dict(dx=dx,dy=dy,pattern=p,age=age,color=80,hostile=0) for dx,dy in
 cases += [dict(dx=12,dy=8,pattern=3,age=age,color=color,hostile=hostile)
           for color in range(80) if color%8!=5 or color==5
           for age in (0,1,2) for hostile in (0,1)]
+cases += [dict(dx=12,dy=8,pattern=3,age=age,color=color,hostile=0,kind=kind)
+          for kind in (1,2,4,5) for color in (5,13,77) for age in (0,1,2)]
 actual=json.loads(subprocess.check_output(['node','--input-type=module','-e',r'''
+import {players,createPlayer} from './web/js/tank.js';
 import {config} from './web/js/config.js';
 import {createProjectile,stepSingleProjectile} from './web/js/physics.js';
 import {terrainBitmap,reinitTerrainBuffers} from './web/js/terrain.js';
 Object.assign(config,{screenWidth:360,screenHeight:480,gravity:0,viscosity:0,wallType:0,tunneling:0});
 reinitTerrainBuffers();
 console.log(JSON.stringify(JSON.parse(process.argv[1]).map(c=>{
+ players.splice(0,players.length,...Array.from({length:10},(_,i)=>Object.assign(createPlayer(i,'Tank'),{activeShield:c.kind??0})));
  terrainBitmap.fill(0);
  config.hostileEnvironment=c.hostile;
  const solidAt=(x,y)=>c.pattern===1?(x===104||x===96):c.pattern===2?(y===104||y===96):
@@ -52,6 +57,9 @@ for case,port in zip(cases,actual):
                       (0x5154,0),(0x513A,0),(0x513C,case['hostile']),(0x5182,0xD568),(0x5184,0x4FC8),(0xE1E4,0),(0xE1E6,0),(0xE1E8,0),
                       (0xEEF8,0x100),(0xEEFA,0x60)):
         mem.write16(ds+off,value)
+    if case.get('kind'):
+        tank=ds+0xD568+(case['color']//8)*0xCA
+        mem.write16(tank+0xC6,0x616C+case['kind']*16);mem.write16(tank+0xC8,0x4FC8)
     cpu.segs[:]=[0,0x17AB,0x5F4A,0x4FC8];cpu.ip=0x733;cpu.regs[4]=0x2400
     args=[0x110,0x60,100,100,100+case['dx'],100+case['dy'],0x1349,0x1ADA]
     for i,value in enumerate(args):mem.write16(stack+0x2400+2*i,value)

@@ -15,6 +15,7 @@ import { PLAYER_COLOR_MAX } from './constants.js';
 import { setPaletteRgb } from './palette.js';
 import { getPixel, getBackgroundColor } from './framebuffer.js';
 import { projectileDrawing, writeWorldPixel } from './projectile-render.js';
+import { eraseShieldContact } from './shields.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -224,6 +225,7 @@ export function getEffectiveWallType() {
 }
 
 export function stepSingleProjectile(proj, getPixelFn, wind) {
+  proj.hitPixel = null;
   if (!proj.active) return 'offscreen';
 
   // Rollers in rolling mode handled by behavior system
@@ -283,6 +285,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // 8. EXE 0x21D15 calls the inclusive line walker at 0x1E2E3.
   // Visit every crossed pixel, stopping at the first collision.
   let boundaryPosition = null, bounceAxis = null;
+  let outwardShieldContact = null;
   const sampleCollision = (sx, sy) => {
     const left = 3, right = config.screenWidth - 4;
     const outside = sx < left || sx > right;
@@ -350,6 +353,21 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
       if (pixel >= 0 && pixel < PLAYER_COLOR_MAX) {
         const ownerColor = players[proj.attackerIdx]?.colorIndex ?? proj.attackerIdx;
         if (pixel === ownerColor * 8 + 5) return 'flying';
+        // Native 0x22423: enemy Mag Deflector arc pixels pass through.
+        if (pixel % 8 === 5 && players[Math.floor(pixel / 8)]?.activeShield === 1)
+          return 'flying';
+        const target = players[Math.floor(pixel / 8)];
+        if (pixel % 8 === 5 && target?.activeShield === 3 &&
+            Math.sign(sx - target.x) === Math.sign(tunnelVx) &&
+            Math.sign(target.y - sy) === Math.sign(tunnelVy)) {
+          // Native 0x23327 returns 1 for outward contact: erase it and let the
+          // line walker reach later obstacles before applying CE9A=3 aftermath.
+          eraseShieldContact(target,sx,sy);
+          outwardShieldContact = [sx, sy];
+          return 'flying';
+        }
+        proj.hitPixel = pixel;
+        proj.hitVelocity = {vx:tunnelVx,vy:tunnelVy};
         return 'hit_tank';
       }
     }
@@ -384,6 +402,13 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
     }
     [proj.x, proj.y] = boundaryPosition;
     return 'flying';
+  }
+  if (collision === 'flying' && outwardShieldContact) {
+    [proj.x, proj.y] = outwardShieldContact;
+    if (wallType !== WALL.WRAP) {
+      proj.bounceCount++;
+      if (proj.bounceCount > 6) proj.wallBounceScale *= .8;
+    }
   }
   return collision;
 }

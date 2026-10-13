@@ -7506,3 +7506,370 @@ Breakdown of remaining 3.3% game diff (5726 pixels of 172800):
 - [x] RE: score.cpp (~0x37520) — round-over screen rendering, score tallying display, game-over sequence — **ALREADY COMPLETE** (see "Score System" section + session 136/668 audit). All functions documented: end_of_round_scoring (pool formulas), score_on_damage, score_on_death, add_score, Final Scoring dialog with rainbow border, game-over buttons.
 - [x] RE: play.cpp (0x2F830) — deeper main game loop internals, turn sequencing edge cases — **ALREADY DOCUMENTED** (see "Play Modes" and "Play Order System" sections). 3 play modes (Sequential/Simultaneous/Synchronous), 5 play orders, fire callback dispatch, screen wrapping, turn handler at 0x30560 all covered.
 - [x] RE: config file parsing — SCORCH.CFG read/write routines, default value table — **ALREADY DOCUMENTED** (session 174). `read_config_file` at 0x19455: opens filename (default "scorch.cfg"), reads via fgets, parses key=value pairs into DS variables. All 40+ config keys documented throughout REVERSE.md with DS offsets, types, and defaults. Config writer at 0x1B02E serializes back to file. Web port uses localStorage with matching defaults.
+
+### Shield absorption dispatch parity (2026-10-13)
+
+`disasm/verify_shield_absorption.py` runs the actual EXE routine at file
+`0x38344` (original `3191:0034`, relocated `3221:0034`) through return.
+140 fixtures cover five shield configurations, zero/partial/full energy,
+zero damage, exact depletion and overflow. Port remainder, final shield energy,
+break decision and retained shield configuration all match. Native absorbed-damage
+score arguments and the 51 fade-upload calls on each break are also checked.
+Palette, sound, score, erase and shape-dispatch callees are intercepted: this is
+**not** proof of shield geometry, final RGB, scoring side effects or timing.
+
+Corrections in `shields.js`: native early return tests zero shield energy or zero
+damage; only energy **strictly greater** than damage survives without a break.
+Exact depletion goes through the break path. Native does not clear the shield
+configuration pointer after absorption, so the port retains its selected type.
+`explosions.js` now uses this absorption helper instead of independently subtracting
+shield energy (which skipped the break animation entirely). Removed the invented
+random shield-hit tone from this blast path; native survival has no sound call,
+while break audio belongs to the separate fade sequence.
+
+`test_explosion_restoration.mjs` additionally covers blast completion against
+surviving, exactly depleted and overflowing shields: no energy mutation or break
+before restoration; correct shield/tank energy and break request afterward.
+The 756-case native area-damage oracle and projectile lifecycle test still pass.
+Outstanding: native synchronous break animation versus the port's asynchronous
+single break state, shield pixel masks/palette slots, direct-hit dispatch, tank
+energy/scoring side effects and full shot-through-damage frame comparison.
+
+### Shield shape and break palette parity (2026-10-13)
+
+This corrects earlier claims that shields all draw identically or avoid sky.
+Native `0x404C9` dispatches outlines centered on **player x,y**, with no -6 y
+shift. Mag Deflector draws radii 13 and 16, filtered to `x-5 < px < x+5`
+and `py < y`. Shield and Warp draw radius 15. Teleport and Flicker draw radii
+16 and 15. Native `0x4336F` uses doubled-coordinate integer circle traversal;
+`0x4325C` applies signed 16.16 aspect scaling, playfield clipping and wrap.
+
+The activation callback `0x38649` rejects native palette indices **80..104**
+(terrain), not native sky 120..149. The old port had this backwards. Above and
+at tank ground level, shield pixels use `colorIndex*8+5`. `0x389DA` only replaces
+matching pixels **below** tank y with `200+playerIndex`; it does not replace the
+whole shield. Break fading in `0x38344` changes the former slot, leaving the
+lower dedicated palette entry untouched. The port now uses native shapes,
+center, terrain exclusion, split palette slots and break fade slot.
+
+`python3 disasm/verify_shield_drawing.py`: **750 indexed masks and lower-half
+palette values PASS**, five shield types, modes 0/4/7, wrap off/on, center and
+four boundaries, sky/terrain/tank/trace/mixed synthetic backgrounds. Runs real
+native shape dispatch, circle helpers, activation pixel callback and recoloring;
+only pixel I/O and palette upload are stubbed. The native configuration table is
+read from EXE data, not copied from the port. Tank exclusion rectangle is null.
+
+`verify_shield_absorption.py` now also compares **every break fade palette write**
+from production `drawShieldBreak()` with the native routine in its 140 fixtures,
+including zero damage, exact depletion, overflow and five shield colors. The
+restoration and projectile lifecycle tests pass after the rendering change.
+
+Limits: these prove drawing kernels and palette sequences, not a complete live
+shield lifecycle. Native activation fade timing, retained occlusion after world
+mutations, exclusion rectangles, concurrent break scheduling, lower shield
+palette interactions with explosions, sound and full-round integration remain
+unverified. The port still repaints shields over its clean world frame.
+
+### Full-frame settled shields (2026-10-13)
+
+`verify_landscape_sequence.py --full-frame --shields A B` now composes both
+players' shields into the existing continuous-RNG landscape/player/HUD oracle.
+Native uses actual shape dispatch `0x404C9`, activation callback `0x38649`,
+color update `0x389DA` and VGA drawing/palette callbacks from the checkpoint.
+Port uses production `drawShield`. Only shield selection and full energy are
+fixture inputs; no generated terrain, player positions, pixels or palette values
+are imported into the port. Shields are installed **after HUD drawing**, so this
+does not verify HUD refresh on activation or the activation fade wrapper.
+
+Three complete **360x480 RGB frames match at zero tolerance** (518,400 pixel
+comparisons), covering all five shield types:
+
+- Stars, seed 0, no walls, tank types 3/3, Mag Deflector + Shield:
+  `/tmp/scorched-shields-12/seed-0-sky-2-round-1-{web,emulator}.png`
+- Sunset, seed 0, wrap, tank types 0/6, Warp + Teleport:
+  `/tmp/scorched-shields-34/seed-0-sky-4-round-1-{web,emulator}.png`
+- Cavern, seed 1, wrap, tank types 2/5, Flicker + Mag Deflector:
+  `/tmp/scorched-shields-51/seed-1-sky-5-round-1-{web,emulator}.png`
+
+Reproduce the first with:
+`python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --shields 1 2 --output-dir /tmp/scorched-shields-12`.
+Generated positions, turn order, wind, sky/wall selection and RNG state also
+match. These settled scenes do not prove live shot-to-shield damage scheduling,
+retained pixels, activation/break timing or complete rounds.
+
+### Ordinary missile direct-contact dispatch (2026-10-13)
+
+Native `0x43C01` distinguishes target pointer + shield flag from terrain contact.
+Shield contact calls `shield_and_damage(target,10,0)` and returns **without a
+blast**: overflow is discarded, not passed into tank energy. Body contact calls
+`damage_tank(target,currentEnergy,1)` before the ordinary blast. The native damage
+routine leaves the alive flag set at this point; later aftermath handles death.
+The native clamp at `0x31BE7..0x31C18` also caps the damage scoring argument to
+available tank energy, so a subsequent area request on zero energy scores zero.
+
+Production changes:
+- Physics captures the collision pixel before later frame writes can change it.
+- Standard weapon behavior carries the body/shield distinction into `processHit`.
+- Shield hits request 10 shield-only HP and no explosion; body hits remove current
+  energy before animation, with death resolved in the existing blast aftermath.
+- Black player pixel 0 now resolves to player 0 in game-level hit handling.
+- Enemy Mag Deflector arc pixels pass through, matching `0x22423..0x2244F`.
+  Removed the erroneous inventory-based Mag damping of all body hits in game.js;
+  the native damping block at `0x2253A` is the terrain tunnelling path.
+- Area-damage scoring is capped to remaining nonnegative energy.
+
+Evidence: `verify_missile_impact.py` compares **48 native handler dispatch
+sequences** across Baby Missile/Missile/Baby Nuke/Nuke, terrain/body/shield contact
+and four energy values. Uses `/tmp/scorched-before-walk.state` for initialized
+weapon radii (Large/3x), intercepting damage, blast and sound callees. This proves
+requests/order, not those callees' complete effects. `verify_projectile_collision.py`
+now passes **597 cases**, adding ordinary shield and Mag-arc fixtures for owner
+and enemy pixels. Reflection shields remain excluded.
+
+`test_missile_impact.mjs` exercises production game dispatch for shield energy
+5/10/100, verifies no blast and no tank overflow, and tests pixel-0 body contact
+with shield energy and unused Mag inventory. Tank energy reaches zero before the
+blast; shield energy remains until area damage; death follows restoration.
+Restoration, projectile lifecycle, 756 area-damage and 140 shield-absorption/fade
+checks pass. Not yet matched: special shield reflection, native hit counters,
+synchronous handler timing, simultaneous-mode automatic batteries, contact audio
+and whole flight-to-damage screenshots.
+
+### Reflecting shield kernel (2026-10-13)
+
+`0x22465` tests shield configuration +0x0C bit 0: the actual table assigns this
+to **Warp Shield**, not unactivated Force Shield inventory. `0x23327` computes
+world displacement `(hitX-tankX,tankY-hitY)` and restores the contact pixel to sky.
+If both displacement-component signs equal the corresponding saved velocity
+signs, it returns without reflection or energy consumption. Otherwise it rotates
+the negated velocity by twice the velocity/normal angle difference, requests
+`trunc(speed/100)` shield-only damage, then multiplies both components by 0.7.
+
+`reflectShieldVelocity` now implements that kernel, used by production
+`checkShieldDeflection`. Reflection only applies to enemy shield pixels on an
+active Warp Shield. Physics supplies the saved pre-force velocity; the contact
+pixel is restored through `writeWorldPixel`. Outward contact keeps the current
+post-force velocity. The old body/inventory check and screen-y normal were wrong.
+
+`verify_shield_reflection.py`: **112 native cases PASS**, covering axis/quadrant
+normals, incoming/outgoing/tangential component signs, asymmetric speeds, zero
+individual velocity components, shield-only damage and attenuation (velocity
+absolute tolerance 1e-8). Actual native routine executes through return; sky
+restoration and shield accounting are intercepted. Zero total velocity is excluded:
+native atan2(0,0) enters its math-error path in this isolated fixture.
+`test_missile_impact.mjs` additionally checks production incoming/outgoing Warp
+contacts, saved pre-force velocity, shield energy and absence of ordinary blast.
+The 597 existing collision cases and restoration test still pass.
+
+This does **not** yet prove the complete reflection movement loop. Native
+`CE9A=3` interacts with tracking coordinates, wrap walls and bounce counters in
+`0x21E52..0x22028`; the existing port game-level dispatch has not been compared
+against that full sequence. Retained shield erasure, damage scoring/counters,
+concurrent break timing and full reflected-flight screenshots remain open.
+
+### Reflected movement caller parity (2026-10-13)
+
+The complete native caller exposed two additional behaviors absent from the
+reflection-only kernel check:
+
+- `0x21E5C` tests Wrap first and skips copying reflected velocity back to the
+  projectile. Shield damage still occurs, but post-force velocity survives.
+- For other walls, `0x21EAA` increments the bounce counter on **every** reflecting
+  shield contact, including outward contacts. Above six contacts it advances the
+  stored wall attenuation scale by 0.8. `CE9A=3` means neither velocity component
+  is multiplied by that extra scale; it only affects future ordinary wall hits.
+
+Production `checkShieldDeflection` now implements these caller rules.
+`verify_reflected_movement.py` executes real native motion, pixel traversal,
+reflection, tracking wrapper and final movement transfer for **216 four-step
+sequences (864 state comparisons)**. Cases cover incoming/outgoing/oblique motion,
+two gravity settings, viscosity and wind, all six fixed wall modes, initial bounce
+counts 0/6, and contacts at offsets 0/2/5 along the step. Positions, velocities,
+bounce counts/scales and accumulated shield damage requests match exactly.
+The fixture erases the synthetic contact pixel on the native restoration call,
+then follows subsequent steps; production dispatch uses `stepSingleProjectile`
+and `processHit`. Ordinary missile integration and 1080 wall-bounce sequences
+also pass.
+
+Limits: head/pixel drawing and sound are stubbed; native shield damage is captured
+as requests rather than executing the animation/accounting callee. Each sequence
+has one synthetic reflecting contact and no second obstacle in the same walker
+call. This does not yet prove native retained pixels or full reflected-flight RGB
+screenshots, multiple shield contacts, shield destruction, or wall/terrain contact
+after an outward contact within the same movement segment.
+
+### Outward shield contact and same-step terrain (2026-10-13)
+
+Extended `verify_reflected_movement.py` with 72 outward-contact fixtures containing
+terrain two pixels beyond the shield. The old port stopped at the shield, advanced
+its bounce counter and delayed terrain impact until the following movement step.
+Native `0x23327` returns 1 for outward motion; the line walker continues, hits the
+terrain in the **same** step, and does not run the shield bounce aftermath.
+
+Physics now handles that outward branch inside the pixel walker: restore the
+contact pixel, remember its tracking position, and continue sampling. It applies
+shield tracking/bounce aftermath only when the rest of the segment remains clear;
+later terrain/tank/boundary handling takes precedence. Incoming reflection remains
+in game-level dispatch. The oracle now uses production framebuffer reads and a
+synthetic sky cache, so erasure is observed through the same pixel reads used by
+subsequent movement, instead of an independently toggled port-side fixture flag.
+
+**288 sequences PASS**, up to four steps each; includes the original 216 reflected
+sequences and 72 outward contacts followed by terrain. The 597 collision cases,
+ordinary missile integration and 250-position projectile lifecycle test also pass.
+Native impact effects are intercepted and these fixtures stop at that impact;
+this is not yet proof of the resulting blast/death frames or shield redraw history.
+
+### Full reflected-flight RGB composition (2026-10-13)
+
+`verify_landscape_sequence.py --shield-shot --flight-steps N --full-frame` now
+installs an enemy Warp Shield and starts a player-0 projectile at its top outline
+pixel. Positions derive independently from each implementation's generated player
+placement; no native pixels/velocities are injected into the port. It runs native
+collision, reflection, shield damage and VGA drawing, stubbing sound dispatch only.
+Port uses production physics, game impact dispatch, shields and projectile layer.
+Both sides select player 0 as the HUD/shooter fixture. This is a fixed contact
+launch fixture, not a user-fired shot from a tank barrel.
+
+The full comparison exposed and fixed:
+- HUD active shield icon used nonexistent `player.colorBase`; now uses the actual
+  color index and palette stride.
+- Surviving shield damage must update its upper palette slot immediately.
+- Native draws/tracks the contact head **before** erasing its center. The port now
+  performs that ordering through the retained projectile drawing layer.
+- Repainting the erased contact pixel caused another reflection on the next step.
+  Contact holes are retained across shield redraws, reset on activation/new round
+  and keyed to shield position/type.
+- Native absorption leaves the dedicated lower shield palette unchanged; the port
+  now retains its installed RGB instead of fading it again on each world repaint.
+
+Flight comparison now records a palette per frame and writes every frame pair,
+including the first failing RGB frame when an assertion fails. A previous frame
+must not be compared using the final frame's palette.
+
+**Eight complete 360x480 RGB frames PASS at zero tolerance**:
+- Stars, no walls, four incoming-reflection frames:
+  `/tmp/scorched-reflected-flight/flight-{000..003}-{web,emulator}.png`
+- Sunset, Wrap walls, trace enabled, four contact/flight frames:
+  `/tmp/scorched-reflected-wrap/flight-{000..003}-{web,emulator}.png`
+
+Reproduce with:
+`python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --shield-shot --flight-steps 4 --output-dir /tmp/scorched-reflected-flight`
+and add `--sky 4 --wall 1 --trace` for the second fixture. Motion, generated state
+and RNG also match. The 288 movement sequences, 140 absorption/fade cases, missile
+integration and projectile lifecycle checks still pass.
+
+Limits: these fixtures do not reach a shield break or ordinary blast. General
+world mutations can still require retained-shield updates beyond contact holes;
+activation timing, multiple simultaneous breaks, lower-palette interactions with
+blasts, and a whole shot-to-round-end sequence remain unverified.
+
+### Complete shield-break fade frames (2026-10-13)
+
+The landscape oracle now accepts `--shield-break TYPE` to deplete player 1's
+shield and compare every frame of its native 51-step fade. Real native shield
+absorption, scoring call, VGA palette upload and existing shield pixels execute;
+only sound dispatch is skipped. Captures occur after each actual palette upload
+at `0x38502`. The fixture intentionally stops before final erasure, so it does not
+claim the whole destruction lifecycle or native wall-clock timing is matched.
+Port redraws the complete world and runs production `drawShieldBreak` each frame.
+
+`--shield-hole` additionally erases the top outline pixel before damage on both
+sides. This exposed a one-pixel mismatch: the port's break renderer recreated the
+previously erased contact pixel. Break animation now snapshots the player's
+contact-hole set and preserves those holes during its redraws.
+
+Two complete 51-frame sequences pass with zero RGB differences (**102 frames**):
+- Intact Warp Shield on Stars: `/tmp/scorched-shield-break/shield-break-{000..050}-{web,emulator}.png`
+- The same shield with a contact hole: `/tmp/scorched-shield-break-hole/shield-break-{000..050}-{web,emulator}.png`
+
+Reproduce the latter with:
+`python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --shield-break 3 --shield-hole --output-dir /tmp/scorched-shield-break-hole`.
+The 140 absorption/fade cases, missile integration and explosion restoration tests
+still pass. Remaining: final native shield erasure, break timing relative to
+projectile movement, multiple concurrent shield breaks, and retained pixels after
+world mutations other than recorded contacts.
+
+### Shield outline erasure frame (2026-10-13)
+
+Extended the full-frame break fixture from 51 to **52 frames**, capturing the
+native erasure callback's return at `0x38528`. Native `shield_erase_shape` at
+`0x4043B` supplies `colorIndex*8+5` to `0x3FC11`, which restores only matching
+pixels to sky. It leaves the lower shield's `200+playerIndex` pixels intact.
+The Stars/Warp fixture exposed three such pixels at (276,261..263), incorrectly
+removed by the port's next clean-world repaint.
+
+The break renderer now retains lower palette pixels through the existing indexed
+world-write layer after the last fade frame. New `retainWorldPixel` complements
+`writeWorldPixel`: subsequent world mutations invalidate these retained writes,
+and the existing round clear removes them. Upper shield pixels disappear on the
+next world repaint. `test_shield_erasure.mjs` checks upper erasure, lower retention,
+world-write invalidation and round clear through the actual break renderer.
+
+**52 complete 360x480 RGB frames PASS at zero tolerance**, including a preexisting
+contact hole, all fade frames and final outline erasure:
+`/tmp/scorched-shield-erasure/shield-break-{000..051}-{web,emulator}.png`.
+Command: `python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --shield-break 3 --shield-hole --output-dir /tmp/scorched-shield-erasure`.
+The 140 absorption/fade and projectile lifecycle checks also pass.
+
+Scope ends immediately after outline erasure, before native energy zeroing and
+terrain range bookkeeping; those numerical operations are covered separately,
+not as a complete live-game timing proof. Lower shield remnants now persist, but
+multi-shield overlap, concurrent breaks and complete round progression still need
+integration verification.
+
+### Shield-break gameplay suspension (2026-10-13)
+
+Native `shield_absorb_damage` (`0x38344`) runs its entire 51-step fade and erasure
+before returning to its caller. The port previously continued `gameTick` and all
+three physics substeps while the rendering overlay independently advanced that
+fade. This allowed other shots, falling/turn transitions and death-animation ticks
+to run ahead of the blocking native call.
+
+`gameTick` now waits while `shieldBreak.active`. An impact starting a break returns
+from the initiating physics tick immediately, finishing/removing a consumed shot
+before waiting. Remaining shots and substeps wait. Explosion completion checks
+whether its callback started a break before entering falling/next-turn aftermath.
+The renderer continues advancing `drawShieldBreak`, and gameplay resumes when it
+finishes. Napalm-triggered breaks also stop before another projectile/state step,
+though the existing napalm damage loop itself is not yet made resumable.
+
+`test_shield_break_scheduling.mjs` passes: a real physics contact depletes a shield,
+a second shot does not move in that same tick or the next 51 game ticks, consumed
+shot cleanup completes, and flight resumes after the fade. A separate explosion
+completion callback holds EXPLOSION state throughout the fade, then advances to
+NEXT_TURN. Missile integration, shield erasure and explosion restoration tests
+also pass.
+
+This matches the blocking relationship, not wall-clock duration. Multiple shield
+breaks started inside one synchronous area/napalm damage loop can still overwrite
+the single break state. Resumable per-target damage dispatch, exact continuation
+within a partially processed multi-projectile step, and concurrent-break frame
+comparisons remain open.
+
+### Resumable area damage across two shield breaks (2026-10-13)
+
+`applyExplosionDamage` now queues/resumes its per-player work instead of running
+all targets synchronously. When absorption starts a shield break, it saves that
+target's remaining tank-damage request and pauses. After the fade, it applies the
+remainder, then visits the next player. The completion callback fires only after
+all targets finish; ordinary impact death scoring/animation now uses that callback.
+`gameTick` resumes pending damage before further gameplay and waits again if the
+next target starts another break. No-shield and surviving-shield requests still
+finish immediately.
+
+`verify_damage_continuation.py` executes the real native area loop at `0x43EAB`
+and `shield_and_damage`/`shield_absorb_damage` for two colocated targets with 55
+shield HP each and a 100-damage Baby Missile request. It compares the entire event
+sequence against production damage continuation: **51 fade uploads for player 0,
+45 tank HP requested, 51 fade uploads for player 1, 45 tank HP requested**. Native
+pixel/palette I/O, sound, scoring and final tank mutation are intercepted; this
+proves event/request ordering, not full multi-target RGB frames. Port completion
+runs exactly once.
+
+Restoration and missile integration tests now explicitly verify overflow/death
+waits for shield completion. Scheduling tests still cover both flight and explosion
+callbacks. This resolves overwriting the first animation inside ordinary area
+damage. Napalm has its own synchronous nested damage loop and remains unconverted;
+partial multi-projectile-step continuation, multiple-target death animation order,
+full sequential-break screenshots and precise wall-clock timing remain open.

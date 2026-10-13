@@ -8,17 +8,12 @@
 // EXE: Flicker Shield is a plain absorption shield despite its name (200 HP, orange)
 // EXE: Force/Heavy/SuperMag weapons are OUTSIDE config range (corrupted data, not functional shields)
 
-import { config } from './config.js';
-import { setPixel, getPixel } from './framebuffer.js';
+import { config, GRAPHICS_MODES } from './config.js';
+import { getEffectiveWallType, WALL } from './physics.js';
+import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
+import { writeWorldPixel, retainWorldPixel } from './projectile-render.js';
 import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
-import { WPN } from './weapons.js';
-
-// EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-109 = 0x50-0x6D)
-// EXE: shield_draw_terrain_callback (0x3FC46) only draws where pixel >= 0x69 (terrain)
-// Both prevent shield pixels from being drawn over sky background
-const SKY_RANGE_START = 80;   // VGA 0x50
-const SKY_RANGE_END = 109;    // VGA 0x6D (30 sky gradient entries, matching EXE VGA 120-149)
 
 // Shield type constants (matches EXE config entry indices)
 // EXE config mapping: weapon_index - DS:D558(=45) + 1
@@ -49,6 +44,8 @@ export const shieldBreak = { active: false, x: 0, y: 0, radius: 0, frame: 0, max
 
 // Activate a shield on a player
 export function activateShield(player, shieldType) {
+  player.shieldContactHoles = null;
+  player.shieldLowerColor = null;
   const cfg = SHIELD_CONFIG[shieldType];
   if (!cfg || shieldType === SHIELD_TYPE.NONE) {
     player.activeShield = SHIELD_TYPE.NONE;
@@ -61,13 +58,16 @@ export function activateShield(player, shieldType) {
 
 // Apply damage to shield, returns remaining damage that passes through
 export function applyShieldDamage(player, damage) {
-  if (player.activeShield === SHIELD_TYPE.NONE || player.shieldEnergy <= 0) {
+  if (player.shieldEnergy === 0 || damage === 0) {
     return damage;
   }
 
   // Flat 1:1 absorption — all shield types use the same model (EXE verified)
-  if (player.shieldEnergy >= damage) {
+  if (player.shieldEnergy > damage) {
     player.shieldEnergy -= damage;
+    const cfg = SHIELD_CONFIG[player.activeShield];
+    if (cfg?.energy) setPaletteRgb((player.colorIndex ?? player.index) * 8 + 5,
+      ...[cfg.r,cfg.g,cfg.b].map(c => Math.trunc(player.shieldEnergy * c / cfg.energy)));
     return 0;  // fully absorbed
   } else {
     const remaining = damage - player.shieldEnergy;
@@ -76,42 +76,63 @@ export function applyShieldDamage(player, damage) {
     if (cfg) {
       shieldBreak.active = true;
       shieldBreak.x = player.x;
-      shieldBreak.y = player.y - 6;
+      shieldBreak.y = player.y;
       shieldBreak.radius = cfg.radius;
       shieldBreak.frame = 0;
       shieldBreak.playerIdx = player.index;
+      shieldBreak.colorIndex = player.colorIndex ?? player.index;
       shieldBreak.shieldType = player.activeShield;
+      const key = `${player.x},${player.y},${player.activeShield}`;
+      shieldBreak.contactHoles = player.shieldContactHoles?.key === key
+        ? new Set(player.shieldContactHoles.pixels) : new Set();
     }
     player.shieldEnergy = 0;
-    player.activeShield = SHIELD_TYPE.NONE;
     return remaining;  // excess passes through
   }
 }
 
-// EXE: Force Shield (weapon 50) deflects projectiles via specular reflection.
-// extras.cpp ~0x23469: atan2(hit_dy,hit_dx) → normal angle; atan2(vy,vx) → velocity angle;
-// delta = 2*(vel_angle - normal_angle); new_vel = rotate(-v, delta).
-// Equivalent to standard specular reflection: v' = v - 2*(v·n̂)*n̂
-// EXE: Mag Deflector deflection is handled in physics.js (in-flight magnetic field),
-// NOT via a per-hit shield check.
+// Native 0x23327: reflect in world coordinates, charge speed/100 shield HP,
+// then retain 70% velocity. Outgoing shots erase the contact pixel but do not
+// reflect or consume energy when both component signs match the displacement.
+export function reflectShieldVelocity(vx, vy, dx, dy) {
+  if (Math.sign(dx) === Math.sign(vx) && Math.sign(dy) === Math.sign(vy))
+    return {vx,vy,damage:0,reflected:false};
+  const angle = 2 * (Math.atan2(vy,vx) - Math.atan2(dy,dx));
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const rx = c * -vx + s * -vy;
+  const ry = c * -vy - s * -vx;
+  return {vx:rx*.7,vy:ry*.7,damage:Math.trunc(Math.sqrt(rx*rx+ry*ry)/100),reflected:true};
+}
+
+export function eraseShieldContact(player, x, y) {
+  const key = `${player.x},${player.y},${player.activeShield}`;
+  if (player.shieldContactHoles?.key !== key)
+    player.shieldContactHoles = {key,pixels:new Set()};
+  player.shieldContactHoles.pixels.add(y * config.screenWidth + x);
+  writeWorldPixel(x,y,getBackgroundColor(y,x));
+}
+
 export function checkShieldDeflection(player, proj) {
-  if ((player.inventory[WPN.FORCE_SHIELD] || 0) <= 0) return false;
-
-  // Normal direction: from tank center to hit point
-  const cx = player.x;
-  const cy = player.y - 6;  // shield center = tank body center
-  const dx = proj.x - cx;
-  const dy = proj.y - cy;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 1) return false;  // hit at exact center — can't compute normal
-
-  // Standard specular reflection: v' = v - 2*(v·n̂)*n̂
-  const ux = dx / len;
-  const uy = dy / len;
-  const dot = proj.vx * ux + proj.vy * uy;
-  proj.vx = proj.vx - 2 * dot * ux;
-  proj.vy = proj.vy - 2 * dot * uy;
-
+  // Native collision dispatch tests config +0x0C bit 1, which is Warp Shield.
+  // Body pixels and unactivated inventory do not reflect shots.
+  if (player.activeShield !== SHIELD_TYPE.WARP || proj.hitPixel % 8 !== 5 ||
+      player.index === proj.attackerIdx) return false;
+  eraseShieldContact(player,proj.x,proj.y);
+  const velocity = proj.hitVelocity ?? proj;
+  const result = reflectShieldVelocity(velocity.vx,velocity.vy,proj.x-player.x,player.y-proj.y);
+  if (result.reflected) {
+    applyShieldDamage(player,result.damage);
+    // Native wrap handling returns before copying the reflected velocity back.
+    if (getEffectiveWallType() !== WALL.WRAP) {
+      proj.vx = result.vx; proj.vy = result.vy;
+    }
+  }
+  if (getEffectiveWallType() !== WALL.WRAP) {
+    proj.bounceCount++;
+    // CE9A=3 does not multiply either component by this scale, but still
+    // advances it for subsequent ordinary wall bounces.
+    if (proj.bounceCount > 6) proj.wallBounceScale *= .8;
+  }
   return true;
 }
 
@@ -142,45 +163,75 @@ function warpTank(player) {
   player.fallDamageAccum = 0;
 }
 
-// EXE: VGA palette entries 200-209 = per-player dedicated shield color
-// EXE: activation uses player*8+5 (shared), ongoing uses player+200 (dedicated)
-// Aligned to EXE indices now that 3D UI moved to 151-160
-const SHIELD_PALETTE_BASE = 200;
+// EXE 0x4336F / 0x4325C: outline circle, signed fixed-point aspect scaling.
+export function walkShieldCircle(cx, cy, radius, visit) {
+  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  const left = 3, right = config.screenWidth - 4;
+  const point = (dx, dy) => {
+    let x = cx + Math.floor(dx * sx / 65536);
+    const y = cy + Math.floor(dy * sy / 65536);
+    if (y < 38 || y > config.screenHeight - 4) return;
+    if (x < left || x > right) {
+      if (getEffectiveWallType() !== WALL.WRAP) return;
+      x += x < left ? right - left + 1 : -(right - left + 1);
+    }
+    visit(x, y);
+  };
+  const mirror = (x, y) => {
+    for (const [dx, dy] of [[x,y],[-x,y],[x,-y],[-x,-y],
+                           [y,x],[-y,x],[y,-x],[-y,-x]]) point(dx, dy);
+  };
+  let x = 0, y = 2 * radius, decision = 0;
+  while (x <= y) {
+    if (!(x & 1)) mirror(x >> 1, (y + 1) >> 1);
+    decision += 2 * x + 1;
+    x++;
+    if (decision > 0) { decision -= 2 * y - 1; y--; }
+  }
+  mirror(x >> 1, (y + 1) >> 1);
+}
 
-// Draw shield circle around a tank
-// EXE: update_shield_color at file 0x389DA — continuous fade formula
-export function drawShield(player) {
-  if (player.activeShield === SHIELD_TYPE.NONE || player.shieldEnergy <= 0) return;
-
+// Native shape dispatch at 0x404C9, including the Mag Deflector arc filter.
+export function walkShieldShape(player, visit) {
   const cfg = SHIELD_CONFIG[player.activeShield];
   if (!cfg) return;
+  const mag = player.activeShield === SHIELD_TYPE.MAG_DEFLECTOR;
+  const radii = mag ? [13,16] :
+    player.activeShield >= SHIELD_TYPE.TELEPORT ? [cfg.radius,cfg.radius-1] : [cfg.radius];
+  for (const radius of radii) walkShieldCircle(player.x, player.y, radius, (x,y) => {
+    if (!mag || (x > player.x - 5 && x < player.x + 5 && y < player.y)) visit(x,y);
+  });
+}
 
-  const cx = player.x;
-  const cy = player.y - 6;  // center on tank body
-  const radius = cfg.radius;
+// Native 0x38649 excludes terrain indices 80..104, not sky. Translate the
+// port's relocated terrain colors; other indexed pixels remain drawable.
+function shieldPixelAllowed(x, y) {
+  const c = getPixel(x,y);
+  return !(c === 120 || c === 127 || (c >= 128 && c <= 144));
+}
 
-  // EXE: continuous color = shieldEnergy × configColor / maxEnergy
-  // Sets VGA palette entry (player+200) RGB based on current energy
-  const paletteIdx = SHIELD_PALETTE_BASE + player.index;
-  const r = Math.floor(player.shieldEnergy * cfg.r / cfg.energy);
-  const g = Math.floor(player.shieldEnergy * cfg.g / cfg.energy);
-  const b = Math.floor(player.shieldEnergy * cfg.b / cfg.energy);
-  setPaletteRgb(paletteIdx, r, g, b);
+const SHIELD_PALETTE_BASE = 200;
 
-  // Draw shield as circle outline using dedicated palette entry
-  // EXE: all shield types render identically (no per-type visual effects)
-  // EXE: shield_draw_pixel_callback (0x38649) skips sky pixels (VGA 80-109)
-  for (let angle = 0; angle < 360; angle += 4) {
-    const rad = angle * Math.PI / 180;
-    const px = Math.round(cx + Math.cos(rad) * radius);
-    const py = Math.round(cy + Math.sin(rad) * radius);
-    if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-      const existing = getPixel(px, py);
-      // EXE: skip sky range 0x50-0x6D (VGA 80-109) — shield not drawn over sky
-      if (existing >= SKY_RANGE_START && existing <= SKY_RANGE_END) continue;
-      setPixel(px, py, paletteIdx);
-    }
-  }
+export function drawShield(player) {
+  if (!player.shieldEnergy) return;
+  const cfg = SHIELD_CONFIG[player.activeShield];
+  if (!cfg || !cfg.energy) return;
+  const color = (player.colorIndex ?? player.index) * 8 + 5;
+  const rgb = [cfg.r,cfg.g,cfg.b].map(c => Math.trunc(player.shieldEnergy * c / cfg.energy));
+  setPaletteRgb(color, ...rgb);
+  const key = `${player.x},${player.y},${player.activeShield}`;
+  if (player.shieldLowerColor?.key !== key) player.shieldLowerColor = {key,rgb};
+  // Native absorption updates the shared upper slot, not the dedicated lower
+  // slot installed by update_shield_color. World repaint must retain that RGB.
+  setPaletteRgb(SHIELD_PALETTE_BASE + player.index, ...player.shieldLowerColor.rgb);
+  walkShieldShape(player, (x,y) => {
+    if (player.shieldContactHoles?.key === key &&
+        player.shieldContactHoles.pixels.has(y * config.screenWidth + x)) return;
+    if (shieldPixelAllowed(x,y))
+      setPixel(x,y,y > player.y ? SHIELD_PALETTE_BASE + player.index : color);
+  });
 }
 
 // Draw shield break animation — EXE: 51-frame palette fade from full config color to ~17%
@@ -193,7 +244,7 @@ export function drawShieldBreak() {
   if (!cfg) { shieldBreak.active = false; return; }
 
   const di = shieldBreak.frame;
-  const paletteIdx = SHIELD_PALETTE_BASE + shieldBreak.playerIdx;
+  const paletteIdx = shieldBreak.colorIndex * 8 + 5;
 
   // EXE: R = configR * (60 - di) / 60 — fade from full brightness to ~17%
   const r = Math.floor(cfg.r * (60 - di) / 60);
@@ -201,18 +252,17 @@ export function drawShieldBreak() {
   const b = Math.floor(cfg.b * (60 - di) / 60);
   setPaletteRgb(paletteIdx, Math.max(0, r), Math.max(0, g), Math.max(0, b));
 
-  // Draw shield circle at original position using the fading palette entry
-  // EXE: shield pixels only exist over terrain, not sky — fade happens in-place
-  for (let angle = 0; angle < 360; angle += 4) {
-    const rad = angle * Math.PI / 180;
-    const px = Math.round(shieldBreak.x + Math.cos(rad) * shieldBreak.radius);
-    const py = Math.round(shieldBreak.y + Math.sin(rad) * shieldBreak.radius);
-    if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-      const existing = getPixel(px, py);
-      if (existing >= SKY_RANGE_START && existing <= SKY_RANGE_END) continue;
-      setPixel(px, py, paletteIdx);
+  // Repaint the upper shield using the same native shape as activation.
+  // The lower, dedicated palette entry is not changed by native break fading.
+  walkShieldShape({x:shieldBreak.x,y:shieldBreak.y,activeShield:shieldBreak.shieldType}, (x,y) => {
+    if (shieldBreak.contactHoles?.has(y * config.screenWidth + x)) return;
+    if (shieldPixelAllowed(x,y)) {
+      const lower = y > shieldBreak.y;
+      const color = lower ? SHIELD_PALETTE_BASE + shieldBreak.playerIdx : paletteIdx;
+      if (lower && di === shieldBreak.maxFrames - 1) retainWorldPixel(x,y,color);
+      else setPixel(x,y,color);
     }
-  }
+  });
 
   shieldBreak.frame++;
   if (shieldBreak.frame >= shieldBreak.maxFrames) {

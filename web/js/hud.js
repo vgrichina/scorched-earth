@@ -445,7 +445,7 @@ export function drawHud(player, wind, round, opts) {
         shieldEnergy > 0 ? UI_DEEP_SHADOW : dimColor);
     } else {
       drawIcon(x, ROW2_Y, shieldWeapon - 2,
-        shieldEnergy > 0 ? player.colorBase + 5 : hudTextColor);
+        shieldEnergy > 0 ? (player.colorIndex ?? player.index) * PLAYER_PALETTE_STRIDE + 5 : hudTextColor);
     }
     x += 20; // E9F8
     const shieldMax = player.shieldMaxEnergy ?? SHIELD_CONFIG[player.activeShield || 0]?.energy ?? 0;

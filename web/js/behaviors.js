@@ -90,8 +90,12 @@ function defaultResult(proj) {
 
 // --- Standard (0x0021): simple blast with parameterized radius ---
 // EXE: handler seg 0x3D1E (file 0x43BE0), param = blast radius from struct +0E
-function bhvStandard(proj, weapon) {
-  return { explode: true, radius: weapon.param, spawn: [], dirtAdd: false, skipDamage: false };
+function bhvStandard(proj, weapon, hitResult) {
+  // Native 0x43C01: shield contact consumes 10 shield HP without a blast;
+  // body contact requests all remaining tank energy before the ordinary blast.
+  const directHit = hitResult === 'hit_tank' ? (proj.hitPixel % 8 === 5 ? 'shield' : 'body') : null;
+  return { explode: directHit !== 'shield', radius: weapon.param, spawn: [],
+    dirtAdd: false, skipDamage: false, directHit };
 }
 
 // --- Tracer (0x0002): no damage, no crater, path only ---

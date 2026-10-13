@@ -47,6 +47,14 @@ export class ProjectileDrawingLayer {
 
 export const projectileDrawing = new ProjectileDrawingLayer();
 
+// Native indexed writes that survive a clean-world repaint (for example the
+// lower shield pixels left by its palette-specific erasure callback).
+export function retainWorldPixel(x, y, color) {
+  if (x < 0 || x >= config.screenWidth || y < 0 || y >= config.screenHeight) return;
+  projectileDrawing.writes.set(y * config.screenWidth + x, color);
+  setPixel(x, y, color);
+}
+
 // A world mutation replaces the native VGA pixel, including any trace there.
 // Ordinary world repaint must continue to use framebuffer.setPixel directly.
 export function writeWorldPixel(x, y, color) {
