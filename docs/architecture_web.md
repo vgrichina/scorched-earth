@@ -245,7 +245,6 @@ game (game.js) -- runtime game state
 +-- syncPlayerIdx:        player aiming in sync mode
 +-- aimTimer:             countdown for simultaneous aim phase
 +-- hostileLightningX/Frames: hostile environment lightning state
-+-- screenHideTarget:     target player index for "No Kibitzing"
 +-- systemMenuOption/Actions/Confirm/PendingAction: F9 system menu
 
 players[] (tank.js) -- per-player state, 10 max

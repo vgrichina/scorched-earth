@@ -16,6 +16,7 @@ import { setPaletteRgb } from './palette.js';
 import { getPixel, getBackgroundColor } from './framebuffer.js';
 import { projectileDrawing, writeWorldPixel } from './projectile-render.js';
 import { eraseShieldContact } from './shields.js';
+import {applyShieldFlight} from './shield-flight.js';
 
 // Physics tuning — per-second values matching original RE scale
 // EXE: dt calibrated via CPU MIPS benchmark, stored in DS for adaptive timestep
@@ -50,46 +51,6 @@ export const projectile = { active: false, x: 0, y: 0, vx: 0, vy: 0, trail: [] }
 // EXE: factor = 1.0 - (VISCOSITY config value / 10000.0)
 function getViscosityFactor() {
   return 1.0 - config.viscosity / 10000.0;
-}
-
-// EXE: Mag Deflector in-flight deflection (file 0x21A80-0x21C3A, inside sim_step)
-// EXE: Iterates all players per step. Deflection strength = 1/normDist * dt.
-// EXE: DS:1D2C = 1000000.0 (distance² threshold = 1000px radius)
-// EXE: DS:1D30 = 1000.0 (normalization divisor)
-// EXE: No additional multiplier — scales as (direction / normDist) * dt only.
-const MAG_RANGE_SQ = 1000000.0;
-const MAG_RANGE = 1000.0;
-const MAG_DEFLECTOR_IDX = WPN.MAG_DEFLECTOR;
-const SUPER_MAG_IDX = WPN.SUPER_MAG;
-
-function applyMagDeflection(proj) {
-  for (const player of players) {
-    if (!player.alive) continue;
-    if (player.index === proj.attackerIdx) continue;
-
-    // EXE: checks player inventory for Mag Deflector (idx 45) or Super Mag (idx 52)
-    const magCount = (player.inventory[MAG_DEFLECTOR_IDX] || 0) +
-                     (player.inventory[SUPER_MAG_IDX] || 0);
-    if (magCount <= 0) continue;
-
-    const dx = proj.x - player.x;
-    const dy = proj.y - (player.y - 2);  // center of tank body (EXE type 0: 5px tall)
-    const distSq = dx * dx + dy * dy;
-
-    // EXE: fcomp [DS:1D2C] — range check, 1000px radius
-    if (distSq > MAG_RANGE_SQ || distSq < 1.0) continue;
-
-    // EXE: normDist = sqrt(distSq) / 1000.0 (DS:1D30)
-    const dist = Math.sqrt(distSq);
-    const normDist = Math.max(dist / MAG_RANGE, 0.05);  // cap to prevent infinity
-
-    // EXE: deflection = (direction / normDist) * dt — no extra multiplier
-    const pushX = (dx / dist) / normDist;
-    const pushY = (dy / dist) / normDist;
-
-    proj.vx += pushX * DT;
-    proj.vy -= pushY * DT;  // screen Y inverted
-  }
 }
 
 // EXE: velocity damping constants (shared by Mag Deflector defense and TUNNELLING)
@@ -243,9 +204,6 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   // Store trail point
   proj.trail.push({ x: Math.round(proj.x), y: Math.round(proj.y) });
   if (proj.trail.length > 200) proj.trail.shift();
-
-  // 1. Mag Deflector zone deflection (EXE: extras.cpp 0x21A80 inner loop)
-  applyMagDeflection(proj);
 
   // EXE 0x21AA2..0x21B73: cap velocity magnitude before integrating position.
   const speedSquared = proj.vx * proj.vx + proj.vy * proj.vy;
@@ -401,6 +359,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
       proj[bounceAxis] *= coefficient;
     }
     [proj.x, proj.y] = boundaryPosition;
+    for (const player of players) applyShieldFlight(player, proj);
     return 'flying';
   }
   if (collision === 'flying' && outwardShieldContact) {
@@ -409,6 +368,9 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
       proj.bounceCount++;
       if (proj.bounceCount > 6) proj.wallBounceScale *= .8;
     }
+  }
+  if (collision === 'flying') {
+    for (const player of players) applyShieldFlight(player, proj);
   }
   return collision;
 }

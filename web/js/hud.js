@@ -55,7 +55,8 @@ import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 import { PLAYFIELD_TOP } from './terrain.js';
 import { SHIELD_CONFIG } from './shields.js';
-import { prepareWindIndicator, windPixelVisible } from './wind-indicator-state.js';
+import { prepareWindIndicator, windPixelVisible, resetWindIndicator } from './wind-indicator-state.js';
+import { projectileDrawing } from './projectile-render.js';
 
 // EXE DS:3826, 48 records of 125 bytes. Header: x offset, y offset,
 // row width. Signed row-major samples end at -99; preserve shade values.
@@ -524,13 +525,17 @@ export function drawHud(player, wind, round, opts) {
 // plus a directional pixel-arrow triangle (5 columns, narrowing).
 // Color: VGA 154 (0x9A). Position: top-right viewport area.
 const WIND_COLOR = 154; // VGA 0x9A — wind indicator text + arrow color
-function drawWindPixel(x, y) {
+function drawWindPixel(x, y, redraw = false) {
   if (!windPixelVisible(y * config.screenWidth + x)) return;
   // EXE 0x28E43: original VGA 80..104 uses wind-on-ground color 87.
   const under = getPixel(x, y);
+  if (redraw) projectileDrawing.writes.delete(y * config.screenWidth + x);
   setPixel(x, y, under >= 120 && under <= 144 ? 127 : WIND_COLOR);
 }
-export function drawWindIndicator(wind) {
+export function drawWindIndicator(wind, { redraw = false } = {}) {
+  // An actual native label redraw replaces prior world writes. Ordinary
+  // animation-frame repaint must retain pixels erased during the shot.
+  if (redraw) resetWindIndicator();
   prepareWindIndicator(`${config.screenWidth}:${config.screenHeight}:${wind}`);
   setPaletteRgb(127, 40, 40, 63); // Remapped EXE VGA 87.
   const viewportY = PLAYFIELD_TOP;
@@ -551,7 +556,7 @@ export function drawWindIndicator(wind) {
   const FG_MAXX = config.screenWidth - 1;
   const x = FG_MAXX - textW - 20;
   const y = viewportY + 5;
-  drawText(x, y, text, WIND_COLOR, drawWindPixel);
+  drawText(x, y, text, WIND_COLOR, (px, py) => drawWindPixel(px, py, redraw));
 
   if (direction === 0) return;
 
@@ -571,8 +576,8 @@ export function drawWindIndicator(wind) {
   //   arrowX += direction
   for (let col = 4; col >= 0; col--) {
     for (let di = 0; di <= col; di++) {
-      drawWindPixel(arrowX, arrowCenterY + di);
-      if (di > 0) drawWindPixel(arrowX, arrowCenterY - di);
+      drawWindPixel(arrowX, arrowCenterY + di, redraw);
+      if (di > 0) drawWindPixel(arrowX, arrowCenterY - di, redraw);
     }
     arrowX += direction;
   }

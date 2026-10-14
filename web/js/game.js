@@ -1,5 +1,5 @@
 import {startFunkyBomb,stepFunkyBomb,isFunkyBombActive,clearFunkyBombs} from './funky-bomb.js';
-import { projectileDrawing } from './projectile-render.js';
+import { projectileDrawing, retainWorldPixel } from './projectile-render.js';
 // Scorched Earth - Game State Machine
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
 // EXE: main game loop dispatch at file 0x2F78A
@@ -16,7 +16,8 @@ import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles,
          WALL, setResolvedWallType, getEffectiveWallType } from './physics.js';
-import { getPixel, setPixel } from './framebuffer.js';
+import { getPixel, setPixel, getBackgroundColor } from './framebuffer.js';
+import { drawWindIndicator } from './hud.js';
 import { startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, resumeExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
@@ -28,11 +29,12 @@ import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from '.
 import { checkShieldDeflection, applyShieldDamage, shieldBreak } from './shields.js';
 import { clearTerrainCollapse, stepTerrainCollapse } from './terrain-collapse.js';
 import { resetWindIndicator } from './wind-indicator-state.js';
+import {refreshShieldFlight} from './shield-flight.js';
 import { aftermathSequence } from './aftermath.js';
 import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
-import { generateTerrain, initSkyBackground, prepareTerrainGenerator } from './terrain.js';
+import { generateTerrain, terrainBitmap, PLAYFIELD_TOP, initSkyBackground, prepareTerrainGenerator } from './terrain.js';
 import { initPalette } from './palette.js';
 import { resetMenuState } from './menu.js';
 
@@ -86,7 +88,7 @@ export const STATE = {
   GAME_OVER: 'game_over',
   SYNC_AIM: 'sync_aim',       // EXE: synchronous mode — sequential aim collection
   SYNC_FIRE: 'sync_fire',     // EXE: synchronous mode — batch launch
-  SCREEN_HIDE: 'screen_hide', // EXE: "No Kibitzing" screen between human turns
+  SCREEN_HIDE: 'screen_hide', // EXE: K-key "No Kibitzing" dialog
   SYSTEM_MENU: 'system_menu', // EXE: F9 system menu
   TERRAIN_REVEAL: 'terrain_reveal', // EXE: progressive left-to-right terrain draw
 };
@@ -114,7 +116,6 @@ export const game = {
   // Hostile environment
 
   // No Kibitzing
-  screenHideTarget: -1,
   // System menu
   systemMenuOption: 0,
   systemMenuActions: [],  // populated from SYSTEM_MENU_OPTIONS at F9 open
@@ -151,6 +152,28 @@ function updateWind() {
   if (!config.changeWind) return;
   const delta = random(11) - 5;  // [-5, +5]
   game.wind = clamp(game.wind + delta, -config.wind, config.wind);
+  return delta !== 0; // Native tests before clamping, including max wind zero.
+}
+
+// Native sequential fire returns through 0x307B9: update and redraw the wind
+// label before selecting the next tank. Reconstruct retained overlays first,
+// since main.js repaints the underlying world before gameTick.
+function redrawTurnWind() {
+  drawWindIndicator(game.wind);
+  projectileDrawing.draw();
+  if (updateWind()) {
+    const width = config.screenWidth;
+    for (let x = width - 81; x < width - 4; x++) {
+      for (let y = PLAYFIELD_TOP + 5; y < PLAYFIELD_TOP + 16; y++) {
+        const color = getPixel(x, y);
+        const ground = color >= 120 && color <= 144;
+        if (ground) random(1);
+        terrainBitmap[y * width + x] = ground ? 120 : 0;
+        retainWorldPixel(x, y, ground ? 120 : getBackgroundColor(y, x));
+      }
+    }
+  }
+  drawWindIndicator(game.wind, { redraw: true });
 }
 
 // Get the current active player
@@ -281,6 +304,22 @@ function startNewRound() {
   prepareRoundBackground();
   // Regenerate terrain and place tanks
   generateTerrain();
+  // Native 0x294FC draws the initial wind label after terrain generation;
+  // with changing wind enabled this consumes a random step before placement.
+  if (updateWind()) {
+    // Native 0x28EF2 clears the label rectangle. Each ground pixel calls
+    // 0x299C0, consuming random(1) even with a single ground color.
+    const width = config.screenWidth;
+    for (let x = width - 81; x < width - 4; x++) {
+      for (let y = PLAYFIELD_TOP + 5; y < PLAYFIELD_TOP + 16; y++) {
+        const index = y * width + x, color = terrainBitmap[index];
+        if (color >= 120 && color <= 144) {
+          random(1);
+          terrainBitmap[index] = 120;
+        }
+      }
+    }
+  }
   playTerrainGenPing();
 
   // Reuse existing players (preserves score/cash/wins/inventory/aiType/name)
@@ -594,6 +633,12 @@ export function gameTick() {
           fireWeapon(player);
         }
       } else {
+        // Native input dispatch 0x2F78A: scan code 0x25 (K) calls
+        // show_no_kibitzing at 0x2F7EF, returning to this player's input.
+        if (consumeKey('KeyK')) {
+          game.state = STATE.SCREEN_HIDE;
+          break;
+        }
         // EXE: F9 opens system menu during aim phase
         if (consumeKey('F9')) {
           game.systemMenuOption = 0;
@@ -855,7 +900,7 @@ export function gameTick() {
       game.nextTurnTimer++;
       if (game.nextTurnTimer > 15) {  // brief pause between turns
         game.nextTurnTimer = 0;
-        updateWind();
+        redrawTurnWind();
         // EXE: Erratic wall type resolves each turn
         if (config.wallType === WALL.ERRATIC) resolveRandomWallType();
 
@@ -865,6 +910,7 @@ export function gameTick() {
 
         game.turnCount++;
         if (advancePlayer()) {
+          players.forEach(refreshShieldFlight);
           // Sync mode: go back to SYNC_AIM for next round of aims
           if (config.playMode >= 1) {
             game.aimQueue = [];
@@ -872,16 +918,10 @@ export function gameTick() {
             game.aimTimer = config.playMode === 1 ? 600 : 0;
             game.state = STATE.SYNC_AIM;
           } else {
-            // EXE: No Kibitzing — show interstitial between human turns in hotseat
+            // Native 0x2AB99 enters the next human's input loop directly.
             const nextPlayer = getCurrentPlayer();
             if (!isAI(nextPlayer)) nextPlayer.contrastPending = true;
-            const humanCount = players.filter(p => p.alive && !isAI(p)).length;
-            if (humanCount > 1 && !isAI(nextPlayer)) {
-              game.screenHideTarget = nextPlayer.index;
-              game.state = STATE.SCREEN_HIDE;
-            } else {
-              game.state = STATE.AIM;
-            }
+            game.state = STATE.AIM;
           }
         } else {
           endOfRoundScoring(game.round);
@@ -1061,7 +1101,7 @@ export function gameTick() {
     // --- No Kibitzing / System Menu states ---
 
     case STATE.SCREEN_HIDE: {
-      // Black screen between human turns — EXE: fg_getkey() waits for any key
+      // Native modal privacy dialog returns to the same player's input.
       if (consumeAnyKey() || consumeClick(0)) {
         game.state = STATE.AIM;
       }

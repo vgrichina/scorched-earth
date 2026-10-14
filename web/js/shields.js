@@ -5,7 +5,7 @@
 // EXE: shield energy values: MagDeflector=55, Shield=100, Warp=100, Teleport=150, Flicker=200
 // EXE: Warp/Teleport shields trigger tank repositioning on hit
 // EXE: ALL shields use dispatch_type=1 (same handler) — no per-type special behavior
-// EXE: Flicker Shield is a plain absorption shield despite its name (200 HP, orange)
+// EXE: Mag/Flicker also register the finite-use lift callback at 0x23754.
 // EXE: Force/Heavy/SuperMag weapons are OUTSIDE config range (corrupted data, not functional shields)
 
 import { config, GRAPHICS_MODES } from './config.js';
@@ -28,7 +28,7 @@ export const SHIELD_TYPE = {
 };
 
 // EXE: shield config table at DS:0x616C, 16 bytes per entry
-// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), +0x0C (dialog nav), +0x0E (dispatch-1)
+// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), +0x0C (effect flags), +0x0E (dispatch-1)
 export const SHIELD_CONFIG = [
   { name: 'None',            energy: 0,   radius: 0,  r: 0,  g: 0,  b: 0  },  // config 0
   { name: 'Mag Deflector',   energy: 55,  radius: 16, r: 63, g: 63, b: 23 },  // config 1, weapon 45

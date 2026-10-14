@@ -78,6 +78,7 @@ export function createPlayer(index, name) {
     aiType: 0,           // 0 = human
     activeShield: 0,     // shield type index
     shieldEnergy: 0,
+    shieldFlightUses: 0, // native +0x98, reset by between-turn maintenance
     // batteries: use inventory[WPN.BATTERY] (Battery item) — not a separate field
 
     // Color index (0-9, default = player index; overridden by player setup color picker)
@@ -188,6 +189,7 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.hudPower = undefined;
     p.hudShieldEnergy = undefined;
     p.shieldEnergy = 0;
+    p.shieldFlightUses = 0;
     p.activeShield = 0;
     p.shieldContactHoles = null;
     p.shieldLowerColor = null;

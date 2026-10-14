@@ -1,4 +1,5 @@
 import {drawFunkyBomb} from './funky-bomb.js';
+import {drawNoKibitzing,closeNoKibitzing} from './no-kibitzing.js';
 // Scorched Earth - Main entry point + game loop
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830) — main game loop
 // EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
@@ -12,7 +13,7 @@ import { drawAllTanks, players, drawDeathAnimations, TANK_TYPES } from './tank.j
 import { seedRandom, bresenhamLine } from './utils.js';
 import { initInput } from './input.js';
 import { drawHud, drawWindIndicator, drawPlayfieldBorder } from './hud.js';
-import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
+import { drawText, drawTextShadow, measureText } from './font.js';
 import { projectiles } from './physics.js';
 import { projectileDrawing, drawProjectileTrackingMarks } from './projectile-render.js';
 import { gameTick, game, STATE, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
@@ -359,22 +360,13 @@ function gameLoop() {
     return;
   }
 
-  // EXE: No Kibitzing — 200×155 centered dialog between human turns
+  // EXE: No Kibitzing — K opens a 200×155 centered dialog during aiming
   // EXE: show_no_kibitzing at 0x43080 — dialog_create(0, 0, 200, 155), centered via dialog_position
   // EXE: paint callback draw_no_kibitzing_text at 0x4304B — embossed text at (dlg.x+30, dlg.y+70)
   if (game.state === STATE.SCREEN_HIDE) {
     gameTick();
-    redrawWorld();
-    // EXE: dialog is partial-screen (200×155), not fullscreen black
-    const dlgW = 200, dlgH = 155;
-    const dlgX = Math.floor((config.screenWidth - dlgW) / 2);
-    const dlgY = Math.floor((config.screenHeight - dlgH) / 2);
-    drawBox3DRaised(dlgX, dlgY, dlgW, dlgH, UI_BACKGROUND,
-      UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-    // EXE: draw_embossed_text at (dlg.x + 0x1E, dlg.y + 0x46) = (dlg.x+30, dlg.y+70)
-    drawTextEmbossed(dlgX + 30, dlgY + 70, 'NO KIBITZING!!', [
-      UI_DEEP_SHADOW, UI_BRIGHT_BORDER, UI_DARK_TEXT, UI_LIGHT_ACCENT, UI_DARK_BORDER
-    ]);
+    if (game.state === STATE.SCREEN_HIDE) drawNoKibitzing();
+    else closeNoKibitzing();
     blit();
     requestAnimationFrame(gameLoop);
     return;
@@ -497,6 +489,7 @@ function gameLoop() {
     if (screenFlash.frames <= 0) screenFlash.active = false;
   }
 
+  if (game.state === STATE.SCREEN_HIDE) drawNoKibitzing();
   blit();
 
   requestAnimationFrame(gameLoop);

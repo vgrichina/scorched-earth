@@ -9313,3 +9313,251 @@ composed surviving-shot/selection/HUD result for this fixture; it does not
 prove an uninterrupted input-driven launch-to-next-turn call chain, chained
 deaths, wind updates, or interstitial timing. No additional runtime fix was
 needed for this comparison.
+
+
+### Changing wind during round setup (2026-10-13)
+
+The native landscape wrapper calls `draw_wind_indicator` at `0x294FC`,
+after the terrain generator returns and before player ordering/placement.
+With DS:50FA enabled, the indicator calls `update_wind` (`0x28E99`) and
+consumes one `random(11)` step, even when the maximum wind is zero.
+The port only applied these steps between turns, omitting the initial one.
+`startNewRound` now updates wind immediately after `generateTerrain`.
+
+`verify_landscape_sequence.py --change-wind` enables this option in both
+implementations. It requires `--players` or `--full-frame` so the port goes
+through production round setup. Before the fix, seed 0 / starry sky / maximum
+wind 25 failed player-order comparison: port selected player 0 first, native
+selected player 1. This was RNG ordering drift, not merely a label mismatch.
+After the fix, two consecutive rounds match complete 360x480 RGB, wind,
+player order/geometry and the full R250 state. Screenshot pair:
+`/tmp/scorched-changing-wind/seed-0-sky-2-round-1-{emulator,web}.png`.
+The web image was visually inspected.
+
+Command: `python3 disasm/verify_landscape_sequence.py
+/tmp/scorched-before-walk.state --case 0 --sky 2 --wind 25 --change-wind
+--full-frame --rounds 2 --output-dir /tmp/scorched-changing-wind`.
+This proves generated round setup for these configurations; it does not
+prove post-shot wind-label erasure, uninterrupted turn flow, or interstitial
+behavior. Changes are not deployed.
+
+
+The expanded setup matrix exposed a second omission in castle sky mode:
+wind-label erasure (`0x28EF2`) calls `0x299C0` for each ground pixel in
+x=`width-81 .. width-5`, y=`PLAYFIELD_TOP+5 .. PLAYFIELD_TOP+15` (inclusive).
+That helper consumes `random(1)` and restores ground color 80 (port 120).
+The erase condition tests the unclamped delta, so this also occurs at maximum
+wind zero when `random(11)-5` is nonzero. The setup fix now applies these
+ground writes and RNG calls in native column-major order. The previously
+failing seed 65535 / castle / erratic walls / max wind zero fixture now
+matches the complete RGB frame, player state and RNG. Log and image pair:
+`/tmp/scorched-changing-wind-castle.log` and
+`/tmp/scorched-changing-wind-castle/seed-65535-sky-5-round-1-{emulator,web}.png`.
+Post-shot wind erasure still needs the equivalent check against the retained
+world framebuffer, including tank/label overlap; setup coverage does not
+establish that behavior.
+
+Final follow-ups pass: castle/erratic walls/max wind 25 for two consecutive
+rounds (`/tmp/scorched-changing-wind-castle-25.log`), and the starry/max wind
+25 fixture (`/tmp/scorched-changing-wind-final.log`). The castle/max wind zero
+image was also visually inspected. A changing-wind-disabled/max wind 25
+control passed (`/tmp/scorched-fixed-wind-control.log`). Before the ground
+redraw addition, the expanded matrix had already passed six max-wind-25
+rounds and three max-wind-zero rounds across solid, storm and random skies;
+its castle failures led to the additional fix above, not a waived assertion.
+
+
+### Post-shot changing wind and retained label pixels (2026-10-13)
+
+The next-player comparator now executes the real native wind renderer
+`0x28F1D` before re-entering the slot-advance block, matching the sequential
+fire wrapper's post-shot call at `0x307B9`. It checks the resulting wind,
+complete next-player RGB frame, and all 250 R250 words plus the index.
+`--shot-next-player` now permits changing/nonzero wind. `--next-player`
+performs the same transition directly after generated round setup, without
+claiming a shot took place. Both require ordinary walls and one round.
+
+Two castle fixtures (seeds 0 and 1, maximum wind 25) initially matched RGB
+but failed the complete RNG check. The per-turn port omitted ground redraws
+inside the wind-label erase rectangle. `redrawTurnWind` now reconstructs the
+previous label and retained world writes, then applies the native per-pixel
+ground/sky decision and ground RNG consumption in column-major order.
+It retains the resulting writes across world repaints. Actual label redraws
+reset prior erasure state and overwrite retained pixels at new text/arrow
+positions; ordinary animation-frame label repaint preserves shot damage.
+This also restores an overwritten label when changing wind is disabled.
+
+Validation:
+- Both previously failing castle seeds pass full RGB and RNG after the fix:
+  `/tmp/scorched-castle-wind-turn-seed{0,1}.log`.
+- `--wind-overwrite 300 46 0` applies an identical single-pixel framebuffer
+  fixture to the native and port label before the transition. Full RGB/RNG
+  pass with changing wind off over starry sky, and with changing wind on /
+  maximum zero over castle ground. Logs: `/tmp/scorched-wind-redraw-hole.log`
+  and `/tmp/scorched-wind-ground-hole.log`.
+- The changing-wind / maximum 25 / starry-sky surviving parachute shot passes
+  **118 complete shot RGB frames**, signed HP/alive/power, inventory and RNG,
+  then the next-player full screen and RNG with final wind -1. Log:
+  `/tmp/scorched-shot-changing25.log`; next-player image pair in
+  `/tmp/scorched-shot-changing25/next-player-{emulator,web}.png`.
+  The port image was visually inspected.
+- The 564-case native next-player slot-selection regression still passes.
+
+Composed-shot command: `python3 disasm/verify_landscape_sequence.py
+/tmp/scorched-before-walk.state --case 0 --sky 2 --wind 25 --full-frame
+--projectile-head 180 150 --flight-steps 150 --shot-impact --shot-aftermath
+--shot-falling --shot-parachute --shot-next-player --change-wind
+--output-dir /tmp/scorched-shot-changing25`.
+
+Scope remains composed entry points: the shot fixture lacks an enclosing
+native turn-loop stack, so wind drawing and slot advancement are entered
+explicitly after the compared aftermath. Shield maintenance, input and
+round-end checks remain intercepted. These results do not prove a complete
+input-driven shot-to-turn call chain, synchronized modes, interstitials,
+chained deaths, or every overlap/configuration. Changes are undeployed.
+
+
+### No Kibitzing trigger and modal screenshot correction (2026-10-13)
+
+Earlier notes calling this an automatic hotseat interstitial were incorrect.
+Native `0x2AB99..0x2ABAD` goes directly from full HUD drawing into the next
+human's input loop. The sole direct caller of `show_no_kibitzing` is the
+input-dispatch branch `0x2F7EF`. Executing the jump table at `0x2F78A` selects
+that branch for AT scan code **0x25 (K)**. It returns to the same input loop.
+The port now opens the dialog on K during human aiming and proceeds directly
+to AIM between sequential turns. It no longer inserts a privacy dialog on
+every human-to-human transition.
+
+`python3 disasm/verify_no_kibitzing.py` executes 14 native human-turn entries
+across 2..5 players, stopping at either human input or the privacy dialog;
+all enter input directly. It also executes K dispatch to the real dialog
+entry and its return branch. Production port keyboard dispatch, ordinary
+turn advancement and key/click dismissal match for 2..5 human players,
+without changing the selected player. Before the fix, the port entered
+SCREEN_HIDE automatically and ignored K. The existing 564 native next-player
+slot-selection cases still pass. The dispatch test intercepts dialog entry;
+its dismissal assertions cover the port, not the native event-loop timing.
+
+The modal renderer now lives in `web/js/no-kibitzing.js`, called from the
+production main loop. It preserves the complete displayed framebuffer,
+including the HUD, wind and retained shot pixels, and restores it on close.
+Native dialog coordinates use FG_MAXX/FG_MAXY with inclusive endpoints:
+at 360x480 the box starts at **(79,162)** and covers **201x156 pixels**.
+The former port used x=80 and a 200x155 raster. The embossed text's fourth
+layer is DS:EF2A = palette 151 (background), not the wall palette 157.
+
+`python3 disasm/verify_no_kibitzing_frame.py
+/tmp/scorched-lethal-flash/after-falling.state
+--output-dir /tmp/scorched-no-kibitzing` executes native dialog creation,
+positioning and paint through `0x46039`. It separately executes the native
+restore helper `0x45ECB` and disposal `0x45DDC`. Only the pre-dialog image
+and palette are supplied to the port; no native dialog pixels are imported.
+All **360x480 RGB pixels** match, and both implementations restore the exact
+original indexed image. Repeated modal repaint also preserves that original.
+The comparison first found 2,033 differing pixels, then 349 after the geometry
+fix, and zero after the text-color correction. Images:
+`/tmp/scorched-no-kibitzing/no-kibitzing-{emulator,web}.png`.
+This fixture proves the dialog layer at this resolution and palette, not
+complete browser event delivery, all graphics modes, or native input timing.
+Changes are uncommitted and undeployed.
+
+
+### Executing the real next-turn maintenance path (2026-10-13)
+
+The next-player screenshot helper no longer intercepts `0x2B405` (round-end
+check), `0x238AE` (shield maintenance), or `0x28A80` (keyboard poll). It sets
+an explicit idle direct-scan keyboard fixture and executes from slot advance
+`0x2ABDA` through all those calls, the full HUD renderer, and the branch into
+human input at `0x2F550`. Reaching `show_no_kibitzing` instead fails the check.
+The port must reach AIM too. This strengthens the next-turn segment only;
+the shot fixture still lacks the real enclosing native caller stack.
+The port fixture also now redraws active shields on its next-player capture.
+
+Tracing the real maintenance path exposed an unresolved projectile-effect
+mismatch, which older shield comments obscure:
+- `0x238E0` sets tank word **+0x98** to 1000 when shield energy (+0x96) is
+  positive, the tank is alive, and shield config flags (+0x0C) contain 0x06.
+  Config 1 (Mag Deflector) has flags 2; config 5 (Flicker) has flags 4.
+  Other shield configs receive zero. This is an effect-use reserve, not HP.
+- It manages a linked callback list at DS:1C80/1C82. The callback is
+  `0x23754`, and native dispatches this list at `0x220AB..0x220DC`, after
+  the projectile's movement/collision/drawing phase, not before integration.
+- The callback skips dead tanks, absent shield energy/reserve, and the firing
+  tank. It truncates projectile-X minus tank-X, accepting -15..15 inclusive,
+  and truncates tank-Y minus projectile-Y, accepting 1..FG_MAXY/4 inclusive.
+  It decrements the reserve through `0x32106`, including when horizontal
+  velocity is zero. With nonzero horizontal velocity it adds
+  **50/FIRE_DELAY** to vertical velocity, or 50 when FIRE_DELAY is zero.
+- The port's current `applyMagDeflection` instead uses inventory counts,
+  a radial 1000-pixel zone, and force before integration. Its cited constants
+  are unrelated: DS:1D2C is the speed-squared cap, and DS:1D30 contributes
+  to flight sound at `0x21B94`. That approximation still needs replacement,
+  native callback/reserve tests, and continuous shielded-flight screenshots.
+
+Passing a static shielded next-player screen does not prove the reserve,
+callback lifecycle, or following shielded projectile trajectory. No runtime
+shield-effect correction is claimed by this maintenance-path comparison.
+
+Validation of the uninterrupted maintenance segment passes with shield pairs
+[1,5], [2,4], and [0,3], covering all five shield types plus none. Each run
+compares the generated initial screen and the complete next-player RGB image,
+wind, selected player/AIM state, and full RNG. Commands use
+`verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0
+--sky 2 --next-player --shields A B`. Logs:
+`/tmp/scorched-next-maintenance.log`, `/tmp/scorched-next-shields-2-4.log`,
+`/tmp/scorched-next-shields-0-3.log`. Screenshot pair for [1,5]:
+`/tmp/scorched-next-maintenance/next-player-{emulator,web}.png`.
+
+
+### Native shield lift replaces radial inventory force (2026-10-13)
+
+`web/js/shield-flight.js` implements native `0x238E0` reserve refresh and
+`0x23754` flight callback. Tanks now retain `shieldFlightUses` (+0x98), cleared
+on round reset and refreshed for all players during a continuing NEXT_TURN.
+Mag Deflector and Flicker receive 1000 uses when alive with positive shield
+energy; all other states receive zero. The callback consumes one use in the
+native rectangular zone, including for zero horizontal velocity; only a
+nonzero horizontal velocity gains 50/FIRE_DELAY vertical velocity (or 50
+when delay is zero). An absent port fireDelay uses the shipped default 100.
+`physics.js` removes the unsupported inventory-based radial force and applies
+the callback after successful movement/collision handling, including boundary
+repositioning, instead of before integration.
+
+`python3 disasm/verify_shield_flight.py` passes **511 native callback cases**
+with exact velocity/reserve comparison across 200/350/480 heights, fractional
+horizontal/vertical cutoffs, delays 0/1/100/200, self shots, dead tanks, zero
+energy, zero horizontal velocity, and exhausted/last-use reserves. It also
+executes the native reserve setter path through `0x23928` for **48 cases**
+covering all six configs, negative/zero/positive energy, and alive/dead state.
+The latter stops before callback linked-list maintenance; no heap is mocked.
+
+The landscape verifier now supports ordinary collision-enabled flight with
+active shields. It initializes both sides' maintenance state, runs the real
+native linked callback list through `0x220DE` after each step, and compares
+full RGB, exact x/y/vx/vy, and both reserve counts at every frame. The new
+fixtures pass **30 full-screen frames each** for Mag Deflector and Flicker,
+plus final full RNG. No native motion, reserve or shield pixels are imported
+into the port. The fixtures launch at (237,221), traverse the target's lift
+zone, and remain in free flight; they do not prove shielded impact/aftermath.
+The port's last Flicker frame was visually inspected.
+
+Commands: `python3 disasm/verify_landscape_sequence.py
+/tmp/scorched-before-walk.state --case 0 --sky 2 --full-frame --shields 0 TYPE
+--projectile-head 237 221 --flight-steps 30 --flight-collisions
+--output-dir /tmp/scorched-TYPE-lift`, with TYPE 1 and 5.
+Logs/artifacts actually saved as `/tmp/scorched-mag-lift.log`,
+`/tmp/scorched-mag-lift/flight-029-{emulator,web}.png`,
+`/tmp/scorched-flicker-lift.log` and
+`/tmp/scorched-flicker-lift/flight-029-{emulator,web}.png`.
+A first frame failure at the shield HUD was fixture setup: the port redrew
+its newly initialized shield state while native still displayed the earlier
+HUD. Both now execute full HUD refresh after fixture shield initialization.
+
+The next-player comparator now also checks both reserve words. Its [1,5]
+shield fixture passes with the real native maintenance path:
+`/tmp/scorched-shield-reserve-turn.log`. The 564-case slot-selection
+regression passes. Remaining scope includes activating/changing shields via
+the actual UI, callbacks during impact/aftermath and synchronized modes, and
+reserve exhaustion in continuous flight. The boundary kernel covers zero and
+last-use states, but does not substitute for that full lifecycle. Changes
+remain uncommitted and undeployed.
