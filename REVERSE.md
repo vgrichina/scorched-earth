@@ -5463,6 +5463,10 @@ score_on_death(attacker, victim):
 
 ### End-of-Round Scoring (file 0x37381)
 
+**Superseded identification:** this routine is called by a separate cleanup
+path. Normal round completion calls `0x37473`. E340 is the living-player count,
+not the round number. See the normal-round scoring correction below.
+
 Called for Standard and Corporate modes after each round. **Skipped entirely for Vicious mode** (check at file 0x306FE: `cmp [0x5188], 2; jz skip`).
 
 ```
@@ -10078,3 +10082,192 @@ actual round-end processing and compare equivalent boundaries, including
 scoring and round-over pixels, rather than dropping the RNG check. Intermediate
 death-effect frames beyond the lethal falling flashes are not captured by this
 shot oracle yet.
+
+### Correct normal-round scoring entry (supersedes the old 0x37381 label)
+
+Tracing the round wrapper identifies `0x2AA7A -> 0x37473` as the normal
+winner award. After that it increments E342 and calls the rankings dialog
+at `0x33FC3` (`0x2AA98`). The historical `end_of_round_scoring` label on
+`0x37381` is misleading: its far caller is `0x2B2AD`, in a separate cleanup
+path which subsequently erases surviving tanks. Do not use that routine to
+justify normal round awards.
+
+The port's Standard scoring now follows `0x37473`: each living tank gets one
+win and a flat bonus of player count times 1000
+without teams, or 5000 with teams. It no longer applies the unrelated
+round-dependent pool formula to Standard rounds.
+
+`python3 disasm/verify_round_score.py` passes 36 cases, executing the native
+routine with teams on/off, port round values 0/1/3/8/17/60, damaged survivors, multiple
+survivors and no survivors. It intercepts `add_score` to compare award amounts
+and checks the actual native win counters. It does not verify score storage,
+nonstandard scoring modes, round-end pixels or RNG timing. Those remain open;
+the Baby Nuke boundary mismatch is not resolved by this scoring correction.
+
+The misleading routine at `0x37381` also uses current signed tank HP, not
+constant starting HP, and signed-word initial pool arithmetic. Its E340 input
+is the living-player count, not a round number. `0x2B13B` initializes E340 from
+NUM_PLAYERS and `0x232ED` decrements it after each death. The zero guard in
+`0x37473` therefore means no survivors, not round zero. The verifier initializes
+this counter from its fixture survivors. These corrections supersede earlier
+round-dependent pool descriptions, including the old completed checklist item.
+
+### Native between-round rankings and the extra war-quote RNG draw
+
+`disasm/capture_round_rankings.py` enters the real wrapper at `0x2AA7A` from
+the completed Baby Nuke checkpoint, executes scoring and completed-round
+increment, constructs the rankings dialog and stops at input polling `0x460C3`.
+No callees are intercepted. A breakpoint on `random()` is never hit; all 250
+RNG words and the index remain unchanged. Both completed-round fixtures 0 and
+8 (of 10) reach input-ready rankings, including the singular rounds-left text.
+
+```
+python3 disasm/capture_round_rankings.py /tmp/scorched-baby-nuke-lethal/mismatch.state /tmp/scorched-native-round-rankings
+python3 disasm/capture_round_rankings.py /tmp/scorched-baby-nuke-lethal/mismatch.state /tmp/scorched-native-round-rankings-one-left --completed 8
+```
+
+The native capture shows a centered Rankings dialog with numbered player rows,
+win counts, currency scores, rounds remaining and a Go button. There is no war
+quote between rounds. The port now leaves `warQuote` empty on those transitions,
+removing its extra RNG consumption. Final-round quote behavior is unchanged and
+still needs native verification. The port's old round-over overlay is still
+visually different; these captures establish the next implementation target.
+
+After this correction the previously failing Baby Nuke command passes: all
+322 captured RGB frames, signed HP/alive state and full RNG match through shot
+aftermath. Artifacts: `/tmp/scorched-baby-nuke-round-rng`; log:
+`/tmp/scorched-baby-nuke-round-rng.log`. This does not compare the port's
+rankings overlay or every intermediate death-effect frame.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 2 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --output-dir /tmp/scorched-baby-nuke-round-rng
+```
+
+### Standard between-round Rankings panel
+
+`web/js/rankings.js` now renders the native centered dialog for Standard
+between-round screens, replacing the old free-floating overlay on that path.
+Layout follows `0x33FC3`: columns sized from player names, 13-pixel rows at
+360x480, currency scores with separators, numbered ranks, title-side color
+bars, rounds remaining and the cyan-hotkey Go button. It uses the native
+selection/comparison behavior from `turn-order.js`; equal numeric scores do
+not produce shared ranks because the native comparator returns +1 on equality.
+The renderer restores player palette entries after death effects using the
+stored display colors, as the native call at `0x3412E` does.
+
+```
+python3 disasm/verify_rankings.py /tmp/scorched-baby-nuke-lethal/mismatch.state
+```
+
+All eight comparisons pass: two, three and ten players, equal scores, long
+names, large/negative scores, and one/nine rounds remaining. Native executes
+its complete dialog construction/rendering; the port receives only fixture
+names/wins/scores/colors and screen dimensions. Bounds, every panel palette
+index and restored player DAC entries match. Native layout/framebuffer data
+are never supplied to the port. This does not yet compare the retained
+gameplay/HUD background, shared UI palette initialization, other resolutions,
+final scoring, nonstandard scoring modes or input behavior. In particular,
+the surrounding round-over input still uses the old any-key/click behavior.
+
+### Composed shot through full Rankings frame
+
+The firing oracle now initializes native scores/wins to zero and explicitly
+sets Standard scoring with teams disabled, matching the port's player setup.
+For a round-ending shot it captures post-flight fallback and the Rankings
+screen. Native execution resumes `0x30771..0x307B2` for ammo fallback, then
+enters the actual round wrapper at `0x2AA7A` and stops at dialog input polling.
+The intervening input/next-slot loop is bridged, not executed; its clearing of
+the current-player pointer is reproduced explicitly. This is not yet a proof
+of the complete enclosing input loop or transition timing.
+
+The first comparison differed at only 20 pixels in the HUD name. Native
+`0x33FF6..0x34110` replaces the old name with the last surviving player's name
+in that player's base palette entry, or `No Winner` if nobody survives.
+`drawRankingsWinnerName` now implements that field-only redraw. The eight
+isolated Rankings fixtures also compare this name region and still pass.
+
+The rerun passes all 322 shot frames, signed HP/alive state, then the entire
+360x480 Rankings RGB image, win counters and all RNG words/index. It includes
+the retained landscape, restored player palette, winner name, Baby Missile
+fallback and actual awarded scores as rendered text. Scores are not separately
+decoded from native big-number storage by this composed check.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 2 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --output-dir /tmp/scorched-composed-rankings-fixed
+```
+
+Artifacts: `/tmp/scorched-composed-rankings-fixed/rankings-{web,emulator}.png`,
+`rankings.state`, `rankings-port.json`; log:
+`/tmp/scorched-composed-rankings-fixed.log`.
+
+Native input evidence is now reproducible separately:
+
+```
+python3 disasm/probe_rankings_keys.py /tmp/scorched-composed-rankings-fixed/rankings.state
+```
+
+Enter, Space and G wait for release before returning from the dialog; Escape
+returns on press; A remains in the dialog after press and release. The port
+still needs this input behavior and the pressed-button appearance implemented.
+
+### Rankings held-button and input parity
+
+Standard between-round `ROUND_OVER` now uses the native Go-button path instead
+of a 30-tick any-key gate. Enter, Space and G depress Go while held and advance
+to SHOP after release; Escape advances immediately; A does not dismiss it.
+The depressed button has a one-pixel sunken border, plain `Go` text without
+the cyan hotkey, and a two-pixel text displacement in both axes.
+
+```
+python3 disasm/verify_rankings_keys.py /tmp/scorched-composed-rankings-fixed/rankings.state
+python3 disasm/verify_rankings_mouse.py /tmp/scorched-composed-rankings-fixed/rankings.state
+```
+
+All five keyboard comparisons pass against production `gameTick`, including
+every panel index while a key is held (Escape exits immediately and therefore
+has no retained-panel comparison). The native keyboard oracle delivers actual
+IRQ make/break events. The eight existing panel/name/palette cases still pass.
+
+Mouse comparisons execute the native dialog with only driver position/button
+polling supplied by the harness. All four tested paths match production:
+Go stays pressed until release, release outside still activates Go, clicking
+outside the panel dismisses immediately, and blank panel space does nothing.
+This corrects the initial assumption that moving outside would cancel Go.
+Mouse cursor rendering, other mouse buttons, simultaneous held keys, focus
+navigation, final scoring and the following shop screen remain unverified.
+
+### Final Scoring reference and renderer (integration still pending)
+
+The capture tool now accepts the last round. Native `0x33FC3` calls
+`0x34F2F` to finish the final dialog, whose paint callback is `0x34CC6`.
+The reference is an embossed Final Scoring panel with Quit/New Game buttons
+and concentric winner-colored rings, not the port's existing text overlay.
+Entry still makes no random call and preserves all 250 RNG words/index.
+Removed the remaining final-round war-quote draw from production transitions.
+
+```
+python3 disasm/capture_round_rankings.py /tmp/scorched-baby-nuke-lethal/mismatch.state /tmp/scorched-final-ranking-verified --completed 9
+python3 disasm/verify_rankings.py /tmp/scorched-baby-nuke-lethal/mismatch.state --final
+python3 disasm/probe_rankings_keys.py /tmp/scorched-final-ranking-verified.state --final
+```
+
+New `web/js/final-scoring.js` reproduces the full initial RGB screen in all
+four human-player fixtures (2/2/3/10 players; equal, negative and large scores).
+Three successive 40-entry ring palette phases also match native polling.
+The port uses its own UI palette initialization; no native framebuffer or
+layout is supplied to it. The button row distributes the integer remainder
+around the group (`0x4A398`), which matters for odd panel widths.
+
+Final column sizing reserves space for player classifications in slots 1
+onward. Human labels are Sentient/Sentient? according to their score relative
+to one tenth of the highest positive score. AI classifications and extra
+AI-related controls still need native comparison. The ring gradient uses
+the leading player's stored RGB, 20 rising/20 falling entries, with two
+palette rotations before the first input-ready frame.
+
+Native key probes confirm Q returns action 0 and G action 1 after release;
+Escape returns immediately; A, Enter and Space leave the screen open.
+`final-scoring.js` is not yet connected to the live renderer: final controls,
+AI-specific buttons and the existing GAME_OVER flow must be replaced together.
+The old final-screen overlay therefore remains a visible gap. Frame:
+`/tmp/scorched-final-ranking-verified.png`.

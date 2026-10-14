@@ -1,7 +1,7 @@
 // Scorched Earth - Scoring System
 // EXE source: score.cpp (seg 0x30B2, file base 0x36B20)
 // EXE: scoreOnDamage at file 0x37688, scoreOnDeath at file 0x375E3
-// EXE: endOfRoundScoring at file 0x37381
+// EXE: normal round completion at file 0x37473 (caller 0x2AA7A)
 // 3 modes: Standard (0), Corporate (1), Vicious (2)
 // Per-damage: +30x enemy weapon, +2x enemy shield, -15x friendly weapon, -1x friendly shield
 // Per-death: teams enabled → +500 enemy kill; teams disabled → +4000 enemy kill
@@ -45,12 +45,21 @@ export function scoreOnDeath(attacker, victim) {
   }
 }
 
-// EXE: end_of_round_scoring at file 0x37381
-// Teams enabled:  pool = round×500 + 5000 + sum(alive: maxPower×30 + shieldEnergy×2)
-// Teams disabled: pool = numPlayers×1000 + round×4000
-// Both: each alive player gets floor(pool / roundNumber) added to score
-const MAX_POWER = 100;  // DS:0x50E4 — player starting energy (sub-struct +0xA2)
+// Standard round awards are verified against 0x37473. The legacy nonstandard
+// branches below still need replacement from their actual native callers.
+const MAX_POWER = 100;
 export function endOfRoundScoring(roundNumber) {
+  // Normal round completion calls 0x37473 from 0x2AA7A. Standard scoring
+  // awards a flat winner bonus; 0x37381 belongs to the separate cleanup path.
+  if (config.scoringMode === SCORE_MODE.STANDARD) {
+    const bonus = teamsEnabled() ? 5000 : players.length * 1000;
+    for (const player of players) {
+      if (!player.alive) continue;
+      player.wins++;
+      player.score += bonus;
+    }
+    return;
+  }
   if (config.scoringMode === SCORE_MODE.VICIOUS) return;
 
   const alive = players.filter(p => p.alive);

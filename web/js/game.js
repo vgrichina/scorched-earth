@@ -1,3 +1,4 @@
+import {stepRankingsInput,resetRankingsInput} from './rankings.js';
 import {startFunkyBomb,stepFunkyBomb,isFunkyBombActive,clearFunkyBombs} from './funky-bomb.js';
 import { projectileDrawing, retainWorldPixel } from './projectile-render.js';
 // Scorched Earth - Game State Machine
@@ -50,27 +51,6 @@ export const SYSTEM_MENU_OPTIONS = [
   { label: 'Save ~Game', action: null, disabled: true },
   { label: '~Restore Game', action: null, disabled: true },
   { label: '~New Game', action: 'new_game', confirm: 'Do you really want to restart the game?' },
-];
-
-// War quotes — EXE: 15 strings extracted from binary at 0x05B580-0x05BC5E
-// See disasm/war_quotes.txt for full extraction with offsets
-// Note: preserves original typos ("throughly", "Macchiavelli", "Jonathon")
-const WAR_QUOTES = [
-  '"There\'s many a boy here today who looks on war as all glory, but, boys, it is all hell." - Gen. William T. Sherman',
-  '"The essence of war is violence. Moderation in war is imbecility." - Fisher',
-  '"War is the science of destruction." - John Abbott',
-  '"Providence is always on the side of the big battalions." - Sevigne',
-  '"War is a matter of vital importance to the State; the province of life or death; the road to survival or ruin. It is mandatory that it be throughly studied." - Sun Tzu',
-  '"War should be the only study of a prince. He should consider peace only as a breathing-time, which gives him leisure to contrive, and furnishes as ability to execute, military plans." - Macchiavelli',
-  '"Not with dreams but with blood and iron, Shall a nation be moulded at last." - Swinburne',
-  '"No one can guarantee success in war, but only deserve it." - Winston Churchill',
-  '"The grim fact is that we prepare for war like precocious giants and for peace like retarded pygmies." - Lester Pearson',
-  '"We cannot live by power, and a culture that seeks to live by it becomes brutal and sterile. But we can die without it." - Max Lerner',
-  '"No man is wise enough, nor good enough to be trusted with unlimited power." - Charles Colton',
-  '"Nothing good ever comes of violence." - Martin Luther',
-  '"Give me the money that has been spent in war, and ... I will clothe every man, woman and child in attire of which kings and queens would be proud." - Henry Richard',
-  '"That mad game the world so loves to play." - Jonathon Swift',
-  '"Nearly all men can stand adversity, but if you want to test a man\'s character, give him power." - Abraham Lincoln',
 ];
 
 // Game states
@@ -583,7 +563,8 @@ function executeSystemMenuAction(action) {
       // EXE: ~Mass Kill — kills all players (DS:0x2C06 confirmed)
       for (const p of players) p.alive = false;
       endOfRoundScoring(game.round);
-      game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+      game.warQuote = '';
+      resetRankingsInput();
       game.roundOverTimer = 0;
       game.state = STATE.ROUND_OVER;
       break;
@@ -887,7 +868,8 @@ export function gameTick() {
       game.aftermathOperation=null;
       if (checkRoundOver()) {
         endOfRoundScoring(game.round);
-        game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+        game.warQuote = '';
+        resetRankingsInput();
         game.roundOverTimer = 0;
         game.state = STATE.ROUND_OVER;
       } else {
@@ -935,7 +917,8 @@ export function gameTick() {
           }
         } else {
           endOfRoundScoring(game.round);
-          game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
+          game.warQuote = '';
+          resetRankingsInput();
           game.roundOverTimer = 0;
           game.state = STATE.ROUND_OVER;
         }
@@ -946,8 +929,10 @@ export function gameTick() {
     case STATE.ROUND_OVER: {
       finishFiring();
       game.roundOverTimer++;
-      // EXE: "<<Press any key>>" (DS:0x5212) + fg_getkey() waits for ANY key
-      if (game.roundOverTimer > 30 && (consumeAnyKey() || consumeClick(0))) {
+      const rankings=config.scoringMode===0 && game.round<config.rounds;
+      const dismissed=rankings ? stepRankingsInput(players,game.round,config.rounds)
+        : game.roundOverTimer>30 && (consumeAnyKey()||consumeClick(0));
+      if (dismissed) {
         if (game.round >= config.rounds) {
           game.state = STATE.GAME_OVER;
         } else {

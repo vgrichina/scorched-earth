@@ -171,3 +171,33 @@ def compare_weapon_return(cpu,mem,ports,handler,actual,fired_weapon,output_dir):
     differences=[(i%360,i//360,n,p) for i,(n,p) in enumerate(zip(native,port)) if list(ports.palette[n])!=mapped[p]]
     assert not differences,('weapon return RGB',len(differences),differences[:10])
     print('Post-flight weapon selection, ammo and complete HUD/world RGB match.',flush=True)
+
+
+def compare_round_rankings(cpu,mem,ports,handler,actual,output_dir):
+    """Post-flight fallback then real round wrapper through input-ready rankings.
+
+    Bridges the enclosing input/next-slot loop; those callers are not executed.
+    Scoring, dialog construction and all rendering execute without stubs.
+    """
+    ds=0x4FC80
+    cpu.segs[1]=0x2945;cpu.ip=0x30771-0x6100-0x29450;cpu.regs[4]=0x2400
+    reason,_=run_fast(cpu,mem,ports,handler,2000000,bp_set={0x307B2-0x6100})
+    assert reason=='breakpoint',('rankings weapon return',reason)
+    # Next-slot completion clears these before returning to the round wrapper.
+    mem.write16(ds+0x5182,0);mem.write16(ds+0x5184,0)
+    cpu.segs[1]=0x200F;cpu.ip=0x2AA7A-0x6100-0x200F0;cpu.regs[4]=0x2400
+    reason,_=run_fast(cpu,mem,ports,handler,2000000,bp_set={0x460C3-0x6100})
+    assert reason=='breakpoint',('rankings',reason,hex(cpu.segs[1]*16+cpu.ip+0x6100))
+    native=extract_display_pixels(mem,ports);port=base64.b64decode(actual['pixels']);pal=actual['palette']
+    mapped=[pal[(i-40 if 120<=i<150 else 120 if i==80 else i+40 if 87<=i<=103 else i)*3:][:3] for i in range(256)]
+    if output_dir:
+        for name,frame,palette in (('emulator',native,ports.palette),('web',port,mapped)):
+            write_emu_png(dict(width=360,height=480,pixels=frame,palette=palette),output_dir/f'rankings-{name}.png')
+        save_state(output_dir/'rankings.state',cpu,mem,ports,handler)
+        (output_dir/'rankings-port.json').write_text(json.dumps(actual))
+    differences=[(i%360,i//360,n,p) for i,(n,p) in enumerate(zip(native,port)) if list(ports.palette[n])!=mapped[p]]
+    assert not differences,('rankings RGB',len(differences),differences[:15])
+    rng=dict(index=mem.read16(ds+0xEC06),words=[mem.read16(ds+0xEA12+i*2) for i in range(250)])
+    assert rng==actual['rng'],'rankings RNG differs'
+    assert [mem.read16(ds+0xD568+i*0xCA+0xAC) for i in range(2)]==actual['wins']
+    print('Composed shot-to-rankings full-frame RGB, win counters and complete RNG match.',flush=True)

@@ -1,5 +1,6 @@
 import {drawFunkyBomb} from './funky-bomb.js';
 import {drawNoKibitzing,closeNoKibitzing} from './no-kibitzing.js';
+import {drawRankings} from './rankings.js';
 import {shieldActivation,advanceShieldActivation} from './shield-activation.js';
 // Scorched Earth - Main entry point + game loop
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830) — main game loop
@@ -235,6 +236,10 @@ function drawLaserSight(player) {
 }
 
 function drawRoundOver() {
+  if (config.scoringMode === SCORE_MODE.STANDARD && game.round < config.rounds) {
+    drawRankings(players,game.round,config.rounds);
+    return;
+  }
   const alive = players.filter(p => p.alive);
 
   // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead

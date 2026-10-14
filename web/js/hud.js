@@ -287,6 +287,17 @@ export function drawHudShield(player) {
   drawText(x, ROW2_Y, shieldPct + '%', shieldEnergy !== 0 && selectedActive ? hudTextColor : dimColor);
 }
 
+// Native rankings entry 0x33FF6 refreshes only the expanded name field.
+export function drawRankingsWinnerName(rankingPlayers=players) {
+  if (config.playMode===1) return;
+  const nameX=LEFT+Math.max(measureText('Power'),measureText('Max'))+8+
+    measureText('8888 ')+measureText('Angle')+8+measureText('99  ');
+  fillRect(nameX,HUD_Y,nameX+measureText('MMMMMMMMMMMMMMM')+1,HUD_Y+11,UI_BACKGROUND);
+  const winner=rankingPlayers.filter(p=>p.alive).at(-1);
+  drawText(nameX,HUD_Y,winner?.name??'No Winner',
+    winner?(winner.colorIndex??winner.index)*PLAYER_PALETTE_STRIDE:UI_HIGHLIGHT);
+}
+
 export function drawHud(player, wind, round, opts) {
   // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC

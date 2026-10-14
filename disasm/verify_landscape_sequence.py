@@ -150,6 +150,13 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         for i,value in enumerate([0x110,0x60,*arguments]):mem.write16(stack+i*2,value)
         reason,count=run_fast(cpu,mem,ports,handler,30000000,bp_set={0x710})
         assert reason=='breakpoint',(hex(offset),reason,count)
+    if args.fire_input:
+        for off,value in ((0x5148,0),(0x50EA,0),(0xE342,0),(0x5160,10)):
+            mem.write16(ds+off,value)
+        for i in range(2):
+            tank=0xD568+i*0xCA
+            mem.write16(ds+tank+0xAC,0)
+            call(0x11B2C,0xB87,[tank+0xBA,0x4FC8,0,0])
     actual_rounds=json.loads(subprocess.check_output([
         'node','--input-type=module','-e',
         "import {config} from './web/js/config.js';import {prepareRoundBackground,game,processHit} from './web/js/game.js';"
@@ -163,6 +170,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {drawShield,SHIELD_CONFIG,applyShieldDamage,drawShieldBreak,shieldBreak,eraseShieldContact} from './web/js/shields.js';"
         "import {activateShield,shieldActivation,stepShieldActivation} from './web/js/shield-activation.js';"
         "import {refreshShieldFlight} from './web/js/shield-flight.js';"
+        "import {drawRankings} from './web/js/rankings.js';"
         "import {WPN} from './web/js/weapons.js';"
         "import {initInput} from './web/js/input.js';"
         "import fs from 'node:fs';"
@@ -204,6 +212,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});"
         "if(fireInput&&shotAftermath&&game.state===STATE.NEXT_TURN){gameTick();drawHud(players[game.currentPlayer],game.wind,game.round,{});const p=players[game.currentPlayer];results.at(-1).weaponReturn={pixels:encode(),palette:[...palette6],weapon:p.selectedWeapon-2,ammo:p.inventory[fireWeapon+2]};}"
+        "if(fireInput&&shotAftermath&&game.state===STATE.ROUND_OVER){gameTick();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawRankings(players,game.round,config.rounds);results.at(-1).rankings={pixels:encode(),palette:[...palette6],rng:getRandomState(),scores:players.map(p=>p.score),wins:players.map(p=>p.wins)};}"
         "if(shotNextPlayer){if(!shotImpact)game.state=STATE.NEXT_TURN;if(game.state!==STATE.NEXT_TURN)throw new Error('fixture did not survive');const previousPlayer=game.currentPlayer;for(const [x,y,c] of windOverwrites)retainWorldPixel(x,y,c>=80&&c<=104?c+40:c>=120&&c<150?c-40:c);game.nextTurnTimer=15;gameTick();t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);if(shields)players.forEach(drawShield);projectileDrawing.draw();results.at(-1).nextPlayer={previousPlayer,state:game.state,shieldUses:players.map(p=>p.shieldFlightUses),overwrites:windOverwrites,wind:game.wind,player:game.currentPlayer,pixels:encode(),palette:[...palette6],rng:getRandomState()};}}console.log(JSON.stringify(results));",
         str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player,args.change_wind,args.wind_overwrite,args.activate_shields,args.fire_input,args.fire_weapon,args.fire_ammo])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
@@ -514,3 +523,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         if args.shot_next_player:
             from verify_next_player_frame import compare_next_player_frame
             compare_next_player_frame(cpu,mem,ports,handler,actual['nextPlayer'],args.output_dir)
+
+        if 'rankings' in actual:
+            from verify_shot_sequence import compare_round_rankings
+            compare_round_rankings(cpu,mem,ports,handler,actual['rankings'],args.output_dir)
