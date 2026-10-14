@@ -10722,3 +10722,150 @@ state, complete RNG, and the final rankings frame with score/cash storage:
 ```
 python3 -u disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --scoring-mode 2 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-death --output-dir /tmp/scorched-greedy-nuke
 ```
+
+### Purchase/sale cash parity
+
+Native `buy_weapon` (`0x14924`) reads cash through `0x172C8` and applies
+debits/refunds through `0x173F6`, including Corporate shared-cash selection.
+The shop now uses those same cash-owner rules for purchases, AI affordability,
+sales and cash display. Keyboard, mouse and AI sales share one implementation;
+native sell acceptance at `0x37C0C` also calls `0x173F6`.
+
+When a bundle would exceed 99 items, native refunds the excess, then charges
+an additional 20% of the retained partial bundle (`0x14B02..0x14B68`, factor
+DS:00F2). Both adjustments truncate separately. The port previously omitted
+this second debit. Resale also preserves native multiplication before division.
+
+```
+python3 disasm/verify_shop_purchase.py /tmp/scorched-before-walk.state
+node disasm/test_initial_shop.mjs
+```
+
+**580 native purchases and 1,160 subsequent sales pass**, checking inventory,
+purchase counts and personal/team cash. Fixtures cover all 48 inventory items,
+quantities 0/98/99, all four team-mode values, personal versus Corporate cash,
+insufficient/exact funds, and normal/free-market resale. Native purchase flags
+and prices are explicitly initialized: these cases verify transaction arithmetic,
+not item availability or market initialization. AI type 1 omits human repaint;
+the rejection sound dispatcher is skipped because its timer needs interrupts.
+Cash/inventory arithmetic and the sell-acceptance routine execute normally.
+The existing real-input initial-shop/round-transition regression also passes.
+
+### Interest arithmetic and shopping transition
+
+The earlier session-145 claim of complete interest parity was incorrect.
+`0x176DD` first processes every team record up to the player count when team
+mode is on, then every player. Helpers `0x179A4` / `0x177BC` multiply cash by
+the truncated interest rate scaled by 10,000, divide by 10,000, and add to both
+cash and accumulated interest (team +12 / player +C2). They operate on personal
+and team storage independently, without Corporate cash-owner redirection.
+The port now follows this arithmetic, including native addition quirks.
+
+The caller at `0x1488A` runs **after all shoppers finish**, including the initial
+shop, followed by market update at `0x148B6`. Previously the port credited
+interest and updated the market before opening the between-round shop, and
+skipped both after the initial shop. Both operations now occur after final Done.
+
+```
+python3 disasm/verify_interest.py /tmp/scorched-before-walk.state
+python3 disasm/verify_shop_exit.py /tmp/scorched-shop-next.state
+node disasm/test_initial_shop.mjs
+```
+
+**960 native interest updates pass**: all four team-mode values, cash through
+2,147,483,647, six rates including fractional percentages, initially zero/nonzero
+earned interest, and two consecutive updates. Native arithmetic executes fully;
+the oracle compares signed bignum limbs rather than rounded display strings.
+
+The live final-shop Done trace verifies interest before market update, compares
+native post-interest personal/team cash and accumulated interest to production
+JavaScript, and reaches landscape generation then player order. The port's real
+input regression checks deferred interest/market updates, credits on unspent
+cash, and purchase/interest persistence into rounds 1 and 2. This validates the
+transition, not market-price arithmetic or complete shop RGB parity. Native
+interest-bar scaling, team initialization and complete shop rendering remain
+to be compared against the emulator.
+
+### Shop cash/interest pixels and reliable balance extraction
+
+`drawShopCashBars()` now follows native `0x16A7A`: both bars contain six-pixel
+vertical columns for every player, scaled independently against maximum cash
+and maximum accumulated interest. The previous cash scaling used starting cash;
+interest was one horizontal fill for the active player. Empty interiors now use
+the native highlight/background color instead of palette index 0. Status Bar
+off suppresses the row. Native `0x16D3A` retains the opening cash scale after
+spending; `0x170AE` raises the maximum after a larger balance appears. The port
+preserves that maximum until the next shopper opens.
+
+`verify_shop_bars.py` passes **144 full-width header-strip RGB comparisons**:
+2/3/10 players, zero/equal/uneven/large balances, personal/Corporate cash,
+Status Bar on/off, opening draw, reduced balances with the old scale, and
+increased balances through the native cash-refresh routine. These fixtures
+execute native bignum calculations and drawing. They do not simulate every
+shop transaction/input path or shared-team redraw ordering.
+
+The screenshot exporter previously read firing power at tank +9E as cash.
+It now decodes signed bignum cash (+BE) and accumulated interest (+C2), including
+zero balances, and exports team cash/type and Status Bar state. The shop renderer
+loads those values without substituting starting cash for zero.
+
+```
+python3 disasm/verify_shop_bars.py /tmp/scorched-shop-next.state
+python3 disasm/compare_pipeline.py /tmp/scorched-shop-next.state --state shop --output-dir /tmp/scorched-shop-current
+python3 disasm/capture_shop_interest.py /tmp/scorched-shop-next.state /tmp/scorched-shop-interest.state
+python3 disasm/compare_pipeline.py /tmp/scorched-shop-interest.state --state shop --output-dir /tmp/scorched-shop-current
+```
+
+Both full 360x480 Weapons-page captures match **172,800/172,800 pixels**, with
+zero RGB differences. The second fixture explicitly sets interest to 300,000
+and 90,000 and invokes native repaint; it verifies rendering, not a continuous
+game history yielding those balances. Latest paired captures are
+`/tmp/scorched-shop-current/scorched-shop-interest_emu.png` and
+`/tmp/scorched-shop-current/scorched-shop-interest_web.png`.
+Other shop tabs, scrolling, selling dialogs, team initialization and broader
+gameplay still require their own complete comparisons.
+
+### Miscellaneous page and native category selector
+
+A native mouse click at (222,240) in the 360x480 shop switches its type-6
+selector from Weapons (0) to Miscellaneous (1). The native page contains a
+flat 15-item list in weapon-table order, followed by empty bordered rows.
+It has no category headings. Scroll-arrow widgets remain visible when disabled,
+with glyphs in palette 153. The port now matches that structure and paints the
+native two-position selector; the invented Score tab and off-screen tab buttons
+are removed. Horizontal arrow keys do not switch categories (native Right-arrow
+capture left the page unchanged).
+
+`capture_shop_click.py` runs native dialog dispatch while supplying mouse-driver
+poll results. `verify_shop_selector.py` renders production `shopTick` input from
+the starting checkpoint and compares the entire resulting frame. It aligns the
+ending native DAC phase, explicitly excluding wall-clock animation timing.
+The screenshot exporter also records native DS:CAB4 category selection.
+
+```
+python3 disasm/capture_shop_click.py /tmp/scorched-shop-next.state /tmp/scorched-shop-misc 222 240
+python3 disasm/capture_shop_click.py /tmp/scorched-shop-misc.state /tmp/scorched-shop-weapons-back 201 240
+python3 disasm/verify_shop_selector.py /tmp/scorched-shop-next.state /tmp/scorched-shop-misc.state 222 240 --output-dir /tmp/scorched-shop-selector-misc
+python3 disasm/verify_shop_selector.py /tmp/scorched-shop-misc.state /tmp/scorched-shop-weapons-back.state 201 240 --output-dir /tmp/scorched-shop-selector-back
+```
+
+Both directions match **172,800/172,800 pixels**, with zero differences after
+release. A standalone Miscellaneous-state render also matches the full frame.
+An initial return-to-Weapons comparison differed in 152 icon pixels because
+it used the starting animation palette; comparing at the ending DAC phase
+removed all differences. This does not prove palette timing, held/drag states,
+all selector boundaries, inventory/sell dialogs or low-resolution behavior.
+Initial-shop and menu-resolution regressions pass after the change.
+
+### Inventory opening screenshot
+
+The Inventory action now opens the native-style owned-item grid instead of
+switching to Miscellaneous. The popup includes quantities, weapon icons,
+selection border, disabled Update/Done labels and the pressed Inventory button.
+The native click from `/tmp/scorched-shop-next.state` at (275,85), captured with
+`capture_shop_click.py`, matches **172,800/172,800 RGB pixels** through
+`verify_shop_selector.py` against `/tmp/scorched-shop-inventory.state`.
+This verifies opening at 360x480 with one owned item, with the ending DAC phase
+aligned. Keyboard navigation, mouse selection/activation, selling, additional
+inventory sizes, conditional Fuel Tank inclusion and other resolutions remain
+unverified against native behavior.

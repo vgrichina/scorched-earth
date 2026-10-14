@@ -125,14 +125,18 @@ def extract_state(state_path):
     arms_level = mem.read16(ds_base + 0x518A)
     weapon_count = mem.read16(ds_base + 0x1BB6)
 
-    # INITIAL_CASH from DS:0x516A (fallback when sub-struct cash is 0)
-    initial_cash = mem.read16(ds_base + 0x516A)
-    if initial_cash > 0x7FFF:
-        initial_cash = initial_cash | ~0xFFFF  # sign extend
-    # It's stored as cash/10000 in some configs; read the 32-bit value
-    initial_cash_lo = mem.read16(ds_base + 0x516A)
-    initial_cash_hi = mem.read16(ds_base + 0x516C)
-    initial_cash_full = (initial_cash_hi << 16) | initial_cash_lo
+    def bignum(address):
+        obj=mem.read16(address)+16*mem.read16(address+2)
+        if not obj or obj+8>len(mem.data):return None
+        limbs=mem.read16(obj)+16*mem.read16(obj+2);count=mem.read16(obj+4)
+        if not limbs or not 0<count<16 or limbs+2*count>len(mem.data):return None
+        value=0
+        for i in range(count):value=(value<<16)|mem.read16(limbs+2*i)
+        if mem.read16(limbs)&0x8000:value-=1<<(16*count)
+        return value
+    teams=[dict(type=mem.read16(ds_base+0xe1ec+22*i+2),
+                cash=bignum(ds_base+0xe1ec+22*i+0xe),
+                earnedInterest=bignum(ds_base+0xe1ec+22*i+0x12)) for i in range(num_players)]
 
     # Tank data
     tanks = []
@@ -168,14 +172,9 @@ def extract_state(state_path):
         if tank['turretAngle'] > 0x7FFF:
             tank['turretAngle'] -= 0x10000
 
-        # Cash (sub-struct +0x9E, int16 signed)
-        cash = mem.read16(base + 0x9E)
-        if cash > 0x7FFF:
-            cash -= 0x10000
-        # Fallback: if cash is 0 and this is round 0, use INITIAL_CASH
-        if cash == 0 and round_number == 0 and initial_cash_full > 0:
-            cash = initial_cash_full
-        tank['cash'] = cash
+        tank['cash']=bignum(base+0xbe)
+        tank['earnedInterest']=bignum(base+0xc2)
+        tank['team']=mem.read16(base+0x30)
 
         # Inventory: far pointer at sub+0xB2 → word array of weapon_count entries
         inv_off = mem.read16(base + 0xB2)
@@ -260,6 +259,10 @@ def extract_state(state_path):
 
     return {
         'playerSetup': player_setup,
+        'teams': teams,
+        'shopCategory': mem.read16(ds_base+0xcab4),
+        'teamMode': mem.read16(ds_base+0x50ea),
+        'statusBar': mem.read16(ds_base+0x5142),
         'width': width,
         'height': height,
         'palette': palette,
@@ -331,6 +334,10 @@ def write_state_json(state, out_path):
     # Don't include raw pixels (too large) — just game state + terrain
     state_for_web = {
         'playerSetup': state['playerSetup'],
+        'teams': state['teams'],
+        'shopCategory': state['shopCategory'],
+        'teamMode': state['teamMode'],
+        'statusBar': state['statusBar'],
         'width': state['width'],
         'height': state['height'],
         'palette': state['palette'],

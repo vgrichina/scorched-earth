@@ -68,8 +68,10 @@ const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
 const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
 const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu, playerSetup } = await import(WEB + 'menu.js');
 const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
-const { isShopActive, drawShop, openShop } = await import(WEB + 'shop.js');
+const { isShopActive, drawShop, openShop, selectShopCategory, shopTick } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
+const {getTeamScore,resetTeamScores}=await import(WEB+'team-scoring.js');
+const {mouse}=await import(WEB+'input.js');
 const { seedRandom } = await import(WEB + 'utils.js');
 const { drawAllTanks } = await import(WEB + 'tank.js');
 const { blit, pixels, getWidth, getHeight } = fb;
@@ -227,6 +229,10 @@ function renderGame() {
 function renderShopFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
 
+  config.teamMode=state.teamMode??0;
+  config.statusBar=state.statusBar??1;
+  resetTeamScores();
+  state.teams?.forEach((team,i)=>Object.assign(getTeamScore(i),team));
   // Set config from state
   config.numPlayers = state.numPlayers || 2;
   config.numRounds = state.numRounds || 10;
@@ -253,14 +259,8 @@ function renderShopFromState(stateJsonPath) {
         p.colorBase = t.colorBase;
         p.colorIndex = Math.floor(t.colorBase / 8);
       }
-      // Cash: EXE stores in bignum score system, not simple int.
-      // At round 0 (first shop), cash = startCash. For later rounds,
-      // use extracted value if non-zero, else fall back to startCash.
-      if (t.cash !== undefined && t.cash > 0) {
-        p.cash = t.cash;
-      } else if (state.roundNumber === 0 || state.roundNumber === undefined) {
-        p.cash = config.startCash;
-      }
+      if(t.cash==null||t.earnedInterest==null)throw new Error('Shop checkpoint lacks initialized cash/interest');
+      p.cash=t.cash;p.earnedInterest=t.earnedInterest;p.team=t.team;
       if (t.inventory) {
         for (let w = 0; w < t.inventory.length && w < p.inventory.length; w++) {
           if (w + 2 < p.inventory.length) p.inventory[w + 2] = t.inventory[w];
@@ -280,8 +280,13 @@ function renderShopFromState(stateJsonPath) {
   const playerIndex = state.currentPlayer ?? 0;
   // --state shop denotes the visible shop, after any privacy prompt.
   openShop(playerIndex, roundsLeft, { showPrivacy: false });
+  selectShopCategory(state.shopCategory??0);
   game.state = STATE.SHOP;
   game.shopPlayerIdx = playerIndex;
+  if(shopClick){
+    Object.assign(mouse,{x:shopClick[0],y:shopClick[1],over:true,clicked:1,buttons:1});
+    shopTick(players[playerIndex]);mouse.buttons=0;shopTick(players[playerIndex]);
+  }
   // Match the checkpoint's animated DAC phase, just as menu/game captures do.
   if (state.palette) {
     for (let i = 0; i < 256; i++) paletteMod.setPaletteRgb(i, ...state.palette[i]);
@@ -427,9 +432,10 @@ function writePNG(outPath) {
 
 // Parse args: state output.png [--mode N] [--from-state state.json]
 const args = process.argv.slice(2);
-let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null;
+let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, shopClick = null;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--mode') { modeIndex = parseInt(args[++i]); }
+  else if (args[i] === '--shop-click') { shopClick=args[++i].split(',').map(Number); }
   else if (args[i] === '--from-state') { fromStatePath = args[++i]; }
   else if (!stateName) { stateName = args[i]; }
   else if (!outPath) { outPath = args[i]; }

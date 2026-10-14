@@ -82,14 +82,17 @@ export function endOfRoundScoring(_roundNumber) {
   }
 }
 
-// Interest calculation between rounds
-// EXE: "Earned interest" DS:0x235C shown in shop title bar (cash_display at file 0x16A7C)
+// Native 0x176DD: team records first, then personal cash, after shopping.
 export function applyInterest() {
-  for (const p of players) {
-    const interest = Math.floor(p.cash * config.interest / 100);
-    p.earnedInterest = interest;  // saved for shop display
-    p.cash += interest;
-  }
+  const rate=BigInt(Math.trunc(config.interest/100*10000));
+  const credit=owner=>{
+    const cash=owner.cash??0;
+    const interest=Number(BigInt(cash)*rate/10000n);
+    owner.earnedInterest=addScoreNumber(owner.earnedInterest??0,interest);
+    owner.cash=addScoreNumber(cash,interest);
+  };
+  if(config.teamMode!==0)for(let i=0;i<players.length;i++)credit(getTeamScore(i));
+  players.forEach(credit);
 }
 
 // Native 0x324ED: no-team mode treats every other player as an enemy.

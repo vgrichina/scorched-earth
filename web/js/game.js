@@ -945,9 +945,7 @@ export function gameTick() {
         break;
       }
       if (stepRankingsInput(players,game.round,config.rounds)) {
-        mktUpdate();  // EXE: adjust dynamic market prices before shopping.
         game.shopPlayerIdx = 0;
-        applyInterest();
         const rl = config.rounds - game.round + 1;
         openShop(0, rl);
         game.state = STATE.SHOP;
@@ -963,6 +961,10 @@ export function gameTick() {
         if (game.shopPlayerIdx >= players.length) {
           // All players done shopping
           closeShop();
+          // Native 0x1488A..0x148B6 credits remaining balances, then updates
+          // market prices, including after the initial shopping pass.
+          applyInterest();
+          mktUpdate();
           game.state = STATE.ROUND_SETUP;
         } else {
           const rl = config.rounds - game.round + 1;
