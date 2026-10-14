@@ -1,3 +1,5 @@
+import {config} from './config.js';
+import {playerRankingValue} from './ranking-value.js';
 import { random } from './utils.js';
 
 // EXE 0x2AE77 / 0x2AF29. Slot order is separate from the first turn.
@@ -26,9 +28,14 @@ function scoreOperand(score) {
 }
 
 export function compareRoundPlayers(a, b) {
+  return compareRankingEntries(a,b,playerRankingValue(a),playerRankingValue(b));
+}
+
+// Team rankings use the same native arithmetic but always read team score.
+export function compareRankingEntries(a,b,valueA=a.score,valueB=b.score) {
   const wins = ((a.wins - b.wins) << 16) >> 16;
-  if (wins) return wins;
-  const left = scoreOperand(a.score), right = scoreOperand(b.score);
+  if (config.scoringMode!==2 && wins) return wins;
+  const left = scoreOperand(valueA), right = scoreOperand(valueB);
   const difference = BigInt.asIntN(Math.max(left.bits, right.bits), left.value - right.value);
   // 0x12075 temporarily replaces the final limb with 0x8000 while stripping
   // leading FFFF words. Restoring a positive final limb loses the negative sign.

@@ -112,6 +112,11 @@ export function getWeaponPrice(weaponIdx) {
   return WEAPONS[weaponIdx].price;
 }
 
+// Native ranking valuation reads +0x1A directly, even if Free Market is off.
+export function getMarketPrice(weaponIdx) {
+  return market[weaponIdx]?.mktCost??WEAPONS[weaponIdx].price;
+}
+
 // Track a purchase (EXE: inc [bx+0x1214] at file 0x14A2A)
 function trackPurchase(weaponIdx) {
   if (market[weaponIdx]) {

@@ -1,3 +1,4 @@
+import {teamName} from './team-scoring.js';
 // Scorched Earth - HUD Display
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
 //
@@ -51,7 +52,7 @@ import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
 import { deathHudName, players, getTankAim } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
-         UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND,
+         UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND, UI_HIGHLIGHT,
          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 import { PLAYFIELD_TOP } from './terrain.js';
 import { SHIELD_CONFIG } from './shields.js';
@@ -294,8 +295,8 @@ export function drawRankingsWinnerName(rankingPlayers=players) {
     measureText('8888 ')+measureText('Angle')+8+measureText('99  ');
   fillRect(nameX,HUD_Y,nameX+measureText('MMMMMMMMMMMMMMM')+1,HUD_Y+11,UI_BACKGROUND);
   const winner=rankingPlayers.filter(p=>p.alive).at(-1);
-  drawText(nameX,HUD_Y,winner?.name??'No Winner',
-    winner?(winner.colorIndex??winner.index)*PLAYER_PALETTE_STRIDE:UI_HIGHLIGHT);
+  drawText(nameX,HUD_Y,winner?(config.teamMode!==0?teamName(winner.team):winner.name):'No Winner',
+    winner&&config.teamMode===0?(winner.colorIndex??winner.index)*PLAYER_PALETTE_STRIDE:UI_HIGHLIGHT);
 }
 
 export function drawHud(player, wind, round, opts) {

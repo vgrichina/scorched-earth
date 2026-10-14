@@ -10,6 +10,8 @@
 
 import { config } from './config.js';
 import { players } from './tank.js';
+import {addScoreNumber} from './score-number.js';
+import {addPlayerCash} from './cash.js';
 import {getTeamScore} from './team-scoring.js';
 
 // Scoring mode constants
@@ -47,9 +49,10 @@ export function scoreOnDeath(attacker, victim) {
 }
 
 // Native 0x377D9 adds the same amount to the team when team mode is enabled.
-function addPlayerScore(player,amount) {
-  player.score+=amount;
-  if(config.teamMode!==0)getTeamScore(player.team).score+=amount;
+export function addPlayerScore(player,amount) {
+  player.score=addScoreNumber(player.score,amount);
+  addPlayerCash(player,amount);
+  if(config.teamMode!==0){const team=getTeamScore(player.team);team.score=addScoreNumber(team.score,amount);}
 }
 
 export function endOfRoundScoring(_roundNumber) {
@@ -71,7 +74,7 @@ export function endOfRoundScoring(_roundNumber) {
   const members=players.filter(p=>p.team===winner.team);
   const team=getTeamScore(winner.team);
   team.wins++;
-  team.score+=Math.trunc(bonus/10);
+  team.score=addScoreNumber(team.score,Math.trunc(bonus/10));
   const share=Math.trunc(bonus/members.length);
   for(const player of members) {
     if(player.alive)player.wins++;

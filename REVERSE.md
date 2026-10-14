@@ -10551,3 +10551,174 @@ This is a native reference capture, not a port comparison or a continuous
 round-award run. Team-enabled rankings/final rendering and team assignment
 controls remain unfinished. Cash/bignum storage, broader weapon/death-effect
 coverage, AI types 8/9, and native animation timing also remain open.
+
+### Between-round team rankings implemented
+
+The live ROUND_OVER path now uses the native-style between-round panel for
+team modes as well as no-team mode. Player Rankings includes team names;
+Teams opens Team Rankings with member counts, wins and team scores. Players
+switches back. Both pages preserve the native panel dimensions and footer.
+The HUD displays the winning team's name in the native UI text color.
+
+`rankingsButtons()` preserves the separate single-button centering rule and
+uses native inclusive button spans for the two-button pages. T/P switches
+pages on release; G/Enter/Space advances on release; Escape/outside clicks
+dismiss immediately. Mouse releases outside the pressed button still activate
+it. Team names can be supplied through the existing team records; team setup
+and assignment controls remain pending.
+
+```
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --teams
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --shared-teams
+python3 disasm/verify_rankings_keys.py /tmp/scorched-standard-nuke/rankings.state --teams
+python3 disasm/verify_team_rankings_mouse.py /tmp/scorched-team-rankings.state
+```
+
+The first two commands pass **32 native panel comparisons** across both
+pages, separate/shared teams, 2/3/10 players, long names, large signed scores,
+and one/nine remaining rounds. They also compare the HUD name and restored
+player palette. Keyboard coverage passes **7 cases**, including both page
+switch directions; mouse coverage passes **6 cases**, including held/released
+pixels, Teams switching, Go, outside dismissal and blank-panel clicks. The
+mouse fixture uses the explicit Red/Blue capture documented above. Existing
+no-team panel and mouse checks pass. These are panel/dispatch comparisons,
+not full continuous team-match verification. Team-enabled final scoring is
+still the legacy overlay.
+
+#### Greedy ranking gap exposed by the extended oracle
+
+`verify_rankings.py --scoring-mode 2` currently fails: native `0x31379`
+returns cash plus inventory valuation in Greedy mode, instead of the normal
+score field. Its inventory loop excludes native item 0, values positive
+quantities using record price/bundle and DS:5820, and converts each value
+through `_ftol`. Native player comparator `0x317EB` and team comparator
+`0x41CC0` also skip wins for Greedy. Merely skipping wins in the existing
+player comparator does not implement this behavior; that partial change was
+discarded. Native cash access, inventory valuation/rounding, displayed wealth,
+and Greedy player sorting need a complete implementation and matching tests.
+Team comparator's score accessor `0x41AC2` still returns team score (+0x0A).
+
+### Greedy ranking value and sorting implemented
+
+The gap above is now addressed by `web/js/ranking-value.js`. Native `0x31379`
+reads player cash (+0xBE), except when team mode is enabled and the player's
+team record type (+0x02) is Corporate (2), when `0x172C8` reads team cash
+(+0x0E). It adds each positive inventory quantity from native item 1 onward:
+`trunc(quantity * current_market_price / bundle * 0.8)`. The factor is the
+initialized double at DS:5820. Baby Missile (native item 0) is excluded.
+The price is the current market field (+0x1A), even with Free Market off.
+
+Player rankings, final scoring, human classification thresholds and
+score-based turn order now consume that value in Greedy mode. Basic/Standard
+retain the normal score. Both native player/team comparators skip wins in
+Greedy; team rankings still compare and display team score, not player wealth.
+The port preserves the existing native limb/overflow comparator behavior.
+
+```
+python3 disasm/verify_ranking_value.py /tmp/scorched-standard-nuke/rankings.state
+python3 disasm/verify_score_order.py /tmp/scorched-standard-nuke/rankings.state
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --scoring-mode 2
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --shared-teams --scoring-mode 2
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --final --scoring-mode 2
+```
+
+The value oracle passes **672 cases** across all 48 items, negative/zero/
+positive quantities, changed market prices, all scoring/team modes, all team
+record types and independent personal/shared cash. It executes native cash
+access, valuation, bignum operations and decimal formatting without arithmetic
+intercepts. The order oracle passes **168 dispatch/order/RNG cases** across all
+scoring modes, plus **169 signed bignum comparator boundary cases**. Greedy's
+8 no-team and 16 shared-team between-round panel comparisons pass, as do the
+original 11 final-screen RGB/palette fixtures and a twelfth fixture with
+opposing score/wealth order and a low-wealth human classification. Basic/Standard panel, team
+keyboard, menu/setup, round lifecycle and round-award regressions also pass.
+
+These fixtures construct cash, inventory and team type explicitly; they do
+not prove cash changes across a continuous match, purchasing, or Corporate
+team initialization. The team assignment/setup UI and team final screen
+remain open, alongside the broader physics/effect/timing gaps.
+
+### Team final scoring replaces the legacy final overlay
+
+Final scoring now runs through the native-style dialog in every team mode.
+The player page adds team names; Teams/Players swaps rows within the same
+panel. The team page displays team name, member count, wins and team score.
+Both pages preserve the player leader's animated ring palette and the same
+Quit/New Game actions. The former generic round-over overlay is removed.
+
+With AI present, team mode uses `T~ype` (Y shortcut) so T remains available
+for Teams. Type/Name is disabled on the team page, not hidden: native draws
+its label in palette 153 with a one-pixel horizontal shadow in palette 159.
+Page changes occur on press. Returning to Players redraws all widgets,
+including a raised page-button face before the initiating input is released.
+Adjacent buttons can share inclusive border pixels, so the renderer also
+preserves which button native redrew last. The Teams label keeps the original
+Players button's left inset and width.
+
+```
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --final --shared-teams
+python3 disasm/verify_rankings.py /tmp/scorched-standard-nuke/rankings.state --final --teams --scoring-mode 2
+python3 disasm/verify_rankings_keys.py /tmp/scorched-standard-nuke/rankings.state --final --teams --ai
+python3 disasm/verify_rankings_keys.py /tmp/scorched-standard-nuke/rankings.state --final --teams --ai --team-page
+python3 disasm/verify_final_mouse.py /tmp/scorched-standard-nuke/rankings.state --teams
+python3 disasm/verify_final_mouse.py /tmp/scorched-standard-nuke/rankings.state --teams --team-page
+```
+
+Full-frame RGB and three ring-palette phases pass for **22 Standard/shared-team
+fixtures** and **24 Greedy/separate-team fixtures**, covering both pages,
+2/3/10 players and AI types 1..7. The final-page capture oracle invokes native
+`0x3495D`, rather than merely setting DS:6022, because the callback paints team
+rows directly. It uses a separate temporary stack and restores the live CPU
+context before the palette polling checks. Input oracles separately exercise
+real keyboard dispatch and native mouse polling.
+
+Keyboard checks pass for ten keys from each page, including T/P page switching,
+Y/N classification toggles and ignored Type input on the team page. Mouse
+checks pass for ten cases from each page, including return-to-Players held
+pixels, disabled Type clicks, release outside the pressed button and dismissal.
+The existing eight no-team final mouse cases and menu/setup regressions pass.
+
+Latest human screenshot references: `/tmp/scorched-team-final.png` and
+`/tmp/scorched-team-final-table.png`; port renders at initial phase 2:
+`/tmp/scorched-team-final-web.png` and `/tmp/scorched-team-final-table-web.png`.
+Ring wall-clock timing, team setup/assignment, AI types 8/9, and continuous
+cash-flow parity remain open. These UI fixtures initialize the rosters and
+scores; they do not establish complete team-gameplay parity.
+
+### Score awards also update cash
+
+Native `0x377D9` adds each award to personal score, forwards it to team score
+when team mode is enabled, and calls `0x173F6` to update cash. Cash is clamped
+to zero after native bignum addition. When team mode is enabled and the team
+record's type at `+2` is Corporate (2), `0x1760C` updates shared team cash
+instead. The ranking-value getter now uses the same cash-owner selection.
+The direct team round bonus updates team score only.
+
+The bignum implementation has observable integer quirks: normalization can
+turn results in -65536..-32769 positive, and positive operands of unequal
+limb lengths sign-extend the top result limb (`0x127B5`/`0x12873`). Equal-length
+positive addition keeps its extra limb. `score-number.js` reproduces these
+cases rather than applying ordinary JavaScript addition unconditionally.
+
+```
+python3 disasm/verify_score_cash.py /tmp/scorched-before-walk.state
+python3 disasm/verify_round_score.py
+python3 disasm/verify_ranking_value.py /tmp/scorched-standard-nuke/rankings.state
+```
+
+All **2,442 score/cash storage cases**, **1,152 round-award cases**, and
+**672 ranking-value cases** pass. The storage oracle executes the full native
+award routine without intercepting additions and reads signed bignum limbs
+directly, avoiding the decimal formatter's rounding of large values. Fixtures
+cover independent scoring/team modes, team record types, cash clamping, and
+signed 16/32-bit boundaries. Team initialization, purchasing and interest
+remain outside this verification.
+
+The composed shot oracle now initializes cash and inventory identically and
+checks score/cash storage alongside the final rankings pixels, wins and RNG.
+The Greedy Nuke fixture passes all **798 shot RGB frames**, signed HP/alive
+state, complete RNG, and the final rankings frame with score/cash storage:
+
+```
+python3 -u disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --scoring-mode 2 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-death --output-dir /tmp/scorched-greedy-nuke
+```

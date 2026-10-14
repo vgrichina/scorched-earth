@@ -27,14 +27,15 @@ fixtures = [
     [(0, 32767), (0, -32768), (0, -65536), (0, 65536), (0, -1)],
     [(0, 2147483647), (0, -2147483648), (0, 0)],
 ]
-cases = [dict(seed=seed, mode=mode, players=[dict(index=i, wins=w, score=s) for i, (w, s) in enumerate(f)])
-         for seed in (0, 1, 42, 65535) for mode in (1, 2) for f in fixtures]
+cases = [dict(scoring=scoring,seed=seed, mode=mode, players=[dict(index=i, wins=w, score=s,cash=1000*(len(f)-i),inventory=[0,0,99,i+1]) for i, (w, s) in enumerate(f)])
+         for scoring in range(3) for seed in (0, 1, 42, 65535) for mode in (1, 2) for f in fixtures]
 actual = json.loads(subprocess.check_output([
     'node', '--input-type=module', '-e',
     "import {seedRandom,random} from './web/js/utils.js';"
+    "import {config} from './web/js/config.js';"
     "import {roundOrder} from './web/js/turn-order.js';"
     "let input='';for await(const chunk of process.stdin) input+=chunk;"
-    "console.log(JSON.stringify(JSON.parse(input).map(c=>{seedRandom(c.seed);"
+    "console.log(JSON.stringify(JSON.parse(input).map(c=>{config.scoringMode=c.scoring;seedRandom(c.seed);"
     "return {...roundOrder(c.players,c.mode),next:random(65535)};})));"
 ], cwd=root, input=json.dumps(cases), text=True))
 for case, port in zip(cases, actual):
@@ -56,7 +57,7 @@ for case, port in zip(cases, actual):
         assert reason == 'breakpoint', (case, hex(offset), reason)
 
     count = len(case['players'])
-    for offset, value in ((0x50D4, count), (0x519C, case['mode']), (0x51A4, 65535), (0x5148, 0)):
+    for offset, value in ((0x50D4, count), (0x519C, case['mode']), (0x51A4, 65535), (0x5148, case['scoring']), (0x50EA,0)):
         mem.write16(ds + offset, value)
     for player in case['players']:
         offset = 0xD568 + player['index'] * 0xCA
@@ -64,6 +65,10 @@ for case, port in zip(cases, actual):
         mem.write16(ds + offset + 0xAC, player['wins'])
         # Construct the EXE's arbitrary-precision score using its own long ctor.
         call(0x11B2C, 0xB87, [offset + 0xBA, 0x4FC8, player['score'] & 65535, (player['score'] >> 16) & 65535])
+        call(0x11B2C,0xB87,[offset+0xBE,0x4FC8,player['cash'],0])
+        inv=0x94000+128*player['index']
+        for item in range(48):mem.write16(inv+2*item,player['inventory'][item+2] if item<2 else 0)
+        mem.write16(ds+offset+0xB2,128*player['index']);mem.write16(ds+offset+0xB4,0x9400)
     call(0x32994, 0x2C89, [case['seed']])
     call(0x2AE53, 0x2431, stop=0x2B133 - 0x6100)
     slots = [(mem.read16(ds + 0xE4F6 + i * 4) - 0xD568) // 0xCA for i in range(count)]
@@ -80,6 +85,7 @@ comparisons = json.loads(subprocess.check_output([
     "console.log(JSON.stringify(JSON.parse(process.argv[1]).map(([a,b])=>"
     "compareRoundPlayers({wins:0,score:a},{wins:0,score:b}))));", json.dumps(pairs)
 ], cwd=root, text=True))
+mem.write16(ds+0x5148,0)
 for (a, b), expected in zip(pairs, comparisons):
     for i, score in enumerate((a, b)):
         offset = 0xD568 + i * 0xCA

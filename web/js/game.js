@@ -935,7 +935,7 @@ export function gameTick() {
     case STATE.ROUND_OVER: {
       finishFiring();
       game.roundOverTimer++;
-      if(config.teamMode===0 && game.round>=config.rounds) {
+      if(game.round>=config.rounds) {
         const action=stepFinalScoringInput(players);
         if(action!==null) {
           game.finalScoringAction=action;
@@ -944,21 +944,13 @@ export function gameTick() {
         }
         break;
       }
-      const rankings=config.teamMode===0 && game.round<config.rounds;
-      const dismissed=rankings ? stepRankingsInput(players,game.round,config.rounds)
-        : game.roundOverTimer>30 && (consumeAnyKey()||consumeClick(0));
-      if (dismissed) {
-        if (game.round >= config.rounds) {
-          game.state = STATE.GAME_OVER;
-        } else {
-          // Go to shop
-          mktUpdate();  // EXE: mkt_update — adjust dynamic market prices before shopping
-          game.shopPlayerIdx = 0;
-          applyInterest();
-          const rl = config.rounds - game.round + 1;
-          openShop(0, rl);
-          game.state = STATE.SHOP;
-        }
+      if (stepRankingsInput(players,game.round,config.rounds)) {
+        mktUpdate();  // EXE: adjust dynamic market prices before shopping.
+        game.shopPlayerIdx = 0;
+        applyInterest();
+        const rl = config.rounds - game.round + 1;
+        openShop(0, rl);
+        game.state = STATE.SHOP;
       }
       break;
     }

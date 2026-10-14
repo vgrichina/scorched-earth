@@ -6,3 +6,5 @@ export function getTeamScore(team) {
   if(!teamScores.has(team))teamScores.set(team,{wins:0,score:0});
   return teamScores.get(team);
 }
+
+export function teamName(team) { return getTeamScore(team).name??`Team ${team+1}`; }

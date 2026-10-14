@@ -237,56 +237,8 @@ function drawLaserSight(player) {
 }
 
 function drawRoundOver() {
-  if (config.teamMode === 0 && game.round >= config.rounds) {
-    drawFinalScoring(players);
-    return;
-  }
-  if (config.teamMode === 0 && game.round < config.rounds) {
-    drawRankings(players,game.round,config.rounds);
-    return;
-  }
-  const alive = players.filter(p => p.alive);
-
-  // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead
-  // EXE: play mode 1 skips winner display (0x33FEC: cmp [DS:5188],1).
-  if (config.playMode !== 1) {
-    if (alive.length === 1) {
-      drawTextShadow(104, 60, alive[0].name, alive[0].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
-    } else {
-      drawTextShadow(120, 60, 'No Winner', COLOR_HUD_TEXT, 0);
-    }
-  }
-
-  // Show scores
-  drawTextShadow(8, 80, 'Scores:', COLOR_HUD_HIGHLIGHT, 0);
-  const board = getLeaderboard();
-  for (let i = 0; i < board.length; i++) {
-    const p = board[i];
-    const color = p.colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL;
-    drawText(16, 92 + i * 10, `${p.name}: ${p.score}`, color);
-  }
-
-  // War quote — wrap to up to 5 lines (EXE quotes can be 190+ chars)
-  if (game.warQuote) {
-    const lineLen = 38;
-    const maxLines = 5;
-    for (let i = 0; i < maxLines; i++) {
-      const chunk = game.warQuote.substring(i * lineLen, (i + 1) * lineLen);
-      if (!chunk) break;
-      drawTextShadow(8, 130 + i * 10, chunk, COLOR_HUD_TEXT, 0);
-    }
-  }
-
-  // EXE: "%d of %d rounds fought." (DS:0x3002) + "%s rounds remain"/"1 round remains" (DS:0x2C1A/0x2C2B)
-  const remaining = config.rounds - game.round;
-  drawTextShadow(60, 170, `${game.round} of ${config.rounds} rounds fought.`, COLOR_HUD_TEXT, 0);
-  if (remaining === 1) {
-    drawTextShadow(60, 182, '1 round remains', COLOR_HUD_TEXT, 0);
-  } else if (remaining > 1) {
-    drawTextShadow(60, 182, `${remaining} rounds remain`, COLOR_HUD_TEXT, 0);
-  }
-  // EXE: "<<Press any key>>" (DS:0x5212)
-  drawTextShadow(60, 194, '<<Press any key>>', COLOR_HUD_TEXT, 0);
+  if (game.round >= config.rounds) drawFinalScoring(players);
+  else drawRankings(players,game.round,config.rounds);
 }
 
 function drawGameOver() {
@@ -361,7 +313,7 @@ function gameLoop() {
 
   // Final scoring owns the whole frame; returning to the menu must not flash
   // the battlefield for one frame after the dialog has closed.
-  if (game.state === STATE.ROUND_OVER && config.teamMode === 0 && game.round >= config.rounds) {
+  if (game.state === STATE.ROUND_OVER && game.round >= config.rounds) {
     gameTick();
     if (game.state === STATE.ROUND_OVER) drawFinalScoring(players);
     else drawMainMenu();

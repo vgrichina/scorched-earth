@@ -224,4 +224,18 @@ def compare_round_rankings(cpu,mem,ports,handler,actual,output_dir):
     rng=dict(index=mem.read16(ds+0xEC06),words=[mem.read16(ds+0xEA12+i*2) for i in range(250)])
     assert rng==actual['rng'],'rankings RNG differs'
     assert [mem.read16(ds+0xD568+i*0xCA+0xAC) for i in range(2)]==actual['wins']
-    print('Composed shot-to-rankings full-frame RGB, win counters and complete RNG match.',flush=True)
+    # Read native score/cash through its decimal formatter after capturing the
+    # live dialog checkpoint. The temporary stack does not alter those frames.
+    for field,key in ((0xBA,'scores'),(0xBE,'cash')):
+        values=[]
+        for i in range(2):
+            cpu.segs[:]=[0,0xB18,0x8800,0x4FC8]
+            cpu.ip=0x114BB-0x6100-0xB180;cpu.regs[4]=0x2400
+            for j,value in enumerate([0x110,0x60,0xD568+i*0xCA+field,0x4FC8]):
+                mem.write16(0x88000+0x2400+2*j,value)
+            reason,_=run_fast(cpu,mem,ports,handler,1000000,bp_set={0x710})
+            assert reason=='breakpoint',(key,reason)
+            ptr=cpu.regs[0]+16*cpu.regs[2]
+            values.append(int(bytes(mem.data[ptr:ptr+80]).split(b'\0')[0].replace(b',',b'')))
+        assert values==actual[key],(key,values,actual[key])
+    print('Composed shot-to-rankings full-frame RGB, score/cash storage, win counters and complete RNG match.',flush=True)
