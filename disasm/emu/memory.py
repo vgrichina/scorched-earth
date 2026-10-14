@@ -17,6 +17,9 @@ class Memory:
 
     def __init__(self):
         self.data = bytearray(self.SIZE)
+        self.vesa_vram = bytearray(1 << 20)
+        self._vesa = False
+        self._vesa_bank = 0
         # 4 VGA planes for Mode X (each 64KB)
         self.vga_planes = [bytearray(self.VGA_PLANE_SIZE) for _ in range(4)]
         # Cached VGA state (updated by PortIO.port_out via notify)
@@ -28,32 +31,42 @@ class Memory:
 
     def read8(self, addr):
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
+        if 0xA0000 <= addr < 0xB0000 and self._vesa:
+            return self.vesa_vram[self._vesa_bank * 65536 + addr - 0xA0000]
+        if 0xA0000 <= addr < 0xB0000 and self._mode_x:
             return self.vga_planes[self._read_plane][addr - 0xA0000]
         return self.data[addr]
 
+    def _split_access(self, addr, size):
+        # Split accesses crossing the 20-bit wrap or touching the VGA aperture.
+        return addr + size > self.SIZE or (
+            (self._mode_x or self._vesa) and addr < self.VGA_END and addr + size > self.VGA_BASE)
+
     def read16(self, addr):
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
-            off = addr - 0xA0000
-            return self.vga_planes[self._read_plane][off] | (self.vga_planes[self._read_plane][off + 1] << 8)
+        if self._split_access(addr, 2):
+            return self.read8(addr) | (self.read8(addr + 1) << 8)
         return self.data[addr] | (self.data[addr + 1] << 8)
 
     def read32(self, addr):
         addr &= 0xFFFFF
+        if self._split_access(addr, 4):
+            return int.from_bytes(self.read_bytes(addr, 4), 'little')
         return struct.unpack_from('<I', self.data, addr)[0]
 
     def read_float32(self, addr):
-        return struct.unpack_from('<f', self.data, addr & 0xFFFFF)[0]
+        return struct.unpack('<f', self.read_bytes(addr, 4))[0]
 
     def read_float64(self, addr):
-        return struct.unpack_from('<d', self.data, addr & 0xFFFFF)[0]
+        return struct.unpack('<d', self.read_bytes(addr, 8))[0]
 
     # -- byte/word/dword writes -----------------------------------------------
 
     def write8(self, addr, val):
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
+        if 0xA0000 <= addr < 0xB0000 and self._vesa:
+            self.vesa_vram[self._vesa_bank * 65536 + addr - 0xA0000] = val & 0xFF
+        elif 0xA0000 <= addr < 0xB0000 and self._mode_x:
             off = addr - 0xA0000
             mask = self._map_mask
             planes = self.vga_planes
@@ -66,7 +79,7 @@ class Memory:
 
     def write16(self, addr, val):
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
+        if self._split_access(addr, 2):
             self.write8(addr, val & 0xFF)
             self.write8(addr + 1, (val >> 8) & 0xFF)
         else:
@@ -74,27 +87,20 @@ class Memory:
             self.data[addr + 1] = (val >> 8) & 0xFF
 
     def write32(self, addr, val):
-        addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
-            self.write8(addr, val & 0xFF)
-            self.write8(addr + 1, (val >> 8) & 0xFF)
-            self.write8(addr + 2, (val >> 16) & 0xFF)
-            self.write8(addr + 3, (val >> 24) & 0xFF)
-        else:
-            struct.pack_into('<I', self.data, addr, val & 0xFFFFFFFF)
+        self.load_bytes(addr, struct.pack('<I', val & 0xFFFFFFFF))
 
     def write_float32(self, addr, val):
-        struct.pack_into('<f', self.data, addr & 0xFFFFF, val)
+        self.load_bytes(addr, struct.pack('<f', val))
 
     def write_float64(self, addr, val):
-        struct.pack_into('<d', self.data, addr & 0xFFFFF, val)
+        self.load_bytes(addr, struct.pack('<d', val))
 
     # -- bulk operations ------------------------------------------------------
 
     def load_bytes(self, addr, data):
         """Copy bytes into memory at addr."""
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
+        if self._split_access(addr, len(data)):
             for i, b in enumerate(data):
                 self.write8(addr + i, b)
         else:
@@ -104,7 +110,7 @@ class Memory:
     def read_bytes(self, addr, n):
         """Read n bytes from memory."""
         addr &= 0xFFFFF
-        if addr >= 0xA0000 and self._mode_x:
+        if self._split_access(addr, n):
             return bytes(self.read8(addr + i) for i in range(n))
         return bytes(self.data[addr:addr + n])
 
@@ -127,7 +133,9 @@ class Memory:
 
         width, height = ports.get_resolution()
 
-        if ports.mode_x:
+        if ports.vesa_mode:
+            pixels = bytes(self.vesa_vram[ports.vesa_start:ports.vesa_start + width * height])
+        elif ports.mode_x:
             # Mode X: dump visible page only (CRTC start address determines page)
             stride = width // 4
             start_addr = (ports.crtc_regs[0x0C] << 8) | ports.crtc_regs[0x0D]

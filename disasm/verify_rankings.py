@@ -20,6 +20,7 @@ from emu.ports import PortIO
 from emu.interrupts import InterruptHandler
 from emu.execute import run_fast
 from emu.state import load_state
+from compare_pipeline import extract_display_pixels
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('checkpoint')
@@ -120,19 +121,18 @@ if(c.final)initPalette(2,2);
      x,y,x2,y2=[mem.read16(ptr+i) for i in (0,2,4,6)]
      layout=port['layout']
      assert [x,y,x2-x,y2-y]==[layout[k] for k in ('x','y','width','height')],(fixture,completed,layout,[x,y,x2,y2])
-     start=(ports.crtc_regs[12]<<8)|ports.crtc_regs[13]
+     native_pixels=extract_display_pixels(mem,ports)
      differences=[]
      for py in (range(height) if args.final else range(y,y2+1)):
          for px in (range(width) if args.final else range(x,x2+1)):
-             native=(mem.vga_planes[px&3][start+(px>>2)+py*(width//4)] if ports.mode_x
-                     else mem.read8(0xA0000+py*width+px))
+             native=native_pixels[py*width+px]
              actual=port['pixels'][py*width+px]
              different=(list(ports.palette[native])!=port['palette'][actual*3:actual*3+3]) if args.final else native!=actual
              if different:differences.append((px,py,native,actual))
      assert not differences,(fixture,completed,len(differences),differences[:12])
      for py in ([] if args.final else range(mem.read16(ds+0x518E),mem.read16(ds+0x518E)+12)):
          for px in range(mem.read16(ds+0xE9DC),mem.read16(ds+0xE9DE)):
-             native=mem.vga_planes[px&3][start+(px>>2)+py*(width//4)] if ports.mode_x else mem.read8(0xA0000+py*width+px)
+             native=native_pixels[py*width+px]
              assert native==port['pixels'][py*width+px],('winner name',fixture,px,py,native,port['pixels'][py*width+px])
      for i in (range(180,220) if args.final else range(len(players)*8)):
          assert list(ports.palette[i])==port['palette'][i*3:i*3+3],(i,ports.palette[i],port['palette'][i*3:i*3+3])
@@ -146,11 +146,11 @@ if(c.final)initPalette(2,2);
          call(0x34A1D,0x2D54,[ptr&15,ptr>>4,1+(5 if args.teams else 4)*len(players)+2])
          # The event loop redraws the activated button after its callback.
          call(0x474E1,0x3FA9,[ptr&15,ptr>>4,1+(5 if args.teams else 4)*len(players)+2])
+         native_pixels=extract_display_pixels(mem,ports)
          differences=[]
          for py in range(y,y2+1):
              for px in range(x,x2+1):
-                 native=(mem.vga_planes[px&3][start+(px>>2)+py*(width//4)] if ports.mode_x
-                         else mem.read8(0xA0000+py*width+px))
+                 native=native_pixels[py*width+px]
                  actual=expected[py*width+px]
                  if list(ports.palette[native])!=port['palette'][actual*3:actual*3+3]:
                      differences.append((px,py,native,actual))

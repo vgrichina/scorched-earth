@@ -11453,3 +11453,290 @@ Still open: Description dialogs outside 360x480, SVGA, held/dragged input,
 continuous session and palette timing, market initialization, and broader
 weapon/death-effect parity. These checks do not establish whole-game pixel
 perfection.
+
+### Description dialog checks beyond 360x480
+
+The Description builder at 269ED adds its Done button at text baseline 85 and
+runs the same native auto-sizing routine used by Sell. At 320x200, the prior
+hardcoded height/top offset produced 1116 differing pixels for Baby Missile.
+The port now derives height as 107 + button border and button top as 85 - border;
+rendering and mouse hit testing share that top coordinate. The comparison
+harness now translates its 48-item Inventory fixture and dismissal coordinates
+for the selected VGA dimensions.
+
+All 48 item openings and five dismissal frames (Enter, D, Escape, left Done,
+right Done) match full native RGB in each of the five VGA modes: **265 full-frame
+comparisons pass**. The fixture owns all items; cases exercise real native
+mouse/keyboard paths with ending DAC phase aligned, excluding cursor and
+wall-clock timing. Initial-shop, menu-mode, display-capture, syntax and
+whitespace regressions pass. This closes the previously listed VGA Description
+opening/dismissal gap; SVGA, held/dragged input, timing and broader gameplay
+remain unverified.
+
+Reproduction for each VGA mode 0 through 4:
+```
+python3 disasm/capture_shop_mode.py /tmp/scorched-inventory-48-ready.state /tmp/scorched-description-mode0 0
+python3 disasm/verify_sell_layouts.py /tmp/scorched-description-mode0.state --descriptions --output-dir /tmp/scorched-description-mode0-check
+```
+
+SVGA verification requires additional emulator work. A temporary mode-5 probe
+of native graphics initialization stops at file 50C5E (`repne cmpsb`) with a
+video-plane IndexError. Memory accesses currently route every address at or
+above A0000 into the selected 64KB VGA plane in Mode X, including ROM addresses
+above AFFFF. Restricting that aperture is necessary before reliable adapter
+probing. INT 10h VESA functions and banked framebuffer capture/state support
+are also absent. No SVGA screenshot parity is claimed from this probe.
+
+### Emulator VGA aperture and SVGA probe progress
+
+`Memory` now maps Mode X accesses only inside A0000..AFFFF. ROM and other
+addresses above the aperture use ordinary memory. Word, dword, floating-point
+and bulk transfers split when they touch the aperture or wrap the 20-bit address
+space, so boundary-crossing operations route each byte correctly. Dword reads
+previously bypassed the selected VGA plane entirely; they now agree with byte
+and word reads. Flat-memory dword reads retain their direct unpack path.
+
+`test_memory_aperture.py` covers ROM signature access, selected read plane and
+write mask, both aperture edges, 20-bit wrapping, integer/bulk/float transfers,
+and preservation of the 1MB backing-store size (54 boundary configurations).
+Both tests pass, as do display capture and BIOS video detection. Rebuilding all
+five VGA shop modes still produces exact native/port RGB matches.
+
+The native mode-5 initialization probe now gets past file 50C5E and exits through
+the game's ordinary "Unable to initialize graphics mode: 640x400" error, rather
+than a Python IndexError. INT10 tracing reports AX=1A00, 5F00, 6F00, 1A00 before
+that error; no VESA call is reached in this checkpoint-based probe. Adapter
+identification/cached capability state needs tracing next, followed by VESA BIOS
+and banked video-memory support. This is emulator progress, not SVGA parity.
+
+```
+python3 disasm/test_memory_aperture.py
+python3 disasm/test_display_capture.py
+python3 disasm/test_bios_video_detection.py
+python3 disasm/verify_shop_modes.py /tmp/scorched-shop-next.state --output-dir /tmp/scorched-aperture-vga-regression
+```
+
+### Native adapter identification reaches VESA
+
+The next SVGA rejection was a false adapter identification, not a cached VESA
+result. Fastgraph writes 12h to sequencer register 6 at file 510B6 and reads it
+back; the emulator treated this reserved register as ordinary writable storage.
+Native detection consequently selected adapter code 20 at 51106 and installed
+its vendor driver. Mode 640x400 then failed the native mode-availability test
+without calling VESA.
+
+The emulator now exposes only standard sequencer registers 0..4: reserved
+indices 5..7 read FFh and ignore writes. The existing index mask and standard
+register behavior remain in use. Native detection now passes the vendor probe
+and reaches file 51295, issuing INT10 AX=4F03 (get current VESA mode). With VESA
+still unimplemented it returns the ordinary "Unable to initialize svga graphics
+mode" error. No native branches or capability flags are patched for this check.
+
+`test_bios_video_detection.py` now executes the original automatic adapter
+probe at 50C13 and asserts it reaches the VESA query, in addition to reserved
+register readback checks and the existing VGA/mode-19 tests. These pass, as do
+memory-aperture and display-capture tests. VESA query/mode/bank handling and
+framebuffer/state support remain the next work needed for SVGA pixel evidence.
+
+### VESA banked capture and all nine initial shop frames
+
+Added a 1MB, 8-bit banked VESA adapter for modes 100h/101h/103h/105h. INT10
+functions 4F00/01/02/03/05/07 provide controller/mode information, mode set/query,
+64KB window-A bank switching and display start. Unsupported functions, modes,
+linear-framebuffer requests and invalid banks return failure. Native Fastgraph
+uses the mode-info far callback: a ROM stub at F000:1000 executes INT10 4F05 and
+returns far. Native detection and driver setup execute unchanged; no native
+capability flags or branches are forced. Window B is not advertised and requests
+for it fail; Fastgraph's redundant B-bank calls do not prevent its A-window
+rendering. Banked memory accesses and visible-page capture now use VESA VRAM.
+
+Checkpoint version 2 adds VESA mode, bank, display start and VRAM; version-1
+checkpoints remain readable and restore with VESA disabled. Tests cover all four
+mode geometries, bank isolation/readback, invalid requests, memory preservation
+versus mode-set clearing, the executable callback, display-start capture, PNG
+pixels, save/load restoration and return to BIOS mode 13h. VESA, aperture,
+display-capture, native adapter detection and shop/menu regressions pass.
+
+The first 640x400 shop comparison differed by 2176 pixels. Native graphics init
+at 45538 compares the mode's pixel aspect with 0.8, setting DS:6E28 to 3 when
+smaller, otherwise 2. This field controls vertical UI border thickness; it is
+not equivalent to screenHeight>=400 across SVGA. The old notes asserting that
+equivalence only held for the five VGA modes. `getUIBorderHeight()` uses the
+matching mode's pixel aspect, and the raised-box renderer plus shop rendering
+and hit testing use it. Other screens' independent layout assumptions still
+need SVGA checks.
+
+All nine rebuilt initial shop frames now match native RGB exactly:
+
+| Resolution | Matching pixels |
+|---|---|
+| 320x200 | 64000/64000 |
+| 320x240 | 76800/76800 |
+| 320x400 | 128000/128000 |
+| 320x480 | 153600/153600 |
+| 360x480 | 172800/172800 |
+| 640x400 | 256000/256000 |
+| 640x480 | 307200/307200 |
+| 800x600 | 480000/480000 |
+| 1024x768 | 786432/786432 |
+
+```
+python3 disasm/test_vesa.py
+python3 disasm/verify_shop_modes.py /tmp/scorched-shop-next.state --output-dir /tmp/scorched-all-modes
+```
+
+These remain reconstructed shop fixtures using existing initialized players and
+economy. This verifies neither boot-to-shop SVGA flow nor all modal/input paths,
+continuous sessions, palette timing, gameplay or other UI screens. The adapter
+implements the banked paths used here, not every VBE feature.
+
+### SVGA shop modal input and sizing
+
+The first 640x400 Sell opening differed by 2367 pixels despite the corrected
+aspect-dependent borders. Native dialog auto-sizing at 4926B takes the maximum
+widget bottom and adds ten pixels. With text baseline 85, button top
+85 - border, and button height `getBtnH()`, Sell/Description height is
+`94 - border + buttonHeight`. The previous `107 + border` formula coincidentally
+matched VGA's paired border/button sizes but made SVGA dialogs two pixels too
+short. Both dialogs now use the native extent calculation. Their text and
+mouse bounds follow the resulting centered position. The VGA results of this
+calculation remain unchanged (109 pixels for low VGA, 110 for tall VGA); SVGA
+uses 111 pixels.
+
+The existing Inventory, Update, Sell-control and all-item Description harnesses
+use native mode-5..8 fixtures, real native modal input paths and complete-frame
+RGB comparisons with aligned ending palette. All 11 Inventory and 12 Update
+frames pass at each of the four SVGA sizes (92 frames).
+
+At 800x600, closing Inventory after sales exceeded the capture harness's old
+one-million-instruction limit between polls while executing text drawing at
+4CA9A. A replay from the preceding saved state reached the next poll after
+1,238,671 instructions. The harness now has a configurable `--max-steps` limit
+(default five million) and reports its maximum observed interval. This changes
+the capture budget, not native input, rendering, palette or timing semantics.
+
+SVGA modal verification completed: **404 full-frame RGB comparisons pass**,
+101 at each of 640x400, 640x480, 800x600 and 1024x768: 11 Inventory, 12 Update,
+25 Sell-control and 53 Description frames. Description covers all 48 item
+openings and five dismissal paths; Sell covers modifier/quantity cycling,
+ignored Enter/Space, keyboard and left/right acceptance/rejection, and returning
+to the shop after sales. The final 800x600 and 1024x768 Sell runs include the
+previously budget-limited close capture. Shop/menu regressions and syntax and
+whitespace checks pass.
+
+Reproduction (repeat with modes 5, 6, 7, 8):
+```
+python3 disasm/verify_shop_inventory.py /tmp/scorched-all-modes/mode-5.state --output-dir /tmp/scorched-inventory-mode5
+python3 disasm/verify_shop_update.py /tmp/scorched-all-modes/mode-5.state --output-dir /tmp/scorched-update-mode5
+python3 disasm/capture_shop_mode.py /tmp/scorched-shop-bought-missile.state /tmp/scorched-shop-mode5-owned 5
+python3 disasm/verify_shop_sell.py /tmp/scorched-shop-mode5-owned.state --controls --output-dir /tmp/scorched-sell-mode5
+python3 disasm/capture_shop_mode.py /tmp/scorched-inventory-48-ready.state /tmp/scorched-description-mode5 5
+python3 disasm/verify_sell_layouts.py /tmp/scorched-description-mode5.state --descriptions --output-dir /tmp/scorched-description-mode5-check
+```
+
+Still unverified: SVGA-specific shop paging/empty-list edge cases, other screens'
+layout and input, boot/continuous sessions, held/dragged input, palette timing
+and broader gameplay/effect parity. These modal fixtures do not establish
+whole-game pixel perfection.
+
+### Rankings/final-score SVGA geometry
+
+The 640x400 two-player Rankings panel had a native extent of 120x95 versus the
+port's 120x94. Rankings and final scoring now use the native aspect-dependent
+border and independently computed button height (17 below FG_MAXY=300, 19 at
+or above it). Dialog height comes from the button's inclusive bottom plus ten
+pixels of padding. The shared `getUIButtonHeight()` follows native 48755;
+`getUIBorderHeight()` follows 45538. Button rendering and mouse bounds use the
+same height. Previously these screens derived button height from border width,
+which only happened to match the VGA combinations.
+
+`verify_rankings.py` now reads native pixels through `extract_display_pixels`,
+including the current VESA visible page. Its old linear fallback read CPU
+addresses beyond the selected 64KB video window and was unsuitable for SVGA.
+It still checks layout independently against native dialog bounds. Between-round
+checks compare panel pixels, winner name and player palette; final-screen
+checks compare complete RGB frames, three ring palette phases, and Type/Name
+callback redraws for AI fixtures. These are rendering/callback checks, not
+mouse-dispatch or animation-timing proof.
+
+Verification completed:
+- Standard Rankings: eight fixtures at each of modes 0, 4, 5, 6, 7, 8 (48).
+- Shared-team Rankings: 16 player/team-page fixtures at modes 5 and 8 (32).
+- Final screen: 11 fixtures at each SVGA mode 5 through 8 (44), including
+  Type/Name redraw checks and the three ring palette phases.
+All **124 fixture comparisons pass**. Fixtures include ties, negative scores,
+long names, two/three/ten players and all seven AI classifications. Syntax,
+whitespace, initial-shop and menu-resolution regressions pass.
+
+```
+python3 disasm/verify_rankings.py /tmp/scorched-all-modes/mode-5.state
+python3 disasm/verify_rankings.py /tmp/scorched-all-modes/mode-5.state --final
+python3 disasm/verify_rankings.py /tmp/scorched-all-modes/mode-5.state --teams --shared-teams
+```
+Repeat standard/final commands for modes 6..8 and the team command for mode 8.
+SVGA score-dialog mouse/keyboard dispatch, other menu/HUD screens, shop paging
+edge cases, continuous sessions and broader gameplay/timing remain open.
+
+### Shop paging and empty-category markers across modes
+
+Cumulative SVGA navigation (End, row wrap, page changes, Home, Up and Tab)
+matches in all four SVGA modes: 13 frames each. The empty-category sequence
+exposed six spurious pixels at 640x400 and nine at 320x240: the port applied
+360x480's unsigned-coordinate wrap to every resolution. Native mode-table
+vertical-line entries point to 452D2 for all eight standard modes and to 441DB
+only for custom 360x480. The port now renders the wrapped invalid marker only
+at 360x480, preserving native selection -1 in all modes.
+
+The 360x480 sequence also exposed five border pixels incorrectly restored when
+Tab switched back to Weapons. Native erasing of the wrapped arrow leaves flat
+background over those bevel pixels even after category changes. The port now
+retains that erasure state across category rebuilds and clears it on a fresh
+shop opening. Switching categories directly from selection -1 also erases the
+marker. Eight cumulative empty-list frames match at each of the nine modes,
+and six additional direct-Tab frames match at 360x480. This supersedes the
+previous assertion that category rebuilding always clears the erasure artifact.
+
+The scrollbar-boundary harness now derives click coordinates for each native
+resolution instead of using 360x480 constants. It checks both mouse buttons at
+27 points around the top/bottom arrows and in the gap. At 1024x768 all 32
+weapons fit, so those cases exercise disabled controls.
+
+All **346 full-frame comparisons pass**: 52 SVGA paging frames, 72 empty-list
+frames across all nine modes, six custom-mode direct-Tab frames, and 216 SVGA
+arrow-boundary frames (54 per resolution). The initial-shop regression, syntax
+and whitespace checks pass.
+
+```
+python3 disasm/verify_shop_keys.py /tmp/scorched-all-modes/mode-5.state --sequence --keys End ArrowDown PageDown End ArrowDown PageDown Home PageUp ArrowUp Tab End Home Tab --output-dir /tmp/scorched-paging-mode5
+python3 disasm/capture_shop_mode.py /tmp/scorched-shop-filter-frames/4-misc.state /tmp/scorched-empty-mode5 5
+python3 disasm/verify_shop_keys.py /tmp/scorched-empty-mode5.state --sequence --keys Tab End Home ArrowUp ArrowDown PageDown PageUp Tab --output-dir /tmp/scorched-empty-mode5-keys
+python3 disasm/verify_shop_scroll_bounds.py /tmp/scorched-all-modes/mode-5.state --output-dir /tmp/scorched-scroll-bounds-mode5
+```
+
+The native marker/erasure behavior is verified through these input sequences;
+loading a snapshot after erasure still does not reconstruct its earlier input
+history. Score-screen input, other menu/HUD screens, continuous sessions,
+held/dragged input, palette timing and broader gameplay/effect parity remain.
+
+### Main-menu capture checkpoint (unfinished comparison)
+
+`disasm/capture_menu.py` enters the native main menu from an initialized
+video/heap checkpoint. Mode-rebuilt shop fixtures retain terrain buffers from
+their original resolution; this harness clears DS:6242..624A so native terrain
+generation allocates fresh buffers. Without this invalidation, the stale bitmap
+column table can overwrite code. This is a reconstructed entry, not a fresh boot
+or evidence that interactive mode switching works. Old fixture allocations are
+not reclaimed, so use a fresh checkpoint for each capture.
+
+The 640x400 fixture reached the native input poll after 21,859,830 instructions:
+
+```
+python3 disasm/capture_menu.py /tmp/scorched-all-modes/mode-5.state /tmp/scorched-menu-mode5
+python3 disasm/compare_pipeline.py /tmp/scorched-menu-mode5.state --state menu --output-dir /tmp/scorched-menu-mode5-compare
+```
+
+The initial comparison has **98,216 differing pixels**. It is not yet a valid
+measure of port rendering errors: resolved random-sky state, preview terrain
+extraction and palette mapping need investigation in the comparison harness.
+Main-menu button positioning also still uses a height-based border calculation
+instead of the native aspect-based rule. Menu parity remains unfinished.

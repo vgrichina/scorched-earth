@@ -7,7 +7,7 @@
 //   Canvas2D fallback — CPU loop maps indices through palette32 LUT to ImageData
 
 import { palette32 } from './palette.js';
-import { config } from './config.js';
+import { config, getUIBorderHeight } from './config.js';
 
 // Current dimensions — updated by initFramebuffer/reinitFramebuffer
 let WIDTH = config.screenWidth;
@@ -236,7 +236,7 @@ export function clear(colorIndex) {
 //   Left=DS:0xEF26, Top=DS:0xEF2E, Right=DS:0xEF30, Bottom=DS:0xEF32
 // Callers pass: (UI_DARK_BORDER=EF26, UI_LIGHT_BORDER=EF2E, UI_MED_BORDER=EF30, UI_BRIGHT_BORDER=EF32)
 export function drawBox3DRaised(x, y, w, h, fill, leftColor, topColor, rightColor, bottomColor) {
-  const bV = config.screenHeight >= 400 ? 3 : 2; // TOP/BOTTOM border width (hi-res gets 3rd line)
+  const bV = getUIBorderHeight(); // Native aspect-dependent TOP/BOTTOM border width
   const bH = 2;                                   // LEFT/RIGHT border width (always 2)
   fillRect(x + bH, y + bV, x + w - bH - 1, y + h - bV - 1, fill);
   // EXE: hlines claim corner pixels; vlines skip corner rows to avoid overlap

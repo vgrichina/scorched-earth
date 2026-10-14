@@ -146,3 +146,12 @@ loadConfig();
 // Older port versions exposed a fifth order that does not exist in the EXE.
 if (!Number.isInteger(config.playOrder) || config.playOrder < 0 || config.playOrder > 3) config.playOrder = 0;
 applyGraphicsMode();
+
+// Native 0x45538: vertical UI border thickness depends on pixel aspect < 0.8.
+export function getUIBorderHeight() {
+  const mode=GRAPHICS_MODES.find(m=>m.w===config.screenWidth&&m.h===config.screenHeight);
+  return (mode?.displayAspect ?? 1) < 0.8 ? 3 : 2;
+}
+
+// Native 0x48755 compares FG_MAXY (height minus one) with 300.
+export function getUIButtonHeight() { return config.screenHeight > 300 ? 19 : 17; }

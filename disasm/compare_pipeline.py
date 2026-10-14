@@ -68,6 +68,8 @@ def extract_terrain_from_vga(pixels, width, height, playfield_top):
 def extract_display_pixels(mem, ports):
     """Read the visible VGA page; Mode 13h uses linear memory, Mode X planes."""
     width, height = ports.get_resolution()
+    if ports.vesa_mode:
+        return list(mem.vesa_vram[ports.vesa_start:ports.vesa_start + width * height])
     if not ports.mode_x:
         return list(mem.data[0xA0000:0xA0000 + width * height])
     start = (ports.crtc_regs[0x0C] << 8) | ports.crtc_regs[0x0D]

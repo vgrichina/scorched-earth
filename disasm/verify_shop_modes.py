@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rebuild and compare native initial shop frames across the five VGA modes.
+"""Rebuild and compare native initial shop frames across VGA and VESA modes.
 
 Constructed rendering fixtures reuse initialized player/economy state. They do
 not prove boot flow, user mode switching, modal input or timing across modes.
@@ -8,12 +8,13 @@ import argparse,subprocess
 from pathlib import Path
 from compare_pipeline import extract_state,write_state_json,write_emu_png
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('checkpoint')
-parser.add_argument('--output-dir',default='/tmp/scorched-shop-vga-modes');args=parser.parse_args()
+parser.add_argument('--modes',nargs='+',type=int,choices=range(9),default=list(range(9)))
+parser.add_argument('--output-dir',default='/tmp/scorched-shop-all-modes');args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent;out=Path(args.output_dir);out.mkdir(parents=True,exist_ok=True)
 def run(*cmd):
  r=subprocess.run(list(map(str,cmd)),cwd=root,capture_output=True,text=True)
  if r.returncode:print(r.stdout,r.stderr);r.check_returncode()
-for mode in range(5):
+for mode in args.modes:
  prefix=out/f'mode-{mode}'
  run('python3',root/'disasm/capture_shop_mode.py',args.checkpoint,prefix,mode)
  state=extract_state(str(prefix)+'.state')

@@ -11,7 +11,7 @@ from pathlib import Path
 from compare_pipeline import Memory,CPU,PortIO,InterruptHandler,load_state
 from emu.state import save_state
 from emu.execute import run_fast
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('checkpoint');parser.add_argument('output');parser.add_argument('mode',type=int,choices=range(5));args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('checkpoint');parser.add_argument('output');parser.add_argument('mode',type=int,choices=range(9));args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 m,c,p=Memory(),CPU(),PortIO();p.mem=m;h=InterruptHandler(m,c,str(root/'earth'),p)
 load_state(args.checkpoint,c,m,p,h);ds=0x4fc80
@@ -24,7 +24,7 @@ def call(address,segment,arguments=(),stop=0x710):
  reason,steps=run_fast(c,m,p,h,5000000,bp_set={stop})
  assert reason=='breakpoint',(hex(address),reason,steps,hex(c.segs[1]*16+c.ip+0x6100))
 call(0x45413,0x3f31)
-expected=[(320,200),(320,240),(320,400),(320,480),(360,480)][args.mode]
+expected=[(320,200),(320,240),(320,400),(320,480),(360,480),(640,400),(640,480),(800,600),(1024,768)][args.mode]
 assert p.get_resolution()==expected,(args.mode,p.get_resolution(),expected)
 print('Graphics initialized:',p.get_resolution(),flush=True)
 segment=m.read16(ds+0xef16);address=0x6100+16*segment+m.read16(ds+0xef14)

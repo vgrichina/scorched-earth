@@ -22,3 +22,20 @@ for page,expected in ((0,1),(1,1),(65,0)):
  assert reason=='breakpoint',reason
  assert c.ax==expected,(page,c.ax,expected)
 print('BIOS color-VGA identification and three native Fastgraph mode-19 probes pass.')
+# Reserved sequencer registers must not impersonate a vendor extension.
+for idx in (5,6,7):
+ p.port_out(0x3c4,idx)
+ for value in (0,0x12,0xff):
+  p.port_out(0x3c5,value)
+  assert p.port_in(0x3c5)==0xff,(idx,value)
+# Execute native automatic adapter detection, without forcing the VESA branch.
+# A writable register 6 used to return adapter 20 before reaching this query.
+queries=[]
+h.on_int=lambda n,ah: queries.append(c.ax) if n==0x10 else None
+c.segs[:]=[0,0x4ab1,0x8800,0x4fc8];c.ip=0x50c13-0x6100-0x4ab10;c.regs[4]=0x2400
+for i,v in enumerate((0x110,0x60,0)):m.write16(0x8a400+2*i,v)
+reason,_=run_fast(c,m,p,h,100000,bp_set={0x710})
+assert reason=='breakpoint',reason
+assert 0x4f03 in queries,queries
+assert c.ax!=20,c.ax
+print('Reserved sequencer registers and native automatic VESA-query path pass.')

@@ -1,7 +1,7 @@
 import {teamName} from './team-scoring.js';
 import {playerRankingValue} from './ranking-value.js';
 // Native final scoring dialog: paint 0x34CC6, build 0x34F2F.
-import {config} from './config.js';
+import {config,getUIBorderHeight,getUIButtonHeight} from './config.js';
 import {fillRect,hline,vline,drawBox3DRaised,drawBox3DSunken} from './framebuffer.js';
 import {drawText,drawTextEmbossed,measureText} from './font.js';
 import {rankedPlayers,rankedTeams,currency} from './rankings.js';
@@ -62,8 +62,8 @@ export function finalScoringLayout(players,{showTypes=false,showTeams=false}={})
   const teamWidth=teams?Math.max(...players.map(p=>measureText(teamName(p.team)))):0;
   const teamX=40+nameWidth,winsX=teamX+(teams?teamWidth+10:0),scoreX=winsX+25;
   const width=scoreX+Math.max(...board.map(p=>measureText(currency(playerRankingValue(p)))))+10;
-  const border=config.screenHeight>=400?3:2,buttonY=33+board.length*rowHeight+5;
-  const height=buttonY+12+border+10;
+  const border=getUIBorderHeight(),buttonY=33+board.length*rowHeight+5;
+  const height=buttonY-border+getUIButtonHeight()-1+10;
   const typeLabel=teams?'T~ype':'~Type';
   const labels=['~Quit','New ~Game'],actions=['quit','new'];
   if(players.some(p=>p.aiType)){labels.push(showTypes?'~Name':typeLabel);actions.push('type');}
@@ -73,7 +73,7 @@ export function finalScoringLayout(players,{showTypes=false,showTeams=false}={})
   const spare=width-buttonWidths.reduce((a,b)=>a+b,0),gap=Math.trunc(spare/(labels.length+1));
   const offset=Math.floor((spare-(labels.length+1)*gap)/2);
   const buttons=labels.map((label,i)=>({label,action:actions[i],disabled:actions[i]==='type'&&showTeams,x:offset+(i+1)*gap+buttonWidths.slice(0,i).reduce((a,b)=>a+b,0),
-    y:buttonY-border,width:buttonWidths[i]+1,height:12+2*border+1}));
+    y:buttonY-border,width:buttonWidths[i]+1,height:getUIButtonHeight()}));
   return {classifications:board.map(classification),board,rowHeight,winsX,scoreX,teamX,teamWidth,width,height,buttons,buttonY,
     x:Math.floor((config.screenWidth-1-width)/2),y:Math.floor((config.screenHeight-1-height)/2)};
 }

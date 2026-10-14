@@ -88,7 +88,10 @@ class InterruptHandler:
 
     def _int10(self):
         ah = self.cpu.get_reg8(4)
-        if ah == 0x00:  # Set video mode
+        if ah == 0x4F:
+            from .vesa import handle
+            handle(self.cpu, self.mem, self.ports)
+        elif ah == 0x00:  # Set video mode
             mode = self.cpu.get_reg8(0)  # AL
             if self.ports:
                 self.ports.set_mode(mode)

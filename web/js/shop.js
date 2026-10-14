@@ -54,7 +54,7 @@
 // The initial Weapons and Miscellaneous pages have full-frame RGB fixtures.
 // Inventory/selling dialogs and broader input/timing still require native checks.
 
-import { config } from './config.js';
+import { config, getUIBorderHeight } from './config.js';
 import {playerCash,addPlayerCash} from './cash.js';
 import { fillRect, hline, vline, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
@@ -246,6 +246,7 @@ export function openShop(playerIdx, roundsLeft, { showPrivacy = true } = {}) {
   shop.category = TAB_WEAPONS;
   shop.selectedItem = 0;
   shop.scrollOffset = 0;
+  shop.emptyArrowErased=false;
   shop.selling = false;
   shop.updateOpen=false;
   shop.inventoryOpen=false;shop.inventorySelection=0;shop.sellItem=null;shop.descriptionItem=null;
@@ -271,6 +272,7 @@ export function isShopActive() {
 
 // Native selector has two positions; accessories follow weapon-table order.
 export function selectShopCategory(category, selectedItem=0, scrollOffset=0) {
+  if(shop.items.length===0&&shop.selectedItem===-1)shop.emptyArrowErased=true;
   shop.category=category===TAB_MISC?TAB_MISC:TAB_WEAPONS;
   shop.selectedItem=selectedItem;shop.scrollOffset=scrollOffset;updateItemList();
 }
@@ -295,7 +297,6 @@ export function isShopItemAvailable(weapon) {
   }
 }
 function updateItemList() {
-  shop.emptyArrowErased=false;
   shop.items=[];
   for(let idx=2;idx<WEAPONS.length;idx++){
     const weapon=WEAPONS[idx];
@@ -495,7 +496,7 @@ export function shopTick(player) {
     const l=descriptionLayout(shop.descriptionItem);
     if(consumeKey('Escape')||consumeKey('Enter')||consumeKey('KeyD'))shop.descriptionItem=null;
     const left=consumeClick(0),right=consumeClick(2);
-    if((left||right)&&mouse.over&&mouse.x>=l.buttonX&&mouse.x<l.buttonX+measureText('~Done')+12&&mouse.y>=l.y+82&&mouse.y<l.y+82+getBtnH())shop.descriptionItem=null;
+    if((left||right)&&mouse.over&&mouse.x>=l.buttonX&&mouse.x<l.buttonX+measureText('~Done')+12&&mouse.y>=l.buttonY&&mouse.y<l.buttonY+getBtnH())shop.descriptionItem=null;
     consumeKey('Space');
     return false;
   }
@@ -530,7 +531,7 @@ export function shopTick(player) {
     const leftClick=consumeClick(0),rightClick=consumeClick(2);
     if (mouse.over && (leftClick||rightClick)) {
       const {x,y,width,qtyWidth,acceptX,rejectX}=sellLayout(player,item);
-      const btnY=y+85-(config.screenHeight>=400?3:2),btnH=getBtnH();
+      const btnY=y+85-getUIBorderHeight(),btnH=getBtnH();
       const qtyX=x+Math.floor((width-qtyWidth)/2);
       if(mouse.x>=qtyX&&mouse.x<=qtyX+qtyWidth&&mouse.y>=y+53&&mouse.y<=y+64){
         shop.sellQty=rightClick?(shop.sellQty<maxQty?shop.sellQty+1:1):(shop.sellQty>1?shop.sellQty-1:maxQty);
@@ -643,15 +644,15 @@ export function shopTick(player) {
     // Right-side action buttons: Update, Inventory, Done
     if (mx >= rbX && mx < rbX + rbW) {
       // Action buttons (top right)
-      const updateY = di + 0x32 - (SH >= 400 ? 3 : 2);
+      const updateY = di + 0x32 - getUIBorderHeight();
       if (my >= updateY && my < updateY + btnH) {
         shop.updateOpen=true;
       }
-      const invY = di * 2 + 0x46 - (SH >= 400 ? 3 : 2);
+      const invY = di * 2 + 0x46 - getUIBorderHeight();
       if (my >= invY && my < invY + btnH) {
         openShopInventory(player);
       }
-      const doneY = di * 3 + 0x5A - (SH >= 400 ? 3 : 2);
+      const doneY = di * 3 + 0x5A - getUIBorderHeight();
       if (my >= doneY && my < doneY + btnH) {
         shop.active = false;
         return true;
@@ -685,7 +686,7 @@ export function shopTick(player) {
 function scrollShopAt(mx,my){
   const perPage=getItemsPerPage();
   if(shop.items.length<=perPage||mx<200||mx>=200+SB_W)return false;
-  const top=ITEM_Y_START-(config.screenHeight>=400?3:2),bottom=top+(perPage-1)*20;
+  const top=ITEM_Y_START-getUIBorderHeight(),bottom=top+(perPage-1)*20;
   const direction=my>=top&&my<top+SB_H?-1:my>=bottom&&my<bottom+SB_H?1:0;
   if(!direction)return false;
   return scrollShopPage(direction);
@@ -889,12 +890,12 @@ export function drawShop(player) {
     // Native permits row -1 in an empty category. Its coordinate-table read
     // reaches CAC2/CAC4 (scroll offset / last-visible index), and the VGA
     // writer treats the resulting negative X as an unsigned 16-bit value.
-    // Preserve the resulting wrapped arrow rather than clamping selection.
-    if((shop.selectedItem===-1||shop.emptyArrowErased) && shop.items.length===0){
+    // The custom 360x480 writer wraps invalid coordinates; standard drivers clip.
+    if(((shop.selectedItem===-1&&shop.items.length===0)||shop.emptyArrowErased) && SW===360){
       for(let dy=-2;dy<=2;dy++)for(let dx=0;dx<=2-Math.abs(dy);dx++){
         const address=(5+dy)*SW+((-6+dx)&0xffff);
         // Native erases the old arrow in flat background, including bevel pixels.
-        setPixel(address%SW,Math.floor(address/SW),shop.selectedItem===-1?UI_HIGHLIGHT:UI_BACKGROUND);
+        setPixel(address%SW,Math.floor(address/SW),shop.selectedItem===-1&&shop.items.length===0?UI_HIGHLIGHT:UI_BACKGROUND);
       }
     }
 
@@ -903,8 +904,8 @@ export function drawShop(player) {
     {
       const enabled=shop.items.length>perPageSb;
       const sbX   = 200; // inside panel border
-      const sbTop = ITEM_Y_START - (SH >= 400 ? 3 : 2);
-      const sbBot = ITEM_Y_START + (perPageSb - 1) * 20 - (SH >= 400 ? 3 : 2) + SB_H;
+      const sbTop = ITEM_Y_START - getUIBorderHeight();
+      const sbBot = ITEM_Y_START + (perPageSb - 1) * 20 - getUIBorderHeight() + SB_H;
       const sbH   = sbBot - sbTop;
       const btnH  = SB_H;          // arrow button height (EXE: 14px)
       const trkTop = sbTop + btnH;  // track starts below up arrow
@@ -955,25 +956,25 @@ export function drawShop(player) {
 
   // "~Update" at X=250, Y=di+0x32
   const updateY = di + 0x32;
-  if(shop.updateOpen)drawBox3DSunken(rbX,updateY-(SH>=400?3:2),rbW,btnH,UI_BACKGROUND,
+  if(shop.updateOpen)drawBox3DSunken(rbX,updateY-getUIBorderHeight(),rbW,btnH,UI_BACKGROUND,
     UI_MED_BORDER,UI_BRIGHT_BORDER,UI_DARK_BORDER,UI_LIGHT_BORDER);
-  else drawBox3DRaised(rbX, updateY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
+  else drawBox3DRaised(rbX, updateY - getUIBorderHeight(), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
   if(shop.updateOpen)drawText(rbX+7,updateY+2,'Update',UI_HIGHLIGHT);
   else drawShopActionLabel(rbX+5,updateY,'~Update',shop.inventoryOpen);
 
   // "~Inventory" at X=250, Y=di*2+0x46
   const invY = di * 2 + 0x46;
-  if(shop.inventoryOpen)drawBox3DSunken(rbX, invY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
+  if(shop.inventoryOpen)drawBox3DSunken(rbX, invY - getUIBorderHeight(), rbW, btnH, UI_BACKGROUND,
     UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-  else drawBox3DRaised(rbX, invY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
+  else drawBox3DRaised(rbX, invY - getUIBorderHeight(), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
   if(shop.inventoryOpen)drawText(rbX+7,invY+2,'Inventory',UI_HIGHLIGHT);
   else drawShopActionLabel(rbX+5,invY,'~Inventory',shop.updateOpen);
 
   // "~Done" at X=250, Y=di*3+0x5A
   const doneY = di * 3 + 0x5A;
-  drawBox3DRaised(rbX, doneY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
+  drawBox3DRaised(rbX, doneY - getUIBorderHeight(), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
   drawShopActionLabel(rbX+5,doneY,'~Done',shop.inventoryOpen||shop.updateOpen);
 
@@ -1000,8 +1001,8 @@ function sellLayout(player,item){
   const stock=`Amount in stock: ${player.inventory[item.idx]}`;
   const qtyWidth=15+measureText('~Quantity to sell:')+measureText(String(player.inventory[item.idx]));
   const width=Math.max(30+measureText('Sell Equipment'),20+qtyWidth,20+measureText(stock),20+measureText(item.weapon.name));
-  // Native auto-sizing includes the resolution-dependent button border.
-  const height=107+(config.screenHeight>=400?3:2),x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
+  // Native auto-sizing: last button bottom plus ten pixels of padding.
+  const height=94-getUIBorderHeight()+getBtnH(),x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
   // Native 0x4A398 distributes three equal gaps, centering the remainder.
   const free=width-(measureText('~Accept')+11)-(measureText('~Reject')+11);
   const gap=Math.floor(free/3),left=gap+Math.floor((free-gap*3)/2);
@@ -1033,7 +1034,7 @@ function drawSellDialog(player,item){
   const offerText=`Offer: $${offer.toLocaleString('en-US')}`;
   drawText(x+Math.floor((width-measureText(offerText))/2),y+68,offerText,UI_HIGHLIGHT);
   for(const [bx,label] of [[acceptX,'~Accept'],[rejectX,'~Reject']]){
-    drawBox3DRaised(bx,y+85-(config.screenHeight>=400?3:2),measureText(label)+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+    drawBox3DRaised(bx,y+85-getUIBorderHeight(),measureText(label)+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
     drawText(bx+5,y+85,label,UI_HIGHLIGHT);
   }
 }
@@ -1042,16 +1043,17 @@ function drawSellDialog(player,item){
 // separator and Done button; its body contains no explanatory text.
 function descriptionLayout(idx){
   const width=Math.max(30+measureText('Description'),20+measureText(WEAPONS[idx].name));
-  const height=110,x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
-  return {x,y,width,height,buttonX:x+Math.floor((width-measureText('~Done')-11+1)/2)};
+  const border=getUIBorderHeight();
+  const height=94-border+getBtnH(),x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
+  return {x,y,width,height,buttonY:y+85-border,buttonX:x+Math.floor((width-measureText('~Done')-11+1)/2)};
 }
 function drawShopDescription(idx){
-  const {x,y,width,height,buttonX}=descriptionLayout(idx);
+  const {x,y,width,height,buttonX,buttonY}=descriptionLayout(idx);
   drawBox3DRaised(x,y,width+1,height+1,UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
   for(const [label,dy] of [['Description',5],[WEAPONS[idx].name,23]])
     drawText(x+Math.floor((width-measureText(label)+1)/2),y+dy,label,UI_HIGHLIGHT);
   hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);hline(x+5,x+width-5,y+19,UI_MED_BORDER);
-  drawBox3DRaised(buttonX,y+82,measureText('~Done')+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+  drawBox3DRaised(buttonX,buttonY,measureText('~Done')+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
   drawText(buttonX+5,y+85,'~Done',UI_HIGHLIGHT);
 }
 

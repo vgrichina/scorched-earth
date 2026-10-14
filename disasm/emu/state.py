@@ -2,7 +2,7 @@
 
 Format (all little-endian):
   Magic: 8 bytes "EMUSTATE"
-  Version: u32 (1)
+  Version: u32 (2; loader also accepts 1)
   --- CPU ---
   regs[0..7]: 8 × u16
   segs[0..3]: 4 × u16
@@ -40,12 +40,15 @@ Format (all little-endian):
   next_handle: u16
   dta_seg: u16
   dta_off: u16
+  --- Version 2 VESA extension ---
+  vesa_mode: u16; bank: u16; display_start: u32
+  vesa_vram: 1MB
 """
 
 import struct
 
 MAGIC = b'EMUSTATE'
-VERSION = 1
+VERSION = 2
 
 
 def save_state(path, cpu, mem, ports, int_handler):
@@ -103,6 +106,9 @@ def save_state(path, cpu, mem, ports, int_handler):
                             int_handler._dta_seg & 0xFFFF,
                             int_handler._dta_off & 0xFFFF))
 
+        f.write(struct.pack('<HHI', ports.vesa_mode, ports.vesa_bank, ports.vesa_start))
+        f.write(mem.vesa_vram)
+
 
 def load_state(path, cpu, mem, ports, int_handler):
     with open(path, 'rb') as f:
@@ -110,7 +116,7 @@ def load_state(path, cpu, mem, ports, int_handler):
         if magic != MAGIC:
             raise ValueError(f"Bad magic: {magic!r}")
         ver, = struct.unpack('<I', f.read(4))
-        if ver != VERSION:
+        if ver not in (1, VERSION):
             raise ValueError(f"Unknown version: {ver}")
 
         # CPU regs
@@ -166,3 +172,13 @@ def load_state(path, cpu, mem, ports, int_handler):
         (int_handler.tick_count, int_handler._heap_seg,
          int_handler._next_handle, int_handler._dta_seg,
          int_handler._dta_off) = struct.unpack('<IHHHH', f.read(12))
+
+        ports.vesa_mode = ports.vesa_bank = ports.vesa_start = 0
+        mem.vesa_vram[:] = bytes(1 << 20)
+        if ver >= 2:
+            ports.vesa_mode,ports.vesa_bank,ports.vesa_start = struct.unpack('<HHI', f.read(8))
+            vram = f.read(1 << 20)
+            if len(vram) != 1 << 20:
+                raise ValueError('Truncated VESA framebuffer')
+            mem.vesa_vram[:] = vram
+        ports._sync_mem()

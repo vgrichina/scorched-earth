@@ -1,6 +1,6 @@
 // Between-round Rankings dialog, native 0x33FC3.
 import {getTeamScore,teamName} from './team-scoring.js';
-import {config} from './config.js';
+import {config,getUIBorderHeight,getUIButtonHeight} from './config.js';
 import {drawBox3DRaised,drawBox3DSunken,hline} from './framebuffer.js';
 import {drawText,measureText} from './font.js';
 import {playerRankingValue} from './ranking-value.js';
@@ -18,12 +18,12 @@ export function resetRankingsInput() {
 
 export function rankingsButtons(layout,showTeams=rankingsInput.showTeams) {
   const labels=config.teamMode===0?['~Go']:[showTeams?'~Players':'~Teams','~Go'];
-  if(labels.length===1){const width=measureText('~Go')+12;return [{label:'~Go',x:layout.x+Math.floor((layout.width-width+2)/2),y:layout.y+layout.buttonY-layout.border,width,height:12+2*layout.border+1}];}
+  if(labels.length===1){const width=measureText('~Go')+12;return [{label:'~Go',x:layout.x+Math.floor((layout.width-width+2)/2),y:layout.y+layout.buttonY-layout.border,width,height:getUIButtonHeight()}];}
   const spans=labels.map(label=>measureText(label)+11);
   const spare=layout.width-spans.reduce((a,b)=>a+b,0),gap=Math.trunc(spare/(labels.length+1));
   const offset=Math.floor((spare-gap*(labels.length+1))/2);
   return labels.map((label,i)=>({label,x:layout.x+offset+(i+1)*gap+spans.slice(0,i).reduce((a,b)=>a+b,0),
-    y:layout.y+layout.buttonY-layout.border,width:spans[i]+1,height:12+2*layout.border+1}));
+    y:layout.y+layout.buttonY-layout.border,width:spans[i]+1,height:getUIButtonHeight()}));
 }
 
 export function stepRankingsInput(players,round,rounds) {
@@ -83,8 +83,8 @@ export function rankingsLayout(players,round,rounds) {
   const width=Math.max(scoreX+Math.max(...board.map(p=>measureText(currency(playerRankingValue(p))))),
     10+measureText(footer),measureText('Rankings'))+10;
   const buttonY=25+(board.length+1)*rowHeight+5;
-  const border=config.screenHeight>=400?3:2;
-  const height=buttonY+12+border+10;
+  const border=getUIBorderHeight();
+  const height=buttonY-border+getUIButtonHeight()-1+10;
   return {board,rowHeight,winsX,scoreX,teamX,teamWidth,footer,width,height,buttonY,border,
     x:Math.floor((config.screenWidth-1-width)/2),y:Math.floor((config.screenHeight-1-height)/2)};
 }

@@ -30,12 +30,15 @@ class PortIO:
         self.kbd_queue = []    # pending scancodes to deliver
 
         # Mode tracking
+        self.vesa_mode = 0
+        self.vesa_bank = 0
+        self.vesa_start = 0
         self.video_mode = 0x13  # default mode 13h
         self.mem = None  # set by __main__ for cache sync
     @property
     def mode_x(self):
         """True if VGA is in unchained/planar mode (Mode X): seq reg 4 chain-4 bit cleared."""
-        return not (self.seq_regs[4] & 0x08)
+        return not self.vesa_mode and not (self.seq_regs[4] & 0x08)
 
     @property
     def map_mask(self):
@@ -50,12 +53,17 @@ class PortIO:
     def _sync_mem(self):
         """Push cached VGA state to Memory for fast path."""
         if self.mem:
-            self.mem._mode_x = not (self.seq_regs[4] & 0x08)
+            self.mem._vesa = bool(self.vesa_mode)
+            self.mem._vesa_bank = self.vesa_bank
+            self.mem._mode_x = self.mode_x
             self.mem._map_mask = self.seq_regs[2] & 0x0F
             self.mem._read_plane = self.gc_regs[4] & 0x03
 
     def set_mode(self, mode):
         """Called by INT 10h AH=00 to reset VGA state."""
+        self.vesa_mode = 0
+        self.vesa_bank = 0
+        self.vesa_start = 0
         self.video_mode = mode & 0x7F
         self.seq_regs[4] = 0x08  # reset to chained (mode 13h default)
         self.seq_regs[2] = 0x0F
@@ -85,7 +93,8 @@ class PortIO:
                 self._pal_read_idx = (self._pal_read_idx + 1) & 0xFF
             return val
         if port == 0x3C5:
-            return self.seq_regs[self._seq_index & 7]
+            idx = self._seq_index & 7
+            return self.seq_regs[idx] if idx <= 4 else 0xFF
         if port == 0x3D5:
             return self.crtc_regs[self._crtc_index & 0x3F]
         if port == 0x3CF:
@@ -135,6 +144,8 @@ class PortIO:
             self._seq_index = val & 0xFF
         elif port == 0x3C5:
             idx = self._seq_index & 7
+            if idx > 4:  # No vendor-specific sequencer extensions.
+                return
             self.seq_regs[idx] = val & 0xFF
             if idx in (2, 4):
                 self._sync_mem()
@@ -154,6 +165,9 @@ class PortIO:
 
     def get_resolution(self):
         """Estimate screen resolution from CRTC registers."""
+        if self.vesa_mode:
+            from .vesa import MODES
+            return MODES[self.vesa_mode]
         if not self.mode_x:
             return 320, 200  # Standard mode 13h
 
