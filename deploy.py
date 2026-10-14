@@ -2,19 +2,39 @@
 """Deploy Scorched Earth web app to berrry.app.
 
 Usage:
-    python3 deploy.py <NOMCP_URL>
+    python3 deploy.py [NOMCP_URL]
+
+Without an argument, loads BERRRY_TOKEN from the project-root .env.berrry.
 
 Example:
     python3 deploy.py https://berrry.app/api/nomcp/brry_rw_XXXXX/
 """
 
+import fnmatch
 import json
 import os
 import sys
 import urllib.request
 
 SUBDOMAIN = "scorched-earth"
-WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_DIR = os.path.join(ROOT_DIR, "web")
+
+
+def local_api_url():
+    path = os.path.join(ROOT_DIR, '.env.berrry')
+    values = {}
+    if os.path.isfile(path):
+        for line in read_file(path).splitlines():
+            if not line.strip() or line.lstrip().startswith('#'):
+                continue
+            name, sep, value = line.partition('=')
+            if sep:
+                values[name.strip()] = value.strip().strip('\"\'')
+    token = values.get('BERRRY_TOKEN')
+    if not token:
+        raise ValueError('Set BERRRY_TOKEN in project-root .env.berrry or pass NOMCP_URL.')
+    return f'https://berrry.app/api/nomcp/{token}'
 
 
 def read_file(path):
@@ -24,32 +44,35 @@ def read_file(path):
 
 def build_files():
     files = []
+    ignore_path = os.path.join(ROOT_DIR, '.deployignore')
+    patterns = ['.env', '.env.*']
+    if os.path.isfile(ignore_path):
+        patterns += [line.strip() for line in read_file(ignore_path).splitlines()
+                     if line.strip() and not line.lstrip().startswith('#')]
+
+    def add_file(name):
+        if any(fnmatch.fnmatch(name, pattern) or
+               fnmatch.fnmatch(os.path.basename(name), pattern) or
+               fnmatch.fnmatch('web/' + name, pattern) for pattern in patterns):
+            return
+        files.append({'name': name, 'content': read_file(os.path.join(WEB_DIR, name))})
 
     # HTML files
     for fname in sorted(os.listdir(WEB_DIR)):
         if fname.endswith('.html'):
-            files.append({
-                "name": fname,
-                "content": read_file(os.path.join(WEB_DIR, fname))
-            })
+            add_file(fname)
 
     # CSS
     css_dir = os.path.join(WEB_DIR, "css")
     for fname in sorted(os.listdir(css_dir)):
         if fname.endswith('.css'):
-            files.append({
-                "name": f"css/{fname}",
-                "content": read_file(os.path.join(css_dir, fname))
-            })
+            add_file(f'css/{fname}')
 
     # All JS modules
     js_dir = os.path.join(WEB_DIR, "js")
     for fname in sorted(os.listdir(js_dir)):
         if fname.endswith('.js'):
-            files.append({
-                "name": f"js/{fname}",
-                "content": read_file(os.path.join(js_dir, fname))
-            })
+            add_file(f'js/{fname}')
 
     return files
 
@@ -113,9 +136,12 @@ def update(api_base, files):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 2:
         print(__doc__.strip())
         sys.exit(1)
 
-    api_url = sys.argv[1].rstrip('/')
+    try:
+        api_url = (sys.argv[1] if len(sys.argv) == 2 else local_api_url()).rstrip('/')
+    except ValueError as error:
+        sys.exit(str(error))
     deploy(api_url)

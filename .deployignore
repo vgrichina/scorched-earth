@@ -1,0 +1,3 @@
+# Local deployment credentials must never be uploaded.
+.env
+.env.*
