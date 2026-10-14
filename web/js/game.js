@@ -11,7 +11,7 @@ import { config } from './config.js';
 import { roundOrder } from './turn-order.js';
 import { random, clamp } from './utils.js';
 import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
-import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, deathAnimations, getTankBarrel, updateTankDamageState } from './tank.js';
+import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, deathAnimations, deathHudName, getTankBarrel, updateTankDamageState } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles,
@@ -194,12 +194,14 @@ function computeTurnOrder() {
 
 // Advance to next living player using turn order
 function advancePlayer() {
+  deathHudName.player=null;
   // Native player selection redraws the full HUD (0x2AB94 / 0x3EFEA).
   for (const player of players) {
     player.hudParachuteCount = undefined;
     player.hudEnergy = undefined;
     player.hudPower = undefined;
     player.hudShieldEnergy = undefined;
+    player.hudWeapon = undefined;
     player.hudContactTriggerCount = undefined;
     player.hudContactTriggerArmed = undefined;
     player.selectedShield = undefined;
@@ -417,16 +419,11 @@ function fireWeapon(player) {
   // (Laser). Web indices add two to the EXE table index.
   if (weaponIdx === WPN.BAL_GUIDANCE) weaponIdx = WPN.LASER;
 
-  // EXE VERIFIED: ammo decrement at fire_weapon 0x30683; fallback to Baby Missile
-  // at 0x3078E when depleted. Matches this JS implementation.
-  // Decrement ammo (unless infinite = -1)
-  if (player.inventory[weaponIdx] > 0) {
+  // Native firing decrements inventory without repainting the weapon widget.
+  // Selection falls back only after the blocking flight/aftermath call returns.
+  player.hudWeapon = {index:weaponIdx,ammo:player.inventory[weaponIdx]};
+  if (weaponIdx !== WPN.BABY_MISSILE && player.inventory[weaponIdx] > 0)
     player.inventory[weaponIdx]--;
-    // If ammo depleted, switch to Baby Missile
-    if (player.inventory[weaponIdx] === 0) {
-      player.selectedWeapon = WPN.BABY_MISSILE;
-    }
-  }
 
   // Native 0x3069D tests tank+0x2A, then consumes inventory[D566]
   // (Contact Trigger). Owning a shield never spends it when firing.
@@ -444,7 +441,9 @@ function fireWeapon(player) {
 
   clearProjectiles();
   playFireSound();
-  triggerAttackSpeech(player);
+  // Native 0x30661 skips the entire speech call for humans unless All is set.
+  // The routine's random-player taunt draws RNG before its own speech guard.
+  if (config.talkingTanks > 1 || isAI(player)) triggerAttackSpeech(player);
   launchProjectile(startX, startY, player.angle, player.power, weaponIdx, player.index);
 
   // Set guidance type on the newly launched projectile
@@ -458,6 +457,17 @@ function fireWeapon(player) {
   }
 
   game.state = STATE.FLIGHT;
+}
+
+// Native 0x30771 runs after all flight/aftermath work. Only a depleted
+// selection redraws row 1; remaining ammo stays visually stale until next turn.
+function finishFiring() {
+  const player=getCurrentPlayer();
+  if (player.hudWeapon && player.hudWeapon.index!==WPN.BABY_MISSILE &&
+      player.inventory[player.hudWeapon.index] <= 0) {
+    player.selectedWeapon=WPN.BABY_MISSILE;
+    player.hudWeapon=undefined;
+  }
 }
 
 // Find which player was hit based on projectile position pixel color
@@ -537,22 +547,10 @@ export function processHit(proj, hitResult) {
   } else if (result.explode && result.radius > 0) {
     const afterRestoration = () => {
       if (!result.skipDamage) {
-        // Track deaths for scoring
-        const beforeAlive = players.filter(p => p.alive).map(p => p.index);
-        applyExplosionDamage(cx, cy, result.radius, proj.attackerIdx, proj.weaponIdx, () => {
-          const afterAlive = players.filter(p => p.alive).map(p => p.index);
-
-          // Score deaths and trigger death speech + death animation
-          const attacker = players[proj.attackerIdx];
-          for (const idx of beforeAlive) {
-            if (!afterAlive.includes(idx)) {
-              scoreOnDeath(attacker, players[idx]);
-              triggerDeathSpeech(players[idx]);
-              startDeathAnimation(players[idx],proj.attackerIdx,proj.weaponIdx);
-              playDeathSound();
-            }
-          }
-        });
+        // Native damage_tank preserves signed HP and alive until outer_sim_loop
+        // finishes settling/falling and dispatches deaths in player order.
+        applyExplosionDamage(cx,cy,result.radius,proj.attackerIdx,proj.weaponIdx,
+          null,{deferDeath:true});
       }
     };
     startExplosion(cx, cy, result.radius, proj.attackerIdx, afterRestoration);
@@ -771,7 +769,8 @@ export function gameTick() {
               const cx = Math.round(proj.x);
               const cy = Math.round(proj.y);
               startExplosion(cx, cy, radius, proj.attackerIdx,
-                () => applyExplosionDamage(cx, cy, radius, proj.attackerIdx, proj.weaponIdx));
+                () => applyExplosionDamage(cx, cy, radius, proj.attackerIdx, proj.weaponIdx,
+                  null,{deferDeath:true}));
             }
             if (flightResult.remove) {
               proj.active = false;
@@ -907,6 +906,7 @@ export function gameTick() {
     }
 
     case STATE.NEXT_TURN: {
+      finishFiring();
       game.nextTurnTimer++;
       if (game.nextTurnTimer > 15) {  // brief pause between turns
         game.nextTurnTimer = 0;
@@ -944,6 +944,7 @@ export function gameTick() {
     }
 
     case STATE.ROUND_OVER: {
+      finishFiring();
       game.roundOverTimer++;
       // EXE: "<<Press any key>>" (DS:0x5212) + fg_getkey() waits for ANY key
       if (game.roundOverTimer > 30 && (consumeAnyKey() || consumeClick(0))) {

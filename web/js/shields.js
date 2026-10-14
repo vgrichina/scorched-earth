@@ -56,9 +56,9 @@ export function cycleShield(player) {
 }
 
 // Apply damage to shield, returns remaining damage that passes through
-export function applyShieldDamage(player, damage, {refreshHud = true} = {}) {
-  // Crush damage temporarily selects the falling tank in native code, so
-  // the victim's expanded shield widget retains its previous value.
+export function applyShieldDamage(player, damage, {refreshHud = config.playMode === 1} = {}) {
+  // Native 0x3854D refreshes only the simultaneous-mode item bar. The expanded
+  // sequential HUD retains its percentage until an explicit widget refresh.
   if (refreshHud) player.hudShieldEnergy = undefined;
   else player.hudShieldEnergy ??= player.shieldEnergy;
   if (player.shieldEnergy === 0 || damage === 0) {
@@ -273,10 +273,13 @@ export function drawShield(player) {
   const rgb = [cfg.r,cfg.g,cfg.b].map(c => Math.trunc(player.shieldEnergy * c / cfg.energy));
   setPaletteRgb(color, ...rgb);
   const key = `${player.x},${player.y},${player.activeShield}`;
-  if (player.shieldLowerColor?.key !== key) player.shieldLowerColor = {key,rgb};
-  // Native absorption updates the shared upper slot, not the dedicated lower
-  // slot installed by update_shield_color. World repaint must retain that RGB.
-  setPaletteRgb(SHIELD_PALETTE_BASE + player.index, ...player.shieldLowerColor.rgb);
+  if (player.shieldLowerColor?.key !== key) {
+    player.shieldLowerColor = {key,rgb};
+    setPaletteRgb(SHIELD_PALETTE_BASE + player.index, ...rgb);
+  }
+  // Native absorption updates only the main shield slot. Do not re-upload the
+  // cached lower RGB during world repaint: explosions rotate the same 200..239
+  // entries, and those palette writes must remain visible to every pixel.
   walkShieldShape(player, (x,y) => {
     if (player.shieldContactHoles?.key === key &&
         player.shieldContactHoles.pixels.has(y * config.screenWidth + x)) return;

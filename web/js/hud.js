@@ -49,7 +49,7 @@ import { setPaletteRgb, getPlayerColor } from './palette.js';
 import { getEffectiveWallType } from './physics.js';
 import { drawText, measureText } from './font.js';
 import { WEAPONS, WPN } from './weapons.js';
-import { players, getTankAim } from './tank.js';
+import { deathHudName, players, getTankAim } from './tank.js';
 import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_TEXT, UI_DEEP_SHADOW, UI_BACKGROUND,
          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
@@ -296,9 +296,10 @@ export function drawHud(player, wind, round, opts) {
   const dimColor = UI_DARK_TEXT;
   const numP = Math.min(config.numPlayers, players.length);
 
-  const weapon = WEAPONS[player.selectedWeapon];
+  const displayedWeapon = player.hudWeapon?.index ?? player.selectedWeapon;
+  const weapon = WEAPONS[displayedWeapon];
   const weaponName = weapon ? weapon.name : 'Baby Missile';
-  const ammo = player.inventory[player.selectedWeapon];
+  const ammo = player.hudWeapon?.ammo ?? player.inventory[displayedWeapon];
 
   // EXE: compute_hud_layout — barX aligned for both rows
   // EXE: DS:0x220C → "Power", DS:0x2364 → "Max" — these are the Row 1/2 labels (NOT player name)
@@ -365,16 +366,20 @@ export function drawHud(player, wind, round, opts) {
     // The name uses its own DAC entry, remaining visible even when Black
     // sky suppresses all tank sprite entries 0..79.
     setPaletteRgb(163, ...(player.displayColor || getPlayerColor(player.colorIndex)));
-    drawText(nameX, HUD_Y, player.name, 163);
+    // Native 0x1DBD4..0x1DC1A installs the dying tank's name in its base
+    // palette entry, so subsequent death palette effects also color the text.
+    const dyingPlayer=deathHudName.player;
+    drawText(nameX, HUD_Y, dyingPlayer?.name ?? player.name,
+      dyingPlayer ? (dyingPlayer.colorIndex ?? dyingPlayer.index)*PLAYER_PALETTE_STRIDE : 163);
     // EXE: E9DE = E9DC + measureText("MMMMMMMMMMMMMMM") + 2 → weapon icon position
     // EXE: E9E0 = E9DE + 15 → weapon text position
     const wpnIconX = nameX + measureText('MMMMMMMMMMMMMMM') + 2; // E9DE
     // EXE: draw_player_icon([E9DE], HUD_Y, wpn_idx) — draws selected weapon's icon
-    if (player.selectedWeapon >= 2 && player.selectedWeapon - 2 < ICONS.length) {
-      drawIcon(wpnIconX, HUD_Y, player.selectedWeapon - 2, hudTextColor);
+    if (displayedWeapon >= 2 && displayedWeapon - 2 < ICONS.length) {
+      drawIcon(wpnIconX, HUD_Y, displayedWeapon - 2, hudTextColor);
     }
     const wpnX = wpnIconX + 15; // E9E0 = E9DE + 15
-    const wpnFull = player.selectedWeapon === WPN.BABY_MISSILE || ammo === -1
+    const wpnFull = displayedWeapon === WPN.BABY_MISSILE || ammo === -1
       ? weaponName : ammo + ': ' + weaponName;
     drawText(wpnX, HUD_Y, wpnFull, hudTextColor);
   }

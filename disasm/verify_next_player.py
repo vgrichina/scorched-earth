@@ -23,7 +23,7 @@ for n in range(2,6):
    for slot in range(n):cases.append(dict(order=order,alive=alive,slot=slot))
 actual=json.loads(subprocess.check_output(['node','--input-type=module','-e',r'''
 import {config} from './web/js/config.js';
-import {createPlayers,players} from './web/js/tank.js';
+import {createPlayers,players,deathHudName} from './web/js/tank.js';
 import {game,gameTick,STATE} from './web/js/game.js';
 let input='';for await(const c of process.stdin)input+=c;
 Object.assign(config,{wind:0,wallType:0,playMode:0});
@@ -31,15 +31,16 @@ console.log(JSON.stringify(JSON.parse(input).map(c=>{
  config.numPlayers=c.alive.length;createPlayers(c.alive.length);
  players.forEach((p,i)=>Object.assign(p,{alive:c.alive[i],aiType:0,
    hudEnergy:77,hudPower:777,hudParachuteCount:1,hudShieldEnergy:30,
-   hudContactTriggerCount:3,hudContactTriggerArmed:true,
+   hudContactTriggerCount:3,hudContactTriggerArmed:true,hudWeapon:{index:3,ammo:1},
    activeShield:i%6,selectedShield:(i+1)%6}));
+ deathHudName.player=players[0];
  Object.assign(game,{state:STATE.NEXT_TURN,nextTurnTimer:15,turnOrder:c.order,
    turnOrderIdx:c.slot,currentPlayer:c.order[c.slot],wind:0});
  gameTick();
  return {slot:game.turnOrderIdx,player:game.currentPlayer,
-   cleared:players.every(p=>p.hudEnergy===undefined&&p.hudPower===undefined&&
+   cleared:deathHudName.player===null&&players.every(p=>p.hudEnergy===undefined&&p.hudPower===undefined&&
      p.hudParachuteCount===undefined&&p.hudShieldEnergy===undefined&&
-     p.hudContactTriggerCount===undefined&&p.hudContactTriggerArmed===undefined),
+     p.hudContactTriggerCount===undefined&&p.hudContactTriggerArmed===undefined&&p.hudWeapon===undefined),
    selectedShield:players[game.currentPlayer].selectedShield??players[game.currentPlayer].activeShield};
 })));
 '''],cwd=root,input=json.dumps(cases),text=True))

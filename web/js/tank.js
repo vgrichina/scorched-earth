@@ -134,6 +134,7 @@ export function getTankBarrel(player) {
 // Create identities before resolving the round's player-to-slot order.
 export function createPlayers(numPlayers, setup = []) {
   deathAnimations.length=0;
+  deathHudName.player=null;
   fallingContinuation = null;
   fallingMovement = null;
   fallingFlash.delay = 0;
@@ -167,6 +168,7 @@ export function placeTanks(numPlayers, setup = [], resolveSlots = null) {
 // Preserves identity (name, aiType, score, cash, wins, inventory)
 export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
   deathAnimations.length=0;
+  deathHudName.player=null;
   fallingContinuation = null;
   fallingMovement = null;
   fallingFlash.delay = 0;
@@ -189,6 +191,7 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.hudEnergy = undefined;
     p.hudPower = undefined;
     p.hudShieldEnergy = undefined;
+    p.hudWeapon = undefined;
     p.hudContactTriggerCount = undefined;
     p.hudContactTriggerArmed = undefined;
     p.shieldEnergy = 0;
@@ -696,8 +699,11 @@ export function getDeathSpritePixels(player) {
 // --- Tank death animation system ---
 // Sequential native palette preludes and all eleven death-effect branches.
 export const deathAnimations = [];
+// Native death dispatch replaces the name field without refreshing the HUD.
+export const deathHudName = {player:null};
 
 export function startDeathAnimation(player, attackerIndex=player.index, weaponIdx=2) {
+  if (config.playMode===0 || config.playMode===2) deathHudName.player=player;
   deathAnimations.push({
     player, attackerIndex, weaponIdx, effect:null, cycle:null,
     baseColor: player.colorIndex * PLAYER_PALETTE_STRIDE,

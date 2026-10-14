@@ -9864,3 +9864,217 @@ with subsequent maintained flight; they do not claim a complete input-driven
 shot. Launch still uses the verifier's fixed head/velocity fixture, maintenance
 is invoked explicitly, and shielded terrain impact/aftermath remains outside
 this path. The overall pixel-perfect goal remains open. Work is uncommitted.
+
+### Activation through real projectile creation
+
+`verify_fire_inventory.py` now continues from the firing handler through the
+native launch at `0x21192` and `create_projectile` at `0x21603`, stopping at
+`0x2136C` after creation returns. The port uses production Minus/E/Space input.
+Only the initial tank type, position, aim and power are shared from the
+checkpoint; the port computes its own barrel endpoint and launch velocity.
+All 90 shield/stock/Contact Trigger cases match projectile x/y, vx/vy, weapon,
+owner, active flag, Contact Trigger flag and tunnelling state, as well as the
+existing inventory and shield checks. Native active-projectile and owner counts
+also become one.
+
+Validation:
+`python3 disasm/verify_fire_inventory.py /tmp/scorched-lethal-flash/after-falling.state`
+passed. The checkpoint tank is type 3 at (268,248), angle 72, power 60. This
+extends the prior prelaunch check; it does not prove other aim configurations,
+flight pixels or a complete activation-to-impact sequence. The harness supplies
+a completed CPU-speed calibration (`DS:1C86/1C88 = 1/0`) because its function
+runner does not drive the IRQ ticks needed by the native calibration benchmark.
+This affects subsequent flight pacing, not the compared launch state. Native
+projectile allocation, trig/aspect calculations and creation execute normally.
+
+### Activated shields composed with ordinary impact and falling
+
+The generated landscape shot fixture now accepts `--shields` with
+`--shot-impact`, and `--activate-shields` runs native activation before launch.
+Shielded flight captures occur at `0x220DE`, after the shield callbacks, with
+per-frame reserve checks. Blast and falling redraws include shields as in the
+production world redraw. The fixture still starts from a fixed projectile head
+and velocity; production Space launch is covered separately.
+
+A Mag Deflector on the firing tank (`--shields 1 0`, head 140,150) matched all
+89 complete RGB frames through ordinary impact and aftermath, plus player
+position/HP/alive state and the complete RNG. Artifacts are in
+`/tmp/scorched-activated-shield-impact`.
+
+A shield on the target (`--shields 0 2`, head 180,150) exposed two composition
+bugs that isolated shield/ordinary-shot checks did not cover:
+
+* At blast frame 78, 84 pixels differed in RGB despite equal indexed colors.
+  Routine `drawShield` re-uploaded its cached lower color into palette entry
+  201, corrupting the explosion's shared 200..239 rotating ramp. It now writes
+  that lower entry only when initializing a new shield drawing record; explicit
+  shield palette updates remain in their native-equivalent operations.
+* At blast frame 80, the port refreshed the expanded HUD to 75% while native
+  retained 100%. Native absorption exit `0x3854D` updates only the simultaneous
+  item bar (`PLAY_MODE == 1`); sequential mode keeps its previous percentage.
+  `applyShieldDamage` now retains the sequential HUD value by default.
+
+The clock-driven old-shield-2 activation/repaint regression passed all 18
+inventory/selection cases after the palette change. Full target impact/falling
+and shield-break HUD validation results follow below.
+
+Both fixes are now verified through the target shot's complete 103-frame RGB
+sequence: flight, impact, blast, shield absorption, falling and aftermath.
+Final players match at (91,314), HP 100 and (257,281), HP 58, with matching alive
+flags, shot powers and all 250 RNG words/index. Artifacts:
+`/tmp/scorched-activated-target-impact-fixed`. Command:
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 150 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shields 0 2 --activate-shields --output-dir /tmp/scorched-activated-target-impact-fixed
+```
+
+The separate `--shield-break 2 --shield-fade-hud` regression also passes all
+51 full RGB frames and final state/RNG after the HUD-retention correction.
+
+Adding `--shot-next-player` to that target-shot command also passes: the next
+human input entry has matching complete HUD/world RGB and RNG, including real
+round/shield/input checks and wind redraw. Artifacts are in
+`/tmp/scorched-activated-target-next`.
+
+### Production Space launch composed with impact and next player
+
+Added `--fire-input` to the generated landscape shot oracle. The port now feeds
+Space through `initInput`/`gameTick` for the generated current player; it does not
+receive a projectile position, velocity or tank geometry from the emulator.
+Native runs `0x30652` through launch, allocation, trig/aspect conversion and
+weapon initialization to `0x21581`. The fixture compares creation state and all
+RNG words before continuing into the existing flight/impact capture. Timing is
+explicit: `FIRE_DELAY=0`, completed CPU calibration, gravity .2 and viscosity 0
+on both sides. Native computes its flight constants normally. The frame driver
+still steps the native flight block at its existing comparison boundaries; this
+is not a complete emulated keyboard/main-loop run.
+
+This exposed an extra RNG draw from `fireWeapon` calling `triggerAttackSpeech`
+for human players with speech disabled. The speech function's random-player
+taunt happens before its inner speech-setting check. Native caller `0x30661`
+skips the entire function for humans unless `TALKING_TANKS > 1`. Before the fix,
+launch position/velocity matched but RNG index was native 120, port 121. The
+port caller now follows that same guard, preserving the AI-call path.
+
+Validation with seed 0, night sky, ordinary generated type-3 tanks:
+Space launches player 1 at (268,248), vx=-40, vy=186. All 82 full RGB frames,
+launch/aftermath RNG, player state and the next-player HUD/world/input entry
+match. Artifacts: `/tmp/scorched-space-shot-fixed`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-next-player --output-dir /tmp/scorched-space-shot-fixed
+```
+
+The same Space/impact/next-player run with `--shields 1 2 --activate-shields`
+also passes all 82 shot frames, full RNG/state, and the next-player screen.
+Artifacts: `/tmp/scorched-space-shields`. Shield activation and production
+launch now compose in the generated-scene oracle without framebuffer imports.
+
+The real-launch `--trace` variant also passes 82 full RGB frames and final
+state/RNG through aftermath (`/tmp/scorched-space-trace`). Its native setup now
+sets TRACE before creation and selects the actual projectile's stored trace
+palette entry before entering the flight block, matching the native loop's
+per-projectile setup instead of assuming player 0's trace color.
+
+### Finite-ammo firing: retain the weapon HUD until native return
+
+`--fire-input` now accepts `--fire-weapon` (native ordinary weapon index 0..3)
+and `--fire-ammo`. The generated current player receives matching inventory and
+selection before HUD setup; native firing consumes that inventory normally.
+The shot comparator uses the actual ordinary weapon index for damage dispatch.
+
+A last-Missile shot exposed 200 mismatched HUD pixels on flight frame 0: the
+port immediately changed selection to Baby Missile. Native `0x30683` decrements
+inventory without repainting the row, then blocks inside launch/flight/aftermath.
+The port now retains the pre-shot weapon/count in `hudWeapon`, keeps the fired
+selection during effects, and skips the Baby Missile decrement just as native
+does. Round initialization and next-player selection clear the retained widget.
+
+After aftermath, native `0x30771..0x307B2` checks inventory. With no remaining
+ammo it clamps the count and calls `0x309AB` to select Baby Missile; `0x30A4C`
+then redraws row 1. With ammo remaining it performs no weapon redraw. The port's
+`finishFiring` runs on entry to the post-shot turn/round state and follows that
+same depleted-only selection/widget update. This also preserves the fired
+weapon for damage/death callbacks throughout aftermath.
+
+Added a separate native post-flight-return comparison before next-player
+selection, checking actual selected weapon, finite ammo and complete RGB. It
+executes the real fallback/redraw block with a fresh outer stack; the enclosing
+main loop remains outside this harness.
+
+Both Missile cases pass 132 full RGB shot frames, launch and final RNG, player
+state, the post-flight return frame, and next-player HUD/world/input entry:
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 1 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-next-player --output-dir /tmp/scorched-last-missile-fixed
+```
+
+The second case adds `--fire-ammo 3` and writes artifacts to
+`/tmp/scorched-remaining-missile`. It leaves two real missiles while retaining
+the displayed pre-shot count of three until the next HUD refresh. The last-shot
+case displays Baby Missile only after native return. The expanded next-player
+verifier passes all 564 cases including clearing `hudWeapon`. Baby Nuke/Nuke,
+round-ending finite-ammo shots and simultaneous firing still need composed
+coverage; enabling a fixture parameter is not proof of those paths.
+
+### Large blasts: signed lethal damage and deferred death dispatch
+
+The ordinary-shot oracle now records player HP/alive state immediately after
+blast restoration/damage and compares it at native `0x43F69`, before aftermath.
+This matters independently of RGB: a Nuke shot matched its visible frames while
+native player 1 had HP -10/alive=true and the port had HP 0/alive=false.
+Native `damage_tank` subtracts the full amount without clearing alive; the
+outer simulation dispatches deaths after settling and falling.
+
+Ordinary weapon blasts and the flight-created sub-blast path now request
+`applyExplosionDamage(...,{deferDeath:true})`. Removed the ordinary blast's
+immediate death/scoring/animation callback; the existing serial aftermath
+handler owns that work. Direct-hit body damage already retained alive and now
+composes with the same signed area-damage behavior.
+
+The Nuke rerun passes all 214 full RGB frames through blast restoration and
+area damage, including the new signed HP/alive check and complete RNG.
+Artifacts: `/tmp/scorched-nuke-impact-fixed`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --flight-steps 150 --shot-impact --output-dir /tmp/scorched-nuke-impact-fixed
+```
+
+Regressions passed: lethal falling/death handoff, two-target shield-damage
+continuation, and all seven native aftermath ordering traces. These do not
+prove the Nuke's complete death effects or round-ending sequence.
+
+### Lethal shot falling capture and death-name HUD
+
+The Baby Nuke shot reaches a lethal fall with matching final positions and
+signed HP, but the old shot capture skipped lethal flash frames. It now uses
+`0x20BDF` plus wrapper rescan `0x201CF` for moving passes and captures the two
+lethal notification boundaries `0x31AE3/0x31AF8`, matching the separate falling
+oracle's event handling. Port frames distinguish those flashes as `lethal`.
+
+With aligned phases, the complete Baby Nuke aftermath exposed 16 mismatched
+name glyph pixels: native uses victim palette base 8, which is then colored
+by the death effects; the port kept the normal dynamic name palette 163.
+Native death entry `0x1DBD4..0x1DC1A` clears only the name field and redraws the
+dying player's name using tank+1A in modes 0 and 2. A retained `deathHudName`
+now supplies that name/base entry until full next-player or new-round setup.
+The 564 next-player checks also verify clearing this retained name.
+
+Baby Nuke rerun after the death-name correction: all **322 captured RGB
+frames** match through the final aftermath frame, including both lethal
+notification frames. Final player states also match: player 0 at (91,314),
+HP 100/alive; player 1 at (248,418), HP -297/dead. Artifacts:
+`/tmp/scorched-baby-nuke-death-hud`.
+
+The complete command still **fails its final RNG assertion** and must not be
+reported as passing. Native stops at `0x231D3` immediately after shot aftermath,
+with RNG index 158. The port is already in `round_over`, with its war quote
+chosen, at index 159. A diagnostic run of one real native `random()` call from
+`/tmp/scorched-baby-nuke-lethal/mismatch.state` produces the port's entire
+250-word state and index exactly. A port-only probe confirms `round_over` and
+the selected Swinburne quote. No random call was added to the oracle, and the
+assertion remains strict. Next work must extend the native comparison through
+actual round-end processing and compare equivalent boundaries, including
+scoring and round-over pixels, rather than dropping the RNG check. Intermediate
+death-effect frames beyond the lethal falling flashes are not captured by this
+shot oracle yet.

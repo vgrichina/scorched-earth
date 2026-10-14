@@ -13,12 +13,14 @@ from emu.state import save_state
 from compare_pipeline import extract_display_pixels, write_emu_png
 
 
-def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False):
+def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False, shields=False):
     ds=0x4FC80
     saw_falling=False
-    # Baby Missile, no saved blast background. Same initialized weapon table as
+    pending_landing=False
+    flight_stop=0x220DE if shields else 0x22064
+    # Ordinary weapon, no saved blast background. Same initialized weapon table as
     # the checkpoint, including its resolution-dependent Large radius.
-    for off,value in ((0xE344,0),(0xEF46,0),(0x5104,0),(0x5106,0)):
+    for off,value in ((0xE344,actual.get('shotWeapon',0)),(0xEF46,0),(0x5104,0),(0x5106,0)):
         mem.write16(ds+off,value)
     mem.write16(0x9003A,0)
     stage=0
@@ -35,7 +37,9 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
             output_dir.mkdir(parents=True,exist_ok=True)
             for name,frame,pal in (('emulator',native,ports.palette),('web',port,mapped)):
                 write_emu_png(dict(width=360,height=480,pixels=frame,palette=pal),output_dir/f'shot-{stage:03d}-{phase}-{name}.png')
-        assert not differences,(stage,phase,len(differences),differences[:10])
+        if differences and output_dir:
+            save_state(output_dir/'mismatch.state',cpu,mem,ports,handler)
+        assert not differences,(stage,phase,len(differences),[(x,y,n,p,ports.palette[n],mapped[p]) for x,y,n,p in differences[:10]])
         if phase!='flight' or stage%20==0:print(f'Shot frame {stage}: {phase} RGB matches.',flush=True)
         stage+=1
     for step in range(max_steps):
@@ -44,8 +48,8 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
         for off in (0x1C7E,0xCE98,0xCE9A):mem.write16(ds+off,0)
         cpu.segs[1]=0x1ADA;cpu.ip=0x21AA2-0x6100-0x1ADA0
         cpu.regs[5]=0x2400;cpu.regs[4]=0x23E0;cpu.regs[6]=0
-        points={0x20F63,0x22064,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69}
-        if falling:points.update((0x20BCE,0x20EA2))
+        points={0x20F63,flight_stop,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69}
+        if falling:points.update((0x20BDF,0x201CF,0x20EA2,0x31AE3,0x31AF8))
         waits={0x4C117,0x104F6,0x28A80}
         budgets=0
         for _ in range(1000):
@@ -65,9 +69,19 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 sp=(cpu.segs[2]<<4)+cpu.regs[4]
                 cpu.ip=mem.read16(sp);cpu.segs[1]=mem.read16(sp+2);cpu.regs[4]+=4
                 continue
-            if offset==0x20BCE:
+            if offset in (0x31AE3,0x31AF8):
+                capture('lethal')
+                run_fast(cpu,mem,ports,handler,1)
+                continue
+            if offset in (0x20BDF,0x201CF):
                 saw_falling=True
-                if cpu.regs[7]==0:capture('falling')
+                if offset==0x201CF:
+                    moving=pending_landing and cpu.regs[0]>0
+                    pending_landing=False
+                else:
+                    moving=cpu.regs[7]<sum(bool(mem.read16(ds+0xCE58+i*2)) for i in range(2))
+                    pending_landing=not moving
+                if moving:capture('falling')
                 run_fast(cpu,mem,ports,handler,1)
                 continue
             if offset==0x20EA2:
@@ -91,13 +105,15 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 assert [mem.read16(ds+0xD568+i*0xCA+0x9E) for i in range(len(native_players))]==actual['playerPower'],'aftermath shot powers differ'
                 native_rng=dict(index=mem.read16(ds+0xEC06),
                     words=[mem.read16(ds+0xEA12+i*2) for i in range(250)])
-                assert native_rng==actual['rng'],'shot aftermath RNG differs'
+                assert native_rng==actual['rng'],('shot aftermath RNG differs',native_rng['index'],actual['rng']['index'],actual.get('gameState'))
                 assert stage==len(actual['frames']),(stage,len(actual['frames']))
                 print(f'{stage} shot RGB frames, signed HP/alive state and complete RNG match through completed impact aftermath.',flush=True)
                 return
-            if offset==0x22064:
+            if offset==flight_stop:
                 motion=[mem.read_float64(0x90000+off) for off in (4,12,20,28)]
                 assert motion==actual['motion'][step],(step,motion,actual['motion'][step])
+                if shields:
+                    assert [mem.read16(ds+0xD568+i*0xCA+0x98) for i in range(2)]==actual['shieldUses'][step],('shield reserve',step)
                 capture('flight')
                 break
             if offset==0x43D3A:
@@ -112,6 +128,14 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 continue
             capture('blast')
             if offset==0x43F69:
+                if actual.get('blastPlayerState') is not None:
+                    state=[]
+                    for i in range(mem.read16(ds+0x50D4)):
+                        tank=ds+0xD568+i*0xCA
+                        hp=mem.read16(tank+0xA2)+(mem.read16(tank+0xA4)<<16)
+                        if hp>=0x80000000:hp-=0x100000000
+                        state.append(dict(energy=hp,alive=bool(mem.read16(tank+0x18))))
+                    assert state==actual['blastPlayerState'],('blast damage state',state,actual['blastPlayerState'])
                 if aftermath:
                     if output_dir:
                         save_state(output_dir/'after-restoration.state',cpu,mem,ports,handler)
@@ -126,3 +150,24 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
             cpu.ip+=3
         else:raise AssertionError('shot native block did not finish')
     raise AssertionError('native shot did not impact')
+
+
+def compare_weapon_return(cpu,mem,ports,handler,actual,fired_weapon,output_dir):
+    """Real post-flight inventory fallback and optional row-1 redraw."""
+    ds=0x4FC80
+    cpu.segs[1]=0x2945;cpu.ip=0x30771-0x6100-0x29450;cpu.regs[4]=0x2400
+    reason,_=run_fast(cpu,mem,ports,handler,2000000,bp_set={0x307B2-0x6100})
+    assert reason=='breakpoint',('weapon return',reason)
+    tank=ds+mem.read16(ds+0x5182)
+    assert mem.read16(tank+0x16)==actual['weapon'],'post-flight weapon selection differs'
+    if fired_weapon:
+        inventory=mem.read16(tank+0xB2)+16*mem.read16(tank+0xB4)
+        assert mem.read16(inventory+fired_weapon*2)==actual['ammo'],'post-flight ammo differs'
+    native=extract_display_pixels(mem,ports);port=base64.b64decode(actual['pixels']);pal=actual['palette']
+    mapped=[pal[(i-40 if 120<=i<150 else 120 if i==80 else i+40 if 87<=i<=103 else i)*3:][:3] for i in range(256)]
+    if output_dir:
+        for name,frame,palette in (('emulator',native,ports.palette),('web',port,mapped)):
+            write_emu_png(dict(width=360,height=480,pixels=frame,palette=palette),output_dir/f'weapon-return-{name}.png')
+    differences=[(i%360,i//360,n,p) for i,(n,p) in enumerate(zip(native,port)) if list(ports.palette[n])!=mapped[p]]
+    assert not differences,('weapon return RGB',len(differences),differences[:10])
+    print('Post-flight weapon selection, ammo and complete HUD/world RGB match.',flush=True)
