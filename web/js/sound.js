@@ -25,6 +25,22 @@ export function isSoundEnabled() {
   return config.soundEnabled;
 }
 
+// Native activation calls sound(1000+100*i,20), i=0..50. Keep a constant
+// square-wave amplitude; all frequency changes are scheduled on the audio
+// clock so display frame rate cannot stretch or overlap individual tones.
+export function playShieldActivationSound() {
+  if (!config.soundEnabled) return;
+  initSound();
+  if (!audioCtx) return;
+  const oscillator=audioCtx.createOscillator(),gain=audioCtx.createGain();
+  const start=audioCtx.currentTime;
+  oscillator.type='square';
+  for(let i=0;i<=50;i++) oscillator.frequency.setValueAtTime(1000+100*i,start+i*.02);
+  gain.gain.setValueAtTime(.15,start);
+  oscillator.connect(gain);gain.connect(audioCtx.destination);
+  oscillator.start(start);oscillator.stop(start+1.02);
+}
+
 // Play a tone sweep (frequency ramp over duration)
 function playTone(startFreq, endFreq, duration, type = 'square', volume = 0.15) {
   if (!audioCtx || !config.soundEnabled) return;

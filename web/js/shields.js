@@ -2,11 +2,8 @@
 // EXE source: shields.cpp (seg 0x31D8, file base 0x38780)
 // EXE: shield config table at DS:0x616C, 6 entries × 16 bytes (None + 5 shields)
 // EXE: flat 1:1 HP absorption model — shield absorbs damage point-for-point
-// EXE: shield energy values: MagDeflector=55, Shield=100, Warp=100, Teleport=150, Flicker=200
-// EXE: Warp/Teleport shields trigger tank repositioning on hit
-// EXE: ALL shields use dispatch_type=1 (same handler) — no per-type special behavior
-// EXE: Mag/Flicker also register the finite-use lift callback at 0x23754.
-// EXE: Force/Heavy/SuperMag weapons are OUTSIDE config range (corrupted data, not functional shields)
+// Runtime inventory entries 40..44: Mag Deflector, Shield, Force Shield,
+// Heavy Shield, Super Mag. Mag/Super Mag register the lift callback 0x23754.
 
 import { config, GRAPHICS_MODES } from './config.js';
 import { getEffectiveWallType, WALL } from './physics.js';
@@ -14,47 +11,48 @@ import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
 import { writeWorldPixel, retainWorldPixel } from './projectile-render.js';
 import { random } from './utils.js';
 import { setPaletteRgb } from './palette.js';
+import { WPN } from './weapons.js';
 
 // Shield type constants (matches EXE config entry indices)
-// EXE config mapping: weapon_index - DS:D558(=45) + 1
-// Weapons 50-52 (Force/Heavy/SuperMag) are outside config range, not functional shields
+// EXE config mapping: weapon_index - DS:D558(=40 after initialization) + 1.
+// WARP/TELEPORT/FLICKER are historical port aliases for configs 3/4/5;
+// they are not the names in the executable's initialized inventory table.
 export const SHIELD_TYPE = {
   NONE:     0,
-  MAG_DEFLECTOR: 1,  // weapon 45, config 1
-  SHIELD:   2,       // weapon 46, config 2
-  WARP:     3,       // weapon 47, config 3
-  TELEPORT: 4,       // weapon 48, config 4
-  FLICKER:  5,       // weapon 49, config 5 — plain absorption, no flicker behavior
+  MAG_DEFLECTOR: 1,
+  SHIELD:   2,
+  WARP:     3,       // Force Shield
+  TELEPORT: 4,       // Heavy Shield
+  FLICKER:  5,       // Super Mag
 };
 
 // EXE: shield config table at DS:0x616C, 16 bytes per entry
-// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), +0x0C (effect flags), +0x0E (dispatch-1)
+// Fields: energy (max HP), radius (visual), r/g/b (VGA 6-bit), +0x0C (effect flags), +0x0E (inventory index)
 export const SHIELD_CONFIG = [
   { name: 'None',            energy: 0,   radius: 0,  r: 0,  g: 0,  b: 0  },  // config 0
-  { name: 'Mag Deflector',   energy: 55,  radius: 16, r: 63, g: 63, b: 23 },  // config 1, weapon 45
-  { name: 'Shield',          energy: 100, radius: 15, r: 63, g: 63, b: 63 },  // config 2, weapon 46
-  { name: 'Warp Shield',     energy: 100, radius: 15, r: 63, g: 23, b: 63 },  // config 3, weapon 47
-  { name: 'Teleport Shield', energy: 150, radius: 16, r: 63, g: 63, b: 63 },  // config 4, weapon 48
-  { name: 'Flicker Shield',  energy: 200, radius: 16, r: 63, g: 53, b: 33 },  // config 5, weapon 49
+  { name: 'Mag Deflector',   energy: 55,  radius: 16, r: 63, g: 63, b: 23 },
+  { name: 'Shield',          energy: 100, radius: 15, r: 63, g: 63, b: 63 },
+  { name: 'Force Shield',    energy: 100, radius: 15, r: 63, g: 23, b: 63 },
+  { name: 'Heavy Shield',    energy: 150, radius: 16, r: 63, g: 63, b: 63 },
+  { name: 'Super Mag',       energy: 200, radius: 16, r: 63, g: 53, b: 33 },
 ];
 
 // Shield break animation state — exported for main.js to render
 // EXE: 51-frame palette fade from full config color to ~17% brightness (no white flash)
 export const shieldBreak = { active: false, x: 0, y: 0, radius: 0, frame: 0, maxFrames: 51, playerIdx: 0, shieldType: 0 };
 
-// Activate a shield on a player
-export function activateShield(player, shieldType) {
-  player.hudShieldEnergy = undefined;
-  player.shieldContactHoles = null;
-  player.shieldLowerColor = null;
-  const cfg = SHIELD_CONFIG[shieldType];
-  if (!cfg || shieldType === SHIELD_TYPE.NONE) {
-    player.activeShield = SHIELD_TYPE.NONE;
-    player.shieldEnergy = 0;
-    return;
-  }
-  player.activeShield = shieldType;
-  player.shieldEnergy = cfg.energy;
+// Native 0x30A55 cycles the HUD selection without equipping or spending it.
+// None is always available; owned shields require a strictly positive count.
+export function cycleShield(player) {
+  const previous = player.selectedShield ?? player.activeShield;
+  let next = previous;
+  do {
+    next = (next + 1) % SHIELD_CONFIG.length;
+    if (next === 0 || player.inventory[WPN.MAG_DEFLECTOR + next - 1] > 0) break;
+  } while (next !== previous);
+  player.selectedShield = next;
+  if (next !== previous) player.hudShieldEnergy = undefined;
+  return next !== previous;
 }
 
 // Apply damage to shield, returns remaining damage that passes through

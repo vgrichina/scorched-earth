@@ -25,6 +25,11 @@ export function initInput(canvas) {
   canvasEl = canvas || document.getElementById('screen');
 
   window.addEventListener('keydown', (e) => {
+    // Native S/E/Minus dispatch waits for release before another press.
+    if (e.repeat && (e.code === 'KeyS' || e.code === 'KeyE' || e.code === 'Minus')) {
+      e.preventDefault();
+      return;
+    }
     keys[e.code] = true;
     keyText[e.code] = e.key;
     e.preventDefault();

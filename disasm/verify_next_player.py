@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native next-living-slot selection vs production NEXT_TURN gameTick.
 Enters after a completed turn, with round continuation forced. Intercepts
-round-over checks, shield maintenance and input; stops at the full HUD call.
+round-over checks, shield maintenance and input; runs the full HUD prologue.
 Does not prove round-over, HUD pixels, wind, or the enclosing shot sequence.
 """
 import json,subprocess
@@ -30,13 +30,17 @@ Object.assign(config,{wind:0,wallType:0,playMode:0});
 console.log(JSON.stringify(JSON.parse(input).map(c=>{
  config.numPlayers=c.alive.length;createPlayers(c.alive.length);
  players.forEach((p,i)=>Object.assign(p,{alive:c.alive[i],aiType:0,
-   hudEnergy:77,hudPower:777,hudParachuteCount:1,hudShieldEnergy:30}));
+   hudEnergy:77,hudPower:777,hudParachuteCount:1,hudShieldEnergy:30,
+   hudContactTriggerCount:3,hudContactTriggerArmed:true,
+   activeShield:i%6,selectedShield:(i+1)%6}));
  Object.assign(game,{state:STATE.NEXT_TURN,nextTurnTimer:15,turnOrder:c.order,
    turnOrderIdx:c.slot,currentPlayer:c.order[c.slot],wind:0});
  gameTick();
  return {slot:game.turnOrderIdx,player:game.currentPlayer,
    cleared:players.every(p=>p.hudEnergy===undefined&&p.hudPower===undefined&&
-     p.hudParachuteCount===undefined&&p.hudShieldEnergy===undefined)};
+     p.hudParachuteCount===undefined&&p.hudShieldEnergy===undefined&&
+     p.hudContactTriggerCount===undefined&&p.hudContactTriggerArmed===undefined),
+   selectedShield:players[game.currentPlayer].selectedShield??players[game.currentPlayer].activeShield};
 })));
 '''],cwd=root,input=json.dumps(cases),text=True))
 mem,cpu,ports=Memory(),CPU(),PortIO();ports.mem=mem
@@ -45,7 +49,11 @@ ds,stack=0x4FC80,0x5F4A0
 for off,value in ((0x519A,65535),(0x50EE,0),(0xE1E2,0),(0x50F6,0)):mem.write16(ds+off,value)
 for case,port in zip(cases,actual):
  mem.write16(ds+0x50D4,len(case['alive']))
- for i,alive in enumerate(case['alive']):mem.write16(ds+0xD568+i*0xCA+0x18,int(alive))
+ for i,alive in enumerate(case['alive']):
+  tank=0xD568+i*0xCA
+  mem.write16(ds+tank+0x18,int(alive))
+  mem.write16(ds+tank+0xC6,0x616C+(i%6)*16);mem.write16(ds+tank+0xC8,0x4FC8)
+ mem.write16(ds+0xE1DE,0x616C+5*16);mem.write16(ds+0xE1E0,0x4FC8)
  for slot,player in enumerate(case['order']):
   mem.write16(ds+0xE4F6+slot*4,0xD568+player*0xCA)
   mem.write16(ds+0xE4F8+slot*4,0x4FC8)
@@ -61,6 +69,10 @@ for case,port in zip(cases,actual):
    selected=(mem.read16(sp+4)-0xD568)//0xCA
    assert (selected,cpu.regs[6])==(port['player'],port['slot']),(case,port,selected,cpu.regs[6])
    assert port['cleared'],(case,'retained HUD fields not reset for full redraw')
+   reason,_=run_fast(cpu,mem,ports,handler,1000,bp_set={0x301E3-0x6100})
+   assert reason=='breakpoint'
+   assert mem.read16(ds+0xE1DE)==0x616C+port['selectedShield']*16
+   assert mem.read16(ds+0xE1E0)==0x4FC8
    break
   if address==0x2B405:cpu.regs[0]=0
   cpu.ip=mem.read16(sp);cpu.segs[1]=mem.read16(sp+2);cpu.regs[4]+=4

@@ -59,7 +59,7 @@ const MAG_DAMP_COEFF = 0.75;
 const MAG_ABSORB_THRESHOLD = 2000.0;
 
 export function applyMagDamping(proj) {
-  if (proj.superMagActive) return false;  // Super Mag bypasses damping
+  if (proj.contactTriggerActive) return false;  // Contact Trigger bypasses damping
 
   proj.vx *= MAG_DAMP_COEFF;
   proj.vy *= MAG_DAMP_COEFF;
@@ -106,7 +106,7 @@ export function createProjectile(startX, startY, vx, vy, weaponIdx, attackerIdx,
     wallBounceScale: 0.8, // EXE +32, multiplied by .8 after the sixth bounce
     hasSplit: false,
     prevVy: undefined,
-    superMagActive: opts.superMagActive || false,  // EXE: DS:0x1C76 — bypasses Mag Deflector defense
+    contactTriggerActive: opts.contactTriggerActive || false,  // EXE: DS:0x1C76 — armed Contact Trigger at launch
     ...opts,
   };
 }
@@ -291,7 +291,7 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
       // Terrain hit: check the relocated native terrain bitmap.
       if (terrainBitmap[sy * config.screenWidth + sx]) {
         // EXE 0x2253A damps the saved pre-force velocity per solid pixel.
-        if (config.tunneling && proj.tunnelState !== 0 && !proj.superMagActive) {
+        if (config.tunneling && proj.tunnelState !== 0 && !proj.contactTriggerActive) {
           tunnelVx *= MAG_DAMP_COEFF;
           tunnelVy *= MAG_DAMP_COEFF;
           tunnelDamped = true;

@@ -55,6 +55,7 @@ parser.add_argument('--shot-aftermath',action='store_true',help='Also compare th
 parser.add_argument('--shot-impact',action='store_true',help='Continue real flight into ordinary impact and blast restoration; add --shot-aftermath for falling/settling')
 parser.add_argument('--flight-collisions',action='store_true',help='Execute native collision traversal and wall response during flight; impacts fail the fixture')
 parser.add_argument('--explosion',type=int,nargs=3,metavar=('X','Y','RADIUS'),help='Compare ordinary blast growth/cycling/restoration before damage')
+parser.add_argument('--activate-shields',action='store_true',help='Run real shield activation before maintenance and flight, instead of inserting settled shields')
 parser.add_argument('--shields',type=int,nargs=2,choices=range(6),help='Compose settled shield drawing for both tanks after HUD setup')
 parser.add_argument('--shield-hole',action='store_true',help='Erase the top shield pixel before the break fade fixture')
 parser.add_argument('--shield-break',type=int,choices=range(1,6),help='Compare all 51 fade frames of player 1 shield destruction')
@@ -94,6 +95,7 @@ if args.flight_collisions and not args.flight_steps: parser.error('--flight-coll
 if not 0<=args.flight_steps<=(500 if args.shot_impact else 30): parser.error('--flight-steps must be 0..30, or 0..500 with --shot-impact')
 if args.flight_steps and (not args.projectile_head or not args.full_frame or args.erase_head or args.restore_sky_grid): parser.error('--flight-steps requires --full-frame and --projectile-head, without erasure/grid')
 if args.erase_head and not args.projectile_head: parser.error('--erase-head requires --projectile-head')
+if args.activate_shields and (not args.shields or not args.flight_steps): parser.error('--activate-shields requires --shields and --flight-steps')
 if args.full_frame: args.players=True
 if args.change_wind and not args.players: parser.error('--change-wind requires --players or --full-frame')
 root=Path(__file__).resolve().parent.parent
@@ -148,16 +150,17 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import * as t from './web/js/terrain.js';import {pixels,setPixel,getPixel,getBackgroundColor} from './web/js/framebuffer.js';"
         "import {startExplosion,stepExplosion,isExplosionActive} from './web/js/explosions.js';"
         "import {drawShield,SHIELD_CONFIG,applyShieldDamage,drawShieldBreak,shieldBreak,eraseShieldContact} from './web/js/shields.js';"
+        "import {activateShield,shieldActivation,stepShieldActivation} from './web/js/shield-activation.js';"
         "import {refreshShieldFlight} from './web/js/shield-flight.js';"
         "import {WPN} from './web/js/weapons.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield,shotNextPlayer,changeWind,windOverwrites]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,changeWind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield,shotNextPlayer,changeWind,windOverwrites,activateShields]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,changeWind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
         "if(shotImpact)config.tunneling=0;if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
         "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fullFrame){drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
-        "if(shields)players.forEach((p,i)=>{p.activeShield=shields[i];p.shieldEnergy=SHIELD_CONFIG[shields[i]].energy;refreshShieldFlight(p);drawShield(p);});"
+        "if(shields)players.forEach((p,i)=>{if(activateShields){p.selectedShield=shields[i];if(shields[i])p.inventory[WPN.MAG_DEFLECTOR+shields[i]-1]=1;activateShield(p);while(shieldActivation.active)stepShieldActivation();}else{p.activeShield=shields[i];p.shieldEnergy=SHIELD_CONFIG[shields[i]].energy;drawShield(p);}refreshShieldFlight(p);});"
         "if(shields&&flightSteps)drawHud(players[game.currentPlayer],game.wind,game.round,{});"
         "if(breakShield){game.currentPlayer=fadeHud?1:0;drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "if(shieldShot){game.currentPlayer=0;head.splice(0,2,players[1].x,players[1].y-SHIELD_CONFIG[3].radius);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
@@ -187,7 +190,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});"
         "if(shotNextPlayer){if(!shotImpact)game.state=STATE.NEXT_TURN;if(game.state!==STATE.NEXT_TURN)throw new Error('fixture did not survive');const previousPlayer=game.currentPlayer;for(const [x,y,c] of windOverwrites)retainWorldPixel(x,y,c>=80&&c<=104?c+40:c>=120&&c<150?c-40:c);game.nextTurnTimer=15;gameTick();t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);if(shields)players.forEach(drawShield);projectileDrawing.draw();results.at(-1).nextPlayer={previousPlayer,state:game.state,shieldUses:players.map(p=>p.shieldFlightUses),overwrites:windOverwrites,wind:game.wind,player:game.currentPlayer,pixels:encode(),palette:[...palette6],rng:getRandomState()};}}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player,args.change_wind,args.wind_overwrite])],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player,args.change_wind,args.wind_overwrite,args.activate_shields])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -235,12 +238,20 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
             compare_falling(cpu,mem,ports,handler,actual,args.output_dir)
             if args.stacked_fall:call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
         if args.shields:
-            # Settled shape composition, not the timed activation wrapper.
+            # Either settled shape composition or the full activation wrapper.
             mem.write16(ds+0xEC7C,0);mem.write16(ds+0xEC7E,0)
             mem.write16(ds+0x510E,int(mem.read16(ds+0x5154)==1))
             for i,kind in enumerate(args.shields):
                 if not kind: continue
                 tank=0xD568+i*0xCA;cfg=0x616C+kind*16
+                if args.activate_shields:
+                    inv=mem.read16(ds+tank+0xB2)+mem.read16(ds+tank+0xB4)*16
+                    mem.write16(inv+mem.read16(ds+cfg+14)*2,1)
+                    device=mem.read16(ds+0xEF46);mem.write16(ds+0xEF46,0)
+                    assert mem.read16(ds+0x1C18)==0
+                    call(0x38765,0x3221,[tank,0x4FC8,cfg,0x4FC8,0,0])
+                    mem.write16(ds+0xEF46,device)
+                    continue
                 mem.write16(ds+tank+0xC6,cfg);mem.write16(ds+tank+0xC8,0x4FC8)
                 mem.write16(ds+tank+0x96,mem.read16(ds+cfg+2))
                 color=mem.read16(ds+tank+0x1A)+5

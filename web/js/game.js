@@ -26,10 +26,11 @@ import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
 import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
-import { checkShieldDeflection, applyShieldDamage, shieldBreak } from './shields.js';
+import { checkShieldDeflection, applyShieldDamage, shieldBreak, cycleShield } from './shields.js';
 import { clearTerrainCollapse, stepTerrainCollapse } from './terrain-collapse.js';
 import { resetWindIndicator } from './wind-indicator-state.js';
 import {refreshShieldFlight} from './shield-flight.js';
+import {activateShield,shieldActivation} from './shield-activation.js';
 import { aftermathSequence } from './aftermath.js';
 import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
@@ -199,6 +200,9 @@ function advancePlayer() {
     player.hudEnergy = undefined;
     player.hudPower = undefined;
     player.hudShieldEnergy = undefined;
+    player.hudContactTriggerCount = undefined;
+    player.hudContactTriggerArmed = undefined;
+    player.selectedShield = undefined;
   }
   // If using turn order system
   if (game.turnOrder.length > 0) {
@@ -402,11 +406,8 @@ function handleAimInput(player) {
 // EXE: fire_weapon at file 0x30652 — computes barrel tip from icons.cpp geometry
 // EXE: decrements ammo in player struct, switches to Baby Missile if depleted
 //
-// EXE 0x30668: calls pre-fire handler (0x1144:0x361) before launching if
-// active_shield != 0 and play_mode <= 1 (Sequential/Simultaneous).
-// Binary analysis: this function is the TALKING TANK speech handler (comments.cpp),
-// NOT shield energy consumption. It loads a string from DS:0xCC8E and calls
-// Fastgraph text display (0x3F19:0x4695). See Task 5: Talking Tanks.
+// Native 0x30661 guards attack speech using TALKING_TANKS and the player's
+// AI type. Shield state does not control the speech call.
 function fireWeapon(player) {
   const { endX: startX, endY: startY } = getTankBarrel(player);
 
@@ -427,14 +428,15 @@ function fireWeapon(player) {
     }
   }
 
-  // EXE VERIFIED: fire_weapon 0x306A8 — Super Mag (idx 52) ammo decremented per shot.
-  // EXE: DS:0x1C76 flag set on projectile — bypasses enemy Mag Deflector damping.
-  // EXE: Mag Deflector (idx 45) is NOT decremented at fire time (passive defense).
-  const SUPER_MAG_IDX = WPN.SUPER_MAG;
-  let superMagActive = false;
-  if (player.inventory[SUPER_MAG_IDX] > 0) {
-    player.inventory[SUPER_MAG_IDX]--;
-    superMagActive = true;
+  // Native 0x3069D tests tank+0x2A, then consumes inventory[D566]
+  // (Contact Trigger). Owning a shield never spends it when firing.
+  const contactTriggerActive = !!player.contactTriggerArmed;
+  if (contactTriggerActive) {
+    // Native consumption does not redraw the count/icon at firing.
+    player.hudContactTriggerCount ??= player.inventory[WPN.CONTACT_TRIGGER];
+    player.hudContactTriggerArmed ??= player.contactTriggerArmed;
+    player.inventory[WPN.CONTACT_TRIGGER]--;
+    if (player.inventory[WPN.CONTACT_TRIGGER] <= 0) player.contactTriggerArmed=false;
   }
 
   // EXE: guidance_type set on projectile at fire time, ammo consumed
@@ -451,8 +453,8 @@ function fireWeapon(player) {
   }
 
   // EXE: DS:0x1C76 pushed to launchProjectile at extras.cpp 0x21357
-  if (superMagActive && projectiles.length > 0) {
-    projectiles[projectiles.length - 1].superMagActive = true;
+  if (contactTriggerActive && projectiles.length > 0) {
+    projectiles[projectiles.length - 1].contactTriggerActive = true;
   }
 
   game.state = STATE.FLIGHT;
@@ -605,6 +607,7 @@ function executeSystemMenuAction(action) {
 
 // Main game tick (called every frame)
 export function gameTick() {
+  if (shieldActivation.active) return;
   // Native shield absorption does not return until its fade/erase completes.
   // Rendering advances the fade; gameplay must not run ahead of that call.
   if (shieldBreak.active) return;
@@ -633,6 +636,13 @@ export function gameTick() {
           fireWeapon(player);
         }
       } else {
+        // Native scan 0x0C -> 0x1F2C5: arm/disarm Contact Trigger.
+        if (consumeKey('Minus') && config.statusBar && player.inventory[WPN.CONTACT_TRIGGER]>0) {
+          player.contactTriggerArmed=!player.contactTriggerArmed;
+          player.hudContactTriggerArmed=undefined;
+        }
+        if (consumeKey('KeyS') && config.statusBar) cycleShield(player);
+        if (consumeKey('KeyE') && config.statusBar && activateShield(player)) break;
         // Native input dispatch 0x2F78A: scan code 0x25 (K) calls
         // show_no_kibitzing at 0x2F7EF, returning to this player's input.
         if (consumeKey('KeyK')) {

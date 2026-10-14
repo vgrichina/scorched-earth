@@ -1,5 +1,6 @@
 import {drawFunkyBomb} from './funky-bomb.js';
 import {drawNoKibitzing,closeNoKibitzing} from './no-kibitzing.js';
+import {shieldActivation,advanceShieldActivation} from './shield-activation.js';
 // Scorched Earth - Main entry point + game loop
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830) — main game loop
 // EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
@@ -312,6 +313,12 @@ function checkMayhemCheat() {
 }
 
 function gameLoop() {
+  if (shieldActivation.active) {
+    advanceShieldActivation();
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
   // --- Menu screens ---
   if (game.state === STATE.TITLE || game.state === STATE.CONFIG || game.state === STATE.PLAYER_SETUP) {
     const result = menuTick();
@@ -490,6 +497,7 @@ function gameLoop() {
   }
 
   if (game.state === STATE.SCREEN_HIDE) drawNoKibitzing();
+  if (shieldActivation.active) advanceShieldActivation();
   blit();
 
   requestAnimationFrame(gameLoop);

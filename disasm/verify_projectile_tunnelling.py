@@ -13,7 +13,7 @@ from emu.interrupts import InterruptHandler
 from emu.loader import load_exe
 from emu.execute import run_fast
 root=Path(__file__).resolve().parent.parent
-cases=[dict(vx=vx,vy=vy,pattern=p,gravity=g,wind=100,viscosity=20,superMag=sm,weapon=w)
+cases=[dict(vx=vx,vy=vy,pattern=p,gravity=g,wind=100,viscosity=20,contactTrigger=sm,weapon=w)
        for vx,vy in ((600,-400),(40,-20),(1600,-1200),(0,0),(20,0))
        for p in (0,1,2) for g in (.2,1) for sm,w in ((False,2),(True,2),(False,13),(False,31),(False,7),(False,14))]
 actual=json.loads(subprocess.check_output(['node','--input-type=module','-e',r'''
@@ -29,7 +29,7 @@ console.log(JSON.stringify(JSON.parse(process.argv[1]).map(c=>{
   if(c.pattern===0?x===104:c.pattern===1?x>=100&&x<=110:x===100&&y===100){
    const i=y*360+x;terrainBitmap[i]=120;initial.push(i);
   }
- const p=createProjectile(100.25,100.25,c.vx,c.vy,c.weapon,0);p.superMagActive=c.superMag;
+ const p=createProjectile(100.25,100.25,c.vx,c.vy,c.weapon,0);p.contactTriggerActive=c.contactTrigger;
  const states=[];
  for(let i=0;i<4;i++){
   const status=stepSingleProjectile(p,()=>120,c.wind);
@@ -45,7 +45,7 @@ for case,states in zip(cases,actual):
  handler=InterruptHandler(mem,cpu,str(root/'earth'),ports)
  ds,stack,pr=0x4FC80,0x5F4A0,0x90000
  for off,val in ((0x519A,65535),(0xEF42,3),(0xEF3C,356),(0xEF40,38),(0xEF38,476),
-                 (0x5154,0),(0x513A,1),(0x1C76,int(case['superMag'])),(0x5146,0),
+                 (0x5154,0),(0x513A,1),(0x1C76,int(case['contactTrigger'])),(0x5146,0),
                  (0xE1E4,0),(0xE1E6,0),(0xE1E8,0),(0xE4DA,0),(0xCEB8,0),(0xCEBA,0x9000),
                  (0xEEF8,0x100),(0xEEFA,0x60)):
   mem.write16(ds+off,val)

@@ -254,6 +254,39 @@ export function drawHudEnergy(player) {
   drawText(x,ROW2_Y,String(fuelVal).padStart(4),UI_DEEP_SHADOW);
 }
 
+// Native 0x3DB30 refreshes only this widget after activation/selection.
+export function drawHudShield(player) {
+  const countFieldW = measureText('99 '), pctFieldW = measureText('100% ');
+  let x = LEFT + Math.max(measureText('Power'),measureText('Max')) + 8 +
+    measureText('8888 ') + 2*countFieldW + 50;
+  const hudTextColor = UI_DEEP_SHADOW, dimColor = UI_DARK_TEXT;
+  fillRect(x,ROW2_Y,x+countFieldW+20+pctFieldW-1,ROW2_Y+11,UI_BACKGROUND);
+  // Widget 4 (0x3DB30): selected shield config +0x0E selects the item;
+  // a negative index draws a generic empty-defense symbol, with no count.
+  const selectedShield = player.selectedShield ?? player.activeShield;
+  const shieldWeapon = player.shieldWeapon ?? (selectedShield > 0
+    ? WPN.MAG_DEFLECTOR + selectedShield - 1 : -1);
+  const shieldEnergy = player.hudShieldEnergy ?? player.shieldEnergy ?? 0;
+  const selectedActive = selectedShield === player.activeShield;
+  if (shieldWeapon >= 2) {
+    drawText(x, ROW2_Y, String(player.inventory?.[shieldWeapon] || 0), hudTextColor);
+  }
+  x += countFieldW; // E9F6
+  if (shieldWeapon < 0) {
+    drawUIIcon(x, ROW2_Y, shieldEnergy > 0 ? 3 : 10,
+      shieldEnergy > 0 ? UI_DEEP_SHADOW : dimColor);
+  } else {
+    drawIcon(x, ROW2_Y, shieldWeapon - 2,
+      shieldEnergy > 0 && selectedActive ? (player.colorIndex ?? player.index) * PLAYER_PALETTE_STRIDE + 5 : hudTextColor);
+  }
+  x += 20; // E9F8
+  const shieldMax = player.shieldMaxEnergy ?? SHIELD_CONFIG[player.activeShield || 0]?.energy ?? 0;
+  let shieldPct = shieldEnergy === 0 ? 0 : Math.max(1,
+    Math.floor(shieldEnergy * 100 / Math.max(1, shieldMax)));
+  if (shieldPct === 100 && shieldEnergy !== shieldMax) shieldPct = 99;
+  drawText(x, ROW2_Y, shieldPct + '%', shieldEnergy !== 0 && selectedActive ? hudTextColor : dimColor);
+}
+
 export function drawHud(player, wind, round, opts) {
   // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
@@ -443,29 +476,8 @@ export function drawHud(player, wind, round, opts) {
     drawIcon(x, ROW2_Y, ICON_PARACHUTE, paraColor);
     x += 25; // → E9F4
 
-    // Widget 4 (0x3DB30): active shield config +0x0E selects the item;
-    // a negative index draws a generic empty-defense symbol, with no count.
-    const shieldWeapon = player.shieldWeapon ?? (player.activeShield > 0
-      ? WPN.MAG_DEFLECTOR + player.activeShield - 1 : -1);
-    const shieldEnergy = player.hudShieldEnergy ?? player.shieldEnergy ?? 0;
-    if (shieldWeapon >= 2) {
-      drawText(x, ROW2_Y, String(player.inventory?.[shieldWeapon] || 0), hudTextColor);
-    }
-    x += countFieldW; // E9F6
-    if (shieldWeapon < 0) {
-      drawUIIcon(x, ROW2_Y, shieldEnergy > 0 ? 3 : 10,
-        shieldEnergy > 0 ? UI_DEEP_SHADOW : dimColor);
-    } else {
-      drawIcon(x, ROW2_Y, shieldWeapon - 2,
-        shieldEnergy > 0 ? (player.colorIndex ?? player.index) * PLAYER_PALETTE_STRIDE + 5 : hudTextColor);
-    }
-    x += 20; // E9F8
-    const shieldMax = player.shieldMaxEnergy ?? SHIELD_CONFIG[player.activeShield || 0]?.energy ?? 0;
-    let shieldPct = shieldEnergy === 0 ? 0 : Math.max(1,
-      Math.floor(shieldEnergy * 100 / Math.max(1, shieldMax)));
-    if (shieldPct === 100 && shieldEnergy !== shieldMax) shieldPct = 99;
-    drawText(x, ROW2_Y, shieldPct + '%', shieldEnergy > 0 ? hudTextColor : dimColor);
-    x += pctFieldW; // E9FA
+    drawHudShield(player);
+    x += countFieldW + 20 + pctFieldW; // E9FA
 
     // Widget 5 (0x3DC94): tank+0x9A selected guidance. EXE item 32 is
     // the empty sentinel here; generic icon 10 replaces both count and icon.
@@ -480,7 +492,7 @@ export function drawHud(player, wind, round, opts) {
 
     // Inline (draw_hud_full 0x303CC): contact trigger count at E9FE, format "%2d" [DS:57D4]
     // EXE: inventory[D566=47] = contact trigger count
-    const trigCount = player.inventory ? (player.inventory[WPN.CONTACT_TRIGGER] || 0) : 0;
+    const trigCount = player.hudContactTriggerCount ?? player.inventory?.[WPN.CONTACT_TRIGGER] ?? 0;
     const trigColor = trigCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(trigCount).padStart(2), trigColor);
     x += countFieldW; // → EA00
@@ -488,7 +500,8 @@ export function drawHud(player, wind, round, opts) {
     // Widget 6 (0x3DD59): contact trigger icon at EA00
     // EXE: color = struct[0x2A] != 0 ? [EF22] : [EF24]
     // EXE: draw_icon_alive(EA00, ROW2_Y, D566=47, color)
-    drawIcon(x, ROW2_Y, ICON_CONTACT_TRIGGER, trigColor);
+    drawIcon(x, ROW2_Y, ICON_CONTACT_TRIGGER,
+      (player.hudContactTriggerArmed ?? player.contactTriggerArmed) ? hudTextColor : dimColor);
     x += 20; // → EA02 (EXE: EA02 = EA00 + 20 at 0x3005D, not 25 like W2/W3 icons)
 
     // Widget 7 (0x3DD95): Heavy Shield energy, conditional on screen width

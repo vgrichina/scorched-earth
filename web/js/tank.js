@@ -67,6 +67,7 @@ export function createPlayer(index, name) {
     // Phase 3: weapon inventory
     inventory: createInventory(),
     selectedWeapon: WPN.BABY_MISSILE,
+    contactTriggerArmed: false, // native tank+0x2A
 
     // Phase 3: falling state
     falling: false,
@@ -188,9 +189,12 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.hudEnergy = undefined;
     p.hudPower = undefined;
     p.hudShieldEnergy = undefined;
+    p.hudContactTriggerCount = undefined;
+    p.hudContactTriggerArmed = undefined;
     p.shieldEnergy = 0;
     p.shieldFlightUses = 0;
     p.activeShield = 0;
+    p.selectedShield = undefined;
     p.shieldContactHoles = null;
     p.shieldLowerColor = null;
 

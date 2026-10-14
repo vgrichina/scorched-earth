@@ -3139,13 +3139,13 @@ Where `configR/G/B` = shield config entry offsets +0x06/+0x08/+0x0A, `maxEnergy`
 - **Activation**: VGA entry `player_number × 8 + 5` (sub-struct +0x1A + 5, within player's 8-color block). Temporarily used during 50-frame fade-in animation. Source: 0x388CE.
 - **Ongoing gameplay**: VGA entry `player_number + 200` (sub-struct +0xA0 + 0xC8, dedicated per-player shield entry). RGB updated continuously when shield takes damage. Source: 0x38A8C.
 
-**Activation animation** (`shields_start` at file 0x38780, 50 frames):
+**Activation animation** (wrapper at file 0x38765, 51 palette steps):
 ```c
 fg_setrgb(player*8+5, 0, 0, 0);           // start black
 draw_shield_shape();                        // draw pixels with palette index player*8+5
 for (i = 0; i <= 50; i++) {
-    delay(2*i);                             // accelerating: 0, 2, 4, ... 100 ticks
-    sound(20, 1000 + i*100);               // rising pitch
+    draw_equip_progress(2*i);             // 0x1F5B1: conditional dialog redraw, NOT a delay
+    sound(1000 + i*100, 20);              // rising pitch; 20 ms wait when speaker enabled
     brightness = clamp(i * 63 / 50, 0, 63);
     R = configR * brightness / 63;
     G = configG * brightness / 63;
@@ -3186,7 +3186,7 @@ redraw_area(config.radius, player.x);
 
 **Break animation key details**:
 - **No white flash**: The EXE has NO distinct white flash — just a smooth fade starting at full config color. The web port's frame-0 white flash is spurious.
-- **Constant delay**: Unlike activation (which has accelerating delay `2*i`), break uses constant 20-tick sound duration per frame.
+- **Constant delay**: Both activation and break pass 20 to the sound routine's millisecond delay. Activation's `2*i` argument updates an optional dialog progress bar; it is not an accelerating delay.
 - **Fade range**: Full brightness → ~17% (NOT to black). Formula divisor is 60, not 50.
 - **Sound**: Descending tone 6000→1100 Hz (reverse of activation's ascending 1000→6000 Hz).
 - **Erase callback** (file 0x3FC11): For each shield pixel, checks `fg_getpixel(x,y) == player*8+5`; if so, calls `setTerrainPixel(x,y)` to restore the underlying terrain.
@@ -9561,3 +9561,306 @@ the actual UI, callbacks during impact/aftermath and synchronized modes, and
 reserve exhaustion in continuous flight. The boundary kernel covers zero and
 last-use states, but does not substitute for that full lifecycle. Changes
 remain uncommitted and undeployed.
+
+### Shield selection input and HUD parity (2026-10-13)
+
+The preceding wind/privacy/shield-flight work was committed and pushed as
+`a47a427`. The following selection work is subsequent and not deployed.
+
+Executing the initialized scan-code jump table identifies **S (0x1F)** as
+the shield selector (`0x2F937` -> `0x30A55`) and **E (0x12)** as activation
+(`0x2F96F` -> `0x38765`). Both are gated by STATUS_BAR. Selection walks the
+six config records, wrapping through None, and accepts only positive owned
+counts for the five real shields. It neither equips nor spends inventory.
+The selected pointer DS:E1DE/E1E0 is distinct from tank+C6/C8. Full HUD entry
+`0x301B2..0x301E3` resets selection to the newly displayed tank's active config.
+
+The initialized config+0x0E words are **-1,40,41,42,43,44**, not the weapon
+numbers claimed in earlier raw-data notes. They map to native inventory names
+None, Mag Deflector, Shield, **Force Shield, Heavy Shield, Super Mag**.
+Port inventory slots are native+2. Historical port constants WARP, TELEPORT
+and FLICKER still alias configs 3/4/5; the config display names and header
+comments now use the actual inventory names. Earlier claims that Force,
+Heavy and Super Mag lie outside the shield table are incorrect.
+
+The port now handles S in human AIM, keeps `selectedShield` separate from
+`activeShield`, and resets it on player selection/new round. The expanded HUD
+uses selected inventory/count/icon, while its percentage remains that of the
+active shield. A different selection dims the percentage and removes the
+active-color highlight from the selected icon. Selecting None while energy
+remains positive draws the native generic removal symbol.
+
+`python3 disasm/verify_shield_selection.py
+/tmp/scorched-lethal-flash/after-falling.state` passes **384 cases**: all 32
+owned/unowned inventory subsets, all six starting selections, both status-bar
+states, varying active config and energy, including zero/negative counts.
+It executes native S-key dispatch/cycling and real HUD drawing, compares
+production `gameTick` input results and every RGB pixel in the 12-pixel-high
+shield widget crop, and verifies unchanged inventory. Native no-change sound
+is intercepted; key-release waiting and audio are outside this comparison.
+The port renders its own HUD; native widget pixels are not imported.
+
+The 564-case next-player verifier now runs the native full-HUD prologue and
+also checks that its selected config matches the port's reset to active.
+The 14 privacy input, 511 shield-flight and 48 reserve-refresh regressions pass.
+
+Remaining activation work: E is traced but not wired in the port. The existing
+`activateShield` is still an unused instant setter. Native activation consumes
+one item, optionally erases the old shape, then fades the main palette through
+51 frames with channel `trunc(channel * trunc(frame*63/50) / 63)`, before
+refreshing the shield HUD. Its wrapper does not itself refresh the flight
+reserve or invoke lower-half recoloring. Those caller/lifecycle details, equip
+dialog bounds, full-frame activation pixels and timing still need verification.
+
+### E-key activation fade and inventory parity (2026-10-13)
+
+The unused instant setter has been replaced by `shield-activation.js`, wired
+to human AIM's E key. It validates owned inventory, consumes one selected
+item, erases a different existing shield's main-color pixels, assigns full
+energy, paints the native shape in the main palette slot and advances the
+51 double-truncated palette steps. None removes an existing shield without
+spending inventory. An empty inventory rejects activation without modifying
+the frame or tank. Same-type replenishment still consumes an item.
+
+Activation is deferred until that frame's ordinary overlays have rendered,
+then main.js retains that exact image and suspends normal world/HUD repaint
+and gameTick input until the sequence returns. The HUD therefore keeps the
+old count/percentage throughout the fade, including palette changes to old
+icon pixels, and refreshes only widget 4 afterward via extracted
+`drawHudShield`. S/E autorepeat events are ignored because native dispatch
+waits for release. Existing lower-half pixels survive erasure; activation's
+new outline uses the main palette on both halves, with no immediate lower
+recolor or flight-reserve refresh. Main-color erasures are retained through
+later world repaint, including sky replacing previously covered tank pixels.
+
+`disasm/verify_shield_activation.py CHECKPOINT` enters the real native E-key
+scan-code dispatch, executes the full wrapper, shape/pixel callbacks, palette
+uploads and final HUD widget, and compares it to production input/gameTick
+and the port activation sequence. It intercepts delay and sound only. It
+imports the **pre-activation** frame/palette as the overlay baseline, never
+the native activated mask, fade colors or final HUD pixels. Replacement
+fixtures also sample the native cached sky beneath the old shield before
+activation: the unshielded framebuffer is not a valid background cache where
+the old outline covered a tank. This is an activation-layer comparison, not
+an independent terrain/sky generation comparison.
+
+Using `/tmp/scorched-lethal-flash/after-falling.state`, runs with no old
+shield, `--old-shield 2`, and `--old-shield 5` pass all six selections at
+inventory counts 0, 1 and 3: **528 complete 360x480 RGB frame/state comparisons
+per run**, including 51 fade frames plus final widget refresh per successful
+nonzero activation. Shield energy, active type, inventory and unchanged flight
+reserve match. `--status-bar 0` passes another 18 rejected-input cases. The
+first-activation run also checks held-E repeat events cannot spend another
+item after the fade. The selection/HUD 384-case, next-player 564-case,
+privacy 14-case and shield flight/reserve 511+48 regressions pass.
+
+Final comparison PNGs are in `/tmp/scorched-activation`,
+`/tmp/scorched-activation-replace` and `/tmp/scorched-activation-supermag`.
+`activation-5-1-web.png` in the first directory was visually inspected.
+
+Limits: frames advance once per animation callback; native delay timing and
+ascending sound are not yet reproduced. Equip-dialog exclusion rectangles,
+other resolutions, chained activation-to-shot gameplay and the native calls
+that later recolor the lower half/register flight callbacks still need full
+lifecycle verification. Pixel-perfect completion remains unproven. This work
+and the prior S-key selection changes remain uncommitted and undeployed.
+
+### Activation return/repaint: preserve the old lower palette (2026-10-13)
+
+Extending the activation oracle beyond the last fade found a real port bug:
+switching from an ordinary Shield to Mag Deflector produced three mismatched
+pixels at (276,261..263) on the next world repaint. Their indexed value was
+still 201 on both sides, but `drawShield` uploaded the new shield's RGB to
+that dedicated entry. Native retained the old Shield's lower-half color.
+The activation record now snapshots the current dedicated palette entry,
+rather than replacing it with the newly equipped config's RGB. This also
+preserves colors belonging to surviving lower pixels after other switches.
+
+`verify_shield_activation.py --repaint` now recomposes production `drawShield`,
+retained world writes and the shield HUD over the unshielded baseline after
+the animation. It also continues the actual native E dispatch return through
+key/mouse release and the power refresh to `0x2F5AE`, the next input iteration.
+The fixture explicitly supplies idle input and a continuing round. It uses
+the actual resulting native frame and shield/inventory/reserve state for the
+repaint comparison, rather than stopping at the activation wrapper's return.
+Old-shield fixtures now initialize the main palette from their energy as well
+as the lower palette, so the baseline already matches a normal settled shield.
+
+All six previous configs (None and each real shield), six selected configs,
+and three inventory counts pass: **108 scenarios / 3,276 complete RGB frame
+comparisons**, including 108 post-animation recompositions. Commands:
+`python3 disasm/verify_shield_activation.py
+/tmp/scorched-lethal-flash/after-falling.state --old-shield TYPE --repaint`
+for TYPE 0..5. Logs for TYPE 1..5 are
+`/tmp/scorched-activation-repaint-TYPE.log`; TYPE 0 output was inspected
+directly. The 511 callback and 48 reserve-refresh regressions also pass.
+
+This proves shield-layer recomposition and the native return to aiming in
+these fixtures. It does not independently regenerate the imported scene or
+execute the complete browser main loop, nor does it yet cover launching and
+finishing a shot after activation. Timing/sound, equip dialog bounds and the
+broader gameplay parity gaps remain open. Changes remain uncommitted.
+
+### Activation timing: progress redraw is not a delay (2026-10-13)
+
+Direct disassembly of `0x1F5B1` corrects the older activation notes: this is
+an **equip-dialog progress-bar redraw**, not a delay. When DS:1C18 is zero
+(the keyboard fixture), it returns immediately. Otherwise it uses the rect
+at DS:CE4C/CE4E and the supplied percentage to clear/fill a horizontal bar.
+Thus the activation wrapper's `2*i` is progress 0..100, not increasing time.
+Earlier claims of accelerating shield activation waits are superseded.
+
+The actual wait is `0x4C117` sound dispatch: SOUND_DEVICE=1 enables the
+speaker, calls `0x104F6(duration)`, then disables it. SOUND_DEVICE=0 returns
+without waiting. The delay routine reads PIT channel 0 and multiplies the
+duration by DS:C95C/C95E, which is 1193 in this checkpoint: about one PIT
+millisecond per duration unit. Activation calls (frequency,duration)
+`(1000+100*i,20)` for i=0..50, before each palette upload: about 1.02 seconds
+total when sound is enabled. No additional `2*i` wait exists.
+
+The verifier now executes the real progress and sound routines, including
+speaker programming, intercepting **only the PIT busy-wait**. It asserts the
+51 frequency/duration pairs (and absence of waits with sound disabled).
+The ordinary `--repaint` suite still passes with the reduced interception.
+
+Production `advanceShieldActivation(now)` follows elapsed milliseconds,
+catches up after delayed display callbacks and refreshes the HUD at the
+final palette upload. Initial frame zero is black just like the native
+pre-wait outline; the first visible color change is at 40 ms. Sound-off
+completes the sequence in the same display callback. A single square-wave
+oscillator schedules the 51 frequency steps at 20 ms intervals on the audio
+clock and stops after 1.02 seconds, avoiding frame-rate-dependent pitch timing.
+
+`verify_shield_activation.py CHECKPOINT --clock --repaint` passes all 18
+selection/count cases at irregular times 0,19,20,39,40,67,499,500,1000,1019,
+1020,2000 ms, comparing native palette-stage RGB/state and the final repaint.
+The mocked AudioContext also verifies every scheduled frequency/time and
+the stop time. `--clock --silent --old-shield 2 --repaint` passes the same
+matrix with immediate completion and no scheduled oscillator. CHECKPOINT is
+`/tmp/scorched-lethal-flash/after-falling.state`. Physical audio output and
+PIT oscillator quantization have not been compared; the web tones use nominal
+frequencies. The privacy input regression and whitespace check pass.
+
+Remaining work includes activation-to-shot continuity, equip-dialog progress
+and exclusion bounds, other display modes and the outstanding gameplay
+parity gaps. This timing/audio work remains uncommitted and undeployed.
+
+### Firing after activation: Contact Trigger, not Super Mag (2026-10-13)
+
+The prelaunch trace found another incorrect earlier interpretation. Native
+`0x3069D..0x306E9` tests **tank+0x2A**, decrements inventory indexed by D566
+(initialized value 47, Contact Trigger), disarms the item if the remaining
+count is nonpositive, and copies whether it was armed into DS:1C76. It does
+not consume Super Mag, which is shield config 5 / native inventory 44.
+An owned but unarmed Contact Trigger also remains untouched.
+
+Port firing previously spent one Super Mag on every shot merely because it
+was in inventory. It now uses `contactTriggerArmed`, spends the correct item,
+and sets projectile `contactTriggerActive` even when consuming the last one
+disarms the player's selection. The old `superMagActive` projectile name was
+replaced in production physics and the tunnelling oracle; its already-tested
+collision behavior is unchanged. This does not implement the equip dialog
+or its Contact Trigger control yet. The old prefire speech comment was also
+corrected: native tests TALKING_TANKS and AI type, not active shield state.
+
+`python3 disasm/verify_fire_inventory.py
+/tmp/scorched-lethal-flash/after-falling.state` passes **90 scenarios** spanning
+all six shield selections, Super Mag stock 0/1/3 and unarmed/armed Contact
+Trigger inventory states including last-use exhaustion. Each case executes
+native E-key activation, then the real prelaunch handler to `0x30769` just
+before its launch call. The port receives E and Space through its production
+input/gameTick code. Inventory, armed flag, shot flag, shield type/energy and
+flight reserve agree. The shot is Baby Missile, speech is disabled, and the
+native launch itself is deliberately outside this state-comparison scope.
+The 180 tunnelling sequences and 511+48 shield flight/reserve regressions pass.
+
+This fixes activation-to-fire inventory continuity; it does not yet prove
+the resulting complete projectile/impact frames. Guidance selection/consumption,
+Contact Trigger HUD/control parity and the complete activated-shield shot
+remain to be verified. Work remains uncommitted and undeployed.
+
+### Contact Trigger arming control and HUD pixels (2026-10-13)
+
+Native widget `0x3DD59` colors the Contact Trigger icon from tank+0x2A,
+independently of its inventory count. The port incorrectly reused the count's
+color, making every owned trigger appear armed. It now highlights the icon
+only when `contactTriggerArmed` is true; count formatting/color remains based
+on inventory. A new native full-HUD crop oracle failed before this fix.
+
+The native scan-code table maps **0x0C (Minus / -)** to `0x2F8A8`, which
+checks STATUS_BAR and calls `0x1F2C5`. That routine requires a strictly
+positive Contact Trigger count, XORs tank+0x2A with 1, and refreshes only its
+icon. Minus is now wired in human AIM with those same gates and without
+spending inventory. Keyboard autorepeat is ignored, matching the native
+release wait. The native success/failure beeps are not yet reproduced.
+
+`python3 disasm/verify_contact_hud_pixels.py
+/tmp/scorched-lethal-flash/after-falling.state` passes **48 scenarios**:
+counts 0/1/2/9/10/99, both armed states, unchanged/toggled, and status-bar
+enabled/disabled. It executes actual native Minus dispatch and HUD drawing,
+compares the full count/icon RGB crop against production drawHud, and checks
+unchanged inventory. The port also receives a repeat keydown to ensure one
+press cannot toggle twice. Sound is disabled in the native toggle fixture.
+
+The 90 activation-to-prelaunch scenarios now arm via the real Minus dispatch
+on both sides, rather than initializing an armed flag directly. The port
+sequence is Minus (when requested), E, then Space. Last-item exhaustion,
+unchanged Super Mag stock and shield state still pass. The 14 privacy-input
+regression and whitespace check pass. Full projectile/impact continuity and
+equip-dialog parity remain open; these changes remain uncommitted.
+
+### Contact Trigger HUD retention at firing (2026-10-13)
+
+Extending the Contact Trigger crop oracle through native prelaunch code
+confirmed that consumption at `0x3069D..0x306E9` does **not** redraw its HUD
+count or icon. This matters on the last item: the inventory becomes zero
+and tank+0x2A is cleared, but the displayed count and armed icon remain.
+The port's per-frame drawHud had instead shown the new values immediately.
+
+Firing now retains `hudContactTriggerCount` and `hudContactTriggerArmed`
+before consumption. The HUD uses those retained values until a native-style
+full refresh (player selection or round setup). A valid Minus toggle clears
+only the retained icon state, matching native's widget-only update.
+
+`verify_contact_hud_pixels.py CHECKPOINT` now checks **144 native RGB crops**
+across 48 scenarios: after optional arming, at the prelaunch boundary and
+after an explicit full HUD refresh. The prelaunch comparison failed before
+the retention change; all three phases now pass, including last-item use.
+CHECKPOINT is `/tmp/scorched-lethal-flash/after-falling.state`.
+The 564-case next-player verifier also checks these new retention fields
+are cleared by production player selection, and passes. Whitespace checks
+pass. This remains a count/icon crop and prelaunch test, not proof of the
+complete projectile/impact sequence. Changes remain uncommitted.
+
+### Generated scene -> shield activation -> maintained flight (2026-10-13)
+
+`verify_landscape_sequence.py --activate-shields` now runs production shield
+activation on the port and the full native `0x38765` wrapper before shield
+maintenance and collision-enabled flight. It supplies one inventory item,
+lets activation establish the mask/palette/energy, then executes native
+`0x238AE` and port reserve refresh. Native sound is temporarily disabled so
+the real wrapper can complete without a timing stub. The previous settled
+shield setup remains available for the earlier independent fixtures.
+
+Unlike the activation-layer oracle, this composition imports no framebuffer
+or cached sky from native: both implementations generate the terrain, sky,
+tanks, HUD, activated shield and projectile drawing from their own code.
+The following commands pass with `/tmp/scorched-before-walk.state`, common
+flags `--case 0 --sky 2 --full-frame --activate-shields`:
+
+- `--shields 0 1 --projectile-head 237 221 --flight-steps 30
+  --flight-collisions`: Mag Deflector, 30 complete RGB frames, exact motion,
+  per-frame reserve counts and final full RNG match. Final reserve is 979.
+- The same command with `--shields 0 5`: Super Mag, the same 30-frame checks
+  and final reserve 979 pass.
+- `--shield-shot --flight-steps 5`: Force Shield contact fixture, five
+  complete RGB/motion/reserve comparisons and final full RNG pass.
+
+Paired screenshots are in `/tmp/scorched-activated-mag-flight`,
+`/tmp/scorched-activated-supermag-flight`, and
+`/tmp/scorched-activated-force-flight`. The Super Mag `flight-029-web.png`
+was visually inspected. These 65 frames verify activation state composing
+with subsequent maintained flight; they do not claim a complete input-driven
+shot. Launch still uses the verifier's fixed head/velocity fixture, maintenance
+is invoked explicitly, and shielded terrain impact/aftermath remains outside
+this path. The overall pixel-perfect goal remains open. Work is uncommitted.

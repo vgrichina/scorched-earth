@@ -69,7 +69,7 @@ import { WEAPONS, WPN, CATEGORY } from './weapons.js';
 import { consumeKey, consumeClick, isKeyDown, mouse } from './input.js';
 import { random } from './utils.js';
 import { isAI } from './ai.js';
-import { SHIELD_TYPE, activateShield } from './shields.js';
+import { SHIELD_TYPE } from './shields.js';
 import { players } from './tank.js';
 import { getLeaderboard } from './score.js';
 import { drawIcon, drawUIIcon, drawIconSlider, drawPlayfieldBorder } from './hud.js';
