@@ -71,7 +71,7 @@ const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js
 const { isShopActive, drawShop, openShop, selectShopCategory, shopTick } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
 const {getTeamScore,resetTeamScores}=await import(WEB+'team-scoring.js');
-const {mouse}=await import(WEB+'input.js');
+const {mouse,initInput}=await import(WEB+'input.js');
 const { seedRandom } = await import(WEB + 'utils.js');
 const { drawAllTanks } = await import(WEB + 'tank.js');
 const { blit, pixels, getWidth, getHeight } = fb;
@@ -84,16 +84,16 @@ const { GRAPHICS_MODES, applyGraphicsMode } = await import(WEB + 'config.js');
 const { reinitFramebuffer } = fb;
 const { reinitTerrainBuffers } = await import(WEB + 'terrain.js');
 
-function initHeadless(modeIndex = 0) {
+function initHeadless(modeIndex = config.graphicsMode) {
   // Set graphics mode before init
-  if (modeIndex > 0 && modeIndex < GRAPHICS_MODES.length) {
+  if (modeIndex >= 0 && modeIndex < GRAPHICS_MODES.length) {
     config.graphicsMode = modeIndex;
     applyGraphicsMode();
   }
   fakeCanvas.width = config.screenWidth;
   fakeCanvas.height = config.screenHeight;
   fb.initFramebuffer(fakeCanvas);
-  if (modeIndex > 0) {
+  if (modeIndex >= 0) {
     reinitFramebuffer();
     reinitTerrainBuffers();
   }
@@ -229,6 +229,12 @@ function renderGame() {
 function renderShopFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
 
+  config.suspendDirt=state.suspendDirt??0;
+  config.uselessItems=state.uselessItems??0;
+  config.tracePaths=state.tracePaths??0;
+  config.fallingTanks=state.fallingTanks??1;
+  config.tunneling=state.tunneling??1;
+  config.playMode=state.playMode??0;
   config.teamMode=state.teamMode??0;
   config.statusBar=state.statusBar??1;
   resetTeamScores();
@@ -236,6 +242,7 @@ function renderShopFromState(stateJsonPath) {
   // Set config from state
   config.numPlayers = state.numPlayers || 2;
   config.numRounds = state.numRounds || 10;
+  config.rounds = config.numRounds;
   if (state.armsLevel !== undefined) config.armsLevel = state.armsLevel;
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
@@ -269,6 +276,7 @@ function renderShopFromState(stateJsonPath) {
       if (t.selectedWeapon !== undefined) p.selectedWeapon = t.selectedWeapon;
       if (t.activeShield !== undefined) p.activeShield = t.activeShield;
       if (t.shieldEnergy !== undefined) p.shieldEnergy = t.shieldEnergy;
+      if (t.fuelEnergy !== undefined) p.fuelEnergy = t.fuelEnergy;
     }
   }
 
@@ -280,12 +288,25 @@ function renderShopFromState(stateJsonPath) {
   const playerIndex = state.currentPlayer ?? 0;
   // --state shop denotes the visible shop, after any privacy prompt.
   openShop(playerIndex, roundsLeft, { showPrivacy: false });
-  selectShopCategory(state.shopCategory??0);
+  selectShopCategory(state.shopCategory??0,state.shopSelectedItem??0,state.shopScrollOffset??0);
   game.state = STATE.SHOP;
   game.shopPlayerIdx = playerIndex;
-  if(shopClick){
-    Object.assign(mouse,{x:shopClick[0],y:shopClick[1],over:true,clicked:1,buttons:1});
-    shopTick(players[playerIndex]);mouse.buttons=0;shopTick(players[playerIndex]);
+  if(shopInputs.length){
+    globalThis.addEventListener=(type,handler)=>{_listeners[type]=handler;};
+    initInput(fakeCanvas);
+    for(const input of shopInputs){
+      if(Array.isArray(input)){
+        Object.assign(mouse,{x:input[0],y:input[1],over:true,clicked:input[2]??1,buttons:input[2]??1});
+        shopTick(players[playerIndex]);mouse.buttons=0;shopTick(players[playerIndex]);
+      }else{
+        const alt=input.startsWith('Alt+'),code=alt?input.slice(4):input;
+        if(alt)_listeners.keydown({code:'AltLeft',key:'Alt',preventDefault(){}});
+        _listeners.keydown({code,key:code,preventDefault(){}});
+        shopTick(players[playerIndex]);
+        _listeners.keyup({code,preventDefault(){}});
+        if(alt)_listeners.keyup({code:'AltLeft',preventDefault(){}});
+      }
+    }
   }
   // Match the checkpoint's animated DAC phase, just as menu/game captures do.
   if (state.palette) {
@@ -432,10 +453,11 @@ function writePNG(outPath) {
 
 // Parse args: state output.png [--mode N] [--from-state state.json]
 const args = process.argv.slice(2);
-let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, shopClick = null;
+let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, shopInputs = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--mode') { modeIndex = parseInt(args[++i]); }
-  else if (args[i] === '--shop-click') { shopClick=args[++i].split(',').map(Number); }
+  else if (args[i] === '--shop-click') { shopInputs.push(args[++i].split(',').map(Number)); }
+  else if (args[i] === '--shop-key') { shopInputs.push(args[++i]); }
   else if (args[i] === '--from-state') { fromStatePath = args[++i]; }
   else if (!stateName) { stateName = args[i]; }
   else if (!outPath) { outPath = args[i]; }

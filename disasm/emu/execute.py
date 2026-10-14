@@ -79,7 +79,7 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
     """Tight execution loop — merges step+dispatch to avoid function call overhead.
 
     timer_period: if >0, fire INT 08h every N instructions (simulates hardware timer).
-    scheduled_keys: dict of step_number → (scancode, ascii) for key injection.
+    scheduled_keys: step_number → (scancode, ascii[, BIOS flags]) for key injection.
     tick_addr: if >0, physical address of 16-bit tick counter to auto-increment
                on each timer tick (bypasses ISR overhead for fast emulation).
     isr_divisor: if >0 with tick_addr, only call real INT 8 ISR every N ticks.
@@ -174,11 +174,14 @@ def run_fast(cpu, mem, ports, int_handler, max_steps, hooks=None, bp_set=None,
             # internal key buffers (mode 1 circular buffer, mode 2 key-down
             # table, Fastgraph DS:C960/C961 buffer).
             if has_sched_keys and i in scheduled_keys:
-                sc, asc = scheduled_keys[i]
+                event = scheduled_keys[i]
+                sc, asc = event[:2]
                 # Set port 0x60 so IN AL,0x60 returns this scancode
                 ports.kbd_scancode = sc & 0xFF
                 # Set BIOS shift flags at 0040:0017
-                if 0x41 <= asc <= 0x5A:  # uppercase letter
+                if len(event) > 2:  # Explicit BIOS modifier/toggle flags for this event
+                    mem.data[0x417] = event[2] & 0xFF
+                elif 0x41 <= asc <= 0x5A:  # uppercase letter
                     mem.data[0x417] = 0x02  # left shift
                 else:
                     mem.data[0x417] = 0x00

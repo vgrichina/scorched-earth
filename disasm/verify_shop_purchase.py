@@ -27,7 +27,7 @@ import {WEAPONS} from './web/js/weapons.js';
 import {getTeamScore,resetTeamScores} from './web/js/team-scoring.js';
 let input='';for await(const c of process.stdin)input+=c;
 console.log(JSON.stringify(JSON.parse(input).map(c=>{
- Object.assign(config,{teamMode:c.mode,freeMarket:0});resetTeamScores();initMarket();
+ Object.assign(config,{teamMode:c.mode,freeMarket:0,armsLevel:4,uselessItems:1});resetTeamScores();initMarket();
  const team=getTeamScore(0);Object.assign(team,{type:c.kind,cash:c.teamCash});
  const p={team:0,cash:c.cash,inventory:Array(50).fill(0)};p.inventory[c.item+2]=c.quantity;
  const purchased=buyWeapon(p,c.item+2),w=WEAPONS[c.item+2];

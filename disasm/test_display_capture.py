@@ -14,6 +14,25 @@ from emu.ports import PortIO
 
 
 class DisplayCaptureTest(unittest.TestCase):
+    def test_bios_reset_and_vertical_scan_repetition(self):
+        ports=PortIO()
+        ports.crtc_regs[:25]=[0xFF]*25
+        ports.set_mode(0x13)
+        self.assertEqual(ports.get_resolution(),(320,200))
+        ports.seq_regs[4]=6
+        self.assertEqual(ports.get_resolution(),(320,200))
+        ports.crtc_regs[0x12]=0xDF;ports.crtc_regs[0x07]=0x3E
+        self.assertEqual(ports.get_resolution(),(320,240))
+        ports.crtc_regs[0x09]=0x40
+        self.assertEqual(ports.get_resolution(),(320,480))
+        ports.crtc_regs[0x09]=0xC0
+        self.assertEqual(ports.get_resolution(),(320,240))
+        ports.crtc_regs[0x01]=89
+        self.assertEqual(ports.get_resolution(),(360,240))
+        ports.set_mode(0x13)
+        self.assertEqual(ports.crtc_regs[0x0C:0x0E],[0,0])
+        self.assertEqual(ports.crtc_regs[0x01],79)
+
     def test_visible_planar_page_and_linear_memory(self):
         for planar in (False, True):
             with self.subTest(planar=planar):

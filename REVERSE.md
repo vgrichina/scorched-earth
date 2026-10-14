@@ -4719,7 +4719,7 @@ then add `,...,data/<type>` to the matching label row.
 ### RE Investigation (from session 137)
 - [x] Trace BOMB_ICON effect on projectile rendering: **DONE** (session 136). DS:0x51A2=BOMB_ICON (0=Small, 1=Big, 2=Invisible-transitional), DS:0x514E=BOMB_INVISIBLE_FLAG. Init at 0x2B471 sets draw far-ptr: Small→1A4A:1A3B (1px dot, file 0x228DB), Big→1A4A:1B74 (5px cross, file 0x22A14). Both functions check DS:0x514E==1 and return without drawing (Invisible mode). Invisible at runtime = BOMB_ICON=0 + DS:0x514E=1 (set by menu cycling at 0x3D908). Web fix: `drawAllProjectiles` in main.js now checks `config.bombIcon` — skip head drawing if 2 (Invisible), draw single pixel if 0 (Small), draw cross if 1 (Big). Labels added: DS:0x514E=BOMB_INVISIBLE_FLAG.
 - [x] Trace TUNNELLING effect on physics: **DONE** (session 136). DS:0x513A=TUNNELLING (0=Off, 1=On). Checked in extras.cpp terrain-collision handler at file 0x224F7. When TUNNELLING=1 AND projectile is not homing (DS:E1E4/E1E6 == 0:0) AND shooter's player[+0x4A]!=0 AND no super_mag override (DS:1C76==0): applies MAG_DAMP_COEFF (DS:1D54=0.75) × velocity each terrain hit; absorbs (no explosion) if vx²+vy² < MAG_ABSORB_THRESHOLD (DS:1D58=2000.0). Tunneling borrows the same damping constants as the Mag Deflector shield. Homing missiles (Heat Guidance) cannot tunnel. Web fix: physics.js `stepSingleProjectile` terrain hit branch calls `applyMagDamping` instead of returning `hit_terrain` when `config.tunneling` is true and `!proj.heatTarget`.
-- [x] Trace USELESS_ITEMS effect on shop: **DONE (session 137)**. DS:0x50FE = USELESS_ITEMS is a **dead config flag in v1.50** — it has no gameplay effect on the shop. Full audit: (1) Only read via `FF 36 FE 50` (PUSH [0x50FE]) at 0x3C677 when building the PlayOptions config dialog to display current checkbox value; (2) Written back via `A3 FE 50` at 0x3CF3A after user toggles the "~Useless Items" checkbox in PlayOptions dialog; (3) Also read in config writer at 0x1B02E and 0x1D818 to control CFG file output format. (4) Exhaustive search for actual gameplay reads: `A1 FE 50` (MOV AX) = 0 hits; `8A 06 FE 50` (MOV AL) = 0 hits; `83 3E FE 50` (CMP [50FE],imm) = only 2 hits, both in config writer; `8B 06/1E FE 50` = 0 hits; `FF 36 FE 50` = only 1 hit (dialog builder). All "(CMP)" annotations from xref.py were false positives (`cmp si, 0x0050` = bytes 83 FE 50). (5) The dialog toggle handler at 0x3F19:0x17D0 (file 0x47360) is a draw callback, not a gameplay filter. **Conclusion**: USELESS_ITEMS is a planned-but-never-implemented or removed feature in v1.50. The web port correctly needs no USELESS_ITEMS shop filter. No web fix needed.
+- [ ] Trace USELESS_ITEMS effect on shop: **Session 137 conclusion below is superseded by the native equipment-init disassembly and shop paging captures documented at the end of this file. DS:50FE is live; 1D818 bypasses context filters when enabled.** Historical claim (incorrect): DS:0x50FE = USELESS_ITEMS is a **dead config flag in v1.50** — it has no gameplay effect on the shop. Full audit: (1) Only read via `FF 36 FE 50` (PUSH [0x50FE]) at 0x3C677 when building the PlayOptions config dialog to display current checkbox value; (2) Written back via `A3 FE 50` at 0x3CF3A after user toggles the "~Useless Items" checkbox in PlayOptions dialog; (3) Also read in config writer at 0x1B02E and 0x1D818 to control CFG file output format. (4) Exhaustive search for actual gameplay reads: `A1 FE 50` (MOV AX) = 0 hits; `8A 06 FE 50` (MOV AL) = 0 hits; `83 3E FE 50` (CMP [50FE],imm) = only 2 hits, both in config writer; `8B 06/1E FE 50` = 0 hits; `FF 36 FE 50` = only 1 hit (dialog builder). All "(CMP)" annotations from xref.py were false positives (`cmp si, 0x0050` = bytes 83 FE 50). (5) The dialog toggle handler at 0x3F19:0x17D0 (file 0x47360) is a draw callback, not a gameplay filter. **Conclusion**: USELESS_ITEMS is a planned-but-never-implemented or removed feature in v1.50. The web port correctly needs no USELESS_ITEMS shop filter. No web fix needed.
 - [x] Trace FLATLAND effect on terrain generation: **DONE (session 138)**. DS:0x5172=FLATLAND (config key "FLATLAND", DS:0x048F). The FLATLAND flag maps to `LandGenerator.flatten_peaks` (+0x0E). In the random walk kernel (file 0x29808), after computing `walk_delta`, if `flatten_peaks && (walk_delta < -3 || walk_delta > 3)` → `walk_delta = 0`. This suppresses extreme slope steps, creating flatter terrain. FLATLAND is NOT directly read in terrain_gen_main — it's set into the LandGenerator struct before calling the walk kernel. The terrain random-init at file 0x29562 (1F7F:3372) calls `rand(2)→DS:5172, rand(100)→DS:516E, rand(100)→DS:5170` each round (RANDOM_LAND behavior). Also corrected: bumpChance in generateRolling was using `config.land1` instead of `config.land2`. **Web fix**: terrain.js `generateRolling()` — changed `bumpChance = config.land2` (was `config.land1`), added `if (flattenPeaks && (walkDelta < -3 || walkDelta > 3)) walkDelta = 0`. Also corrected REVERSE.md LAND1/LAND2/FLATLAND DS offset table (was wrong). **Files**: web/js/terrain.js, REVERSE.md.
 - [x] Trace USELESS_ITEMS shop filter: **DONE (session 137)** — see above. Dead flag, no shop filter in EXE.
 - [x] Fix labels.csv: DS:0x5172 already labeled "FLATLAND" — confirmed correct (config key "FLATLAND" at DS:0x048F, config parser writes DS:0x5172 at file 0x1A14B). No change needed.
@@ -10869,3 +10869,587 @@ This verifies opening at 360x480 with one owned item, with the ending DAC phase
 aligned. Keyboard navigation, mouse selection/activation, selling, additional
 inventory sizes, conditional Fuel Tank inclusion and other resolutions remain
 unverified against native behavior.
+
+### Inventory keyboard navigation
+
+Native `0x3E1D3` wraps columns and rows independently, including blank cells.
+Home/End select the first/last column; Page Up/Down select the first/last row.
+The port previously clamped a flat item index and ignored those four keys.
+Native `0x3E72B` rejects selling native weapon 0 (Baby Missile), even when owned;
+the port now rejects that keyboard activation too.
+
+`verify_shop_inventory.py` runs cumulative production input against native
+keyboard IRQ press/release and mouse polling, comparing full RGB frames after
+each action. Opening, all eight navigation keys, Enter on Baby Missile, and
+Escape pass in both a two-item single-row and six-item two-row inventory:
+**22 comparisons, each 172,800/172,800 pixels**. The six-item fixture comes from
+actual native purchases of Missile, Baby Nuke, Nuke, LeapFrog and Funky Bomb.
+
+```
+python3 disasm/verify_shop_inventory.py /tmp/scorched-shop-bought-missile.state
+python3 disasm/verify_shop_inventory.py /tmp/scorched-inventory-extra-3.state --output-dir /tmp/scorched-inventory-six-input
+```
+
+The capture helper now supports `--key` scan codes and skips speaker waits;
+key release scheduling persists across intercepted calls. The renderer accepts
+repeated `--shop-click` and `--shop-key` arguments. Checkpoint extraction restores
+DS:CAB6 selection plus DS:CAC2 scroll offset, which fixed the missing selected-row
+marker in shop captures after purchases. Comparison aligns the ending DAC phase
+and excludes cursor drawing, speaker timing and wall-clock palette timing.
+
+A native left click on an owned Missile in Inventory immediately opens selling;
+the current port only selects it. The native selling capture is
+`/tmp/scorched-shop-sell-missile.png` (from click 165,267 in
+`/tmp/scorched-shop-two-inventory.state`). Mouse activation and the selling
+renderer/input still need correction. Larger grids, conditional Fuel Tank
+inclusion and other resolutions remain unverified. Initial-shop and menu
+resolution regression checks pass after this change.
+
+### Inventory mouse activation and selling flow
+
+Left-clicking an owned, sellable Inventory cell now opens selling immediately.
+The selling renderer follows native `0x37CA0` widgets and `0x37A60` paint:
+centered title/name/stock, paired shaded weapon icons, an unboxed quantity
+spinner, centered currency offer, and Accept/Reject buttons. The initial Missile
+fixture has inclusive bounds (116,184)..(242,294), replacing the invented
+240x106 layout. Button hit regions now follow the rendered native layout.
+
+Native captures confirm left clicking Quantity decrements, wrapping 1 to the
+amount owned, regardless of vertical position within the widget. Extended
+Up/Down keys leave the quantity unchanged; the native custom callback registers
+-0x48/-0x50, unlike Inventory's extended -0x148/-0x150. Those extended keys no
+longer alter the port quantity. Other keyboard shortcuts and right-click
+quantity changes still need verification.
+
+The Inventory grid retains its original item slots after selling: depleted
+items leave blank cells. Native refreshes cash and Inventory quantities while
+leaving shop-list quantities underneath unchanged. Closing Inventory after a
+cash change refreshes that list and resets its selection/scroll to zero; closing
+without a cash change preserves selection. The port now follows those stages.
+
+```
+python3 disasm/verify_shop_sell.py /tmp/scorched-shop-bought-missile.state
+```
+
+This fixture starts with five Missiles purchased through native shop input.
+**11 full-frame RGB comparisons pass, 172,800/172,800 pixels each**: opening
+Inventory, mouse activation, unchanged Down/Up, rejecting, reopening, selling
+one, reopening, wrapping quantity to the remaining four, selling all four, and
+closing Inventory. A separate Funky Bomb opening from the six-item fixture
+also matches all pixels (`/tmp/scorched-sell-funky.png` and
+`/tmp/scorched-funky-port.png`), including shaded colored icons and `$2,800`.
+
+The verifier uses native execution and production port input with ending DAC
+phase alignment; cursor, speaker waits and wall-clock animation remain excluded.
+The mouse capture helper accepts `--hold-polls` for additional input probes.
+Inventory keyboard comparisons (11 one-row frames), initial-shop transition
+and menu resolution checks still pass. These checks do not cover all items,
+larger dialog widths, right clicks, all sale hotkeys, dragging or other screen
+resolutions. The earlier note that mouse activation/selling rendering are wholly
+uncorrected is superseded by this verified subset.
+
+### Selling controls and BIOS modifier oracle correction
+
+Selling now handles right-click quantity increments with wraparound and Q
+increments; A accepts, R/Escape reject, and Enter/Space leave the dialog open.
+Right clicks also activate Accept/Reject buttons. The DOM input layer represents
+right mouse clicks as bit 4 (`1 << event.button`), whereas the native driver uses
+bit 2; the screenshot verifier maps those representations explicitly.
+
+Tracing inconsistent Q results found a bug in the Python emulator:
+`get_shift_state` at `0x4B854` invokes INT 16h/AH=02h, which was unimplemented.
+Its unchanged AL could falsely report Alt (bit 3), making native dialog dispatch
+at `0x46274` reverse spinner direction. The emulator now reads AL from BIOS
+0040:0017. `test_bios_keyboard_flags.py` verifies all 256 flag combinations with
+three incoming AL values (768 cases). The port was not changed to reproduce the
+false Alt behavior. Actual Alt+Q remains to be implemented/verified.
+
+```
+python3 disasm/test_bios_keyboard_flags.py
+python3 disasm/verify_shop_sell.py /tmp/scorched-shop-bought-missile.state --controls --output-dir /tmp/scorched-sell-controls
+```
+
+All **21 control-flow screenshots match 172,800/172,800 RGB pixels**. The sequence
+covers right/Q increases, left decreases, both wrap directions, unchanged
+Enter/Space, R rejection, A acceptance, Escape rejection, right-click acceptance
+and Inventory closure. The existing 11-frame sell-flow and 11-frame two-row
+Inventory navigation comparisons also pass with corrected BIOS flags. Initial
+shop/menu regression checks and whitespace checks pass. The capture helper now
+accepts native `--button` and `--ascii` inputs; rendering accepts an optional
+third `--shop-click` component for the port button mask. Palette phase remains
+aligned and cursor/speaker/wall-clock behavior remains outside these checks.
+
+### Alt quantity shortcut and Inventory layout thresholds
+
+Alt+Q decrements the selling quantity, wrapping one to available stock, as
+native dialog dispatch at `0x46274` tests BIOS Alt bit 3. Both Alt keys now
+reverse Q in the port. The screenshot input accepts `Alt+KeyQ`; the native
+capture accepts `--modifiers` BIOS flags. Scheduled emulator keys support an
+optional third tuple element for explicit flags while preserving the previous
+two-element behavior. BIOS flag tests additionally verify legacy lowercase,
+uppercase, explicit Alt press/release and clearing flags.
+
+The selling `--controls` sequence now includes Alt wrap/decrement and return
+through plain Q: **25 full 360x480 RGB comparisons pass**. This supersedes the
+previous note that Alt+Q was not implemented. It does not prove all Alt hotkeys.
+
+`capture_shop_inventory.py` injects varied positive counts into the current
+player's inventory, then uses native category switches to repaint the shop.
+These are explicit rendering fixtures, not claims of actual purchases.
+`verify_inventory_layouts.py` opens Inventory around every column threshold:
+**16, 17, 25, 26, 36, 37 and 48 owned items all match 172,800/172,800 pixels**.
+The 48-item fixture also passes the full 11-frame keyboard navigation sequence.
+This covers four through seven columns, varied quantities, all item icons,
+multiple rows and empty trailing grid cells at 360x480.
+
+```
+python3 disasm/verify_shop_sell.py /tmp/scorched-shop-bought-missile.state --controls --output-dir /tmp/scorched-sell-alt-controls
+python3 disasm/verify_inventory_layouts.py /tmp/scorched-shop-next.state
+python3 disasm/capture_shop_inventory.py /tmp/scorched-shop-next.state /tmp/scorched-inventory-48 48
+python3 disasm/verify_shop_inventory.py /tmp/scorched-inventory-48-ready.state --output-dir /tmp/scorched-inventory-48-compare
+```
+
+Initial-shop/menu checks and `git diff --check` pass. Conditional inclusion of
+zero-stock Fuel Tanks, Inventory right-click descriptions, other resolutions,
+and wider selling dialogs still need native comparisons. All screenshot checks
+continue to align ending DAC phase and exclude cursor/speaker/wall-clock timing.
+
+### Selling dialog coverage across all items
+
+The all-items rendering fixture exposed incorrect button spacing when a larger
+stock count widened the selling dialog. Native `0x4A398` subtracts both button
+spans (right minus left) from dialog width, divides the remaining space into
+three integer gaps, then adds half the remainder to the first gap. The port now
+uses that calculation for both rendering and mouse hit regions instead of
+moving fixed button offsets by half the extra dialog width.
+
+`verify_sell_layouts.py` opens every sellable native item (indices 1..47) from
+the same 48-item Inventory fixture. **All 47 complete 360x480 RGB frames match
+172,800/172,800 pixels**, covering varied stock quantities, item-name widths,
+shaded icons and offer formatting. Baby Missile (index 0) is intentionally
+excluded because native prohibits its sale, verified separately.
+
+```
+python3 disasm/verify_sell_layouts.py /tmp/scorched-inventory-48-ready.state
+python3 disasm/capture_shop_inventory.py /tmp/scorched-shop-next.state /tmp/scorched-wide-sale 2
+python3 disasm/verify_shop_sell.py /tmp/scorched-wide-sale-ready.state --output-dir /tmp/scorched-wide-sale-flow
+```
+
+The two-item fixture owns 19 Missiles, producing a wider dialog. Its **11 full
+sale-flow screenshots also match**, including reject/accept hit regions,
+partial sale, wrap to remaining stock, selling the remainder and Inventory
+closure. These fixtures inject stock before native repaint; they do not prove
+a continuous session acquiring those quantities. The sale-flow verifier now
+accepts any initial Missile stock of at least two. Initial-shop/menu regressions
+and whitespace checks pass. Low-resolution dialog geometry, zero-stock special
+item inclusion, descriptions and broader gameplay remain unverified.
+
+### Fractional fuel with zero whole Fuel Tanks
+
+Native Inventory builder `0x3E328` includes Fuel Tank even at zero stock when
+`0x31249` returns positive energy: whole tanks * 10 + tank struct +AA. The port
+now includes this entry and draws its zero quantity/icon. Checkpoint extraction
+and shop rendering preserve `fuelEnergy` from +AA. Sale activation still rejects
+zero whole tanks.
+
+When the final whole tank is sold, native leaves that grid slot blank until
+Inventory is reopened; the reopened dialog shows zero stock if fractional
+energy remains. The port distinguishes initially zero stock from a slot depleted
+during the current dialog to reproduce this repaint behavior.
+
+`verify_inventory_fuel.py` passes **19 full 360x480 RGB comparisons**, each
+172,800/172,800 pixels: 1/16/25/36 owned items with 0/1/9 fractional energy (12
+openings across column thresholds), followed by seven frames opening Inventory,
+selling the final whole tank with seven energy remaining, closing/reopening,
+and rejecting mouse/Enter activation of zero stock. Stock/energy are explicitly
+injected fixtures; this does not verify the gameplay path consuming that fuel.
+
+The final-tank fixture also exposed an incorrect minimum selling-dialog width:
+stock `1` uses a five-pixel numeral and a 125-pixel coordinate span, while stock
+`5` needs 126. Width now derives from actual widgets without that fixed minimum.
+
+```
+python3 disasm/verify_inventory_fuel.py /tmp/scorched-shop-next.state
+```
+
+The 12 opening checks passed before the independent selling-width correction;
+the seven sale frames were rerun with `--sale-only` afterward and passed.
+Initial-shop/menu regressions and whitespace checks pass. Descriptions, other
+resolutions and broader gameplay comparisons remain outstanding.
+
+### Inventory Description dialogs and shop mouse activation
+
+Native `0x269ED` builds a Description dialog with title, item name, separator
+and Done button. This executable does not populate its body with explanatory
+text. Inventory right-click now opens that dialog, including for Baby Missile.
+The popup uses native text-dependent width and centered widgets; Done's
+coordinate uses upward rounding when the remaining width is odd. Enter, D,
+Escape and either mouse button on Done dismiss it; Space leaves it open.
+
+```
+python3 disasm/verify_sell_layouts.py /tmp/scorched-inventory-48-ready.state --descriptions --output-dir /tmp/scorched-description-layouts
+```
+
+**48 Description openings and five dismissal captures all match full RGB
+frames (172,800/172,800 pixels)**. A separate Space capture also matches with
+the popup unchanged. The inventory fixture injects owned counts; comparisons
+exercise actual native dialog input and the production port renderer, with
+ending DAC phase aligned as before.
+
+A separate native probe confirmed shop-list right clicks buy items, unlike
+Inventory right clicks. Both left and right clicks select an unselected shop
+row and immediately purchase its bundle. The port previously required a second
+left click and ignored right clicks. Both paths now buy immediately. Full-frame
+comparisons from `/tmp/scorched-shop-next.state` at (90,80) pass for left and
+right buttons, with Missile stock 0 -> 5 and cash 1,000,000 -> 998,125.
+The `verify_shop_selector.py` comparison helper now accepts `--button 2` for
+the native-right/DOM-right mask mapping.
+
+```
+python3 disasm/verify_shop_selector.py /tmp/scorched-shop-next.state /tmp/scorched-shop-bought-missile.state 90 80 --output-dir /tmp/scorched-shop-left-buy-compare
+python3 disasm/verify_shop_selector.py /tmp/scorched-shop-next.state /tmp/scorched-shop-description.state 90 80 --button 2 --output-dir /tmp/scorched-shop-right-buy-compare
+```
+
+The second native filename reflects the initial probe's purpose; it is a
+purchase capture, not a Description popup. Initial-shop/menu regression and
+whitespace checks pass. These comparisons do not establish all mouse boundary,
+held/drag, low-resolution, palette timing or gameplay behavior.
+
+### Shop item click boundaries
+
+Native row widgets accept x=12..178 inclusive and twelve vertical pixels from
+each text baseline (for Missile, y=75..86). The surrounding bevel and gaps are
+not clickable. The previous port accepted left clicks in wider panel regions,
+row gaps and below the last displayed item; its separate right-click bounds
+also included bevel pixels. Both buttons now use the same text-rectangle hit
+check, limited to visible rows, before selecting/purchasing an item.
+
+```
+python3 disasm/verify_shop_row_bounds.py /tmp/scorched-shop-next.state
+```
+
+**48 full-frame RGB comparisons pass**, 24 points for each button, each with
+172,800/172,800 pixels matching. Cases cover both horizontal boundaries and
+adjacent outside pixels, top/bottom row edges, gaps, first and last displayed
+rows, and below the final displayed row. Native captures run actual input;
+ending palette phase is aligned and cursor/speaker/wall-clock timing excluded.
+Initial-shop/menu regressions and whitespace checks pass. This does not prove
+scrollbar/action-button boundaries, dragging, other resolutions or gameplay.
+
+
+### Shop paging and Earth Disrupter availability
+
+Native arrow clicks move an entire page, wrap at either end, and select the
+first item on the new page. Both mouse buttons work; the gap between arrows
+ignores clicks. The port now follows these rules instead of scrolling one row
+and treating the gap as page navigation.
+
+The second page exposed an extra Earth Disrupter in the port. Equipment init
+1D818 checks USELESS_ITEMS at DS:50FE and bypasses context filters when enabled.
+Otherwise 1D822..1D838 removes the item named by DS:2010 (Earth Disrupter) when
+DS:5158 is 100. The config dialog at 3CA87..3CA96 stores 100 minus Suspend Dirt
+there. Thus the port hides this item when Suspend Dirt is zero and Useless Items
+is off. State extraction now carries both settings into screenshot rendering.
+Older claims that DS:5158 is scoring, DS:5168 is Useless Items, or USELESS_ITEMS
+is dead are incorrect: DS:5168 is TRACE. Other context filters remain to port.
+
+Seven full-frame comparisons pass at 360x480, each 172800/172800 RGB pixels:
+down, right-button down, inert gap, up, down wrapping to first page, up wrapping
+to last page, and paging from a nonzero selection. Captures are
+`/tmp/scorched-shop-scroll-{down,right,gap,up,end,up-wrap,selected}.state`;
+comparisons use `disasm/verify_shop_selector.py` with their starting checkpoint.
+The down comparison images are in `/tmp/scorched-scroll-compare/`.
+These checks align the ending native palette and exclude cursor and wall-clock
+animation timing. Arrow boundaries, held/drag input, other resolutions and the
+remaining configuration-dependent availability rules are not established.
+Initial-shop, menu-resolution, and BIOS-keyboard regressions pass.
+
+### Native equipment context filters and empty shop categories
+
+The full context filter from equip_init 1D7E6..1D904 is now used by shop lists,
+purchase rejection and AI candidate lists. Arms-level limits always apply.
+With Useless Items off, native removes Earth Disrupter when Suspend Dirt is
+zero, Smoke Tracer when TRACE is on, Parachute when Falling Tanks is off, and
+Contact Trigger when Tunneling is off. Simultaneous play additionally removes
+Fuel Tank, Contact Trigger, all four guidance items, and Lazy Boy; synchronous
+play removes Auto Defense. Useless Items bypasses these context filters, but
+not arms limits. Native buy_weapon 14948 checks the resulting availability flag
+before checking inventory/cash. Port purchase rejection now follows that rule.
+
+`verify_shop_availability.py /tmp/scorched-shop-next.state` executes the native
+routine for 720 configurations (all five arms levels, both Useless Items values,
+Suspend Dirt 0/50/100, both TRACE/Falling/Tunneling values, and three play modes).
+All 48 availability flags match for every case; unavailable port purchases also
+leave cash/inventory unchanged. This does not establish AI random-choice order.
+
+`verify_shop_filter_frames.py /tmp/scorched-shop-next.state` checks both tabs in
+five representative configurations. All ten full RGB frames match at 360x480
+(172800 pixels each). Settings are injected before native equip_init; actual
+native tab clicks then rebuild and paint the lists. Ending palette phase is
+aligned, and cursor/wall-clock timing excluded. These are not config-dialog
+interaction tests. The empty arms-0 Miscellaneous list revealed that native
+still paints its nine-pixel selection marker; the port now does too.
+
+State extraction/rendering now carries Suspend Dirt, Useless Items, TRACE,
+Falling Tanks, Tunneling and Play Mode. Purchase/sale verification explicitly
+sets arms 4 and Useless Items on to match its deliberately enabled native items:
+580 purchases and 1160 subsequent sales still match. Initial-shop and menu-mode
+regressions pass. Other resolutions, scrollbar hit boundaries/held input,
+market initialization and broader gameplay/timing parity remain open.
+
+### Shop scrollbar boundaries and page-local keyboard navigation
+
+`verify_shop_scroll_bounds.py` checks 27 arrow-edge/gap coordinates with each
+mouse button. Both the initial Weapons page and a filtered Miscellaneous page
+with disabled arrows pass: **108 full RGB frames**, 172800 pixels each. Native
+hit rectangles agree with x=200..214, y=52..65 and y=452..465 at 360x480. Gap
+clicks and disabled arrows are inert. Held/drag input remains unverified.
+
+Native dispatch 152E9 keeps Up/Down within the current visible page, wrapping
+between its first/last item; Home/End select those endpoints. Page Up/Down use
+the same whole-page wrapping and selection reset as the mouse arrows. The port
+previously clamped Up/Down at the whole-list limits and scrolled one row, and
+lacked Home/End/Page bindings. It now shares page changes with the click handler
+and implements native page-local row selection.
+
+`verify_shop_keys.py` compares Up/Down/Home/End/PageUp/PageDown/Left/Right from
+five starting states: first page first row, first page last row, second page
+first row, second page last row, and empty Miscellaneous. All **40 frames**
+match. Its `--sequence` mode additionally passes eight consecutive keys each
+from the initial shop and empty Miscellaneous (**16 frames**). Horizontal arrows
+remain inert. Native capture uses the real key dispatch; port uses real input.
+
+Empty-list Up/End selects signed row -1. Native arrow drawing reads the words
+preceding its coordinate table (CAC2 scroll offset, CAC4 last-visible=-1), then
+passes unsigned X values 65530..65532 to the VGA line writer. A breakpoint on
+the line routine confirms the first point's arguments [65532,5,65532,5]. At
+360x480 the resulting arrow wraps into x=10..12,y=185..189. The port reproduces
+this coordinate wrapping and the native flat-background erase, including its
+five changed bevel pixels after returning to row zero. A list rebuild clears
+the erase artifact. Signed selection export now preserves -1 in snapshots.
+This is verified in the current Mode-X setup; other graphics modes still need
+native captures. Snapshot rendering does not yet reconstruct erase history
+when starting from an already-erased artifact checkpoint.
+
+Validation commands (input-ready native checkpoints):
+```
+python3 disasm/verify_shop_scroll_bounds.py /tmp/scorched-shop-next.state
+python3 disasm/verify_shop_scroll_bounds.py /tmp/scorched-shop-filter-frames/0-misc.state --output-dir /tmp/scorched-shop-scroll-disabled
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-next.state
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-scroll-down.state --output-dir /tmp/scorched-shop-keys-page2
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-keys/ArrowUp.state --output-dir /tmp/scorched-shop-keys-last-row
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-keys-page2/End.state --output-dir /tmp/scorched-shop-keys-page2-last
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-filter-frames/4-misc.state --output-dir /tmp/scorched-shop-keys-empty
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-next.state --sequence --output-dir /tmp/scorched-shop-keys-sequence
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-filter-frames/4-misc.state --sequence --output-dir /tmp/scorched-shop-keys-empty-sequence
+```
+Ending palette phase is aligned and cursor/speaker/wall-clock timing excluded.
+Initial-shop/menu-resolution regressions and whitespace checks pass. Action
+buttons, held/drag input, other resolutions and broader gameplay parity remain.
+
+### Shop Update summary and right-button actions
+
+Native Update callback 14FF8 opens 42F20 with shop-mode argument 1; it is not a
+list refresh. The port now opens the native 150x55 summary, centered on the
+screen, with title/separator, rounds fought and earned-interest text. The
+underlying Update button is sunken and the other action labels are disabled
+until dismissal. The current page/selection remain unchanged. U and either
+mouse button open it. The interest value is the player's own +C2 field
+(get_player_interest 1736E), independent of Corporate cash ownership.
+
+Real native probes show Escape or either mouse button outside the popup closes
+it. Enter, Space, Up, A and clicks inside leave it open. Dismissal input is
+consumed rather than passed through to underlying shop controls. Popup dragging
+and exact dismissal-edge coordinates remain unverified.
+
+`verify_shop_update.py` compares three opening paths, five key responses and
+four inside/outside mouse responses. All **24 full RGB comparisons** pass across
+the second Weapons page with zero interest and the existing injected-interest
+fixture (300000 / 90000 player balances):
+```
+python3 disasm/verify_shop_update.py /tmp/scorched-shop-scroll-down.state
+python3 disasm/verify_shop_update.py /tmp/scorched-shop-interest.state --output-dir /tmp/scorched-shop-update-interest
+```
+Each frame matches 172800/172800 pixels. The interest fixture is rendering
+coverage, not a claim of continuous gameplay history. Update uses config.rounds,
+the live application's round-count setting; the screenshot harness now restores
+that setting alongside its legacy numRounds field.
+
+Shop mouse input now shares action dispatch for both buttons. Additional full
+RGB comparisons pass for right-click Inventory and the right-click category
+selector. Done now uses this shared path too, but its right-click transition
+still needs a dedicated native exit comparison. Native captures align ending
+palette phase and omit cursor/speaker/wall-clock animation timing. Initial-shop
+and menu-resolution regressions pass. Button boundaries, held/drag behavior,
+other resolutions and broader market/gameplay parity remain open.
+
+### Shop action boundaries, mouse Done, and corrected keyboard bindings
+
+`verify_shop_action_bounds.py /tmp/scorched-shop-next.state` checks Update and
+Inventory left/right/top/bottom edges and neighboring gaps with both mouse
+buttons. **40 full RGB comparisons pass** at 360x480. Native hit rectangles
+agree with x=250..310, Update y=52..70 and Inventory y=77..95. These are settled
+click frames, not held/drag timing coverage.
+
+`verify_shop_exit.py` now accepts `--button 1` or `--button 2`. It supplies native
+mouse polls at Done (275,110), observes interest crediting followed by market
+update, compares personal/team cash and accumulated interest to the port's
+interest routine, then observes landscape generation followed by player-order
+setup. A separate real port mouse-event check confirms Done returns completion
+and closes the shop. This establishes exit ordering/state, not the transition's
+intermediate pixels. Both mouse-button paths pass.
+
+Additional native key probes corrected two existing mismatches: Tab switches
+Weapons/Miscellaneous and resets page/selection rather than finishing shopping;
+Backspace and Delete are inert in the main shop rather than opening Sell.
+Selling remains available through Inventory. The verifier now supplies the real
+ASCII values for Tab (9) and Backspace (8), and `--keys` selects extra probes.
+**Eight full RGB comparisons pass**: Tab/Backspace/Delete from the initial shop,
+Backspace/Delete with purchased Missiles selected, and three consecutive Tabs
+starting on page two. Sequence artifacts now have distinct step prefixes.
+
+```
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-next.state --keys Tab Backspace Delete --output-dir /tmp/scorched-shop-extra-keys
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-bought-missile.state --keys Backspace Delete --output-dir /tmp/scorched-shop-owned-extra-keys
+python3 disasm/verify_shop_keys.py /tmp/scorched-shop-scroll-down.state --keys Tab Tab Tab --sequence --output-dir /tmp/scorched-shop-tab-sequence
+python3 disasm/verify_shop_exit.py /tmp/scorched-shop-next.state --button 1
+python3 disasm/verify_shop_exit.py /tmp/scorched-shop-next.state --button 2
+```
+Initial-shop/menu-resolution regressions and whitespace checks pass. Screenshot
+comparisons align native palette phase and omit cursor/wall-clock timing.
+Done hit boundaries, held/drag input, other resolutions and broader gameplay
+remain unverified; the overall pixel-perfect goal is still open.
+
+### Done hit rectangle verification
+
+`verify_shop_done_bounds.py /tmp/scorched-shop-next.state` executes native mouse
+input around Done's edges and corners, and compares activation with real port
+mouse events. **48 cases pass** (24 coordinates, both buttons). The native hit
+rectangle is x=250..310, y=102..120 at 360x480. Inside clicks reach interest
+crediting; outside clicks remain in the shop input loop for 121 mouse polls.
+The port's returned completion flag and active state agree in every case.
+This is activation/state evidence, not intermediate-frame or held/drag proof.
+
+The existing menu checkpoints under `/tmp/scorched-menu-*.state` were inspected:
+all four are actually mode 4, 360x480, including the one named `menu-vga`.
+They cannot serve as lower-resolution evidence. Native graphics initialization
+at 45413 reads selected mode DS:6E26 and updates dispatch/bounds. A new capture
+must run native mode initialization and rebuild the shop rather than merely
+change PNG dimensions or reuse the old dialog geometry. Other-resolution shop
+captures remain an open next step.
+
+### First native 320x200 shop comparison
+
+The emulator lacked INT 10h AX=1A00 display-combination identification. Native
+Fastgraph calls it at 523CB and requires AL=1A, BL=08 to recognize color VGA.
+Previously it returned unchanged AL=0, so native graphics initialization for
+320x200 exited with "Unable to initialize graphics mode". The BIOS handler now
+reports the emulated color VGA display (BH=0, no secondary display).
+`test_bios_video_detection.py` checks register results and executes the native
+Fastgraph mode-19 probe for supported pages and its out-of-range rejection.
+Existing BIOS keyboard regression also passes.
+
+`capture_shop_mode.py` rebuilds a native shop in a chosen VGA mode from initialized
+players/economy. It runs graphics initialization 45413, clears the framebuffer
+through the native rectangle routine, runs player-palette setup 28592 and bounds/
+frame setup 2905D, then enters native shop 16068 with argument 0. DS:00EE is set
+to invalidate cached header positions. It stops at real dialog input polling.
+This is a constructed rendering fixture, not a boot/menu/mode-switch session
+proof; earlier data and palette state come from the checkpoint. The diagnostic
+capture attempts before bounds/frame/cache setup were incomplete fixtures and
+must not be used as port mismatch evidence.
+
+The screenshot harness incorrectly treated mode index 0 as "don't apply mode",
+keeping 360x480 even for a 320x200 checkpoint. It now applies mode 0 and resizes
+both buffers. With a valid native fixture, the remaining 229 differing pixels
+were the category selector: the port centered it three pixels too high when the
+240px cap did not apply. Native builder 15BBA averages the first and last row
+baselines. `getSelectorY` now uses that average without subtracting three.
+
+Full-frame RGB comparison passes at **320x200: 64000/64000 pixels**, and the same
+capture/rebuild path also passes at **360x480: 172800/172800 pixels**.
+```
+python3 disasm/capture_shop_mode.py /tmp/scorched-shop-next.state /tmp/scorched-shop-mode0 0
+python3 disasm/compare_pipeline.py /tmp/scorched-shop-mode0.state --state shop --output-dir /tmp/scorched-shop-mode0-compare
+python3 disasm/capture_shop_mode.py /tmp/scorched-shop-next.state /tmp/scorched-shop-mode4-rebuilt 4
+python3 disasm/compare_pipeline.py /tmp/scorched-shop-mode4-rebuilt.state --state shop --output-dir /tmp/scorched-shop-mode4-rebuilt-compare
+python3 disasm/test_bios_video_detection.py
+```
+Initial-shop/menu-mode and BIOS-keyboard regressions pass. Other modes, low-res
+input/modal sequences, dragging and broader gameplay/timing remain open.
+
+### Initial shop frames across all five VGA modes
+
+Native mode-1/2/3 graphics initialization initially retained the emulator's old
+360x480 CRTC registers, despite native bounds reporting the new dimensions.
+Port tracing confirmed Fastgraph modifies selected timing registers after BIOS
+mode 13h and relies on the BIOS defaults for the others. `PortIO.set_mode(13h)`
+now resets the standard CRTC register set, including horizontal width, vertical
+timing, scan-line repetition, stride and display-start address. Resolution
+extraction also divides by CRTC register 09's low-five-bit row repetition in
+addition to its double-scan bit. The old captures using stale timing were invalid
+fixtures and have been replaced. The mode capture now asserts its expected
+resolution immediately after graphics initialization.
+
+With corrected native captures, 320x240 and 320x480 matched immediately. At
+320x400, the port's three action buttons were spaced too far apart. Native
+15D37 compares FG_MAXY (height minus one) against 400; the port compared height
+against 400. `getExtraSpacing` now applies five extra pixels only for height
+strictly greater than 400. All five freshly rebuilt VGA shop frames now match:
+
+| Mode | Resolution | Matching RGB pixels |
+|---|---|---|
+| 0 | 320x200 | 64000/64000 |
+| 1 | 320x240 | 76800/76800 |
+| 2 | 320x400 | 128000/128000 |
+| 3 | 320x480 | 153600/153600 |
+| 4 | 360x480 | 172800/172800 |
+
+```
+python3 disasm/verify_shop_modes.py /tmp/scorched-shop-next.state
+python3 disasm/test_display_capture.py
+python3 disasm/test_bios_video_detection.py
+node disasm/test_initial_shop.mjs
+node disasm/test_main_menu_mode.mjs
+```
+The new mode verifier creates native states and native/port/diff PNGs under
+`/tmp/scorched-shop-vga-modes/`. Display-capture tests cover BIOS reset, row
+repetition, double-scan, visible planar pages and linear framebuffer extraction.
+BIOS video detection, shop/menu regressions and whitespace checks pass.
+
+These are initial-frame rendering fixtures using existing initialized players
+and economy, not boot-to-shop or interactive mode-switch evidence. Low-resolution
+modal/input sequences, SVGA modes, dragging, palette timing and broader gameplay
+parity remain open.
+
+### VGA Inventory, Update and Sell modal sequences
+
+The Inventory and Update harnesses now use resolution-aware action-button and
+inside/outside click coordinates. At each of 320x200, 320x240, 320x400 and
+320x480, all 11 Inventory frames and all 12 Update frames match native RGB.
+Together with the earlier 360x480 checks, these sequences cover all five VGA
+modes. They exercise opening, navigation and dismissal from rebuilt shop
+fixtures, with ending palette phase aligned; cursor and wall-clock timing are
+excluded.
+
+The 320x200 Sell opening exposed 2462 differing pixels: the port hardcoded a
+110-pixel dialog height and button top offset 82. Native dialog auto-sizing
+(37CA0, 4926B) includes the resolution-dependent button border. Sell now uses
+height 107 + border and button top 85 - border (border 2 below 400 pixels,
+3 otherwise), keeping the text baseline at 85. Rendering and hit testing use
+the same button offset. The Sell harness translates its fixture coordinates
+for each VGA size. All 25 control frames pass at each of the five VGA
+resolutions (125 full-frame comparisons), including quantity wrap, Alt+Q,
+left/right clicks, ignored Enter/Space, rejection and successful sales. BIOS
+keyboard/video, display-capture, initial-shop and menu-mode regressions pass.
+
+Reproduction (repeat mode 0 through 4):
+```
+python3 disasm/capture_shop_mode.py /tmp/scorched-shop-bought-missile.state /tmp/scorched-shop-mode0-owned 0
+python3 disasm/verify_shop_sell.py /tmp/scorched-shop-mode0-owned.state --controls --output-dir /tmp/scorched-sell-mode0
+```
+
+Still open: Description dialogs outside 360x480, SVGA, held/dragged input,
+continuous session and palette timing, market initialization, and broader
+weapon/death-effect parity. These checks do not establish whole-game pixel
+perfection.

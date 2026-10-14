@@ -11,21 +11,53 @@ from emu_dialog_key import deliver_key
 from pathlib import Path
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('checkpoint',help='Input-ready final human shop checkpoint')
+parser.add_argument('--button',type=int,choices=[1,2],help='Click Done using a native mouse button instead of D')
 args=parser.parse_args()
 mem,cpu,ports=Memory(),CPU(),PortIO();ports.mem=mem
 handler=InterruptHandler(mem,cpu,str(Path(__file__).resolve().parent.parent/'earth'),ports)
 load_state(args.checkpoint,cpu,mem,ports,handler)
 kw=dict(timer_period=1000,tick_addr=(cpu.segs[3]<<4)+0xEE78,isr_divisor=200)
-deliver_key(cpu,mem,ports,handler,0xa0,0)
-reason,count=run_fast(cpu,mem,ports,handler,3000000,bp_set={0x460c3-0x6100,0x28b31-0x6100},**kw)
-assert reason=='breakpoint',(reason,count)
 points={0x176dd-0x6100,0x2bb5e-0x6100,0x2927e-0x6100,0x2ae53-0x6100}
-deliver_key(cpu,mem,ports,handler,0x20,100)
-reason,count=run_fast(cpu,mem,ports,handler,2000000,bp_set=points,**kw)
-if reason=='max_steps':
-    # Dialog completion waits for key release.
+if args.button:
+    # Supply the mouse driver's position/button polls, then stop at interest.
+    polls={0x4bda3-0x6100,0x4be8c-0x6100,0x4c117-0x6100}
+    for tick in range(400):
+        reason,count=run_fast(cpu,mem,ports,handler,3000000,bp_set=points|polls,**kw)
+        assert reason=='breakpoint',(reason,count)
+        address=cpu.segs[1]*16+cpu.ip
+        if address in points:break
+        sp=cpu.segs[2]*16+cpu.regs[4]
+        if address==0x4bda3-0x6100:
+            for i,value in enumerate((275,110)):
+                mem.write16(mem.read16(sp+4+i*4)+16*mem.read16(sp+6+i*4),value)
+        cpu.regs[0]=args.button if tick<60 else 0
+        cpu.ip=mem.read16(sp);cpu.segs[1]=mem.read16(sp+2);cpu.regs[4]+=4
+    else:raise AssertionError('Done did not leave the shop')
+    subprocess.run(['node','--input-type=module','-e',r"""
+import assert from 'node:assert/strict';
+import {players,createPlayers} from './web/js/tank.js';
+import {openShop,shopTick,isShopActive} from './web/js/shop.js';
+import {initInput} from './web/js/input.js';
+const events={};globalThis.window={addEventListener(){}};
+initInput({addEventListener(name,callback){events[name]=callback;},
+ getBoundingClientRect(){return {left:0,top:0,width:360,height:480};}});
+createPlayers(2);players[0].aiType=0;
+openShop(0,10,{showPrivacy:false});
+const e={button:Number(process.argv[1])===1?0:2,clientX:275,clientY:110,preventDefault(){}};
+events.mouseenter();events.mousemove(e);events.mousedown(e);
+assert.equal(shopTick(players[0]),true);assert.equal(isShopActive(),false);
+console.log('Port Done mouse input closes the shop.');
+""",str(args.button)],check=True,cwd=Path(__file__).resolve().parent.parent)
+else:
     deliver_key(cpu,mem,ports,handler,0xa0,0)
-    reason,count=run_fast(cpu,mem,ports,handler,12000000,bp_set=points,**kw)
+    reason,count=run_fast(cpu,mem,ports,handler,3000000,bp_set={0x460c3-0x6100,0x28b31-0x6100},**kw)
+    assert reason=='breakpoint',(reason,count)
+    deliver_key(cpu,mem,ports,handler,0x20,100)
+    reason,count=run_fast(cpu,mem,ports,handler,2000000,bp_set=points,**kw)
+    if reason=='max_steps':
+        # Dialog completion waits for key release.
+        deliver_key(cpu,mem,ports,handler,0xa0,0)
+        reason,count=run_fast(cpu,mem,ports,handler,12000000,bp_set=points,**kw)
 ds=0x4fc80
 import struct
 def number(off):

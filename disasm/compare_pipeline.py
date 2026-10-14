@@ -193,6 +193,7 @@ def extract_state(state_path):
 
         # Shield energy
         tank['shieldEnergy'] = mem.read16(base + 0x96)
+        tank['fuelEnergy'] = mem.read16(base + 0xAA)
         tank['activeShield'] = mem.read16(base + 0x22)
         shield_ptr = (mem.read16(base + 0xC8) << 4) + mem.read16(base + 0xC6)
         shield_weapon = mem.read16(shield_ptr + 0x0E)
@@ -261,6 +262,8 @@ def extract_state(state_path):
         'playerSetup': player_setup,
         'teams': teams,
         'shopCategory': mem.read16(ds_base+0xcab4),
+        'shopSelectedItem': ((mem.read16(ds_base+0xcab6)+0x8000)%0x10000-0x8000)+mem.read16(ds_base+0xcac2),
+        'shopScrollOffset': mem.read16(ds_base+0xcac2),
         'teamMode': mem.read16(ds_base+0x50ea),
         'statusBar': mem.read16(ds_base+0x5142),
         'width': width,
@@ -283,6 +286,12 @@ def extract_state(state_path):
         'roundNumber': round_number,
         'numRounds': num_rounds,
         'armsLevel': arms_level,
+        'suspendDirt': 100-mem.read16(ds_base+0x5158),
+        'uselessItems': mem.read16(ds_base+0x50fe),
+        'tracePaths': mem.read16(ds_base+0x5168),
+        'fallingTanks': mem.read16(ds_base+0x5162),
+        'tunneling': mem.read16(ds_base+0x513a),
+        'playMode': mem.read16(ds_base+0x5188),
     }
 
 
@@ -336,6 +345,8 @@ def write_state_json(state, out_path):
         'playerSetup': state['playerSetup'],
         'teams': state['teams'],
         'shopCategory': state['shopCategory'],
+        'shopSelectedItem': state['shopSelectedItem'],
+        'shopScrollOffset': state['shopScrollOffset'],
         'teamMode': state['teamMode'],
         'statusBar': state['statusBar'],
         'width': state['width'],
@@ -355,6 +366,12 @@ def write_state_json(state, out_path):
         'roundNumber': state['roundNumber'],
         'numRounds': state['numRounds'],
         'armsLevel': state['armsLevel'],
+        'suspendDirt': state['suspendDirt'],
+        'uselessItems': state['uselessItems'],
+        'tracePaths': state['tracePaths'],
+        'fallingTanks': state['fallingTanks'],
+        'tunneling': state['tunneling'],
+        'playMode': state['playMode'],
     }
     with open(out_path, 'w') as f:
         json.dump(state_for_web, f)

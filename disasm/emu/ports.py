@@ -60,6 +60,13 @@ class PortIO:
         self.seq_regs[4] = 0x08  # reset to chained (mode 13h default)
         self.seq_regs[2] = 0x0F
         self.gc_regs[4] = 0
+        if self.video_mode == 0x13:
+            # BIOS mode 13h resets CRTC timing before Fastgraph modifies it.
+            # In particular: 320 pixels, 400 scan lines, two scans per row.
+            self.crtc_regs[:25] = [
+                0x5F,0x4F,0x50,0x82,0x54,0x80,0xBF,0x1F,
+                0x00,0x41,0x00,0x00,0x00,0x00,0x00,0x00,
+                0x9C,0x8E,0x8F,0x28,0x40,0x96,0xB9,0xA3,0xFF]
         self._sync_mem()
 
     def port_in(self, port):
@@ -163,8 +170,10 @@ class PortIO:
 
         # Double-scan: CRTC reg 0x09 bit 7 — halves visible height
         max_scan = self.crtc_regs[0x09]
+        scan_repeat = (max_scan & 0x1F) + 1
         if max_scan & 0x80:
-            height = (height + 1) // 2
+            scan_repeat *= 2
+        height = (height + scan_repeat - 1) // scan_repeat
 
         # Clamp to sane values
         if width < 160 or width > 400:

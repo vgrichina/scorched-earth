@@ -135,6 +135,10 @@ class InterruptHandler:
                         self.mem.data[(addr + i * 3) & 0xFFFFF] = r & 0x3F
                         self.mem.data[(addr + i * 3 + 1) & 0xFFFFF] = g & 0x3F
                         self.mem.data[(addr + i * 3 + 2) & 0xFFFFF] = b & 0x3F
+        elif ah == 0x1A:  # VGA display-combination code
+            if self.cpu.get_reg8(0) == 0x00:
+                self.cpu.set_reg8(0, 0x1A)  # Function supported
+                self.cpu.bx = 0x0008  # Active VGA color display; no secondary
         elif ah == 0x11:  # Font
             pass  # no-op
         elif ah == 0x12:  # Alternate function select (VGA)
@@ -167,6 +171,8 @@ class InterruptHandler:
                 self.cpu.zf = 0  # key available
             else:
                 self.cpu.zf = 1  # no key
+        elif ah == 0x02:  # BIOS keyboard modifier/toggle flags (0040:0017)
+            self.cpu.set_reg8(0, self.mem.read8(0x417))
         return True
 
     # -- INT 1Ah: Timer -------------------------------------------------------

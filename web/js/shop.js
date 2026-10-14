@@ -16,7 +16,7 @@
 //   Dialog created via dialog_alloc(screenW, screenH, 0, 0) — full screen modal.
 //   Three callbacks: paint (0DBC:124D), tick (0DBC:18F2), palette anim (0DBC:0874).
 //   Left item panel: 200px wide (0xC8), 14-15 visible rows.
-//   Resolution check: if screenH >= 0x190 (400px), adds 5px extra spacing.
+//   Resolution check: if FG_MAXY >= 400 (screenH > 400), adds 5px extra spacing.
 //
 // Native shop categories are Weapons and Miscellaneous, selected by a type-6
 // icon slider. Miscellaneous follows native item-table order without headings.
@@ -60,7 +60,7 @@ import { fillRect, hline, vline, setPixel, drawBox3DRaised, drawBox3DSunken } fr
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
 import { BLACK, saveAccentPalette, restoreAccentPalette, tickAccentPalette } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
-import { consumeKey, consumeClick, isKeyDown, mouse } from './input.js';
+import { consumeAnyKey, consumeKey, consumeClick, isKeyDown, mouse } from './input.js';
 import { random } from './utils.js';
 import { isAI } from './ai.js';
 import { SHIELD_TYPE } from './shields.js';
@@ -122,6 +122,7 @@ function trackPurchase(weaponIdx) {
 // 3. Deduct price, add bundle  4. If qty > 99 → clip to 99, refund excess
 const MAX_WEAPON_QTY = 99; // EXE: 0x63
 export function buyWeapon(player, weaponIdx) {
+  if(!isShopItemAvailable(WEAPONS[weaponIdx]))return false;
   if (player.inventory[weaponIdx] >= MAX_WEAPON_QTY) return false;
   const price = getWeaponPrice(weaponIdx);
   if (playerCash(player) < price) return false;
@@ -192,10 +193,12 @@ const shop = {
   playerIdx: 0,
   category: TAB_WEAPONS,
   selectedItem: 0,
+  emptyArrowErased: false,
   scrollOffset: 0,
   items: [],
   kibitz: false,      // EXE: "NO KIBITZING!!" anti-peek screen between hotseat players
   selling: false,     // EXE: "Sell Equipment" sub-dialog active
+  descriptionItem: null,
   sellQty: 1,         // EXE: "~Quantity to sell:" field value
   frame: 0,           // frame counter for palette animation
   // EXE scrollbar: arrow buttons only, no track/thumb drag
@@ -217,7 +220,7 @@ const SB_H    = 14;   // scrollbar arrow height (EXE: 14px, file 0x15C40 bp+0x10
 function getRightBtnX() { return 250; }
 function getRightBtnW() { return Math.max(...['~Update', '~Inventory', '~Done'].map(measureText)) + 12; }
 // EXE: resolution check at file 0x15D37: cmp [FG_MAXY], 0x190 → di=0 or 5
-function getExtraSpacing() { return config.screenHeight >= 400 ? 5 : 0; }
+function getExtraSpacing() { return config.screenHeight > 400 ? 5 : 0; }
 // EXE: button height at file 0x48755: cmp [FG_MAXY], 0x12C → 17 if <300, 19 if >=300
 function getBtnH() { return config.screenHeight >= 300 ? 19 : 17; }
 
@@ -230,7 +233,7 @@ function getItemsPerPage() {
   return Math.min(44, Math.max(1, Math.floor((bottom - ITEM_Y_START) / 20) + 1));
 }
 
-function getSelectorY(){return Math.min(ITEM_Y_START-3+(getItemsPerPage()-1)*10,240);}
+function getSelectorY(){return Math.min(ITEM_Y_START+(getItemsPerPage()-1)*10,240);}
 
 // Open shop for a player
 // EXE: called from between-rounds loop at file 0x232E5 (play.cpp)
@@ -244,7 +247,8 @@ export function openShop(playerIdx, roundsLeft, { showPrivacy = true } = {}) {
   shop.selectedItem = 0;
   shop.scrollOffset = 0;
   shop.selling = false;
-  shop.inventoryOpen=false;shop.inventorySelection=0;shop.sellItem=null;
+  shop.updateOpen=false;
+  shop.inventoryOpen=false;shop.inventorySelection=0;shop.sellItem=null;shop.descriptionItem=null;
   shop.sellQty = 1;
   shop.frame = 0;
   shop.roundsLeft = roundsLeft || 10;
@@ -266,29 +270,39 @@ export function isShopActive() {
 }
 
 // Native selector has two positions; accessories follow weapon-table order.
-export function selectShopCategory(category) {
+export function selectShopCategory(category, selectedItem=0, scrollOffset=0) {
   shop.category=category===TAB_MISC?TAB_MISC:TAB_WEAPONS;
-  shop.selectedItem=0;shop.scrollOffset=0;updateItemList();
+  shop.selectedItem=selectedItem;shop.scrollOffset=scrollOffset;updateItemList();
+}
+// Native equip_init 1D7E6..1D904: arms limits always apply; Useless Items
+// bypasses only the filters for equipment made redundant by game settings.
+export function isShopItemAvailable(weapon) {
+  if(weapon.arms>config.armsLevel)return false;
+  if(config.uselessItems)return true;
+  switch(weapon.name){
+    case 'Earth Disrupter': return config.suspendDirt!==0;
+    case 'Smoke Tracer': return !config.tracePaths;
+    case 'Parachute': return !!config.fallingTanks;
+    case 'Contact Trigger': return !!config.tunneling && config.playMode!==1;
+    case 'Fuel Tank':
+    case 'Heat Guidance':
+    case 'Bal Guidance':
+    case 'Horz Guidance':
+    case 'Vert Guidance':
+    case 'Lazy Boy': return config.playMode!==1;
+    case 'Auto Defense': return config.playMode!==2;
+    default: return true;
+  }
 }
 function updateItemList() {
+  shop.emptyArrowErased=false;
   shop.items=[];
   for(let idx=2;idx<WEAPONS.length;idx++){
     const weapon=WEAPONS[idx];
-    if((weapon.category===CATEGORY.WEAPON)===(shop.category===TAB_WEAPONS)&&weapon.arms<=config.armsLevel)
+    if((weapon.category===CATEGORY.WEAPON)===(shop.category===TAB_WEAPONS)&&isShopItemAvailable(weapon))
       shop.items.push({idx,weapon});
   }
   shop.selectedItem=Math.min(shop.selectedItem,Math.max(0,shop.items.length-1));
-}
-
-// Skip header rows when navigating: move selectedItem in the given direction until it lands on a non-header
-function adjustSelectionPastHeader(dir) {
-  while (shop.selectedItem >= 0 && shop.selectedItem < shop.items.length &&
-         shop.items[shop.selectedItem] && shop.items[shop.selectedItem].isHeader) {
-    shop.selectedItem += dir;
-  }
-  if (shop.selectedItem < 0) shop.selectedItem = 0;
-  if (shop.selectedItem >= shop.items.length) shop.selectedItem = Math.max(0, shop.items.length - 1);
-  // If still on header (edge case: all items are headers), do nothing
 }
 
 // AI auto-purchase
@@ -355,7 +369,7 @@ function aiBuyRandomWeapon(player) {
   const available = [];
   for (let i = 2; i <= WPN.LAST_WEAPON; i++) {
     const w = WEAPONS[i];
-    if (w.arms <= config.armsLevel && w.price > 0) {
+    if (isShopItemAvailable(w) && w.price > 0) {
       const price = getWeaponPrice(i);
       if (playerCash(player) >= price) {
         available.push(i);
@@ -373,7 +387,7 @@ function aiBuyRandomFromCategory(player, category) {
   const available = [];
   for (let i = WPN.FIRST_ACCESSORY; i < WEAPONS.length; i++) {
     const w = WEAPONS[i];
-    if (w.category === category && w.arms <= config.armsLevel && w.price > 0) {
+    if (w.category === category && isShopItemAvailable(w) && w.price > 0) {
       const price = getWeaponPrice(i);
       if (playerCash(player) >= price) {
         available.push(i);
@@ -391,7 +405,7 @@ function aiBuyRandomShield(player) {
   const available = [];
   for (let i = WPN.MAG_DEFLECTOR; i <= WPN.SUPER_MAG; i++) {
     const w = WEAPONS[i];
-    if (w.arms <= config.armsLevel && w.price > 0) {
+    if (isShopItemAvailable(w) && w.price > 0) {
       const price = getWeaponPrice(i);
       if (playerCash(player) >= price) {
         available.push(i);
@@ -409,7 +423,7 @@ function aiBuyRandomMountainGear(player) {
   const candidates = [WPN.FUEL_TANK, WPN.BATTERY]; // Fuel Tank, Battery
   const available = candidates.filter(i => {
     const w = WEAPONS[i];
-    return w.arms <= config.armsLevel && w.price > 0 && playerCash(player) >= getWeaponPrice(i);
+    return isShopItemAvailable(w) && w.price > 0 && playerCash(player) >= getWeaponPrice(i);
   });
   if (available.length === 0) return;
   const idx = available[random(available.length)];
@@ -470,16 +484,37 @@ export function shopTick(player) {
     return false;
   }
 
+  if(shop.updateOpen){
+    const x=Math.floor((config.screenWidth-151)/2),y=Math.floor((config.screenHeight-56)/2);
+    const clicked=consumeClick(0)|consumeClick(2);
+    if(consumeKey('Escape')||(clicked&&mouse.over&&(mouse.x<x||mouse.x>x+150||mouse.y<y||mouse.y>y+55)))shop.updateOpen=false;
+    consumeAnyKey();
+    return false;
+  }
+  if(shop.descriptionItem!==null){
+    const l=descriptionLayout(shop.descriptionItem);
+    if(consumeKey('Escape')||consumeKey('Enter')||consumeKey('KeyD'))shop.descriptionItem=null;
+    const left=consumeClick(0),right=consumeClick(2);
+    if((left||right)&&mouse.over&&mouse.x>=l.buttonX&&mouse.x<l.buttonX+measureText('~Done')+12&&mouse.y>=l.y+82&&mouse.y<l.y+82+getBtnH())shop.descriptionItem=null;
+    consumeKey('Space');
+    return false;
+  }
+
   // EXE: "Sell Equipment" sub-dialog — handle separately before normal shop input
   // EXE: dialog at file 0x152E9, strings at DS:0x234C-0x2354
   if (shop.selling) {
     const item = shop.sellItem??shop.items[shop.selectedItem];
     const maxQty = item ? player.inventory[item.idx] : 0;
-    if (consumeKey('ArrowUp') && shop.sellQty > 1) shop.sellQty--;
-    if (consumeKey('ArrowDown') && shop.sellQty < maxQty) shop.sellQty++;
+    // Native sell dialog does not bind extended Up/Down scan codes.
+    consumeKey('ArrowUp');consumeKey('ArrowDown');
+    consumeKey('Enter');consumeKey('Space');
+    if(consumeKey('KeyQ')){
+      const reverse=isKeyDown('AltLeft')||isKeyDown('AltRight');
+      shop.sellQty=reverse?(shop.sellQty>1?shop.sellQty-1:maxQty):(shop.sellQty<maxQty?shop.sellQty+1:1);
+    }
     // Accept (EXE: "~Accept" hotkey 'A')
     // EXE: refund = floor(qty × price × factor / bundle); factor = 0.8 normal, 0.65 free market
-    if (consumeKey('Enter') || consumeKey('KeyA')) {
+    if (consumeKey('KeyA')) {
       if (item && maxQty > 0) {
         const qty = Math.min(shop.sellQty, maxQty);
         sellWeapon(player,item.idx,qty);
@@ -492,19 +527,17 @@ export function shopTick(player) {
       shop.selling = false;
     }
     // Mouse: click Accept/Reject buttons in sell dialog
-    if (mouse.over && consumeClick(0)) {
-      const SW = config.screenWidth, SH = config.screenHeight;
-      const dlgW = Math.min(240, SW - 20);
-      const dlgH = 106;
-      const dlgX = Math.floor((SW - dlgW) / 2);
-      const dlgY = Math.floor((SH - dlgH) / 2);
-      const btnW = 60, btnH = getBtnH();
-      const acceptX = dlgX + Math.floor((dlgW - btnW * 2 - 20) / 2);
-      const rejectX = acceptX + btnW + 20;
-      const btnY = dlgY + 77;
+    const leftClick=consumeClick(0),rightClick=consumeClick(2);
+    if (mouse.over && (leftClick||rightClick)) {
+      const {x,y,width,qtyWidth,acceptX,rejectX}=sellLayout(player,item);
+      const btnY=y+85-(config.screenHeight>=400?3:2),btnH=getBtnH();
+      const qtyX=x+Math.floor((width-qtyWidth)/2);
+      if(mouse.x>=qtyX&&mouse.x<=qtyX+qtyWidth&&mouse.y>=y+53&&mouse.y<=y+64){
+        shop.sellQty=rightClick?(shop.sellQty<maxQty?shop.sellQty+1:1):(shop.sellQty>1?shop.sellQty-1:maxQty);
+      }
       const mx = mouse.x, my = mouse.y;
       if (my >= btnY && my < btnY + btnH) {
-        if (mx >= acceptX && mx < acceptX + btnW) {
+        if (mx >= acceptX && mx < acceptX + measureText('~Accept')+12) {
           // Accept — EXE: refund = floor(qty × price × factor / bundle)
           if (item && maxQty > 0) {
             const qty = Math.min(shop.sellQty, maxQty);
@@ -512,7 +545,7 @@ export function shopTick(player) {
             shop.sellQty = 1;
           }
           shop.selling = false;
-        } else if (mx >= rejectX && mx < rejectX + btnW) {
+        } else if (mx >= rejectX && mx < rejectX + measureText('~Reject')+12) {
           shop.selling = false;  // Reject
         }
       }
@@ -526,40 +559,55 @@ export function shopTick(player) {
 
   if(shop.inventoryOpen){
     const l=inventoryLayout(player);
-    if(consumeKey('Escape')){shop.inventoryOpen=false;return false;}
-    for(const [key,delta] of [['ArrowLeft',-1],['ArrowRight',1],['ArrowUp',-l.columns],['ArrowDown',l.columns]])
-      if(consumeKey(key))shop.inventorySelection=Math.max(0,Math.min(l.items.length-1,shop.inventorySelection+delta));
-    if(consumeClick(0)){
-      if(mouse.x<l.x||mouse.x>l.x+l.width||mouse.y<l.y||mouse.y>l.y+l.height)shop.inventoryOpen=false;
+    if(consumeKey('Escape')){closeShopInventory(player);return false;}
+    // Native 0x3E1D3 wraps each grid axis independently, including empty cells.
+    let col=shop.inventorySelection%l.columns,row=Math.floor(shop.inventorySelection/l.columns);
+    if(consumeKey('ArrowLeft'))col--;
+    if(consumeKey('ArrowRight'))col++;
+    if(consumeKey('ArrowUp'))row--;
+    if(consumeKey('ArrowDown'))row++;
+    if(consumeKey('Home'))col=0;
+    if(consumeKey('End'))col=l.columns-1;
+    if(consumeKey('PageUp'))row=0;
+    if(consumeKey('PageDown'))row=l.rows-1;
+    shop.inventorySelection=((row+l.rows)%l.rows)*l.columns+(col+l.columns)%l.columns;
+    let activate=false;
+    const left=consumeClick(0),right=consumeClick(2);
+    if(left||right){
+      if(mouse.x<l.x||mouse.x>l.x+l.width||mouse.y<l.y||mouse.y>l.y+l.height)closeShopInventory(player);
       else if(mouse.y>=l.y+24){
         const col=Math.floor((mouse.x-l.x-4)/30),row=Math.floor((mouse.y-l.y-24)/15),index=row*l.columns+col;
-        if(col>=0&&col<l.columns&&index>=0&&index<l.items.length)shop.inventorySelection=index;
+        if(col>=0&&col<l.columns&&row>=0&&row<l.rows){shop.inventorySelection=index;activate=true;}
       }
     }
-    if(consumeKey('Enter')||consumeKey('Space')){
+    if(activate&&right){
+      shop.descriptionItem=l.items[shop.inventorySelection]??null;
+      return false;
+    }
+    if(consumeKey('Enter')||consumeKey('Space')||activate){
       const idx=l.items[shop.inventorySelection];
-      if(idx!==undefined){shop.sellItem={idx,weapon:WEAPONS[idx]};shop.selling=true;shop.sellQty=1;}
+      if(idx!==undefined&&idx!==2&&player.inventory[idx]>0){shop.sellItem={idx,weapon:WEAPONS[idx]};shop.selling=true;shop.sellQty=1;}
     }
     return false;
   }
-  if(consumeKey('KeyI')){shop.inventoryOpen=true;shop.inventorySelection=0;return false;}
+  if(consumeKey('KeyU')){shop.updateOpen=true;return false;}
+  if(consumeKey('KeyI')){openShopInventory(player);return false;}
 
   // Native shop does not change categories on horizontal arrow keys.
   consumeKey('ArrowLeft');consumeKey('ArrowRight');
 
-  // Item selection (skip header rows)
-  if (consumeKey('ArrowUp')) {
-    shop.selectedItem = Math.max(0, shop.selectedItem - 1);
-    adjustSelectionPastHeader(-1);
-    if (shop.selectedItem < shop.scrollOffset) shop.scrollOffset = shop.selectedItem;
-  }
-  if (consumeKey('ArrowDown')) {
-    shop.selectedItem = Math.min(shop.items.length - 1, shop.selectedItem + 1);
-    adjustSelectionPastHeader(1);
-    if (shop.selectedItem >= shop.scrollOffset + perPage) {
-      shop.scrollOffset = shop.selectedItem - perPage + 1;
-    }
-  }
+  // Native 152E9 keeps row navigation within the current page.
+  const previousSelection=shop.selectedItem;
+  const lastVisible=Math.min(shop.items.length,shop.scrollOffset+perPage)-1;
+  if(consumeKey('ArrowUp'))
+    shop.selectedItem=shop.selectedItem<=shop.scrollOffset?lastVisible:shop.selectedItem-1;
+  if(consumeKey('ArrowDown'))
+    shop.selectedItem=shop.selectedItem>=lastVisible?shop.scrollOffset:shop.selectedItem+1;
+  if(consumeKey('Home'))shop.selectedItem=shop.scrollOffset;
+  if(consumeKey('End'))shop.selectedItem=lastVisible;
+  if(consumeKey('PageUp'))scrollShopPage(-1);
+  if(consumeKey('PageDown'))scrollShopPage(1);
+  if(previousSelection===-1&&shop.selectedItem!==-1&&shop.items.length===0)shop.emptyArrowErased=true;
 
   // Buy (EXE: item_click_handler at file 0x1503B — calls dialog_select_item 0x3F19:0x5260)
   if (consumeKey('Enter') || consumeKey('Space')) {
@@ -569,18 +617,12 @@ export function shopTick(player) {
     }
   }
 
-  // Sell — EXE: opens "Sell Equipment" sub-dialog (DS:0x234C) on Backspace
-  if (consumeKey('Backspace') || consumeKey('Delete')) {
-    const item = shop.items[shop.selectedItem];
-    if (item && !item.isHeader && player.inventory[item.idx] > 0) {
-      shop.sellItem = null;
-      shop.selling = true;
-      shop.sellQty = 1;
-    }
-  }
+  // Native shop selling is reached through Inventory, not these keys.
+  consumeKey('Backspace');consumeKey('Delete');
+  if(consumeKey('Tab'))selectShopCategory(shop.category===TAB_WEAPONS?TAB_MISC:TAB_WEAPONS);
 
   // Done — EXE: "~Done" hotkey 'D' at DS:0x2278
-  if (consumeKey('Escape') || consumeKey('Tab') || consumeKey('KeyD')) {
+  if (consumeKey('Escape') || consumeKey('KeyD')) {
     shop.active = false;
     return true;
   }
@@ -589,7 +631,8 @@ export function shopTick(player) {
   const hasSbTick = shop.items.length > perPage;
 
   // Mouse clicks
-  if (mouse.over && consumeClick(0)) {
+  const leftClick=consumeClick(0),rightClick=consumeClick(2);
+  if (mouse.over && (leftClick||rightClick)) {
     const mx = mouse.x, my = mouse.y;
     const listY = ITEM_Y_START;
     const rowH = getRowH();
@@ -602,11 +645,11 @@ export function shopTick(player) {
       // Action buttons (top right)
       const updateY = di + 0x32 - (SH >= 400 ? 3 : 2);
       if (my >= updateY && my < updateY + btnH) {
-        updateItemList();
+        shop.updateOpen=true;
       }
       const invY = di * 2 + 0x46 - (SH >= 400 ? 3 : 2);
       if (my >= invY && my < invY + btnH) {
-        shop.inventoryOpen=true;shop.inventorySelection=0;
+        openShopInventory(player);
       }
       const doneY = di * 3 + 0x5A - (SH >= 400 ? 3 : 2);
       if (my >= doneY && my < doneY + btnH) {
@@ -621,27 +664,8 @@ export function shopTick(player) {
     // Scrollbar interaction
     else if (hasSbTick) {
       const sbX = 200;
-      const sbTop = ITEM_Y_START - (SH >= 400 ? 3 : 2);
-      const sbBot = sbTop + (perPage - 1) * 20 + SB_H;
-      const btnHSb = SB_H;
-      const trkTop = sbTop + btnHSb;
-      const trkBot = sbBot - btnHSb;
-      const maxScroll = shop.items.length - perPage;
-
       if (mx >= sbX && mx < sbX + SB_W) {
-        if (my >= sbTop && my < sbTop + btnHSb) {
-          shop.scrollOffset = Math.max(0, shop.scrollOffset - 1);
-        } else if (my >= trkBot && my < trkBot + btnHSb) {
-          shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + 1);
-        } else if (my >= trkTop && my < trkBot) {
-          // EXE: no track/thumb — clicking between arrows pages up/down
-          const midY = Math.floor((trkTop + trkBot) / 2);
-          if (my < midY) {
-            shop.scrollOffset = Math.max(0, shop.scrollOffset - perPage);
-          } else {
-            shop.scrollOffset = Math.min(maxScroll, shop.scrollOffset + perPage);
-          }
-        }
+        scrollShopAt(mx,my);
       }
       // Item list click (exclude scrollbar)
       else if (mx >= PANEL_X + 2 && mx < sbX && my >= listY) {
@@ -657,24 +681,39 @@ export function shopTick(player) {
   return false;
 }
 
+// Native scrollbar buttons cycle complete pages and reset the row selection.
+function scrollShopAt(mx,my){
+  const perPage=getItemsPerPage();
+  if(shop.items.length<=perPage||mx<200||mx>=200+SB_W)return false;
+  const top=ITEM_Y_START-(config.screenHeight>=400?3:2),bottom=top+(perPage-1)*20;
+  const direction=my>=top&&my<top+SB_H?-1:my>=bottom&&my<bottom+SB_H?1:0;
+  if(!direction)return false;
+  return scrollShopPage(direction);
+}
+function scrollShopPage(direction){
+  const perPage=getItemsPerPage();
+  if(shop.items.length<=perPage)return false;
+  const pages=Math.ceil(shop.items.length/perPage);
+  shop.scrollOffset=((Math.floor(shop.scrollOffset/perPage)+direction+pages)%pages)*perPage;
+  shop.selectedItem=shop.scrollOffset;
+  return true;
+}
+
 // Shared item list click handler
 function handleItemListClick(player, mx, my, _listY, rowH) {
   const perPage = getItemsPerPage();
-  const clickedRow = Math.floor((my - ITEM_Y_START) / rowH) + shop.scrollOffset;
+  // Native click widgets cover the text rectangle, excluding bevels and gaps.
+  const row=Math.floor((my-ITEM_Y_START)/rowH);
+  if(mx<ITEM_X||mx>ITEM_X+166||row<0||row>=perPage||my>ITEM_Y_START+row*rowH+11)return;
+  const clickedRow=row+shop.scrollOffset;
   if (clickedRow >= 0 && clickedRow < shop.items.length) {
     const clickedItem = shop.items[clickedRow];
     if (clickedItem && clickedItem.isHeader) return;
-    if (clickedRow === shop.selectedItem) {
-      const item = shop.items[shop.selectedItem];
-      if (item && !item.isHeader) {
-        buyWeapon(player, item.idx);
-      }
-    } else {
-      shop.selectedItem = clickedRow;
-      if (clickedRow < shop.scrollOffset) shop.scrollOffset = clickedRow;
-      if (clickedRow >= shop.scrollOffset + perPage)
-        shop.scrollOffset = clickedRow - perPage + 1;
-    }
+    shop.selectedItem = clickedRow;
+    if (clickedRow < shop.scrollOffset) shop.scrollOffset = clickedRow;
+    if (clickedRow >= shop.scrollOffset + perPage)
+      shop.scrollOffset = clickedRow - perPage + 1;
+    buyWeapon(player,clickedItem.idx);
   }
 }
 
@@ -682,8 +721,22 @@ function drawShopActionLabel(x,y,label,disabled){
   if(disabled){drawText(x+1,y,label.replace('~',''),UI_LIGHT_BORDER);drawText(x,y,label.replace('~',''),UI_DARK_TEXT);}
   else drawText(x,y,label,UI_HIGHLIGHT);
 }
+function openShopInventory(player){
+  shop.inventoryOpen=true;shop.inventorySelection=0;
+  shop.inventoryItems=[];
+  for(let i=2;i<WEAPONS.length;i++)if(player.inventory[i]>0||(i===WPN.FUEL_TANK&&(player.fuelEnergy??0)>0))shop.inventoryItems.push(i);
+  // Native redraws the grid after selling, but refreshes the shop list on closing it.
+  shop.inventoryShopCounts=Array.from(player.inventory);
+  shop.inventoryOpeningCash=playerCash(player);
+}
+function closeShopInventory(player){
+  shop.inventoryOpen=false;
+  if(playerCash(player)!==shop.inventoryOpeningCash){
+    shop.selectedItem=0;shop.scrollOffset=0;updateItemList();
+  }
+}
 function inventoryLayout(player){
-  const items=[];for(let i=2;i<WEAPONS.length;i++)if(player.inventory[i]>0)items.push(i);
+  const items=shop.inventoryItems;
   const columns=items.length>36?7:items.length>25?6:items.length>16?5:4;
   const rows=Math.max(1,Math.ceil(items.length/columns)),width=columns*30+6,height=rows*15+25;
   return {items,columns,rows,width,height,x:Math.floor((config.screenWidth-1-width)/2),y:Math.floor((38+config.screenHeight-4-height)/2)};
@@ -697,7 +750,7 @@ function drawShopInventory(player){
   for(let row=0;row<rows-1;row++)hline(x+4,x+width-4,y+38+row*15,color);
   items.forEach((idx,i)=>{
     const tx=x+6+i%columns*30,ty=y+25+Math.floor(i/columns)*15;
-    drawText(tx,ty,String(player.inventory[idx]),UI_HIGHLIGHT);drawIcon(tx+13,ty,idx-2,UI_HIGHLIGHT);
+    if(player.inventory[idx]>0||(idx===WPN.FUEL_TANK&&shop.inventoryShopCounts[idx]===0&&(player.fuelEnergy??0)>0)){drawText(tx,ty,String(player.inventory[idx]),UI_HIGHLIGHT);drawIcon(tx+13,ty,idx-2,UI_HIGHLIGHT);}
   });
   const sx=x+4+shop.inventorySelection%columns*30,sy=y+24+Math.floor(shop.inventorySelection/columns)*15;
   vline(sx,sy,sy+12,UI_MED_BORDER);hline(sx+1,sx+28,sy,UI_BRIGHT_BORDER);
@@ -805,23 +858,23 @@ export function drawShop(player) {
       // EXE: Y = ITEM_Y_START + (rowIndex * 20) — absolute positions
       const y         = ITEM_Y_START + (i - shop.scrollOffset) * rowH;
 
+      // Native selection marker is painted even when the category is empty.
+      if(i===shop.selectedItem){
+        for(let dy=-2;dy<=2;dy++)
+          for(let dx=0;dx<=2-Math.abs(dy);dx++)setPixel(6+dx,y+6+dy,UI_HIGHLIGHT);
+      }
       if(!item){
         drawBox3DSunken(ITEM_X-2,y-2,171,16,UI_BACKGROUND,
           UI_MED_BORDER,UI_BRIGHT_BORDER,UI_DARK_BORDER,UI_LIGHT_BORDER);
         continue;
       }
 
-      const selected  = i === shop.selectedItem;
       const itemPrice = getWeaponPrice(item.idx);
-      const owned     = player.inventory[item.idx];
+      const owned     = (shop.inventoryOpen?shop.inventoryShopCounts:player.inventory)[item.idx];
 
       drawBox3DSunken(ITEM_X - 2, y - 2, 171, 16, UI_BACKGROUND,
         UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
       const txtColor = UI_HIGHLIGHT;
-      if (selected) {
-        for (let dy = -2; dy <= 2; dy++)
-          for (let dx = 0; dx <= 2 - Math.abs(dy); dx++) setPixel(6 + dx, y + 6 + dy, txtColor);
-      }
       // Qty column (EXE: left-most, shows owned count)
       drawText(qtyCol, y, owned > 0 ? String(owned) : '0', txtColor);
       // EXE: draws weapon icon at X+13
@@ -831,6 +884,18 @@ export function drawShop(player) {
       // Price/bundle at X+115 (EXE: "$price/max")
       const priceStr = '$' + itemPrice + '/' + item.weapon.bundle;
       drawText(priceCol, y, priceStr, txtColor);
+    }
+
+    // Native permits row -1 in an empty category. Its coordinate-table read
+    // reaches CAC2/CAC4 (scroll offset / last-visible index), and the VGA
+    // writer treats the resulting negative X as an unsigned 16-bit value.
+    // Preserve the resulting wrapped arrow rather than clamping selection.
+    if((shop.selectedItem===-1||shop.emptyArrowErased) && shop.items.length===0){
+      for(let dy=-2;dy<=2;dy++)for(let dx=0;dx<=2-Math.abs(dy);dx++){
+        const address=(5+dy)*SW+((-6+dx)&0xffff);
+        // Native erases the old arrow in flat background, including bevel pixels.
+        setPixel(address%SW,Math.floor(address/SW),shop.selectedItem===-1?UI_HIGHLIGHT:UI_BACKGROUND);
+      }
     }
 
     // EXE-style scrollbar (right side of panel) — arrow buttons only, no track/thumb
@@ -885,14 +950,17 @@ export function drawShop(player) {
   const btnH = getBtnH();
 
   // EXE: action buttons at TOP RIGHT (shopDialogBuild dialog_create_button calls)
-  // di = extra spacing for hi-res (5px if screenH >= 400, else 0)
+  // di = extra spacing for hi-res (5px if FG_MAXY >= 400, else 0)
   const di = getExtraSpacing();
 
   // "~Update" at X=250, Y=di+0x32
   const updateY = di + 0x32;
-  drawBox3DRaised(rbX, updateY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
+  if(shop.updateOpen)drawBox3DSunken(rbX,updateY-(SH>=400?3:2),rbW,btnH,UI_BACKGROUND,
+    UI_MED_BORDER,UI_BRIGHT_BORDER,UI_DARK_BORDER,UI_LIGHT_BORDER);
+  else drawBox3DRaised(rbX, updateY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawShopActionLabel(rbX+5,updateY,'~Update',shop.inventoryOpen);
+  if(shop.updateOpen)drawText(rbX+7,updateY+2,'Update',UI_HIGHLIGHT);
+  else drawShopActionLabel(rbX+5,updateY,'~Update',shop.inventoryOpen);
 
   // "~Inventory" at X=250, Y=di*2+0x46
   const invY = di * 2 + 0x46;
@@ -900,13 +968,14 @@ export function drawShop(player) {
     UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
   else drawBox3DRaised(rbX, invY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawText(rbX + 5+(shop.inventoryOpen?2:0), invY+(shop.inventoryOpen?2:0), shop.inventoryOpen?'Inventory':'~Inventory', UI_HIGHLIGHT);
+  if(shop.inventoryOpen)drawText(rbX+7,invY+2,'Inventory',UI_HIGHLIGHT);
+  else drawShopActionLabel(rbX+5,invY,'~Inventory',shop.updateOpen);
 
   // "~Done" at X=250, Y=di*3+0x5A
   const doneY = di * 3 + 0x5A;
   drawBox3DRaised(rbX, doneY - (SH >= 400 ? 3 : 2), rbW, btnH, UI_BACKGROUND,
     UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-  drawShopActionLabel(rbX+5,doneY,'~Done',shop.inventoryOpen);
+  drawShopActionLabel(rbX+5,doneY,'~Done',shop.inventoryOpen||shop.updateOpen);
 
   // NOTE: Item detail panel below action buttons is a web-only addition.
   // EXE shows no item details in the right panel area — details are in the
@@ -917,60 +986,81 @@ export function drawShop(player) {
   // EXE: "Sell Equipment" sub-dialog (DS:0x234C) — modal overlay when selling
   // Strings: "Sell Equipment", "Description", "Amount in stock",
   //          "~Quantity to sell:", "Offer", "~Accept", "~Reject"
+  if(shop.updateOpen)drawShopUpdate(player);
   if(shop.inventoryOpen)drawShopInventory(player);
 
+  if(shop.descriptionItem!==null)drawShopDescription(shop.descriptionItem);
   if (shop.selling) {
-    const item = shop.sellItem??shop.items[shop.selectedItem];
-    if (item) {
-      const owned = player.inventory[item.idx];
-      // EXE: sell offer = floor(qty × price × factor / bundle); 0.8 normal, 0.65 free market
-      const sellFactor = config.freeMarket ? 0.65 : 0.8;
-      const offer = Math.floor(shop.sellQty * getWeaponPrice(item.idx) / item.weapon.bundle * sellFactor);
-      const dlgW = Math.min(240, SW - 20);
-      const dlgH = 106;
-      const dlgX = Math.floor((SW - dlgW) / 2);
-      const dlgY = Math.floor((SH - dlgH) / 2);
-
-      drawBox3DRaised(dlgX, dlgY, dlgW, dlgH, UI_BACKGROUND,
-        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-
-      // Title
-      drawText(dlgX + 5, dlgY + 3, 'Sell Equipment', UI_HIGHLIGHT);
-      hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 14, UI_MED_BORDER);
-
-      // Fields
-      const lx = dlgX + 6;
-      const vx = dlgX + Math.floor(dlgW * 0.55);
-      drawText(lx, dlgY + 18, 'Description',       UI_DARK_TEXT);
-      drawText(vx, dlgY + 18, item.weapon.name,    baseColor);
-      drawText(lx, dlgY + 30, 'Amount in stock',   UI_DARK_TEXT);
-      drawText(vx, dlgY + 30, String(owned),        baseColor);
-
-      // Quantity field with sunken inset
-      drawText(lx, dlgY + 42, '~Quantity to sell:', UI_DARK_TEXT);
-      const qtyStr = String(shop.sellQty);
-      const qw = Math.max(20, measureText(qtyStr) + 6);
-      drawBox3DSunken(vx - 2, dlgY + 40, qw, 13, BLACK,
-        UI_MED_BORDER, UI_BRIGHT_BORDER, UI_DARK_BORDER, UI_LIGHT_BORDER);
-      drawText(vx + 2, dlgY + 42, qtyStr, UI_HIGHLIGHT);
-
-      // Offer
-      hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 56, UI_MED_BORDER);
-      drawText(lx, dlgY + 60, 'Offer', UI_DARK_TEXT);
-      drawText(vx, dlgY + 60, '$' + offer, UI_HIGHLIGHT);
-      hline(dlgX + 3, dlgX + dlgW - 4, dlgY + 72, UI_MED_BORDER);
-
-      // Accept / Reject buttons
-      const btnW = 60, btnH = getBtnH();
-      const acceptX = dlgX + Math.floor((dlgW - btnW * 2 - 20) / 2);
-      const rejectX = acceptX + btnW + 20;
-      const btnY = dlgY + 77;
-      drawBox3DRaised(acceptX, btnY, btnW, btnH, UI_BACKGROUND,
-        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      drawText(acceptX + 5, btnY + 2, '~Accept', UI_DARK_TEXT);
-      drawBox3DRaised(rejectX, btnY, btnW, btnH, UI_BACKGROUND,
-        UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER);
-      drawText(rejectX + 5, btnY + 2, '~Reject', UI_DARK_TEXT);
-    }
+    const item=shop.sellItem??shop.items[shop.selectedItem];
+    if(item)drawSellDialog(player,item);
   }
+}
+
+function sellLayout(player,item){
+  const stock=`Amount in stock: ${player.inventory[item.idx]}`;
+  const qtyWidth=15+measureText('~Quantity to sell:')+measureText(String(player.inventory[item.idx]));
+  const width=Math.max(30+measureText('Sell Equipment'),20+qtyWidth,20+measureText(stock),20+measureText(item.weapon.name));
+  // Native auto-sizing includes the resolution-dependent button border.
+  const height=107+(config.screenHeight>=400?3:2),x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
+  // Native 0x4A398 distributes three equal gaps, centering the remainder.
+  const free=width-(measureText('~Accept')+11)-(measureText('~Reject')+11);
+  const gap=Math.floor(free/3),left=gap+Math.floor((free-gap*3)/2);
+  const acceptX=x+left,rejectX=acceptX+measureText('~Accept')+11+gap;
+  return {x,y,width,height,stock,qtyWidth,acceptX,rejectX};
+}
+function drawSellDialog(player,item){
+  const {x,y,width,height,stock,qtyWidth,acceptX,rejectX}=sellLayout(player,item);
+  const center=text=>x+Math.floor((width-measureText(text)+1)/2);
+  drawBox3DRaised(x,y,width+1,height+1,UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+  drawText(center('Sell Equipment'),y+5,'Sell Equipment',UI_HIGHLIGHT);
+  hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);hline(x+5,x+width-5,y+19,UI_MED_BORDER);
+  const nameX=center(item.weapon.name);
+  drawText(nameX,y+23,item.weapon.name,UI_HIGHLIGHT);
+  drawIcon(nameX-13,y+23,item.idx-2,UI_HIGHLIGHT,true);
+  drawIcon(nameX+measureText(item.weapon.name)+2,y+23,item.idx-2,UI_HIGHLIGHT,true);
+  drawText(center(stock),y+38,stock,UI_HIGHLIGHT);
+  const qx=x+Math.floor((width-qtyWidth)/2),qy=y+53;
+  drawText(qx+8,qy,'~Quantity to sell:',UI_HIGHLIGHT);
+  drawText(qx+10+measureText('~Quantity to sell:'),qy,String(shop.sellQty),UI_HIGHLIGHT);
+  hline(qx,qx+6,qy+5,UI_BRIGHT_BORDER);hline(qx,qx+6,qy+7,UI_LIGHT_BORDER);
+  for(let k=0;k<4;k++){
+    setPixel(qx+k,qy+4-k,UI_DARK_BORDER);
+    if(k<3)setPixel(qx+6-k,qy+4-k,UI_MED_BORDER);
+    setPixel(qx+k,qy+8+k,k===3?UI_MED_BORDER:UI_DARK_BORDER);
+    setPixel(qx+6-k,qy+8+k,UI_MED_BORDER);
+  }
+  const offer=Math.trunc(shop.sellQty*getWeaponPrice(item.idx)*(config.freeMarket?0.65:0.8)/item.weapon.bundle);
+  const offerText=`Offer: $${offer.toLocaleString('en-US')}`;
+  drawText(x+Math.floor((width-measureText(offerText))/2),y+68,offerText,UI_HIGHLIGHT);
+  for(const [bx,label] of [[acceptX,'~Accept'],[rejectX,'~Reject']]){
+    drawBox3DRaised(bx,y+85-(config.screenHeight>=400?3:2),measureText(label)+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+    drawText(bx+5,y+85,label,UI_HIGHLIGHT);
+  }
+}
+
+// Native 0x269ED: this executable's Description dialog has a title, item name,
+// separator and Done button; its body contains no explanatory text.
+function descriptionLayout(idx){
+  const width=Math.max(30+measureText('Description'),20+measureText(WEAPONS[idx].name));
+  const height=110,x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
+  return {x,y,width,height,buttonX:x+Math.floor((width-measureText('~Done')-11+1)/2)};
+}
+function drawShopDescription(idx){
+  const {x,y,width,height,buttonX}=descriptionLayout(idx);
+  drawBox3DRaised(x,y,width+1,height+1,UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+  for(const [label,dy] of [['Description',5],[WEAPONS[idx].name,23]])
+    drawText(x+Math.floor((width-measureText(label)+1)/2),y+dy,label,UI_HIGHLIGHT);
+  hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);hline(x+5,x+width-5,y+19,UI_MED_BORDER);
+  drawBox3DRaised(buttonX,y+82,measureText('~Done')+12,getBtnH(),UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+  drawText(buttonX+5,y+85,'~Done',UI_HIGHLIGHT);
+}
+
+// Native shop Update (42F20, paint 42D15): round count and earned interest.
+function drawShopUpdate(player){
+  const width=150,height=55,x=Math.floor((config.screenWidth-1-width)/2),y=Math.floor((config.screenHeight-1-height)/2);
+  drawBox3DRaised(x,y,width+1,height+1,UI_BACKGROUND,UI_DARK_BORDER,UI_LIGHT_BORDER,UI_MED_BORDER,UI_BRIGHT_BORDER);
+  drawText(x+Math.floor((width-measureText('Update')+1)/2),y+5,'Update',UI_HIGHLIGHT);
+  hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);hline(x+5,x+width-5,y+19,UI_MED_BORDER);
+  drawText(x+5,y+24,`${config.rounds-shop.roundsLeft} of ${config.rounds} rounds fought.`,UI_HIGHLIGHT);
+  drawText(x+5,y+36,`Earned interest: $${(player.earnedInterest??0).toLocaleString('en-US')}`,UI_HIGHLIGHT);
 }
