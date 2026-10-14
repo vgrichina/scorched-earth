@@ -44,6 +44,7 @@ export const shieldBreak = { active: false, x: 0, y: 0, radius: 0, frame: 0, max
 
 // Activate a shield on a player
 export function activateShield(player, shieldType) {
+  player.hudShieldEnergy = undefined;
   player.shieldContactHoles = null;
   player.shieldLowerColor = null;
   const cfg = SHIELD_CONFIG[shieldType];
@@ -57,7 +58,11 @@ export function activateShield(player, shieldType) {
 }
 
 // Apply damage to shield, returns remaining damage that passes through
-export function applyShieldDamage(player, damage) {
+export function applyShieldDamage(player, damage, {refreshHud = true} = {}) {
+  // Crush damage temporarily selects the falling tank in native code, so
+  // the victim's expanded shield widget retains its previous value.
+  if (refreshHud) player.hudShieldEnergy = undefined;
+  else player.hudShieldEnergy ??= player.shieldEnergy;
   if (player.shieldEnergy === 0 || damage === 0) {
     return damage;
   }
@@ -75,6 +80,7 @@ export function applyShieldDamage(player, damage) {
     const cfg = SHIELD_CONFIG[player.activeShield];
     if (cfg) {
       shieldBreak.active = true;
+      shieldBreak.player = player;
       shieldBreak.x = player.x;
       shieldBreak.y = player.y;
       shieldBreak.radius = cfg.radius;
@@ -82,11 +88,13 @@ export function applyShieldDamage(player, damage) {
       shieldBreak.playerIdx = player.index;
       shieldBreak.colorIndex = player.colorIndex ?? player.index;
       shieldBreak.shieldType = player.activeShield;
+      shieldBreak.lowerUsesMain = !!player.shieldLowerColor?.redrawn;
       const key = `${player.x},${player.y},${player.activeShield}`;
       shieldBreak.contactHoles = player.shieldContactHoles?.key === key
         ? new Set(player.shieldContactHoles.pixels) : new Set();
     }
-    player.shieldEnergy = 0;
+    // EXE 0x3852B clears energy only after the blocking fade and erasure.
+    if (!cfg) player.shieldEnergy = 0;
     return remaining;  // excess passes through
   }
 }
@@ -209,12 +217,57 @@ export function walkShieldShape(player, visit) {
 // port's relocated terrain colors; other indexed pixels remain drawable.
 function shieldPixelAllowed(x, y) {
   const c = getPixel(x,y);
-  return !(c === 120 || c === 127 || (c >= 128 && c <= 144));
+  return !(c >= 120 && c <= 144);
 }
 
 const SHIELD_PALETTE_BASE = 200;
 
+// Native 0x1CF5F refreshes dedicated shield colors before accepted dirt
+// settling, including retained pixels no longer on the current shield shape.
+export function refreshShieldLowerPalette(player) {
+  const cfg = SHIELD_CONFIG[player.activeShield];
+  if (!player.alive || !player.shieldEnergy || !cfg?.energy) return;
+  const rgb=[cfg.r,cfg.g,cfg.b].map(c=>Math.trunc(player.shieldEnergy*c/cfg.energy));
+  if (player.shieldLowerColor) player.shieldLowerColor.rgb=rgb;
+  setPaletteRgb(SHIELD_PALETTE_BASE+player.index,...rgb);
+}
+
+// Native draw_tank_complete uses 0x3FC46: existing lower shield pixels
+// (200 + player) qualify for repaint into the main shield palette slot.
+// Unlike activation, this redraw does not run update_shield_color afterward.
+export function redrawTankShield(player) {
+  if (!player.shieldEnergy || player.parachuteDeployed) return;
+  const cfg = SHIELD_CONFIG[player.activeShield];
+  if (!cfg?.energy) return;
+  const key = `${player.x},${player.y},${player.activeShield}`;
+  if (player.shieldLowerColor?.key !== key) player.shieldLowerColor = {
+    key, rgb: [cfg.r,cfg.g,cfg.b].map(c => Math.trunc(player.shieldEnergy*c/cfg.energy))
+  };
+  player.shieldLowerColor.redrawn = true;
+  const color = (player.colorIndex ?? player.index)*8+5;
+  walkShieldShape(player,(x,y) => {
+    const c=getPixel(x,y);
+    // Native 0x3FC46 preserves player pixels and terrain (indices <105).
+    if ((c>=80 && c<110) || (c>=105 && shieldPixelAllowed(x,y)))
+      writeWorldPixel(x,y,color);
+  });
+}
+
+// Native 0x3FC11 erases only the main shield entry. The dedicated lower
+// region survives at the old position until a later world write replaces it.
+export function eraseMovingShield(player) {
+  if (!player.shieldEnergy || player.parachuteDeployed) return;
+  const color=(player.colorIndex ?? player.index)*8+5;
+  walkShieldShape(player,(x,y) => {
+    const c=getPixel(x,y);
+    if (c===color) writeWorldPixel(x,y,getBackgroundColor(y,x));
+    else if (c===SHIELD_PALETTE_BASE+player.index) retainWorldPixel(x,y,c);
+  });
+}
+
 export function drawShield(player) {
+  // Native draw_tank_complete draws the parachute instead while deployed.
+  if (player.parachuteDeployed) return;
   if (!player.shieldEnergy) return;
   const cfg = SHIELD_CONFIG[player.activeShield];
   if (!cfg || !cfg.energy) return;
@@ -230,7 +283,8 @@ export function drawShield(player) {
     if (player.shieldContactHoles?.key === key &&
         player.shieldContactHoles.pixels.has(y * config.screenWidth + x)) return;
     if (shieldPixelAllowed(x,y))
-      setPixel(x,y,y > player.y ? SHIELD_PALETTE_BASE + player.index : color);
+      setPixel(x,y,y > player.y && !player.shieldLowerColor.redrawn
+        ? SHIELD_PALETTE_BASE + player.index : color);
   });
 }
 
@@ -257,7 +311,7 @@ export function drawShieldBreak() {
   walkShieldShape({x:shieldBreak.x,y:shieldBreak.y,activeShield:shieldBreak.shieldType}, (x,y) => {
     if (shieldBreak.contactHoles?.has(y * config.screenWidth + x)) return;
     if (shieldPixelAllowed(x,y)) {
-      const lower = y > shieldBreak.y;
+      const lower = y > shieldBreak.y && !shieldBreak.lowerUsesMain;
       const color = lower ? SHIELD_PALETTE_BASE + shieldBreak.playerIdx : paletteIdx;
       if (lower && di === shieldBreak.maxFrames - 1) retainWorldPixel(x,y,color);
       else setPixel(x,y,color);
@@ -266,6 +320,8 @@ export function drawShieldBreak() {
 
   shieldBreak.frame++;
   if (shieldBreak.frame >= shieldBreak.maxFrames) {
+    if (shieldBreak.player) shieldBreak.player.shieldEnergy = 0;
+    shieldBreak.player = null;
     shieldBreak.active = false;
   }
 }

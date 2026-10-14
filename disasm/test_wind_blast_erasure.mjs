@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {config} from '../web/js/config.js';
+import {pixels,reinitFramebuffer} from '../web/js/framebuffer.js';
+import {reinitTerrainBuffers} from '../web/js/terrain.js';
+import {drawWindIndicator} from '../web/js/hud.js';
+import {restoreExplosionTerrain} from '../web/js/explosions.js';
+import {resetWindIndicator} from '../web/js/wind-indicator-state.js';
+
+Object.assign(config,{screenWidth:360,screenHeight:480,wallType:0});
+reinitFramebuffer();reinitTerrainBuffers();resetWindIndicator();
+pixels.fill(80);drawWindIndicator(0);
+const glyph=[...pixels.keys()].filter(i=>pixels[i]===154);
+assert(glyph.length>0);
+const restored=new Map();
+restoreExplosionTerrain(300,50,12,restored);
+const erased=glyph.filter(i=>restored.has(i));
+assert(erased.length>0 && erased.length<glyph.length,'blast must partially overlap label');
+pixels.fill(80);drawWindIndicator(0);
+for(const i of glyph) assert.equal(pixels[i],restored.has(i)?80:154);
+resetWindIndicator();pixels.fill(80);drawWindIndicator(0);
+for(const i of glyph) assert.equal(pixels[i],154,'new round restores complete label');
+console.log('Blast-erased wind pixels stay erased across repaint; new round restores the label.');

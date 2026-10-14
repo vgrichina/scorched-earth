@@ -58,7 +58,7 @@ export function handleBehavior(proj, hitResult) {
   }
 
   // EXE: sub-warheads carry their own explosion radius (set at spawn time).
-  // Funky Bomb sub-bombs use (random(10)+15)×scale; MIRV/Death's Head handled in bhvMirv.
+  // MIRV/Death's Head are handled in bhvMirv; Funky Bomb uses its own sequence.
   // For sub-warheads routed through a standard weapon handler (e.g. weaponIdx=2 Baby Missile),
   // override the weapon's param-derived radius with the stored subRadius.
   if (proj.isSubWarhead && proj.subRadius && result.explode && weapon.bhv === BHV.STANDARD) {
@@ -403,36 +403,18 @@ function bhvDirtCharge(proj) {
   return { explode: true, radius: 15, spawn: [], dirtAdd: true, skipDamage: false };
 }
 
-// --- Funky Bomb: scatter 5-10 sub-bombs from screen top ---
+// --- Funky Bomb: native curved trails and protected-color sub-blasts ---
 // EXE: handler seg 0x1DCE (file 0x246E0). Sub-bombs are NOT weapon projectiles in EXE —
 // they are custom animated fall objects. Parent explosion radius = 20 (hardcoded at 0x24AA9).
 // Sub-bomb radius = (random(10)+15) × EXPLOSION_SCALE (file 0x24B0C-0x24B23).
 // Shield hit blocks sub-bomb spawn in EXE (shield damage=10, early return).
-function bhvFunky(proj, weapon) {
-  const count = random(6) + 5;  // 5-10 sub-bombs
-  const spawn = [];
-  const cx = Math.round(proj.x);
-  // EXE sub-bomb radius: (random(10)+15) × EXPLOSION_SCALE float (DS:0x50DA)
-  const scale = [0.5, 1.0, 1.5][config.explosionScale] || 1.0;
-
-  for (let i = 0; i < count; i++) {
-    const spreadX = cx + random(weapon.param * 2) - weapon.param;
-    const subRadius = Math.floor((random(10) + 15) * scale);  // EXE: 15-24 × scale
-    spawn.push({
-      x: clamp(spreadX, 10, config.screenWidth - 10),
-      y: 16,  // just below HUD
-      vx: (Math.random() - 0.5) * 100,  // per-second
-      vy: -(Math.random() * 100 + 50),  // downward, per-second
-      weaponIdx: 2,  // approximation — EXE uses custom fall, not weapon projectiles
-      attackerIdx: proj.attackerIdx,
-      isSubWarhead: true,
-      subRadius,
-      trail: [],
-      active: true,
-    });
-  }
-
-  return { explode: true, radius: 20, spawn, dirtAdd: false, skipDamage: false };
+function bhvFunky(proj, weapon, hitResult) {
+  const directHit=hitResult==='hit_tank'?(proj.hitPixel%8===5?'shield':'body'):null;
+  // Native 0x2470D..0x2473A returns after shield-only damage, before any RNG.
+  if(directHit==='shield') return {explode:false,radius:0,spawn:[],dirtAdd:false,
+    skipDamage:true,directHit};
+  return {explode:false,radius:0,spawn:[],dirtAdd:false,skipDamage:false,
+    directHit,funkySpread:weapon.param};
 }
 
 // --- Popcorn Bomb (idx 1): scatter 5-10 sub-bombs from screen top ---

@@ -7,15 +7,28 @@
 // render_pixel_table at 0x40C19: direction-aware X mirroring
 // Barrel: Bresenham line from type-specific origin point
 
-import { setPixel, getPixel } from './framebuffer.js';
+import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
 import { getTerrainY, terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
 import { config, GRAPHICS_MODES } from './config.js';
-import { resolvedSkyType, getPlayerColor, palette6, setPaletteRgb } from './palette.js';
+import { resolvedSkyType, getPlayerColor, getGroundColor, palette6, setPaletteRgb } from './palette.js';
 import { walkExeLine, random } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
-import { PLAYER_PALETTE_STRIDE, FIRE_PAL_BASE, TERRAIN_PAL_START } from './constants.js';
+import { PLAYER_PALETTE_STRIDE, TERRAIN_PAL_START } from './constants.js';
 import { playParachuteDeploySound, playLandingThudSound, playCrushGlanceSound } from './sound.js';
-import { applyShieldDamage } from './shields.js';
+import { applyShieldDamage, shieldBreak, redrawTankShield, eraseMovingShield } from './shields.js';
+import { markTerrainCollapse, stepTerrainCollapse } from './terrain-collapse.js';
+import {chooseDeathEffect,createDeathPaletteCycle,stepDeathPaletteCycle,deathBlastSequence} from './death-effects.js';
+import {startExplosion,stepExplosion,isExplosionActive,drawExplosion,applyExplosionDamage,applyDeathRayDamage,bresenhamCircleFill} from './explosions.js';
+import {retainWorldPixel,writeWorldPixel,projectileDrawing} from './projectile-render.js';
+import {randomDeathVelocity,stepDeathParticles} from './death-particles.js';
+import {deathBurstSequence,deathBurstPalette,drawDeathBurst} from './death-bursts.js';
+import {rectanglePixelOrder} from './pixel-traversal.js';
+import {createDeathRays,stepDeathRays} from './death-rays.js';
+import {deathScorchSequence} from './death-scorch.js';
+import {deathFlameSequence,drawDeathFlameCircle} from './death-flames.js';
+import {deathDirtSequence} from './death-dirt.js';
+import {funkyBombStages} from './funky-bomb.js';
+import {getEffectiveWallType,WALL} from './physics.js';
 
 // EXE tank type pixel tables (DS:0x673E, stride 0x12, 7 types)
 // Each entry: [x_offset_i8, y_offset_i8, color_slot] relative to tank center (bottom-center)
@@ -34,7 +47,7 @@ export const TANK_TYPES = [
 
 const TANK_WIDTH = 9;       // EXE type 0: 9px wide (-4..+4)
 const TANK_HEIGHT = 5;      // EXE type 0: 5px tall (y=-4..0)
-const FALL_SPEED = 2;       // pixels per frame when falling
+const FALL_SPEED = 1;       // EXE 0x2091C increments Y by one per fall step
 
 // Player state
 export const players = [];
@@ -118,6 +131,11 @@ export function getTankBarrel(player) {
 
 // Create identities before resolving the round's player-to-slot order.
 export function createPlayers(numPlayers, setup = []) {
+  deathAnimations.length=0;
+  fallingContinuation = null;
+  fallingMovement = null;
+  fallingFlash.delay = 0;
+  fallingSettling = false;
   players.length = 0;
 
   for (let i = 0; i < numPlayers; i++) {
@@ -146,18 +164,29 @@ export function placeTanks(numPlayers, setup = [], resolveSlots = null) {
 // Reset existing players for a new round and reposition on terrain
 // Preserves identity (name, aiType, score, cash, wins, inventory)
 export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
+  deathAnimations.length=0;
+  fallingContinuation = null;
+  fallingMovement = null;
+  fallingFlash.delay = 0;
+  fallingSettling = false;
   const numPlayers = players.length;
 
   for (let i = 0; i < numPlayers; i++) {
     const p = players[slots[i]];
     p.alive = true;
+    p.pendingFallDeath = false;
     p.energy = 100;
     p.angle = 90;
     p.power = 200; // EXE 0x30E66 initializes each round to 200.
     p.contrastPending = true;
     p.falling = false;
+    p.fallingBodyOnly = false;
     p.fallDamageAccum = 0;
     p.parachuteDeployed = false;
+    p.hudParachuteCount = undefined;
+    p.hudEnergy = undefined;
+    p.hudPower = undefined;
+    p.hudShieldEnergy = undefined;
     p.shieldEnergy = 0;
     p.activeShield = 0;
     p.shieldContactHoles = null;
@@ -229,34 +258,88 @@ export function settleTankForPlacement(player) {
   }
 }
 
-// Flatten a small area of terrain under the tank
-function flattenTerrainAt(cx, tankType = 0) {
-  const halfW = TANK_TYPES[tankType].halfWidth;
-  // Find average height in tank footprint
-  let sum = 0, count = 0;
-  for (let x = cx - halfW; x <= cx + halfW; x++) {
-    if (x >= 0 && x < config.screenWidth) {
-      sum += terrain[x];
-      count++;
-    }
+// Native 0x20468 counts occupied pixels across the row below the tank.
+// Three supports, any of the center three, or two straddling the center
+// keep the tank stable. A height-map lookup cannot represent these cases.
+function tankSupport(player) {
+  if (player.y === config.screenHeight - 4) return {stable:true,slide:0};
+  const half = TANK_TYPES[player.tankType].halfWidth;
+  let count = 0, leftCount = 0, center = false, victim = null;
+  for (let dx = -half; dx <= half; dx++) {
+    const color = getPixel(player.x + dx, player.y + 1);
+    const occupied = color < 80 || color === 120 || color === 127 ||
+      (color >= 128 && color <= 144);
+    if (!occupied) continue;
+    count++;
+    if (color < 80) victim = players.find(p=>p.colorIndex===Math.floor(color/8)) ?? null;
+    if (dx <= 0) leftCount++;
+    if (dx >= -1 && dx <= 1) center = true;
   }
-  const avgY = Math.floor(sum / count);
+  return {stable:count > 2 || center || (count === 2 && leftCount === 1),
+    slide:count === 0 ? 0 : leftCount ? 1 : -1, count, victim};
+}
+export function hasTankSupport(player) {
+  return tankSupport(player).stable;
+}
 
-  // Set terrain to average
-  for (let x = cx - halfW; x <= cx + halfW; x++) {
-    if (x >= 0 && x < config.screenWidth) {
-      terrain[x] = avgY;
-    }
+// EXE 0x318D8: damage darkens slots 1..3 progressively; other body slots
+// retain their stored (possibly contrast-adjusted) color. Black sky skips it.
+export function updateTankEnergyPalette(player) {
+  if (resolvedSkyType === 6) return;
+  const maximum = player.maxEnergy ?? 100;
+  const missing = Math.trunc((maximum-player.energy)*100/maximum);
+  const base = player.displayColor ?? getPlayerColor(player.colorIndex ?? player.index);
+  for (let slot=1;slot<=3;slot++) {
+    const factor=(100-Math.trunc(slot*missing/3))/100;
+    setPaletteRgb((player.colorIndex ?? player.index)*PLAYER_PALETTE_STRIDE+slot,
+      ...base.map(c=>Math.trunc(c*factor)&63));
   }
 }
 
-// Check all tanks and start falling if terrain was removed beneath them
+// Native damage updates both the energy gradient and the maximum shot power.
+export function updateTankDamageState(player, {refreshHud=true} = {}) {
+  if (refreshHud) {
+    player.hudEnergy = undefined;
+    player.hudPower = undefined;
+  }
+  const maximum = Math.max(0,Math.trunc(player.energy*1000/(player.maxEnergy??100)));
+  player.power = Math.min(player.power,maximum);
+  updateTankEnergyPalette(player);
+}
+
+// Falling damage leaves signed HP and the alive flag intact until the outer
+// aftermath death dispatcher. The lethal notification changes palette slot 0
+// permanently; the normal energy update immediately replaces slots 1..3.
+function* applyFallingHit(player, damage, options) {
+  const previous = player.energy;
+  player.energy -= damage;
+  if (previous > 0 && player.energy <= 0) {
+    player.pendingFallDeath = true;
+    player.hudEnergy ??= previous;
+    player.hudPower ??= player.power;
+    for (let slot=0;slot<4;slot++)
+      setPaletteRgb((player.colorIndex ?? player.index)*8+slot,63,20,20);
+    // Native 0x31AE3/0x31AF8 blocks twice before shield erasure, HUD/power
+    // refresh and any subsequent tank damage. Preserve both visible states.
+    fallingFlash.delay = 5;
+    yield;
+    fallingFlash.delay = 10;
+    yield;
+    fallingFlash.delay = 0;
+    if (player.shieldEnergy) {
+      eraseMovingShield(player);
+      player.shieldEnergy=0;
+    }
+  }
+  updateTankDamageState(player,options);
+}
+
+// Check all tanks and start falling if their footprint loses support.
 export function checkTanksFalling() {
   let anyFalling = false;
   for (const player of players) {
     if (!player.alive) continue;
-    const terrainY = getTerrainY(player.x);
-    if (terrainY > player.y + 1) {  // terrain is below tank
+    if (!hasTankSupport(player)) {
       player.falling = true;
       player.fallStartY = player.y;   // record starting position for damage calc
       player.fallDamageAccum = 0;     // EXE: reset accumulator
@@ -274,11 +357,18 @@ const FALL_DAMAGE_PER_PIXEL = 2;
 let fallFrameCounter = 0;
 
 // EXE: check_deploy(tank) at 0x202F6 — simulate remaining fall to predict total damage
-// Scans terrain below tank, accumulates FALL_DAMAGE_PER_PIXEL per pixel of air
-function predictFallDamage(player) {
-  const terrainY = getTerrainY(player.x);
-  const remainingPixels = Math.max(0, terrainY - player.y);
-  return remainingPixels * FALL_DAMAGE_PER_PIXEL;
+// Simulates footprint support and sliding without changing the real tank.
+export function predictFallDamage(player) {
+  const probe = {x:player.x,y:player.y,tankType:player.tankType};
+  let damage = 0;
+  while (probe.y < config.screenHeight - 4) {
+    const support = tankSupport(probe);
+    if (support.stable) break;
+    probe.y++;
+    probe.x = Math.max(12,Math.min(config.screenWidth-13,probe.x+support.slide));
+    damage += FALL_DAMAGE_PER_PIXEL;
+  }
+  return damage;
 }
 
 // EXE: Deploy threshold = sub[0x2C]: default 5, with Battery = 10
@@ -287,172 +377,199 @@ function getDeployThreshold(player) {
   return player.inventory[WPN.BATTERY] > 0 ? 10 : 5;
 }
 
-// EXE: Per-step pixel scan for crush detection (file 0x20690)
-// Checks if falling tank overlaps another tank's bounding box
-// Returns { victim, overlapCols } or null if no overlap
-function detectCrush(faller) {
-  const fallerHW = TANK_TYPES[faller.tankType].halfWidth;
-  const fallerLeft = faller.x - fallerHW;
-  const fallerRight = faller.x + fallerHW;
-  const fallerBottom = faller.y; // bottom of tank body (ground line)
-
-  for (const other of players) {
-    if (other === faller || !other.alive || other.falling) continue;
-
-    const otherHW = TANK_TYPES[other.tankType].halfWidth;
-    const otherLeft = other.x - otherHW;
-    const otherRight = other.x + otherHW;
-    const otherTop = other.y + TANK_TYPES[other.tankType].barrelYOff; // top of tank
-    const otherBottom = other.y; // ground line
-
-    // Check vertical overlap: faller's bottom must be within other tank's vertical extent
-    if (fallerBottom < otherTop || fallerBottom > otherBottom) continue;
-
-    // Count horizontal column overlap
-    const overlapLeft = Math.max(fallerLeft, otherLeft);
-    const overlapRight = Math.min(fallerRight, otherRight);
-    const overlapCols = overlapRight - overlapLeft + 1;
-
-    if (overlapCols > 0) {
-      return { victim: other, overlapCols };
-    }
-  }
-  return null;
-}
+let fallingContinuation = null;
+let fallingMovement = null;
+let fallingSettling = false;
+export const fallingFlash = {delay:0};
+export function isFallingSettling() { return fallingSettling; }
 
 // Step falling animation for all tanks, returns true while any are still falling
 // EXE: handle_falling_tanks at file 0x205DC
-export function stepFallingTanks() {
+export function stepFallingTanks(wind = 0) {
+  if (shieldBreak.active) return true;
+  if (fallingSettling) return finishFallingSettlement();
+  if (fallingContinuation) return resumeFallingLanding();
+  fallingMovement ??= fallingMovementPass(wind);
+  const result=fallingMovement.next();
+  if (!result.done) return true;
+  fallingMovement=null;
+  return result.value;
+}
+
+function* fallingMovementPass(wind) {
   fallFrameCounter++; // EXE: DS:0x1C68 incremented each outer loop iteration (0x205F4)
 
   let anyFalling = false;
+  const landings = [];
   for (const player of players) {
     if (!player.alive || !player.falling) continue;
 
     // EXE: Parachute half-speed (file 0x20626–0x2063A)
     // When deployed, skip even frames → tank falls on odd frames only = half speed
     if (player.parachuteDeployed) {
-      if (fallFrameCounter % 2 === 0) continue;
+      if (fallFrameCounter % 2 === 0) { anyFalling = true; continue; }
     }
 
-    // Move tank downward
-    player.y += FALL_SPEED;
-
+    const support = tankSupport(player);
+    if (!support.stable && support.count) playCrushGlanceSound();
+    if (!support.stable) {
+      markTerrainCollapse(player.x-16,player.x+16);
+      // Native 0x207E8 erases every old body pixel to sky, including dirt
+      // overwritten during sideways movement (0x40C19 -> 0x40BA3).
+      const direction = getTankAim(player).direction;
+      for (const [dx,dy] of TANK_TYPES[player.tankType].pixels) {
+        const x=player.x+dx*direction,y=player.y+dy;
+        if (x<3 || x>config.screenWidth-4 || y<PLAYFIELD_TOP || y>config.screenHeight-4) continue;
+        terrainBitmap[y*config.screenWidth+x]=0;
+        setPixel(x,y,getBackgroundColor(y,x));
+        if (terrain[x]===y) {
+          while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+        }
+      }
+      eraseMovingShield(player);
+    }
     // EXE: Parachute deployment check (0x208CD–0x20913)
     // Guard checks (0x20871–0x208CA): sub[0x28]!=0, health>0, inventory[WPN.PARACHUTE]>0
-    if (!player.parachuteDeployed && player.inventory[WPN.PARACHUTE] > 0) {
+    if (!support.stable && !player.parachuteDeployed && player.inventory[WPN.PARACHUTE] > 0) {
       const predictedDamage = predictFallDamage(player);
       const threshold = getDeployThreshold(player);
       // EXE: deploy if predicted_damage > threshold (or threshold==0 → immediate)
       if (threshold === 0 || predictedDamage > threshold) {
         // Deploy action (0x208EA–0x20913)
         player.parachuteDeployed = true;   // sub[0x0C] = 1
-        player.inventory[WPN.PARACHUTE]--;            // consume parachute
         playParachuteDeploySound();        // sound(0x1E, 0x07D0) = 2000 Hz
-        // EXE: fg_setrgb flash to white — visual flash handled by palette (omitted for simplicity)
+        setPaletteRgb(player.colorIndex*PLAYER_PALETTE_STRIDE+6,63,63,63);
       }
     }
 
+    // Deployment is decided before the native movement at 0x20919.
+    if (!support.stable) {
+      player.fallingBodyOnly = true;
+      moveFallingTank(player,support.slide,wind);
+      // Native redraws before scanning the next player in this same pass.
+      drawTank(player);
+      redrawTankShield(player);
+      markTerrainCollapse(player.x-16,player.x+16);
+    }
+
     // EXE: Per-step behavior (0x20A41–0x20A96)
-    if (!player.parachuteDeployed) {
+    if (!support.stable && !player.parachuteDeployed) {
       // No parachute: accumulate damage
       player.fallDamageAccum += FALL_DAMAGE_PER_PIXEL * FALL_SPEED;
 
       // EXE: When DAMAGE_TANKS_ON_IMPACT = Off (0), deal per-step damage
       if (!config.impactDamage) {
-        player.energy -= FALL_DAMAGE_PER_PIXEL * FALL_SPEED;
-        if (player.energy <= 0) {
-          player.energy = 0;
-          player.alive = false;
-        }
+        yield* applyFallingHit(player,FALL_DAMAGE_PER_PIXEL * FALL_SPEED);
       }
     }
     // EXE: parachute deployed → NO damage accumulation; damage_tank(tank, 0, 1) = no-op
     // EXE: delay(20) per step for visual effect — approximated by half-speed frame skip above
 
-    // EXE: Per-step crush detection (file 0x20690)
-    // Check if falling tank overlaps another tank
-    const crush = detectCrush(player);
-    if (crush) {
-      if (crush.overlapCols > 2) {
-        // EXE: >2 columns overlap → immediate landing + crush damage (file 0x2071C)
-        player.y = crush.victim.y + TANK_TYPES[crush.victim.tankType].barrelYOff; // land on top
-        player.falling = false;
-
-        // EXE: Post-landing impact self-damage (0x20AE4)
-        if (!player.parachuteDeployed && config.impactDamage) {
-          player.energy -= player.fallDamageAccum;
-          if (player.energy <= 0) {
-            player.energy = 0;
-            player.alive = false;
-          }
-        }
-
-        // EXE: Crush damage to victim: shield_and_damage(victim, accum+50, 1)
-        // Damage goes through shield first (file 0x20B4C → 0x3FFD2)
-        const crushDmgToVictim = player.fallDamageAccum + 50;
-        const throughShield = applyShieldDamage(crush.victim, crushDmgToVictim);
-        if (throughShield > 0) {
-          crush.victim.energy -= throughShield;
-          if (crush.victim.energy <= 0) {
-            crush.victim.energy = 0;
-            crush.victim.alive = false;
-          }
-        }
-
-        // EXE: Crush self-damage to faller: damage_tank(self, accum/2+10, 1)
-        // Direct damage, no shield (file 0x20B8C)
-        const crushSelfDmg = Math.floor(player.fallDamageAccum / 2) + 10;
-        player.energy -= crushSelfDmg;
-        if (player.energy <= 0) {
-          player.energy = 0;
-          player.alive = false;
-        }
-
-        playLandingThudSound();
-        player.parachuteDeployed = false;
-        flattenTerrainAt(player.x);
-        continue; // skip normal terrain landing check
-      } else {
-        // EXE: Glancing contact (1-2 columns) → sound(5, 200) but no landing (file 0x207CB)
-        playCrushGlanceSound();
-      }
-    }
-
-    // Check if reached terrain
-    const terrainY = getTerrainY(player.x);
-    if (player.y >= terrainY) {
-      player.y = terrainY;
+    if (support.stable) {
       player.falling = false;
-
-      // EXE: Post-landing (0x20ACA): sound(0x1E, 0xC8) = 200 Hz thud
-      playLandingThudSound();
-
-      if (!player.parachuteDeployed && config.impactDamage) {
-        // EXE: DAMAGE_TANKS_ON_IMPACT = On (1) — deal accumulated damage on landing
-        // EXE: 0x20AE4: damage_tank(tank, fall_damage_accum[player], 1)
-        player.energy -= player.fallDamageAccum;
-        if (player.energy <= 0) {
-          player.energy = 0;
-          player.alive = false;
-        }
-      }
-
-      player.parachuteDeployed = false;
-
-      // Flatten terrain at landing spot
-      flattenTerrainAt(player.x);
+      landings.push({player,support});
     } else {
       anyFalling = true;
     }
   }
+  fallingContinuation = {damage:applyLandingDamage(landings),anyFalling,recheck:landings.length>0};
+  return resumeFallingLanding();
+}
+
+function* applyLandingDamage(landings) {
+  // Native 0x20AB0 completes every movement before dispatching any landing
+  // damage. A tank crushed this pass still gets its scheduled movement first.
+  for (const {player,support} of landings) {
+    // EXE: Post-landing (0x20ACA): sound(0x1E, 0xC8) = 200 Hz thud
+    playLandingThudSound();
+
+    if (config.impactDamage) {
+      // EXE: DAMAGE_TANKS_ON_IMPACT = On (1) — deal accumulated damage on landing
+      // EXE: 0x20AE4: damage_tank(tank, fall_damage_accum[player], 1)
+      yield* applyFallingHit(player,player.fallDamageAccum);
+    }
+
+    // The last player-colored support pixel selects the crushed tank.
+    // Ground supports count toward landing too; one central tank pixel suffices.
+    if (support.victim) {
+      const victim = support.victim;
+      const damage = applyShieldDamage(victim,player.fallDamageAccum+50,{refreshHud:false});
+      // Native shield_and_damage blocks inside absorption until fade/erasure.
+      if (shieldBreak.active) yield;
+      // Native temporarily makes the faller current while damaging the victim;
+      // 0x319E8 therefore skips the victim's HUD energy refresh.
+      victim.hudEnergy ??= victim.energy;
+      victim.hudPower ??= victim.power;
+      yield* applyFallingHit(victim,damage,{refreshHud:false});
+      yield* applyFallingHit(player,Math.trunc(player.fallDamageAccum/2)+10);
+      playLandingThudSound();
+    }
+  }
+}
+
+function resumeFallingLanding() {
+  if (!fallingContinuation.damage.next().done) return true;
+  let {anyFalling,recheck} = fallingContinuation;
+  fallingContinuation = null;
+  fallingSettling = false;
+  // Native wrapper 0x201CC rescans support after every landing pass. A shield
+  // erased by crush damage may have been the tank's only support. Preserve
+  // accumulated damage and deployment state when falling continues.
+  if (recheck) {
+    anyFalling = false;
+    for (const player of players) {
+      if (!player.alive) continue;
+      player.falling = !hasTankSupport(player);
+      anyFalling ||= player.falling;
+    }
+  }
+  // EXE 0x201F9: consume and remove deployed parachutes after all falls settle.
+  if (!anyFalling) {
+    for (const player of players) {
+      player.fallingBodyOnly = false;
+      redrawTankShield(player);
+      if (!player.parachuteDeployed) continue;
+      // Cleanup does not repaint the native inventory widget. Keep its count
+      // until player selection performs the next full HUD refresh.
+      player.hudParachuteCount ??= player.inventory[WPN.PARACHUTE];
+      player.inventory[WPN.PARACHUTE] = Math.max(0,player.inventory[WPN.PARACHUTE]-1);
+      player.parachuteDeployed = false;
+    }
+    // Native 0x202E4 settles dirt before recursively checking for new falls.
+    fallingSettling = true;
+    return finishFallingSettlement();
+  }
   return anyFalling;
+}
+
+function finishFallingSettlement() {
+  if (stepTerrainCollapse()) return true;
+  fallingSettling = false;
+  return checkTanksFalling();
+}
+
+// EXE 0x20919..0x20A2C: descent, optional random parachute drift, then clamp.
+export function moveFallingTank(player, slide, wind) {
+  player.y += FALL_SPEED;
+  player.x += slide;
+  if (player.parachuteDeployed && Math.abs(wind)>10 && random(100)<Math.abs(wind)) {
+    const direction = wind<0 ? -1 : 1;
+    const edge = player.x+(TANK_TYPES[player.tankType].halfWidth+1)*direction;
+    const clear = (x,y) => {
+      const c = getPixel(x,y);
+      return c>=80 && !(c>=120 && c<=144);
+    };
+    // Native pushes X before Y here: the pixel callback receives transposed
+    // coordinates, unlike the support scan. Preserve that original behavior.
+    if (clear(player.y,edge) && clear(player.y-1,edge)) player.x += direction;
+  }
+  player.x = Math.max(12,Math.min(config.screenWidth-13,player.x));
 }
 
 // Draw a single tank — EXE: render_pixel_table at file 0x40C19
 // Pixel data tables at DS:0x649C+ (6 types), direction-aware X mirroring from sub[0x94]
-export function drawTank(player) {
-  if (!player.alive) return;
+export function drawTank(player, includeDead = false, plot = setPixel) {
+  if (!player.alive && !includeDead) return;
 
   const cx = player.x;            // center X (sub[0x0E])
   const groundY = player.y;       // ground line Y (sub[0x10])
@@ -466,8 +583,19 @@ export function drawTank(player) {
   for (const [dx, dy, slot] of type.pixels) {
     const px = dir === 1 ? cx + dx : cx - dx;  // mirror X for left-facing
     const py = groundY + dy;
-    setPixel(px, py, baseColor + slot);
+    plot(px, py, baseColor + slot);
   }
+
+  if (player.parachuteDeployed) {
+    // Type-table sub[0x0A] places the suspension lines above the body.
+    const offset = [5,4,3,4,5,4,5][player.tankType];
+    drawParachute(cx, groundY-offset, baseColor+6,plot);
+  }
+
+  // EXE 0x20A36 draws only the body during a fall; 0x20296 restores the barrel.
+  // Support rescan can mark a previously stationary tank before its first
+  // movement. Native erases its barrel only when that movement begins.
+  if (player.fallingBodyOnly) return;
 
   // Draw barrel — EXE: draw_barrel at 0x403F5
   // Barrel origin: (cx + dir*barrelXOff, groundY + barrelYOff) — from type table
@@ -480,8 +608,23 @@ export function drawTank(player) {
   walkExeLine(barrelX, barrelY, endX, endY, (x, y) => {
     // EXE 0x3FF55: preserve player pixels and omit the barrel endpoint.
     if (getPixel(x, y) > 79 && (x !== endX || y !== endY))
-      setPixel(x, y, barrelColor);
+      plot(x, y, barrelColor);
   });
+}
+
+// Native 0x40046: draw canopy/lines only over native colors >=105.
+export function drawParachute(x, y, color, writePixel = setPixel) {
+  const plot = (dx,dy) => {
+    const old = getPixel(x+dx,y+dy);
+    if (old >= 80 && !(old >=120 && old <=144))
+      writePixel(x+dx,y+dy,color);
+  };
+  for (let i=0;i<7;i++) plot(0,-i);
+  for (let i=0;i<6;i++) { plot(i+2,-i); plot(-i-2,-i); }
+  for (let i=5;i<9;i++) { plot(i,-6); plot(-i,-6); }
+  for (let i=-7;i<8;i++) plot(i,-7);
+  for (let i=-5;i<6;i++) plot(i,-8);
+  for (let i=-2;i<3;i++) plot(i,-9);
 }
 
 // Draw all tanks
@@ -524,55 +667,403 @@ export function updateTankContrast(player) {
   return similar;
 }
 
+// Native 0x408B7: particle source records, in allocation order. Unlike normal
+// drawing, this includes the barrel endpoint and overlap with the body.
+export function getDeathSpritePixels(player) {
+  const type=TANK_TYPES[player.tankType];
+  const direction=getTankAim(player).direction;
+  const barrel=getTankBarrel(player);
+  const base=player.index*8;
+  const records=[];
+  walkExeLine(direction*(player.barrelXOff ?? type.barrelXOff),
+    player.barrelYOff ?? type.barrelYOff,
+    (player.barrelEndX ?? barrel.endX)-player.x,
+    (player.barrelEndY ?? barrel.endY)-player.y,
+    (x,y)=>{records.push([x,y,base+4]);});
+  for (const [x,y,color] of type.pixels) records.push([x*direction,y,base+color]);
+  return records;
+}
+
 // --- Tank death animation system ---
-// Visual overlay only — does not affect alive/dead game logic
+// Sequential native palette preludes and all eleven death-effect branches.
 export const deathAnimations = [];
 
-export function startDeathAnimation(player) {
+export function startDeathAnimation(player, attackerIndex=player.index, weaponIdx=2) {
   deathAnimations.push({
-    x: player.x,
-    y: player.y + Math.floor(TANK_TYPES[player.tankType].barrelYOff / 2),  // center of tank body
+    player, attackerIndex, weaponIdx, effect:null, cycle:null,
     baseColor: player.colorIndex * PLAYER_PALETTE_STRIDE,
-    frame: 0,
-    maxFrames: 20,
   });
 }
 
 export function stepDeathAnimations() {
-  for (let i = deathAnimations.length - 1; i >= 0; i--) {
-    deathAnimations[i].frame++;
-    if (deathAnimations[i].frame >= deathAnimations[i].maxFrames) {
-      deathAnimations.splice(i, 1);
-    }
+  const anim=deathAnimations[0];
+  if (!anim) return false;
+  if (anim.effect===null) {
+    anim.effect=chooseDeathEffect(config.landType===3 || config.landType===5);
+    if (anim.effect<=5) anim.cycle=createDeathPaletteCycle(anim.baseColor);
   }
+  if (anim.cycle && stepDeathPaletteCycle(anim.cycle)) return true;
+  if (anim.effect===0) {
+    eraseDeathTank(anim.player);
+    deathAnimations.shift();
+    return deathAnimations.length>0;
+  }
+  if (anim.effect>=1 && anim.effect<=3) return stepDeathBlasts(anim);
+  if (anim.effect===5) return stepDeathRadialRays(anim);
+  if (anim.effect===10) return stepDeathSpriteParticles(anim);
+  if (anim.effect===9) return stepDeathOverlappingBursts(anim);
+  if (anim.effect===8) return stepDeathScorch(anim);
+  if (anim.effect===7) return stepDeathFlames(anim);
+  if (anim.effect===6) return stepDeathDirt(anim);
+  if (anim.effect===4) return stepDeathFunky(anim);
+  throw new RangeError(`Unknown death effect ${anim.effect}`);
+}
+
+
+function stepDeathFunky(anim) {
+  if(!anim.funky) {
+    drawTank(anim.player,true,retainWorldPixel);
+    anim.corpseErased=true;
+    anim.funky=funkyBombStages(anim.player.x,anim.player.y,-1);
+  }
+  projectileDrawing.draw();
+  if(anim.operations) return stepDeathBlasts(anim);
+  if(anim.funkyDamagePending && !anim.damageComplete) return true;
+  const next=anim.funky.next();
+  if(next.done) throw new Error('Funky death ended without its final explosion');
+  const op=next.value;
+  if(op.kind==='damage') {
+    anim.funkyDamagePending=true;anim.damageComplete=false;
+    // Native 0x2476B uses the ordinary linear damage profile, without a
+    // weapon multiplier. Weapon index 2 selects that same unit multiplier.
+    applyExplosionDamage(op.x,op.y,op.radius,anim.attackerIndex,2,
+      ()=>{anim.damageComplete=true;},{deferDeath:true});
+    return true;
+  }
+  if(op.kind==='final') {
+    anim.operations=[{kind:'blast',radius:op.radius,settle:true},{kind:'erase'}];
+    anim.operation=0;
+    return stepDeathBlasts(anim);
+  }
+  return true;
+}
+
+function stepDeathDirt(anim) {
+  if (!anim.dirt) {
+    drawTank(anim.player,true,retainWorldPixel);
+    const p=anim.player;
+    anim.dirt=deathDirtSequence({x:p.x,y:p.y,baseColor:anim.baseColor,
+      rgb:p.displayColor??getPlayerColor(p.colorIndex)},{
+      palette:(slot,rgb)=>setPaletteRgb(slot,...rgb),
+      getPixel:(x,y)=>{
+        const c=getPixel(x,y);
+        return c>=80&&c<110?c+40:c>=120&&c<=144?c-40:c;
+      },
+      deposit:(x,y)=>{
+        random(1); // Native ground-deposit table currently contains color 80.
+        terrainBitmap[y*config.screenWidth+x]=120;
+        terrain[x]=Math.min(terrain[x],y);
+        retainWorldPixel(x,y,120);
+      },
+      markDirty:markTerrainCollapse,
+      markCircle:(x,radius)=>{
+        const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+        const scale=aspect<1?Math.trunc(aspect*65536):65536;
+        const left=x+Math.floor(-radius*scale/65536)-1;
+        const right=x+Math.floor(radius*scale/65536)+1;
+        markTerrainCollapse(left,right);
+        if(getEffectiveWallType()===WALL.WRAP && (left+1<3||right-1>config.screenWidth-4))
+          markTerrainCollapse(3,config.screenWidth-4);
+      },
+      eraseTank:()=>eraseDeathTank(p,false),
+    },{ground:getGroundColor(),maxY:config.screenHeight-1,
+      top:PLAYFIELD_TOP,right:config.screenWidth-4,
+      wrap:getEffectiveWallType()===WALL.WRAP,sound:!!config.soundEnabled});
+  }
+  projectileDrawing.draw();
+  if(!anim.dirtDone) {
+    if(!anim.dirt.next().done) return true;
+    anim.dirtDone=true;
+  }
+  if(stepTerrainCollapse()) return true;
+  deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathFlames(anim) {
+  if (!anim.flames) {
+    drawTank(anim.player,true,retainWorldPixel);
+    eraseDeathTank(anim.player);
+    const toPort=color=>color>=80&&color<=104?color+40:
+      color>=120&&color<150?color-40:color;
+    const io={
+      getPixel:(x,y)=>{
+        const color=getPixel(x,y);
+        return color>=80&&color<110?color+40:color>=120&&color<=144?color-40:color;
+      },
+      setPixel:(x,y,color)=>{
+        const mapped=toPort(color);
+        if(color>=80&&color<=104 && x>=0&&x<config.screenWidth&&y>=0&&y<config.screenHeight)
+          terrainBitmap[y*config.screenWidth+x]=mapped;
+        retainWorldPixel(x,y,mapped);
+      },
+      restorePixel:(x,y)=>{
+        if(x<3||x>config.screenWidth-4||y<PLAYFIELD_TOP||y>config.screenHeight-4) return;
+        terrainBitmap[y*config.screenWidth+x]=0;
+        retainWorldPixel(x,y,getBackgroundColor(y,x));
+        if(terrain[x]===y)
+          while(terrain[x]<config.screenHeight&&!terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+      },
+      palette:(base,colors)=>{
+        colors.forEach((rgb,i)=>setPaletteRgb(toPort(base+i),...rgb));
+        if(base===170) anim.flamePalette=colors.map(rgb=>rgb.slice());
+      },
+      cycle:base=>{
+        const colors=anim.flamePalette;
+        colors.push(colors.shift());
+        colors.forEach((rgb,i)=>setPaletteRgb(base+i,...rgb));
+      },
+    };
+    io.circle=(x,y,radius,color)=>drawDeathFlameCircle(x,y,radius,color,io);
+    anim.flames=deathFlameSequence(anim.player.x,anim.player.y,io,{ground:getGroundColor()});
+  }
+  projectileDrawing.draw();
+  if(!anim.flames.next().done) return true;
+  deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathScorch(anim) {
+  if (!anim.scorch) {
+    const restorePixel=(x,y)=>{
+      if (x<3 || x>config.screenWidth-4 || y<PLAYFIELD_TOP || y>config.screenHeight-4) return;
+      terrainBitmap[y*config.screenWidth+x]=0;
+      retainWorldPixel(x,y,getBackgroundColor(y,x));
+      if (terrain[x]===y)
+        while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+    };
+    const eraseBarrel=player=>{
+      const b=getTankBarrel(player);
+      walkExeLine(b.x,b.y,player.barrelEndX??b.endX,player.barrelEndY??b.endY,(x,y)=>{
+        if (getPixel(x,y)===player.colorIndex*8+4) restorePixel(x,y);
+      });
+    };
+    const drawBody=(player,erase)=>{
+      const type=TANK_TYPES[player.tankType],direction=getTankAim(player).direction;
+      for(const [dx,dy,slot] of type.pixels) {
+        const x=player.x+dx*direction,y=player.y+dy;
+        if(erase) restorePixel(x,y);
+        else retainWorldPixel(x,y,player.colorIndex*8+slot);
+      }
+      if(erase) eraseMovingShield(player);
+      else redrawTankShield(player);
+    };
+    drawTank(anim.player,true,retainWorldPixel);
+    anim.scorch=deathScorchSequence(anim.player,{
+      getPixel:(x,y)=>{
+        const color=getPixel(x,y);
+        return color>=80&&color<110?color+40:color>=120&&color<=144?color-40:color;
+      },
+      setPixel:retainWorldPixel,restorePixel,eraseBarrel,drawTank:drawBody,
+      setupTank:player=>{eraseBarrel(player);drawBody(player,true);},
+      palette:colors=>colors.forEach((rgb,i)=>setPaletteRgb(170+i,...rgb)),
+      beginCycle:(base,count)=>{anim.scorchPalette=palette6.slice(base*3,(base+count)*3);},
+      cycle:(base,count)=>{
+        const saved=anim.scorchPalette;
+        anim.scorchPalette=new Uint8Array([...saved.slice(3),...saved.slice(0,3)]);
+        for(let i=0;i<count;i++) setPaletteRgb(base+i,...anim.scorchPalette.slice(i*3,i*3+3));
+      },
+      markDirty:markTerrainCollapse,
+    },{top:PLAYFIELD_TOP,bottom:config.screenHeight-4,ground:getGroundColor()});
+  }
+  projectileDrawing.draw();
+  if (!anim.scorch.next().done) return true;
+  deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathOverlappingBursts(anim) {
+  if (!anim.bursts) {
+    anim.bursts=deathBurstSequence(anim.player.x,anim.player.y);
+    anim.burstBounds={left:anim.player.x,right:anim.player.x,top:anim.player.y,bottom:anim.player.y};
+    deathBurstPalette().forEach((rgb,index)=>setPaletteRgb(200+index,...rgb));
+    drawTank(anim.player,true,retainWorldPixel);
+  }
+  projectileDrawing.draw();
+  const next=anim.bursts.next();
+  const wrap=getEffectiveWallType()===WALL.WRAP;
+  if (!next.done) {
+    const bounds=drawDeathBurst(next.value,{writePixel:retainWorldPixel,wrap});
+    for (const key of ['left','top']) anim.burstBounds[key]=Math.min(anim.burstBounds[key],bounds[key]);
+    for (const key of ['right','bottom']) anim.burstBounds[key]=Math.max(anim.burstBounds[key],bounds[key]);
+    markTerrainCollapse(bounds.left-1,bounds.right+1);
+    if (wrap && (bounds.left<3 || bounds.right>config.screenWidth-4)) markTerrainCollapse(3,config.screenWidth-4);
+    return true;
+  }
+  const b=anim.burstBounds;
+  const left=b.left-1,right=b.right+1;
+  const top=Math.max(PLAYFIELD_TOP,Math.min(config.screenHeight-4,b.top-1));
+  const bottom=Math.max(PLAYFIELD_TOP,Math.min(config.screenHeight-4,b.bottom+1));
+  for (const [dx,dy] of rectanglePixelOrder(right-left+1,bottom-top+1)) {
+    let x=left+dx;const y=top+dy;
+    if (x<3 || x>config.screenWidth-4) {
+      if (!wrap) continue;
+      x+=x<3?config.screenWidth-6:-(config.screenWidth-6);
+    }
+    if (getPixel(x,y)<170) continue;
+    terrainBitmap[y*config.screenWidth+x]=0;
+    retainWorldPixel(x,y,getBackgroundColor(y,x));
+    if (terrain[x]===y)
+      while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+  }
+  eraseDeathTank(anim.player);deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathSpriteParticles(anim) {
+  if (!anim.particles) {
+    if (anim.player.shieldEnergy>0) eraseMovingShield(anim.player);
+    const rgb=anim.player.displayColor ?? getPlayerColor(anim.player.colorIndex);
+    for (let slot=0;slot<8;slot++)
+      setPaletteRgb(anim.baseColor+slot,...(slot===5?[63,63,63]:slot===7?[30,30,30]:rgb));
+    drawTank(anim.player,true,retainWorldPixel);
+    anim.particles=getDeathSpritePixels(anim.player).map(([x,y,color])=>({
+      x:anim.player.x+x,y:anim.player.y+y,color,...randomDeathVelocity(),
+    }));
+  }
+  projectileDrawing.draw();
+  const active=stepDeathParticles(anim.particles,{
+    getPixel:(x,y)=>{
+      const color=getPixel(x,y);
+      return color>=80&&color<110?color+40:color>=120&&color<=144?color-40:color;
+    },
+    erasePixel:(x,y)=>{
+      if (x<3 || x>config.screenWidth-4 || y<PLAYFIELD_TOP || y>config.screenHeight-4) return;
+      terrainBitmap[y*config.screenWidth+x]=0;
+      retainWorldPixel(x,y,getBackgroundColor(y,x));
+      if (terrain[x]===y)
+        while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+    },
+    setPixel:retainWorldPixel,
+  },{right:config.screenWidth-4,bottom:config.screenHeight-4,wrap:getEffectiveWallType()===WALL.WRAP});
+  if (active) return true;
+  deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathRadialRays(anim) {
+  if (!anim.rays) {
+    anim.rays=createDeathRays(anim.player.x,anim.player.y);
+    anim.rayPixels=new Map();
+  }
+  if (stepDeathRays(anim.rays,{writePixel:(x,y,color)=>{
+    anim.rayPixels.set(y*config.screenWidth+x,color);
+    writeWorldPixel(x,y,color);
+  }})) return true;
+  if (!anim.rayDamageStarted) {
+    anim.rayDamageStarted=true;
+    applyDeathRayDamage(anim.player.x,anim.player.y,anim.rays.radius,anim.attackerIndex,
+      ()=>{anim.damageComplete=true;});
+  }
+  if (!anim.damageComplete) return true;
+  // Restore only pixels still carrying the ray color, not the entire circle.
+  // Reapply retained rays before the native read/erase callback sees the world.
+  for (const [index,color] of anim.rayPixels)
+    setPixel(index%config.screenWidth,Math.floor(index/config.screenWidth),color);
+  bresenhamCircleFill(anim.player.x,anim.player.y,anim.rays.radius,0,{writePixel:(x,y)=>{
+    if (getPixel(x,y)!==250) return;
+    terrainBitmap[y*config.screenWidth+x]=0;
+    retainWorldPixel(x,y,getBackgroundColor(y,x));
+    if (terrain[x]===y)
+      while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+  }});
+  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
+  const left=anim.player.x+Math.floor(-anim.rays.radius*scaleX/65536);
+  const right=anim.player.x+Math.floor(anim.rays.radius*scaleX/65536);
+  markTerrainCollapse(left-1,right+1); // Native 0x1CD38.
+  if (getEffectiveWallType()===WALL.WRAP && (left<3 || right>config.screenWidth-4))
+    markTerrainCollapse(3,config.screenWidth-4);
+  eraseDeathTank(anim.player);deathAnimations.shift();
+  return deathAnimations.length>0;
+}
+
+function stepDeathBlasts(anim) {
+  if (!anim.operations) {
+    const scale=config.screenWidth<=320?[0.5,0.75,1][config.explosionScale]:[1,2,3][config.explosionScale];
+    anim.operations=deathBlastSequence(anim.effect,[20,40,75].map(r=>Math.trunc(r*scale))).slice(1);
+    anim.operation=0;
+  }
+  anim.delay=0;
+  while (anim.operation<anim.operations.length) {
+    const op=anim.operations[anim.operation];
+    if (op.kind==='delay') {anim.delay=op.duration;anim.operation++;return true;}
+    if (op.kind==='erase') {
+      eraseDeathTank(anim.player);deathAnimations.shift();return deathAnimations.length>0;
+    }
+    if (!anim.blastStarted) {
+      anim.blastStarted=true;anim.blastFinished=false;anim.damageComplete=false;
+      startExplosion(anim.player.x,anim.player.y,op.radius,anim.attackerIndex,(restored)=>{
+        anim.blastFinished=true;
+        anim.corpseErased=true;
+        anim.restoredPixels ??= new Map();
+        for (const [index,color] of restored) anim.restoredPixels.set(index,color);
+        applyExplosionDamage(anim.player.x,anim.player.y,op.radius,anim.attackerIndex,anim.weaponIdx,
+          ()=>{anim.damageComplete=true;},{deferDeath:true});
+      },{captureRestoration:true});
+    }
+    if (isExplosionActive()) {stepExplosion();return true;}
+    if (!anim.damageComplete) return true;
+    if (op.settle) {
+      // Native dirt settling starts by redrawing live tanks (0x1CF06).
+      anim.restoredPixels=null;
+      if (stepTerrainCollapse()) return true;
+    }
+    anim.operation++;anim.blastStarted=false;
+  }
+  return true;
+}
+
+function eraseDeathTank(player,markDirty=true) {
+  const aim=getTankAim(player),type=TANK_TYPES[player.tankType];
+  const barrel=getTankBarrel(player),color=player.colorIndex*8+4;
+  walkExeLine(barrel.x,barrel.y,barrel.endX,barrel.endY,(x,y)=>{
+    if (getPixel(x,y)===color) retainWorldPixel(x,y,getBackgroundColor(y,x));
+  });
+  for (const [dx,dy] of type.pixels) {
+    const x=player.x+dx*aim.direction,y=player.y+dy;
+    if (x<3 || x>config.screenWidth-4 || y<PLAYFIELD_TOP || y>config.screenHeight-4) continue;
+    terrainBitmap[y*config.screenWidth+x]=0;
+    retainWorldPixel(x,y,getBackgroundColor(y,x));
+    if (terrain[x]===y)
+      while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
+  }
+  eraseMovingShield(player);
+  if(markDirty) markTerrainCollapse(player.x-16,player.x+16);
 }
 
 export function drawDeathAnimations() {
-  for (const anim of deathAnimations) {
-    const t = anim.frame / anim.maxFrames;
-    const radius = Math.floor(12 * t);
-
-    // Expanding ring of fire-palette particles
-    for (let angle = 0; angle < 360; angle += 15) {
-      const rad = angle * Math.PI / 180;
-      const px = Math.round(anim.x + Math.cos(rad) * radius);
-      const py = Math.round(anim.y + Math.sin(rad) * radius);
-      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-        const palIdx = FIRE_PAL_BASE + Math.floor(t * 29);
-        setPixel(px, py, palIdx);
-      }
+  for (const [index,anim] of deathAnimations.entries()) {
+    if(index===0 && anim.funky) {
+      projectileDrawing.draw();
+      for(const [pixel,color] of anim.restoredPixels??[])
+        setPixel(pixel%config.screenWidth,Math.floor(pixel/config.screenWidth),color);
+      drawExplosion();continue;
     }
-
-    // Disintegrating pixels in player's color scattering outward
-    const scatterCount = Math.floor(8 * (1 - t));
-    for (let i = 0; i < scatterCount; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const dist = radius * 0.5 + Math.random() * radius * 0.5;
-      const px = Math.round(anim.x + Math.cos(ang) * dist);
-      const py = Math.round(anim.y + Math.sin(ang) * dist);
-      if (px >= 0 && px < config.screenWidth && py >= 0 && py < config.screenHeight) {
-        setPixel(px, py, anim.baseColor + 2 + Math.floor(Math.random() * 3));
-      }
+    if (index===0 && (anim.particles || anim.bursts || anim.scorch || anim.flames || anim.dirt)) {projectileDrawing.draw();continue;}
+    if (index===0 && anim.rays) {
+      drawTank(anim.player,true);
+      for (const [pixel,color] of anim.rayPixels)
+        setPixel(pixel%config.screenWidth,Math.floor(pixel/config.screenWidth),color);
+      continue;
     }
+    if (index===0 && anim.operations) {
+      if (!anim.corpseErased) drawTank(anim.player,true);
+      for (const [index,color] of anim.restoredPixels ?? [])
+        setPixel(index%config.screenWidth,Math.floor(index/config.screenWidth),color);
+      drawExplosion();
+      continue;
+    }
+    drawTank(anim.player,true);
   }
 }

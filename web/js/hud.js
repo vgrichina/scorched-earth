@@ -55,6 +55,7 @@ import { PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
          UI_DARK_BORDER, UI_LIGHT_BORDER, UI_MED_BORDER, UI_BRIGHT_BORDER } from './constants.js';
 import { PLAYFIELD_TOP } from './terrain.js';
 import { SHIELD_CONFIG } from './shields.js';
+import { prepareWindIndicator, windPixelVisible } from './wind-indicator-state.js';
 
 // EXE DS:3826, 48 records of 125 bytes. Header: x offset, y offset,
 // row width. Signed row-major samples end at -99; preserve shade values.
@@ -240,6 +241,17 @@ export function drawPlayfieldBorder() {
 
 // Draw the full HUD into the framebuffer
 // EXE: draw_hud() at file 0x2FC84, draw_hud_full() at file 0x301B2
+// Native 0x318D8 refreshes this field independently during damage. Other HUD
+// widgets retain their existing pixels until their own refresh calls.
+export function drawHudEnergy(player) {
+  const x=LEFT+Math.max(measureText('Power'),measureText('Max'))+8;
+  const width=measureText('8888 ');
+  fillRect(x,ROW2_Y,x+width-1,ROW2_Y+11,UI_BACKGROUND);
+  const fuelVal=Math.max(0,Math.min(1000,Math.trunc(
+    (player.hudEnergy??player.energy??0)*1000/(player.maxEnergy??100))));
+  drawText(x,ROW2_Y,String(fuelVal).padStart(4),UI_DEEP_SHADOW);
+}
+
 export function drawHud(player, wind, round, opts) {
   // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
@@ -302,7 +314,7 @@ export function drawHud(player, wind, round, opts) {
     // EXE: most text drawn in [EF22] = VGA 152 = black; player name at E9DC in palette 163
     let x = barX;
     // EXE: sprintf(buf, "%4d", player.power) at [E9D6]
-    drawText(x, HUD_Y, String(player.power).padStart(4), hudTextColor);
+    drawText(x, HUD_Y, String(player.hudPower ?? player.power).padStart(4), hudTextColor);
     x += barWidth;
     // EXE: sprintf("%s:", "Angle") at DS:0x57BA formats "Angle:" → drawn at E9D8
     // E9DA = E9D8 + measureText("Angle") + 8 (advance uses "Angle" width, not "Angle:")
@@ -403,9 +415,7 @@ export function drawHud(player, wind, round, opts) {
     // Widget 1 (0x318D8): fuel at barX = E9EA, format "%4ld" → 4-char integer
     // EXE: shows 0-1000 (per mille). Web: player.energy = 0-100%, so multiply by 10.
     let x = barX; // E9EA
-    const fuelVal = Math.max(0, Math.min(1000, Math.round((player.energy || 0) * 10)));
-    const fuelColor = fuelVal > 0 ? hudTextColor : dimColor;
-    drawText(x, ROW2_Y, String(fuelVal).padStart(4), fuelColor);
+    drawHudEnergy(player);
     x += barWidth; // → E9EC
 
     // Widget 2 (0x3DE9B): battery count at E9EC ("%2d"), icon at E9EE
@@ -420,7 +430,7 @@ export function drawHud(player, wind, round, opts) {
 
     // Inline (draw_hud_full 0x303CC): parachute count at E9F0, format "%2d" [DS:57D0]
     // EXE: inventory[D554=38] = parachute count
-    const paraCount = player.inventory ? (player.inventory[WPN.PARACHUTE] || 0) : 0;
+    const paraCount = player.hudParachuteCount ?? player.inventory?.[WPN.PARACHUTE] ?? 0;
     const paraColor = paraCount > 0 ? hudTextColor : dimColor;
     drawText(x, ROW2_Y, String(paraCount).padStart(2), paraColor);
     x += countFieldW; // → E9F2
@@ -435,7 +445,7 @@ export function drawHud(player, wind, round, opts) {
     // a negative index draws a generic empty-defense symbol, with no count.
     const shieldWeapon = player.shieldWeapon ?? (player.activeShield > 0
       ? WPN.MAG_DEFLECTOR + player.activeShield - 1 : -1);
-    const shieldEnergy = player.shieldEnergy || 0;
+    const shieldEnergy = player.hudShieldEnergy ?? player.shieldEnergy ?? 0;
     if (shieldWeapon >= 2) {
       drawText(x, ROW2_Y, String(player.inventory?.[shieldWeapon] || 0), hudTextColor);
     }
@@ -514,11 +524,13 @@ export function drawHud(player, wind, round, opts) {
 // Color: VGA 154 (0x9A). Position: top-right viewport area.
 const WIND_COLOR = 154; // VGA 0x9A — wind indicator text + arrow color
 function drawWindPixel(x, y) {
+  if (!windPixelVisible(y * config.screenWidth + x)) return;
   // EXE 0x28E43: original VGA 80..104 uses wind-on-ground color 87.
   const under = getPixel(x, y);
   setPixel(x, y, under >= 120 && under <= 144 ? 127 : WIND_COLOR);
 }
 export function drawWindIndicator(wind) {
+  prepareWindIndicator(`${config.screenWidth}:${config.screenHeight}:${wind}`);
   setPaletteRgb(127, 40, 40, 63); // Remapped EXE VGA 87.
   const viewportY = PLAYFIELD_TOP;
   let direction, text;

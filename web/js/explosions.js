@@ -14,10 +14,11 @@ import { getEffectiveWallType, WALL } from './physics.js';
 import { getPixel, getBackgroundColor } from './framebuffer.js';
 import { writeWorldPixel as setPixel } from './projectile-render.js';
 import { terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
-import { players } from './tank.js';
+import { players, updateTankDamageState } from './tank.js';
 import { scoreOnDamage } from './score.js';
 import { playExplosionSound } from './sound.js';
 import { applyShieldDamage, shieldBreak } from './shields.js';
+import { markTerrainCollapse } from './terrain-collapse.js';
 import { random } from './utils.js';
 import { TERRAIN_PAL_START, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
@@ -195,11 +196,11 @@ function setupExplosionPalette() {
   }
 }
 
-export function startExplosion(cx, cy, radius, attackerIndex, onComplete = null) {
+export function startExplosion(cx, cy, radius, attackerIndex, onComplete = null, {captureRestoration=false} = {}) {
   setupExplosionPalette();
   playExplosionSound(radius);
   const anim = {
-    cx, cy, radius, attackerIndex, onComplete,
+    cx, cy, radius, attackerIndex, onComplete, captureRestoration,
     frame: 0,
     maxFrames: Math.ceil(radius / (radius < 40 ? 1 : 2)),
     currentRadius: 1,
@@ -274,10 +275,10 @@ export function bresenhamCircleFill(cx, cy, radius, colorIdx,
       const hw = (di + 1) >> 1;   // half-width = (di+1)/2
       const h = si >> 1;          // height offset = si/2
       // 4-fold symmetry: (±hw, ±h) and (±h, ±hw)
-      scanline(hw, h);
-      scanline(hw, -h);
       scanline(h, hw);
       scanline(h, -hw);
+      scanline(hw, h);
+      scanline(hw, -h);
     }
     decision += 2 * si + 1;
     si++;
@@ -289,24 +290,27 @@ export function bresenhamCircleFill(cx, cy, radius, colorIdx,
   // Final scanline after loop
   const hw = (di + 1) >> 1;
   const h = si >> 1;
-  scanline(hw, h);
-  scanline(hw, -h);
   scanline(h, hw);
   scanline(h, -hw);
+  scanline(hw, h);
+  scanline(hw, -h);
 }
 
 // EXE 0x43E97 invokes the unconditional callback circle at 0x43ACA.
 // Restore every covered pixel, including blast colors and traces, to sky.
-export function restoreExplosionTerrain(cx, cy, radius) {
+export function restoreExplosionTerrain(cx, cy, radius, restoredPixels = null) {
   const columns = new Set();
   bresenhamCircleFill(cx, cy, radius, 0, {
     writePixel(x, y) {
       terrainBitmap[y * config.screenWidth + x] = 0;
-      setPixel(x, y, getBackgroundColor(y, x));
+      const color=getBackgroundColor(y,x);
+      setPixel(x, y, color);
+      restoredPixels?.set(y*config.screenWidth+x,color);
       columns.add(x);
     },
   });
   for (const x of columns) updateTerrainColumn(x);
+  if (columns.size) markTerrainCollapse(Math.min(...columns),Math.max(...columns));
 }
 
 // Native ordinary-blast growth, then large-blast palette cycling.
@@ -315,8 +319,9 @@ export function stepExplosion() {
   if (!currentExplosion) return false;
   const anim = currentExplosion;
   if (anim.currentRadius > anim.radius && (anim.radius <= 30 || anim.blackened)) {
-    restoreExplosionTerrain(anim.cx, anim.cy, anim.radius);
-    anim.onComplete?.();
+    const restored=anim.captureRestoration?new Map():null;
+    restoreExplosionTerrain(anim.cx, anim.cy, anim.radius,restored);
+    anim.onComplete?.(restored);
     currentExplosion = explosionQueue.shift() || null;
     if (currentExplosion) setupExplosionPalette();
     return currentExplosion !== null;
@@ -356,8 +361,14 @@ export function isExplosionActive() {
   return currentExplosion !== null;
 }
 
+export function drawExplosion() {
+  if (!currentExplosion) return;
+  for (const [index,color] of currentExplosion.pixels)
+    setPixel(index%config.screenWidth,Math.floor(index/config.screenWidth),color);
+}
+
 // Native area-damage request at 0x43EAB, before shield/energy accounting.
-export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
+export function getExplosionDistance(cx, cy, x, y) {
   const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
   const scaleX = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const scaleY = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
@@ -369,7 +380,11 @@ export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
   let distanceSquared = squared(x - cx);
   if (getEffectiveWallType() === WALL.WRAP)
     distanceSquared = Math.min(distanceSquared, squared(Math.abs(x - cx) - (config.screenWidth - 7)));
-  const distance = Math.sqrt(distanceSquared);
+  return Math.sqrt(distanceSquared);
+}
+
+export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
+  const distance = getExplosionDistance(cx,cy,x,y);
   if (distance >= radius) return 0;
   const damage = Math.trunc((radius - distance) * 100 / radius) * (weaponIdx - 1);
   return damage > 100 ? 110 : damage;
@@ -378,11 +393,13 @@ export function getExplosionDamage(cx, cy, radius, x, y, weaponIdx = 2) {
 // Native area damage resumes after each blocking shield fade, before visiting
 // the next tank. Keep that continuation explicit in the frame-driven port.
 const damageJobs = [];
-function applyTankDamage(player, damage, attacker) {
+function applyTankDamage(player, damage, attacker, deferDeath = false) {
   if (damage > 0 && attacker)
     scoreOnDamage(attacker, player, Math.min(damage, Math.max(0, player.energy)), false);
-  player.energy = Math.max(0, player.energy - damage);
-  if (player.energy === 0) player.alive = false;
+  player.energy = deferDeath ? player.energy-damage : Math.max(0, player.energy-damage);
+  updateTankDamageState(player);
+  if (deferDeath && player.energy<=0) player.pendingFallDeath=true;
+  else if (player.energy === 0) player.alive = false;
 }
 
 export function resumeExplosionDamage() {
@@ -390,13 +407,14 @@ export function resumeExplosionDamage() {
     const job = damageJobs[0];
     const attacker = players[job.attackerIndex];
     if (job.pendingTank) {
-      applyTankDamage(job.pendingTank.player, job.pendingTank.damage, attacker);
+      applyTankDamage(job.pendingTank.player, job.pendingTank.damage, attacker,job.deferDeath);
       job.pendingTank = null;
     }
     while (job.next < players.length) {
       const player = players[job.next++];
       if (!player.alive) continue;
-      let damage = getExplosionDamage(job.cx,job.cy,job.radius,player.x,player.y,job.weaponIdx);
+      let damage = job.damageForPlayer ? job.damageForPlayer(player) :
+        getExplosionDamage(job.cx,job.cy,job.radius,player.x,player.y,job.weaponIdx);
       if (damage <= 0) continue;
       if (player.shieldEnergy > 0) {
         const requested = damage;
@@ -407,7 +425,7 @@ export function resumeExplosionDamage() {
           return false;
         }
       }
-      applyTankDamage(player,damage,attacker);
+      applyTankDamage(player,damage,attacker,job.deferDeath);
     }
     damageJobs.shift();
     job.onComplete?.();
@@ -415,8 +433,17 @@ export function resumeExplosionDamage() {
   return damageJobs.length === 0;
 }
 
-export function applyExplosionDamage(cx, cy, radius, attackerIndex, weaponIdx = 2, onComplete = null) {
-  damageJobs.push({cx,cy,radius,attackerIndex,weaponIdx,onComplete,next:0,pendingTank:null});
+export function applyExplosionDamage(cx, cy, radius, attackerIndex, weaponIdx = 2, onComplete = null, {deferDeath=false} = {}) {
+  damageJobs.push({cx,cy,radius,attackerIndex,weaponIdx,onComplete,deferDeath,next:0,pendingTank:null});
+  return resumeExplosionDamage();
+}
+
+// Native effect 5 applies a flat 20 points strictly inside its radius, skipping
+// any tank at the effect's exact center. Shield fades retain the same ordering.
+export function applyDeathRayDamage(cx,cy,radius,attackerIndex,onComplete) {
+  damageJobs.push({attackerIndex,onComplete,deferDeath:true,next:0,pendingTank:null,
+    damageForPlayer:player=>(player.x!==cx || player.y!==cy) &&
+      getExplosionDistance(cx,cy,player.x,player.y)<radius?20:0});
   return resumeExplosionDamage();
 }
 

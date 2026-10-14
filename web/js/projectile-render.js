@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { getPixel, setPixel, getBackgroundColor } from './framebuffer.js';
 import { PLAYFIELD_TOP } from './terrain.js';
 import { UI_DARK_BORDER } from './constants.js';
+import { overwriteWindPixel } from './wind-indicator-state.js';
 
 // Preserve indexed projectile writes across the world's full-frame repaint.
 // Completed shots release their state while their trace pixels remain.
@@ -59,6 +60,7 @@ export function retainWorldPixel(x, y, color) {
 // Ordinary world repaint must continue to use framebuffer.setPixel directly.
 export function writeWorldPixel(x, y, color) {
   if (x < 0 || x >= config.screenWidth || y < 0 || y >= config.screenHeight) return;
+  overwriteWindPixel(y * config.screenWidth + x);
   projectileDrawing.writes.delete(y * config.screenWidth + x);
   setPixel(x, y, color);
 }

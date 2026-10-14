@@ -42,14 +42,34 @@ parser.add_argument('--bomb-icon',type=int,choices=range(3),default=1)
 parser.add_argument('--erase-head',action='store_true',help='Erase the head through the native callback before comparing')
 parser.add_argument('--restore-sky-grid',action='store_true',help='Compare native setTerrainPixel against cached sky on a 7-pixel grid')
 parser.add_argument('--flight-steps',type=int,default=0,help='Compose launch, free-flight and drawing for up to 30 steps; no native collisions')
+parser.add_argument('--fall-shield',type=int,help='Shield (config 2) HP for the stacked-fall victim')
+parser.add_argument('--stacked-fall',action='store_true',help='Place player 0 above player 1 for the falling-offsets fixture')
+parser.add_argument('--falling-offsets',type=int,nargs=2,help='Lift both tanks by these pixels, then compare native falling frames')
+parser.add_argument('--shot-parachute',action='store_true',help='Give falling target one parachute for composed shot capture')
+parser.add_argument('--shot-falling',action='store_true',help='Compare each moving falling-tank frame; requires --shot-aftermath')
+parser.add_argument('--shot-aftermath',action='store_true',help='Also compare the completed native impact aftermath; requires --shot-impact')
+parser.add_argument('--shot-impact',action='store_true',help='Continue real flight into ordinary impact and blast restoration; aftermath coverage is pending')
 parser.add_argument('--flight-collisions',action='store_true',help='Execute native collision traversal and wall response during flight; impacts fail the fixture')
 parser.add_argument('--explosion',type=int,nargs=3,metavar=('X','Y','RADIUS'),help='Compare ordinary blast growth/cycling/restoration before damage')
 parser.add_argument('--shields',type=int,nargs=2,choices=range(6),help='Compose settled shield drawing for both tanks after HUD setup')
 parser.add_argument('--shield-hole',action='store_true',help='Erase the top shield pixel before the break fade fixture')
 parser.add_argument('--shield-break',type=int,choices=range(1,6),help='Compare all 51 fade frames of player 1 shield destruction')
+parser.add_argument('--shield-fade-hud',action='store_true',help='Show damaged tank HUD and compare 51 fade frames, stopping before erasure')
 parser.add_argument('--shield-shot',action='store_true',help='Start flight at the top of player 1 Warp Shield')
 parser.add_argument('--trace',action='store_true',help='Enable trace color for composed flight')
 args=parser.parse_args()
+if args.fall_shield is not None and not args.stacked_fall:parser.error('--fall-shield requires --stacked-fall')
+if args.stacked_fall and not args.falling_offsets:parser.error('--stacked-fall requires --falling-offsets')
+if args.falling_offsets:
+    args.full_frame=True
+    if any(v<0 or v>40 for v in args.falling_offsets):parser.error('falling offsets must be 0..40')
+if args.shot_parachute and not args.shot_falling: parser.error('--shot-parachute requires --shot-falling')
+if args.shot_falling and not args.shot_aftermath: parser.error('--shot-falling requires --shot-aftermath')
+if args.shot_aftermath and not args.shot_impact: parser.error('--shot-aftermath requires --shot-impact')
+if args.shot_impact:
+    if args.shields or args.explosion or args.shield_shot or args.shield_break: parser.error('--shot-impact requires an ordinary unshielded shot')
+    args.flight_collisions=True
+if args.shield_fade_hud and not args.shield_break: parser.error('--shield-fade-hud requires --shield-break')
 if args.shield_hole and not args.shield_break: parser.error('--shield-hole requires --shield-break')
 if args.shield_break:
     if args.shield_shot or args.flight_steps or args.rounds!=1: parser.error('--shield-break requires a single round and no flight')
@@ -60,7 +80,7 @@ if args.shield_shot:
 if args.shields and (not args.full_frame or (args.projectile_head and not args.shield_shot) or args.explosion or args.restore_sky_grid): parser.error('--shields requires --full-frame without projectile/explosion/sky-grid')
 if args.explosion and (not args.full_frame or args.projectile_head or args.restore_sky_grid or args.explosion[2]<=0): parser.error('--explosion requires --full-frame, positive radius, and no head/sky-grid')
 if args.flight_collisions and not args.flight_steps: parser.error('--flight-collisions requires --flight-steps')
-if not 0<=args.flight_steps<=30: parser.error('--flight-steps must be 0..30')
+if not 0<=args.flight_steps<=(500 if args.shot_impact else 30): parser.error('--flight-steps must be 0..30, or 0..500 with --shot-impact')
 if args.flight_steps and (not args.projectile_head or not args.full_frame or args.erase_head or args.restore_sky_grid): parser.error('--flight-steps requires --full-frame and --projectile-head, without erasure/grid')
 if args.erase_head and not args.projectile_head: parser.error('--erase-head requires --projectile-head')
 if args.full_frame: args.players=True
@@ -108,44 +128,50 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         'node','--input-type=module','-e',
         "import {config} from './web/js/config.js';import {prepareRoundBackground,game,processHit} from './web/js/game.js';"
         "import {drawWindIndicator,drawHud,drawPlayfieldBorder} from './web/js/hud.js';import {gameTick,STATE} from './web/js/game.js';"
-        "import {createPlayers,players,drawAllTanks,getTankAim,getTankBarrel} from './web/js/tank.js';"
+        "import {createPlayers,players,drawAllTanks,getTankAim,getTankBarrel,checkTanksFalling,stepFallingTanks,isFallingSettling,fallingFlash} from './web/js/tank.js';"
         "import {getEffectiveWallType,launchProjectile,clearProjectiles,projectiles,stepSingleProjectile} from './web/js/physics.js';import {projectileDrawing,drawProjectileHead,drawProjectileTrackingMarks} from './web/js/projectile-render.js';"
         "import {seedRandom,getRandomState} from './web/js/utils.js';"
         "import {palette6,resolvedSkyType} from './web/js/palette.js';"
         "import * as t from './web/js/terrain.js';import {pixels,setPixel,getPixel,getBackgroundColor} from './web/js/framebuffer.js';"
         "import {startExplosion,stepExplosion,isExplosionActive} from './web/js/explosions.js';"
         "import {drawShield,SHIELD_CONFIG,applyShieldDamage,drawShieldBreak,shieldBreak,eraseShieldContact} from './web/js/shields.js';"
+        "import {WPN} from './web/js/weapons.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
-        "if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
+        "if(shotImpact)config.tunneling=0;if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
         "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fullFrame){drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "if(shields)players.forEach((p,i)=>{p.activeShield=shields[i];p.shieldEnergy=SHIELD_CONFIG[shields[i]].energy;drawShield(p);});"
-        "if(breakShield){game.currentPlayer=0;drawHud(players[0],game.wind,game.round,{});}"
+        "if(breakShield){game.currentPlayer=fadeHud?1:0;drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "if(shieldShot){game.currentPlayer=0;head.splice(0,2,players[1].x,players[1].y-SHIELD_CONFIG[3].radius);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
-        "const frames=[],motion=[],flightPalettes=[],explosionPalettes=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
+        "if(shotParachute)players[1].inventory[WPN.PARACHUTE]=1;"
+        "const initialPlayers=players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY}));"
+        "const frames=[],motion=[],phases=[],flightPalettes=[],explosionPalettes=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
+        "if(fallingOffsets){if(fallShield!==null){players[1].activeShield=2;players[1].shieldEnergy=fallShield;}if(stackedFall){players[0].x=players[1].x;players[0].y=players[1].y;}players.forEach((p,i)=>p.y-=fallingOffsets[i]);const world=()=>{t.drawSky();t.drawTerrain();drawAllTanks();players.forEach(drawShield);drawPlayfieldBorder();};world();checkTanksFalling();for(let tick=0;tick<1000;tick++){world();const moving=stepFallingTanks(game.wind);world();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);const fading=shieldBreak.active;if(fading)drawShieldBreak();projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push(fading?'shield':fallingFlash.delay?'lethal':moving?'falling':'aftermath');if(!moving)break;}}"
         "if(breakShield){if(shieldHole)eraseShieldContact(players[1],players[1].x,players[1].y-SHIELD_CONFIG[breakShield].radius);applyShieldDamage(players[1],players[1].shieldEnergy);while(shieldBreak.active){"
-        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[0],game.wind,game.round,{});drawWindIndicator(game.wind);"
-        "drawShieldBreak();frames.push(encode());flightPalettes.push([...palette6]);}"
-        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[0],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();"
-        "frames.push(encode());flightPalettes.push([...palette6]);}"
+        "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
+        "players.forEach(drawShield);drawShieldBreak();frames.push(encode());flightPalettes.push([...palette6]);}"
+        "if(!fadeHud){t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();"
+        "frames.push(encode());flightPalettes.push([...palette6]);}}"
         "if(head){clearProjectiles();launchProjectile(head[0],head[1],45,200,2,0);drawProjectileTrackingMarks(head[0],head[1],icon);if(erase){config.bombIcon=icon;projectileDrawing.advance(projectiles[0]);projectileDrawing.draw();projectileDrawing.finish(projectiles[0]);projectileDrawing.draw();}else if(!flightSteps)drawProjectileHead(head[0],head[1],icon);}"
         "if(flightSteps){config.bombIcon=icon;const shot=projectiles[0];for(let i=0;i<flightSteps;i++){"
         "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
-        "if(shields)players.forEach(drawShield);const status=stepSingleProjectile(shot,getPixel,game.wind);if(shieldShot&&status==='hit_tank')processHit(shot,status);else if(status!=='flying')throw new Error('fixture hit '+status);"
+        "if(shields)players.forEach(drawShield);const status=stepSingleProjectile(shot,getPixel,game.wind);if(shotImpact&&status!=='flying'){if(!status.startsWith('hit_'))throw new Error('shot escaped '+status);processHit(shot,status);projectileDrawing.finish(shot);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('impact');while(isExplosionActive()){t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();stepExplosion();drawHud(players[game.currentPlayer],game.wind,game.round,{});frames.push(encode());flightPalettes.push([...palette6]);phases.push('blast');}if(shotAftermath){game.state=STATE.EXPLOSION;gameTick();for(let tick=0;(game.state===STATE.FALLING||game.state===STATE.EXPLOSION)&&tick<1000;tick++){const wasFalling=game.state===STATE.FALLING;if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();}gameTick();if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();}if(shotFalling&&wasFalling&&game.state===STATE.FALLING){drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push(isFallingSettling()?'settling':'falling');}}t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('aftermath');}break;}if(shieldShot&&status==='hit_tank')processHit(shot,status);else if(status!=='flying')throw new Error('fixture hit '+status);"
         "projectileDrawing.advance(shot);projectileDrawing.draw();drawProjectileTrackingMarks(shot.x,shot.y,icon);"
-        "frames.push(encode());flightPalettes.push([...palette6]);motion.push([shot.vx,shot.vy,shot.x,shot.y]);}}"
+        "frames.push(encode());flightPalettes.push([...palette6]);motion.push([shot.vx,shot.vy,shot.x,shot.y]);phases.push('flight');}if(shotImpact&&!phases.includes('impact'))throw new Error('shot did not impact');}"
         "if(explosion){startExplosion(...explosion,0);while(isExplosionActive()){"
         "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
         "stepExplosion();frames.push(encode());explosionPalettes.push([...palette6]);}}"
         "if(restoreGrid)for(let y=38;y<=476;y+=7)for(let x=3;x<=356;x+=7)setPixel(x,y,getBackgroundColor(y,x));"
+        "if(stackedFall){players.forEach(p=>{p.hudEnergy=undefined;p.hudPower=undefined;p.hudShieldEnergy=undefined;});drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
+        "if(shotParachute){players.forEach(p=>p.hudParachuteCount=undefined);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
-        "results.push({frames,motion,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
+        "results.push({parachuteInventory:players.map(p=>p.inventory[WPN.PARACHUTE]),playerState:players.map(p=>({x:p.x,y:p.y,energy:p.energy,alive:p.alive})),initialPlayers,frames,motion,phases,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
         "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole])],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -154,7 +180,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
             slots=[(mem.read16(ds+0xE4F6+i*4)-0xD568)//0xCA for i in range(2)]
             start=mem.read16(ds+0xE4F4)
             assert actual['order']==slots[start:]+slots[:start], (seed,round,'order',actual['order'],slots,start)
-            for i,player in enumerate(actual['players']):
+            for i,player in enumerate(actual['initialPlayers']):
                 base=ds+0xD568+i*0xCA
                 expected_player={key:mem.read16(base+off) for key,off in
                                  (('tankType',0),('x',14),('y',16),('power',0x9E),('angle',0x92),('direction',0x94),('endX',18),('endY',20))}
@@ -166,6 +192,32 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                 call(0x290A8,0x22CA)
                 call(0x2FEBE,0x2945)
                 call(0x301B2,0x2945,[0xD568+slots[start]*0xCA,0x4FC8])
+        if args.falling_offsets:
+            stack_x=mem.read16(ds+0xD632+14);stack_y=mem.read16(ds+0xD632+16)
+            for i,lift in enumerate(args.falling_offsets):
+                tank=0xD568+i*0xCA;x=mem.read16(ds+tank+14);y=mem.read16(ds+tank+16)
+                previous=extract_display_pixels(mem,ports)
+                for py in range(y-16,y+1):
+                    for px in range(x-16,x+17):
+                        if i*8<=previous[py*360+px]<i*8+8:call(0x3AB39,0x3352,[px,py])
+                if args.stacked_fall and i==0:
+                    mem.write16(ds+tank+14,stack_x);y=stack_y
+                mem.write16(ds+tank+16,y-lift)
+                call(0x3FD3F,0x39A2,[tank,0x4FC8])
+                call(0x3FB27,0x39A2,[tank,0x4FC8,1,0])
+            if args.fall_shield is not None:
+                tank=0xD632;cfg=0x618C;color=13
+                mem.write16(ds+tank+0xC6,cfg);mem.write16(ds+tank+0xC8,0x4FC8)
+                mem.write16(ds+tank+0x96,args.fall_shield)
+                mem.write16(ds+0xEC80,color)
+                rgb=[args.fall_shield*mem.read16(ds+cfg+o)//mem.read16(ds+cfg+2) for o in (6,8,10)]
+                call(0x3A046,0x3352,[color,*rgb,1])
+                call(0x404C9,0x39A2,[tank,0x4FC8,0x339,0x3221])
+                call(0x389DA,0x3221,[tank,0x4FC8])
+                call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
+            from verify_falling_frames import compare_falling
+            compare_falling(cpu,mem,ports,handler,actual,args.output_dir)
+            if args.stacked_fall:call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
         if args.shields:
             # Settled shape composition, not the timed activation wrapper.
             mem.write16(ds+0xEC7C,0);mem.write16(ds+0xEC7E,0)
@@ -181,15 +233,17 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                 call(0x404C9,0x39A2,[tank,0x4FC8,0x339,0x3221])
                 call(0x389DA,0x3221,[tank,0x4FC8])
         if args.shield_break:
-            call(0x301B2,0x2945,[0xD568,0x4FC8])
-            mem.write16(ds+0x5182,0xD568);mem.write16(ds+0x5184,0x4FC8)
+            hud_tank=0xD632 if args.shield_fade_hud else 0xD568
+            call(0x301B2,0x2945,[hud_tank,0x4FC8])
+            mem.write16(ds+0x5182,hud_tank);mem.write16(ds+0x5184,0x4FC8)
             if args.shield_hole:
                 cfg=0x616C+args.shield_break*16
                 call(0x3AB39,0x3352,[mem.read16(ds+0xD632+14),mem.read16(ds+0xD632+16)-mem.read16(ds+cfg+4)])
             cpu.segs[1]=0x3221;cpu.ip=0x34;cpu.regs[4]=0x2400
             for j,value in enumerate((0x110,0x60,0xD632,0x4FC8,mem.read16(ds+0xD632+0x96))):mem.write16(stack+2*j,value)
             stage=0
-            while stage<52:
+            frame_count=51 if args.shield_fade_hud else 52
+            while stage<frame_count:
                 reason,count=run_fast(cpu,mem,ports,handler,1000000,bp_set={0x38502-0x6100,0x38528-0x6100,0x4C117-0x6100})
                 assert reason=='breakpoint',('shield break',stage,reason,count)
                 if cpu.segs[1]*16+cpu.ip==0x4C117-0x6100:
@@ -206,8 +260,8 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                         write_emu_png(dict(width=360,height=480,pixels=frame,palette=palette),args.output_dir/f'shield-break-{stage:03d}-{name}.png')
                 assert not differences,('shield break',stage,len(differences),differences[:10])
                 stage+=1
-                if stage<52:cpu.regs[4]+=8;cpu.ip+=3
-            print('52 complete shield-break RGB frames match through outline erasure.',flush=True)
+                if stage<frame_count:cpu.regs[4]+=8;cpu.ip+=3
+            print(f'{frame_count} complete shield-break RGB frames match '+('with damaged tank HUD during fade.' if args.shield_fade_hud else 'through outline erasure.'),flush=True)
         if args.shield_shot:
             call(0x301B2,0x2945,[0xD568,0x4FC8])
             args.projectile_head=[mem.read16(ds+0xD632+14),mem.read16(ds+0xD632+16)-15]
@@ -247,7 +301,25 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                     mem.write16(0x9004A,65535);mem.write16(0x90030,0)
                     struct.pack_into('<d',mem.data,0x90032,.8)
                     call(0x20ECD,0x1ADA)
-                for step in range(args.flight_steps):
+                if args.shot_impact:
+                    if args.shot_parachute:
+                        target=ds+0xD568+0xCA
+                        inventory=mem.read16(target+0xB2)+16*mem.read16(target+0xB4)
+                        mem.write16(inventory+2*mem.read16(ds+0xD554),1)
+                        mem.write16(target+0x28,1)
+                        mem.write16(target+0x2C,5)
+                        call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
+                    from verify_shot_sequence import compare_shot
+                    compare_shot(cpu,mem,ports,handler,actual,args.output_dir,args.flight_steps,args.shot_aftermath,args.shot_falling)
+                    if args.shot_parachute:
+                        for i,count in enumerate(actual['parachuteInventory']):
+                            target=ds+0xD568+i*0xCA
+                            inventory=mem.read16(target+0xB2)+16*mem.read16(target+0xB4)
+                            assert mem.read16(inventory+2*mem.read16(ds+0xD554))==count
+                        # Separately verify the real full-HUD refresh after the
+                        # already-compared stale aftermath frame.
+                        call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
+                for step in range(0 if args.shot_impact else args.flight_steps):
                     if args.flight_collisions:
                         for off,pof in ((0,20),(2,28)):
                             mem.write16(0x90000+off,int(mem.read_float64(0x90000+pof))&65535)

@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {createPlayers,players,stepFallingTanks} from '../web/js/tank.js';
+import {pixels} from '../web/js/framebuffer.js';
+import {WPN} from '../web/js/weapons.js';
+import {game,gameTick,STATE} from '../web/js/game.js';
+import {config} from '../web/js/config.js';
+
+createPlayers(2);
+config.numPlayers=2;
+pixels.fill(120);
+const p=players[0];
+Object.assign(p,{x:50,y:100,falling:true,parachuteDeployed:true});
+p.inventory[WPN.PARACHUTE]=1;
+for(let i=0;i<3&&p.parachuteDeployed;i++)stepFallingTanks();
+assert.equal(p.inventory[WPN.PARACHUTE],0);
+assert.equal(p.hudParachuteCount,1);
+assert.equal(p.parachuteDeployed,false);
+Object.assign(game,{state:STATE.NEXT_TURN,nextTurnTimer:15,turnOrder:[0,1],turnOrderIdx:0,currentPlayer:0});
+gameTick();
+assert.equal(game.currentPlayer,1);
+assert.equal(p.hudParachuteCount,undefined);
+assert.equal(p.inventory[WPN.PARACHUTE],0);
+console.log('Landing consumes the parachute while preserving its HUD count; player selection refreshes it.');

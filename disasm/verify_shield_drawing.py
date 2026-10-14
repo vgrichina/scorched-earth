@@ -29,8 +29,8 @@ console.log(JSON.stringify(JSON.parse(process.argv[1]).map(c=>{
  Object.assign(config,{graphicsMode:c.mode,wallType:c.wall});
  const native=[];
  for(let i=0;i<pixels.length;i++){
-  const n=c.bg<0?([80,104,120,149,0,110][i%6]):c.bg;native.push(n);
-  pixels[i]=n===80?120:n===104?144:n>=120&&n<=149?n-40:n;
+  const n=c.bg<0?([80,81,82,83,84,85,104,120,149,0,110][i%11]):c.bg;native.push(n);
+  pixels[i]=n>=80&&n<=104?n+40:n>=120&&n<=149?n-40:n;
  }
  drawShield({index:2,colorIndex:c.color,x:c.x,y:c.y,activeShield:c.kind,shieldEnergy:SHIELD_CONFIG[c.kind].energy});
  const changed=[];
@@ -52,7 +52,7 @@ for c,port in zip(cases,actual):
  for off,v in ((0xE,c['x']),(0x10,c['y']),(0x1A,c['color']*8),(0xA0,2),
                (0x96,mem.read16(ds+cfg+2)),(0xC6,cfg),(0xC8,0x4FC8)):
   mem.write16(player+off,v)
- pixels=[c['bg'] if c['bg']>=0 else (80,104,120,149,0,110)[i%6] for i in range(W*H)]
+ pixels=[c['bg'] if c['bg']>=0 else (80,81,82,83,84,85,104,120,149,0,110)[i%11] for i in range(W*H)]
  rgb=[]
  def call(seg,ip,args):
   cpu.segs[:]=[0,seg,0x5F4A,0x4FC8];cpu.ip=ip;cpu.regs[4]=0x2400

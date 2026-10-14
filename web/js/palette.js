@@ -170,6 +170,7 @@ export function setupSkyPalette(skyType, { allowCavern = true } = {}) {
 // --- Ground color table (EXE DS:0x5036, 6 entries × 3 words R,G,B) ---
 // random(6) selects one per round; used as solid terrain fill for types 1,5,6
 let groundColor = [38, 25, 17];
+export function getGroundColor() { return groundColor.slice(); }
 const GROUND_COLORS = [
   [38, 25, 17],  // Brown
   [54, 36, 28],  // Salmon

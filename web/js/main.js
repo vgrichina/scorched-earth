@@ -1,3 +1,4 @@
+import {drawFunkyBomb} from './funky-bomb.js';
 // Scorched Earth - Main entry point + game loop
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830) — main game loop
 // EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
@@ -451,7 +452,10 @@ function gameLoop() {
   redrawWorld();
 
   // 2. Game logic — reads clean framebuffer for collisions/terrain scanning
+  const wasFalling = game.state === STATE.FALLING;
   gameTick();
+  // Native falling frames show the position after movement (0x20A36).
+  if (wasFalling) redrawWorld();
 
   // 3. Overlays on top of game world
   const player = getCurrentPlayer();
@@ -468,6 +472,8 @@ function gameLoop() {
   if ((game.state === STATE.AIM || game.state === STATE.SYNC_AIM) && player.alive) {
     drawLaserSight(player);
   }
+
+  drawFunkyBomb();
 
   // Tank death animations
   drawDeathAnimations();

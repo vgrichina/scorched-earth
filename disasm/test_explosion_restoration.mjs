@@ -46,10 +46,11 @@ for (const shieldEnergy of [150,100,55]) {
    assert.equal(shieldBreak.active,false,'shield break started before restoration');
   }
  }
- assert.equal(player.shieldEnergy,Math.max(0,shieldEnergy-100));
+ assert.equal(player.shieldEnergy,shieldEnergy<=100?shieldEnergy:shieldEnergy-100);
  assert.equal(shieldBreak.active,shieldEnergy<=100);
  if(shieldBreak.active)assert.equal(player.energy,100,'overflow must wait for shield fade');
  while(shieldBreak.active)drawShieldBreak();
+ assert.equal(player.shieldEnergy,Math.max(0,shieldEnergy-100));
  resumeExplosionDamage();
  assert.equal(player.energy,100-Math.max(0,100-shieldEnergy));
  assert.equal(player.activeShield,SHIELD_TYPE.TELEPORT,'native retains shield configuration');

@@ -26,9 +26,9 @@ console.log(JSON.stringify(JSON.parse(process.argv[1]).map(c=>{
  const p={activeShield:c.kind,shieldEnergy:c.energy,x:100,y:100,index:0,colorIndex:c.kind};
  shieldBreak.active=false;
  const remainder=applyShieldDamage(p,c.damage);
- const broken=shieldBreak.active,fade=[];
- while(shieldBreak.active){drawShieldBreak();fade.push([c.kind*8+5,...palette6.slice((c.kind*8+5)*3,(c.kind*8+6)*3)]);}
- return {energy:p.shieldEnergy,remainder,broken,type:p.activeShield,fade};
+ const broken=shieldBreak.active,fade=[],fadeEnergy=[];
+ while(shieldBreak.active){fadeEnergy.push(p.shieldEnergy);drawShieldBreak();fade.push([c.kind*8+5,...palette6.slice((c.kind*8+5)*3,(c.kind*8+6)*3)]);}
+ return {energy:p.shieldEnergy,remainder,broken,type:p.activeShield,fade,fadeEnergy};
 })));
 ''', json.dumps(cases)], cwd=root, text=True))
 
@@ -59,7 +59,7 @@ for c, port in zip(cases, actual):
     cpu.regs[4] = 0x2400
     for i, value in enumerate((0x110, 0x60, 0, 0x9000, c['damage'])):
         mem.write16(stack + 0x2400 + 2 * i, value)
-    erased, fades, scored, fade = 0, 0, [], []
+    erased, fades, scored, fade, fade_energy = 0, 0, [], [], []
     for _ in range(200):
         reason, _ = run_fast(cpu, mem, ports, handler, 100000, bp_set=stubs | {0x710})
         addr = cpu.segs[1] * 16 + cpu.ip
@@ -71,6 +71,9 @@ for c, port in zip(cases, actual):
         fades += addr == rgb
         if addr == rgb:
             fade.append([mem.read16(stack + sp + 4 + i * 2) for i in range(4)])
+            fade_energy.append(mem.read16(player + 0x96))
+        if addr == erase:
+            assert mem.read16(player + 0x96) == c['energy'], (c, 'energy cleared before erasure')
         if addr == score:
             scored.append(mem.read16(stack + sp + 12))
         cpu.ip = mem.read16(stack + sp)
@@ -79,7 +82,8 @@ for c, port in zip(cases, actual):
     else:
         raise AssertionError('native absorption did not return')
     native = dict(energy=mem.read16(player + 0x96), remainder=cpu.regs[0],
-                  broken=bool(erased), fade=fade, type=(mem.read16(player + 0xC6) - 0x616C) // 16)
+                  broken=bool(erased), fade=fade, fadeEnergy=fade_energy,
+                  type=(mem.read16(player + 0xC6) - 0x616C) // 16)
     assert native == port, (c, native, port)
     assert fades == (51 if erased else 0), (c, fades)
     expected_score = [min(c['energy'], c['damage'])] if c['energy'] and c['damage'] else []

@@ -98,12 +98,12 @@ DS:0x673E,tank_type_table,data/table:18
 0x1D57B,find_weapon_by_name
 0x1D5D4,equip_init
 0x1D8EA,play_sync_fire_phase
-0x1DBB5,shop_screen
-0x1DCA4,ai_shop_random_action
-0x1DF4D,ai_shop_jump_table
-0x1DF65,ai_shop_thinking_anim
-0x1E0F3,ai_buy_shields
-0x1E3CB,ai_sell_dialog
+0x1DBB5,resolve_tank_death
+0x1DCA4,choose_death_effect
+0x1DF4D,death_effect_jump_table
+0x1DF65,death_palette_cycle
+0x1E0F3,death_radial_rays
+0x1E3CB,death_sprite_particles
 0x202F6,check_deploy
 0x205DC,handle_falling_tanks
 0x20626,parachute_half_speed_check
@@ -157,6 +157,10 @@ DS:0x673E,tank_type_table,data/table:18
 0x26110,icon_internal_renderer
 0x261D7,draw_icon_alive
 0x26245,draw_icon_dead
+0x1C481,dirt_spray
+0x23EF5,death_flame_pixel
+0x23FBC,setup_death_flame_palette
+0x24148,death_flame_plumes
 0x262B3,draw_icon_blank
 0x263F0,icons_start
 0x26EA0,player_dialog_paint,paint callback for player setup dialog - draws title + swatches
@@ -201,7 +205,7 @@ DS:0x673E,tank_type_table,data/table:18
 0x2BB5E,mkt_update
 0x2BCC3,terrain_scorch_pixel
 0x2BD07,terrain_scorch_column
-0x2BD89,terrain_scorch_ring
+0x2BD89,death_sinking_beam
 0x2C759,sub_warhead_damage
 0x2CB6B,sub_warhead_spawn
 0x2D860,napalm_handler
@@ -296,6 +300,7 @@ DS:0xDD50,ground_color_B
 0x3AB39,setTerrainPixel
 0x3AF1F,shield_hit_animation_func
 0x3AF33,sound_shield_hit_random
+0x3B07F,death_overlapping_bursts
 0x3B8D0,menu_start
 0x3BA1C,btn_start_handler
 0x3BA31,btn_save_changes
@@ -333,7 +338,7 @@ DS:0xDD50,ground_color_B
 0x41FF3,timer_isr_install
 0x439CB,fg_hline_clipped
 0x43A66,fg_hline_pixel_loop
-0x43D3A,ai_buy_item_scroll
+0x43D3A,ordinary_explosion
 0x44130,fg_setpixel_modex
 0x4415D,fg_getpixel_modex
 0x444BB,draw_3d_box

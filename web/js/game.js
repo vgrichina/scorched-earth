@@ -1,3 +1,4 @@
+import {startFunkyBomb,stepFunkyBomb,isFunkyBombActive,clearFunkyBombs} from './funky-bomb.js';
 import { projectileDrawing } from './projectile-render.js';
 // Scorched Earth - Game State Machine
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
@@ -10,7 +11,7 @@ import { config } from './config.js';
 import { roundOrder } from './turn-order.js';
 import { random, clamp } from './utils.js';
 import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
-import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, getTankBarrel } from './tank.js';
+import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, deathAnimations, getTankBarrel, updateTankDamageState } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
          clearProjectiles, hasActiveProjectiles,
@@ -25,6 +26,9 @@ import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
 import { checkShieldDeflection, applyShieldDamage, shieldBreak } from './shields.js';
+import { clearTerrainCollapse, stepTerrainCollapse } from './terrain-collapse.js';
+import { resetWindIndicator } from './wind-indicator-state.js';
+import { aftermathSequence } from './aftermath.js';
 import { playFireSound, playExplosionSound, playFlightSound, playDeathSound, playTerrainGenPing, playTerrainHitSound, playShieldHitSound, initSound, toggleSound } from './sound.js';
 import { triggerAttackSpeech, triggerDeathSpeech, stepSpeechBubble } from './talk.js';
 import { openShop, closeShop, isShopActive, shopTick, drawShop, initMarket, mktUpdate } from './shop.js';
@@ -94,6 +98,7 @@ export const game = {
   round: 1,
   turnCount: 0,
   nextTurnTimer: 0,
+  afterFalling: false,
   aiActive: false,
   shopPlayerIdx: 0,
   initialShop: false,  // EXE: first shop before round 1 (no terrain regen after)
@@ -165,6 +170,13 @@ function computeTurnOrder() {
 
 // Advance to next living player using turn order
 function advancePlayer() {
+  // Native player selection redraws the full HUD (0x2AB94 / 0x3EFEA).
+  for (const player of players) {
+    player.hudParachuteCount = undefined;
+    player.hudEnergy = undefined;
+    player.hudPower = undefined;
+    player.hudShieldEnergy = undefined;
+  }
   // If using turn order system
   if (game.turnOrder.length > 0) {
     game.turnOrderIdx++;
@@ -243,7 +255,13 @@ function checkRoundOver() {
 // EXE 0x2928F selects ground color, then resolves Random/Erratic walls,
 // then generates wind before the landscape wrapper builds its sky.
 export function prepareRoundBackground() {
+  game.afterFalling = false;
+  game.aftermath = null;
+  game.aftermathOperation = null;
+  clearTerrainCollapse();
+  clearFunkyBombs();
   projectileDrawing.clear();
+  resetWindIndicator();
   initPalette(config.landType, config.skyType, { beforeSky() {
     if (config.wallType === WALL.RANDOM || config.wallType === WALL.ERRATIC)
       resolveRandomWallType();
@@ -440,6 +458,7 @@ export function processHit(proj, hitResult) {
     } else if (target) {
       if (attacker) scoreOnDamage(attacker, target, target.energy, false);
       target.energy = 0;
+      updateTankDamageState(target);
       // Native leaves alive set here; aftermath handles death after the blast.
     }
   }
@@ -462,7 +481,9 @@ export function processHit(proj, hitResult) {
     spawnProjectiles(result.spawn);
   }
 
-  if (result.tunnel) {
+  if (result.funkySpread!==undefined) {
+    startFunkyBomb(cx,cy,result.funkySpread,proj.attackerIdx);
+  } else if (result.tunnel) {
     createTunnel(cx, cy, result.radius, result.tunnelDown);
   } else if (result.disrupt) {
     applyDisrupter(cx, cy, result.radius);
@@ -486,7 +507,7 @@ export function processHit(proj, hitResult) {
             if (!afterAlive.includes(idx)) {
               scoreOnDeath(attacker, players[idx]);
               triggerDeathSpeech(players[idx]);
-              startDeathAnimation(players[idx]);
+              startDeathAnimation(players[idx],proj.attackerIdx,proj.weaponIdx);
               playDeathSound();
             }
           }
@@ -549,7 +570,8 @@ export function gameTick() {
   // Rendering advances the fade; gameplay must not run ahead of that call.
   if (shieldBreak.active) return;
   if (!resumeExplosionDamage() || shieldBreak.active) return;
-  stepDeathAnimations();
+  if (isFunkyBombActive()) {stepFunkyBomb();return;}
+  if (stepDeathAnimations()) return;
   switch (game.state) {
     case STATE.AIM: {
       stepSpeechBubble();
@@ -585,7 +607,7 @@ export function gameTick() {
           player.energy = 0;
           scoreOnDeath(player, player);
           triggerDeathSpeech(player);
-          startDeathAnimation(player);
+          startDeathAnimation(player,game.currentPlayer,players[game.currentPlayer]?.selectedWeapon ?? 2);
           playDeathSound();
           game.state = STATE.NEXT_TURN;
           break;
@@ -713,7 +735,7 @@ export function gameTick() {
             // EXE: rising tone on terrain hit (extras.cpp 0x24DCD), starts 1000 Hz, +200/step
             if (result === 'hit_terrain') playTerrainHitSound(3);
             processHit(proj, result);
-            if (shieldBreak.active) {
+            if (shieldBreak.active || isFunkyBombActive()) {
               if (!proj.active) {
                 projectileDrawing.finish(proj);
                 projectiles.splice(i, 1);
@@ -775,10 +797,41 @@ export function gameTick() {
         // Explosion still animating
         break;
       }
-      // All explosions done — check for falling tanks (if enabled)
-      if (config.fallingTanks && checkTanksFalling()) {
-        game.state = STATE.FALLING;
-      } else if (checkRoundOver()) {
+      if (!game.aftermath) {
+        game.aftermath=aftermathSequence(players,{afterFalling:game.afterFalling});
+        game.aftermathOperation=null;
+      }
+      game.afterFalling=false;
+      let aftermathDone=false;
+      while (!aftermathDone) {
+        game.aftermathOperation ??= game.aftermath.next();
+        if (game.aftermathOperation.done) {aftermathDone=true;break;}
+        const operation=game.aftermathOperation.value;
+        if (operation.kind==='settle') {
+          if (stepTerrainCollapse()) break;
+          game.aftermathOperation=null;
+        } else if (operation.kind==='fall') {
+          game.aftermathOperation=null;
+          if (config.fallingTanks && checkTanksFalling()) {
+            game.state=STATE.FALLING;
+            break;
+          }
+        } else {
+          const player=players[operation.index];
+          player.pendingFallDeath = false;
+          player.alive = false;
+          scoreOnDeath(players[game.currentPlayer],player);
+          triggerDeathSpeech(player);
+          startDeathAnimation(player,game.currentPlayer,players[game.currentPlayer]?.selectedWeapon ?? 2);
+          playDeathSound();
+          game.aftermathOperation=null;
+          break;
+        }
+      }
+      if (!aftermathDone) break;
+      game.aftermath=null;
+      game.aftermathOperation=null;
+      if (checkRoundOver()) {
         endOfRoundScoring(game.round);
         game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
         game.roundOverTimer = 0;
@@ -790,16 +843,10 @@ export function gameTick() {
     }
 
     case STATE.FALLING: {
-      if (!stepFallingTanks()) {
-        // All tanks settled
-        if (checkRoundOver()) {
-          endOfRoundScoring(game.round);
-          game.warQuote = WAR_QUOTES[random(WAR_QUOTES.length)];
-          game.roundOverTimer = 0;
-          game.state = STATE.ROUND_OVER;
-        } else {
-          game.state = STATE.NEXT_TURN;
-        }
+      if (!stepFallingTanks(game.wind)) {
+        // Native outer_sim_loop (0x232BC) settles dirt again after falling.
+        game.afterFalling = true;
+        game.state = STATE.EXPLOSION;
       }
       break;
     }

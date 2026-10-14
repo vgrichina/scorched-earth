@@ -7873,3 +7873,1314 @@ callbacks. This resolves overwriting the first animation inside ordinary area
 damage. Napalm has its own synchronous nested damage loop and remains unconverted;
 partial multi-projectile-step continuation, multiple-target death animation order,
 full sequential-break screenshots and precise wall-clock timing remain open.
+
+
+### Shield energy during break fading (2026-10-13)
+
+Native `shield_absorb_damage` retains the original shield energy during all 51
+palette uploads and at the entry to shield erasure. It writes zero at `0x3852B`,
+after erasure returns. The port cleared it at break initiation, causing its
+redrawn HUD to show depletion during the fade. It now retains the player reference
+and clears energy when the break animation completes.
+
+`verify_shield_absorption.py` now compares energy at every fade upload and checks
+native energy at erase entry, in addition to final energy, remainder and palette.
+The new check failed before the change; all 140 cases pass afterward. Missile,
+restoration, shield scheduling and two-target damage continuation checks pass.
+
+The existing Stars/Warp/contact-hole fixture still matches all 52 complete RGB
+frames through outline erasure (`/tmp/scorched-shield-energy-fade`). The new
+`--shield-fade-hud` option selects the damaged tank's HUD and stops at the final
+fade upload, before erasure. All 51 complete 360x480 RGB frames match, including
+HUD, using production shield redraw and break drawing:
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --shield-break 3 --shield-hole --shield-fade-hud --output-dir /tmp/scorched-shield-hud-fade
+```
+
+This proves the HUD during fading, not its refresh timing after erasure. The port
+still completes energy clearing at the end of its last fade draw; native executes
+its erase/clear synchronously afterward. Napalm's nested damage continuation,
+complete shot/round screenshots and wall-clock animation cadence remain open.
+
+
+### Continuous ordinary flight into impact (2026-10-13)
+
+`verify_landscape_sequence.py --shot-impact` now continues production physics
+into `processHit`, projectile cleanup and the explosion animation, instead of
+requiring every flight step to stay airborne. `verify_shot_sequence.py` executes
+the native movement block and follows its actual collision -> impact dispatcher
+(`0x230C8`) -> ordinary missile (`0x43C01`) -> blast (`0x43D3A`) calls. The impact
+position and radius are not injected into the native blast. Sound/delay/input
+waits are bypassed; pixel reads/writes and blast rendering execute normally.
+
+The first fixture passes **88 consecutive complete 360x480 RGB captures**:
+56 airborne steps, impact at (227,306), 30 growth frames (radius 30), and crater
+restoration. State and RNG still match at the restoration boundary. Screenshots:
+`/tmp/scorched-shot-impact/shot-NNN-{flight,impact,blast}-{web,emulator}.png`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 140 150 --flight-steps 150 --shot-impact --output-dir /tmp/scorched-shot-impact
+```
+
+Inputs: Stars, seed 0, no wall, Baby Missile, Large blast scale, fixed launch
+position (140,150), angle 45/power 200, tunnelling disabled on both sides. An
+initial fixture mismatch was caused by disabling native tunnelling while leaving
+it enabled in JS; synchronized inputs resolved it. This is a composed shot from
+a fixed launch position, not yet the actual fire-key/ammo/barrel-launch lifecycle.
+The optional `--shot-aftermath` extends execution to the impact dispatcher's
+return at `0x231D3`, after its native aftermath calls. Continuing to the normal
+free-flight stop was invalid for this branch and ran into timer calibration;
+that harness endpoint has been corrected. Falling/death frames, next-turn
+dispatch, alternate weapons/inputs and wall-clock cadence remain open.
+
+
+### Unsupported dirt after ordinary impact (2026-10-13)
+
+The continuous shot fixture exposed **78 differing pixels** at the completed
+impact aftermath, despite all 88 earlier captures matching. Native sky restores
+at `0x20DA0` identified the missing operation: column settling in `0x20CE7`.
+It finds unsupported solid runs via `0x20C39`, erases their top pixel, deposits a
+ground pixel at their bottom, then advances/merges runs. Removed runs are replaced
+by the last queue entry and that entry is processed immediately. The ground
+writer `0x299C0` consumes `random(1)` even with a single-color ground table.
+
+`web/js/terrain-collapse.js` now implements those passes. Ordinary crater
+restoration marks affected columns; the explosion state settles dirt before
+checking falling tanks. Round preparation clears pending collapse state. The
+restoration image is retained before the first movement pass.
+
+Verification:
+- The composed Stars shot now matches **89 complete RGB captures**, including
+  the completed impact aftermath; final state and R250 RNG also match. Saved to
+  `/tmp/scorched-shot-aftermath-fixed`. Add `--shot-aftermath` to the command above.
+- `python3 disasm/verify_terrain_collapse.py`: **10 cases**, every settling pass
+  and ground-deposit RNG count, using real native column search/movement/queue
+  code with synthetic pixel callbacks. Includes flat ground, overhangs, stacked
+  layers, tank blockers, native color 105 boundaries, and Castle ceilings.
+- Restoration, shield scheduling, ordinary missile integration and two-target
+  damage continuation regressions pass.
+
+The complete-shot fixture does not cause a tank death or tank fall. Its final
+capture verifies the settled endpoint; the kernel test verifies intermediate
+column passes, not every composed gameplay image during settling. Probabilistic
+Suspend Dirt behavior, alternate ground-color tables, all terrain mutation
+callers, tank/death interactions and wall-clock timing still need broader native
+integration evidence. These changes are uncommitted.
+
+
+### Falling tank support, sliding and energy colors (2026-10-13)
+
+A second continuous shot, launched at (180,150), impacts terrain at (256,252)
+and removes support from player 1. Before the fixes, the port landed at
+(268,273); the native tank slides left to (257,281). The first 81 flight/impact/
+blast captures matched, but completed aftermath differed by 114 RGB pixels.
+
+Native `0x20468` checks the whole row below the tank, not its center height:
+three occupied pixels, any of the central three pixels, or two supports on
+opposite sides keep it stable. `0x205DC` uses that same support rule per step,
+slides away from one-sided support, increments Y by **one** (not two), and tests
+landing before movement/damage. Ordinary landing does not flatten the terrain.
+The port now follows these rules. Parachute skip frames keep the falling state
+active instead of returning completion prematurely.
+
+After movement fixes, position and energy matched but 12 tank pixels still had
+wrong RGB values. Actual palette uploads from `0x318D8` show damage progressively
+darkens slots 1..3, using integer damage percentage followed by floating RGB
+scaling. This is separate from background contrast. The new energy-palette
+helper is used for ordinary direct/area damage and ordinary fall damage. The
+speculative landing contrast refresh was removed after native tracing disproved
+it as the cause.
+
+Verification:
+- `python3 disasm/verify_tank_support.py`: **2,688 support masks**, all three tank
+  widths, matching native fall-start detection and a real falling iteration's
+  X/Y movement and damage accumulator. Drawing/sound/damage side effects are
+  stubbed; native support and movement code execute.
+- `python3 disasm/verify_tank_energy_palette.py`: **808 cases**, energies 0..100,
+  four base/contrast-adjusted RGB colors, Stars and Black sky; native RGB uploads
+  match exactly.
+- **82 complete 360x480 RGB captures** through the second shot's completed impact
+  aftermath match. Player 1 ends at **(257,281), energy 33, alive** on both sides.
+  Final R250 RNG and generated world state match too. Artifacts:
+  `/tmp/scorched-shot-fall-fixed/shot-081-aftermath-{web,emulator}.png`.
+- Ordinary missile, restoration, shield scheduling, two-target shield continuation
+  and dirt-collapse regression checks pass.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 150 --flight-steps 150 --shot-impact --shot-aftermath --output-dir /tmp/scorched-shot-fall-fixed
+```
+
+The shot verifier now separates initial player snapshots from final state, checks
+final X/Y/energy/alive, and captures blast completion at `0x43F69` **after area
+damage**, matching the production completion callback. Its HUD is drawn after
+that callback, as in main.js. This replaces the pre-damage `0x43E9F` capture for
+composed shots; standalone explosion fixtures retain their original boundary.
+
+Intermediate composed falling images, parachute prediction/wind/deployment,
+tank-on-tank crushes, deaths and next-turn dispatch remain unverified. The shot
+still starts from fixed coordinates rather than fire-key/ammo/barrel launch.
+Changes remain uncommitted.
+
+### Intermediate falling frames (2026-10-13)
+
+The composed shot fixture now optionally captures each moving falling pass at
+native `0x20BCE` (DI == 0), before the delay. `--shot-falling` requires
+`--shot-aftermath`. Its world redraw order follows the live loop around falling
+updates. The final landing/wrapper cleanup remains the aftermath capture.
+
+The first moving frame exposed seven barrel pixels: native `0x20A36` draws the
+body without a barrel during falling, then `0x20296` restores it after settling.
+`drawTank` now omits the barrel while falling. The live loop also redraws the
+world after falling updates so movement is visible in the same frame rather
+than one frame late.
+
+Verification: **103 complete RGB frames match**, including all **21 moving fall
+frames**, flight, blast, and completed aftermath. Final positions, energy, alive
+flags, generated world state and R250 RNG also match. The falling player ends
+at (257,281), energy 33. Missile-impact, explosion-restoration and shield-break
+scheduling regression checks pass; JavaScript syntax and diff checks pass.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 150 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --output-dir /tmp/scorched-falling-frames
+```
+
+Artifacts: `/tmp/scorched-falling-frames/shot-081-falling-{web,emulator}.png`
+through `shot-101-falling-{web,emulator}.png`, followed by
+`shot-102-aftermath-{web,emulator}.png`. This proves the ordinary single-tank
+falling sequence in this fixture; parachutes, multiple falling tanks/crushes,
+deaths, next-turn dispatch and actual fire-key launch remain unverified.
+Changes remain uncommitted.
+
+### Parachute prediction and decision order (2026-10-13)
+
+Native `0x202F6` simulates footprint support and sideways sliding at each future
+row; a center-column terrain-height subtraction cannot predict its landing.
+The port now simulates those same support rules and wall clamps using framebuffer
+pixels, without mutating the tank. Deployment is checked before movement, as in
+`0x208CD` before `0x20919`. This matters at the threshold: three unsupported steps
+predict six damage and open a default-threshold (five) parachute; evaluating after
+the first move incorrectly predicts four and leaves it closed.
+
+`python3 disasm/verify_parachute_prediction.py` passes **8,064 native prediction
+comparisons**, covering every support mask across all three tank widths, two
+floor depths, and both wall clamps. Each case also checks the port's deployment
+against the native returned damage and the disassembled threshold comparison,
+using default (five) and battery (ten) thresholds. This oracle executes the real
+native prediction routine, with pixel reads supplied by a synthetic framebuffer;
+it does not execute the whole native deployment/drawing lifecycle.
+
+The 2,688 native support/movement cases and missile, restoration and shield-break
+scheduling regressions pass. Remaining parachute discrepancies observed in the
+native code: inventory consumption belongs to wrapper cleanup (`0x20212`), the
+opening changes palette slot six to white (`0x20908`), and windy movement uses
+random drift plus pixel obstruction checks (`0x20937` onward). Those paths,
+parachute artwork and full composed parachute screenshots still need correction
+and verification. Changes remain uncommitted.
+
+### Visible parachute sequence (2026-10-13)
+
+Implemented native `0x40046` parachute geometry (58 unique pixels), including
+preservation of native colors below 105. The canopy origin uses type-table
+sub[0x0A] offsets `[5,4,3,4,5,4,5]`. Deployed parachutes replace shield drawing
+(`0x3FBA1`); opening sets the player's palette slot six to white (`0x20908`).
+Inventory is now consumed after all tanks finish falling, matching wrapper
+cleanup `0x201F9`/`0x20212`, rather than immediately on opening.
+
+`python3 disasm/verify_parachute_drawing.py`: **143 mapped gameplay background
+colors** match the actual native rasterizer, including geometry and preservation.
+Unmapped/aliased palette entries are excluded because native and port palette
+indices are not interchangeable there. Prediction (8,064), support/movement
+(2,688), missile-impact, restoration and shield-break scheduling regressions pass.
+
+Added `--shot-parachute` to the composed shot verifier, requiring `--shot-falling`.
+It gives the target one parachute on both sides and refreshes the native fixture
+HUD after that setup change. Command:
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --projectile-head 180 150 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-parachute --output-dir /tmp/scorched-parachute-frames
+```
+
+**Frames 0..122 match completely in RGB**, including **42 parachute falling
+frames** (81..122), opening, motion and alternate-frame pauses. Both sides end
+at (257,281), energy 75, alive. Visually inspected frame 90 confirms the canopy.
+
+**The command is not green yet:** final aftermath frame 123 differs by 55 HUD
+pixels only. Native wrapper cleanup consumes the item without repainting its
+HUD count/icon, so native still displays one while the port's full HUD redraw
+shows zero. The next work is to trace the actual HUD refresh boundary and model
+that lifecycle; do not hide this discrepancy by refreshing the native capture.
+Final RNG assertions occur after this failure and are not claimed for this run.
+Wind drift, multiple-faller/crush behavior and next-turn transitions remain open.
+All changes remain uncommitted.
+
+### Parachute HUD refresh boundary (2026-10-13)
+
+Resolved the 55-pixel aftermath discrepancy without altering the native capture.
+Falling cleanup changes inventory but does not repaint its HUD widget. The port
+retains the displayed parachute count through aftermath and clears that snapshot
+when selecting a player for the next turn or resetting a round. Native full-HUD
+calls at `0x2AB94` and `0x3EFEA` follow living-player selection; the cleanup at
+`0x201F9`/`0x20212` has no corresponding HUD count repaint.
+
+The composed parachute command above now matches **124 complete RGB frames**,
+including all 42 falling/pause frames and final aftermath. Final player state,
+generated world state and R250 RNG match. Artifacts remain in
+`/tmp/scorched-parachute-frames`, ending at `shot-123-aftermath-{web,emulator}.png`.
+
+The verifier additionally checks consumed inventory and a separate real native
+full-HUD redraw after the already-compared aftermath frame. This distinguishes
+the retained on-screen count from actual inventory. `test_parachute_hud.mjs`
+checks consumption, retained count and the production next-player transition's
+refresh. Missile, restoration and shield scheduling regressions pass.
+
+This establishes the stationary-wind, ordinary single-faller parachute fixture.
+Wind drift, crush/multiple-faller behavior and complete native next-turn sequencing
+remain unverified; the full-HUD call is exercised directly after aftermath, not
+through a complete native next-turn execution. Changes remain uncommitted.
+
+### Parachute wind movement (2026-10-13)
+
+Implemented native `0x20919..0x20A2C`: descend and slide, then (only with a
+parachute and absolute wind above ten) consume `random(100)` and try one pixel
+of drift when the draw is below absolute wind. Clamp X after drift, not before.
+The production falling update now receives actual `game.wind`.
+
+Native obstruction reads at `0x209B2` and `0x209DE` push X before Y, unlike the
+support scan: the pixel callback receives transposed coordinates. The port
+preserves that behavior and short-circuits the second read when the first blocks.
+
+`python3 disasm/verify_parachute_wind.py`: **5,184 cases** match native movement,
+covering nine signed wind strengths (including +/-10 and +/-11), eight random
+seeds, both obstruction pixels, three tank widths, deployed/undeployed state,
+sliding and both wall clamps. The test executes native movement and float
+threshold conversion, intercepting the random call to supply the port's seeded
+roll; it checks the number of draws separately. This isolates movement logic,
+not whole-sequence RNG state. Prediction, support/movement, parachute HUD,
+missile-impact and shield scheduling regressions pass.
+
+The first two wind-50 launch coordinates did not dislodge a tank and therefore
+provided no drift coverage. The targeted launch `(80,280)` in that generated
+world (actual wind **-20**) does. It exposed two additional native behaviors:
+
+- Moving-tank body erasure (`0x207E8 -> 0x40C19 -> 0x40BA3`) replaces every old
+  sprite pixel with sky, including terrain overwritten during lateral motion.
+  The port now removes those pixels from the persistent terrain bitmap and
+  updates affected height-cache entries.
+- Native `outer_sim_loop` calls dirty-terrain settling again at `0x232BC`, after
+  falling cleanup. Falling now queues the traversed region and returns through
+  the settling stage before round/turn dispatch. It does not restart falling
+  during that post-fall stage.
+
+The composed fixture now redraws the world after the final landing tick too,
+matching main.js; otherwise an obsolete canopy remains in its framebuffer and
+incorrectly blocks the post-fall dirt pass.
+
+The targeted windy sequence now passes **91 complete RGB frames**, including
+**58 falling/pause frames**, final dirt settling and aftermath. The parachute
+player ends at **(90,295), energy 82, alive** on both sides. Final consumed
+inventory, separately refreshed HUD, generated state and full R250 state match.
+Artifacts: `/tmp/scorched-parachute-wind-fall/shot-032-falling-{web,emulator}.png`
+through `shot-089-falling-{web,emulator}.png`, then `shot-090-aftermath-*`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --full-frame --case 0 --sky 2 --wind 50 --projectile-head 80 280 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-parachute --output-dir /tmp/scorched-parachute-wind-fall
+```
+
+This is a fixed-coordinate impact fixture, not actual fire-key/barrel launch.
+Multiple-faller/crush behavior, deaths, full native next-turn sequencing and
+broader weapon/UI/resolution coverage remain open. Changes remain uncommitted.
+
+### Pixel-based crush contact (2026-10-13)
+
+Replaced the old post-movement bounding-box crush approximation with the native
+pre-movement support-row scan (`0x20690`). Ground and tank pixels jointly count
+as support. A central support pixel, three supports, or straddling supports can
+land the tank; more than two tank-overlap columns are not required. The last
+player-colored pixel scanned selects the victim, matching the native pointer
+assignment. Landing preserves the current position and does not flatten terrain.
+The now-unused height-map flattening helper was removed.
+
+Landing applies the accumulated impact damage when configured, then routes
+`accum+50` through the victim's shield and applies `trunc(accum/2)+10` directly
+to the faller. Energy colors now update after crush damage. Glancing support
+contact keeps falling/sliding and uses the native contact sound path.
+
+`python3 disasm/verify_tank_crush.py`: **8,064 native comparisons**, all support
+masks across three widths, impact damage on/off, mixed ground/player pixels and
+two competing victims. It executes native scan/landing/dispatch and compares
+position, accumulated damage and all three players' resulting energy. Pixel
+reads are supplied from synthetic rows; native drawing/sound are stubbed and
+damage callees subtract unshielded HP. This proves dispatch/amounts, not shield
+fade continuation, death timing or complete crush RGB sequences.
+
+The 2,688 ordinary support/movement cases pass. Multiple-faller movement versus
+landing-damage ordering, shield-break continuation during crushes and full
+composed crush screenshots remain to be verified. Changes remain uncommitted.
+
+### Multiple-faller movement and landing order (2026-10-13)
+
+Native `0x205DC` runs the complete per-player movement scan first. Only after
+`0x20AB0` does it iterate the landing flags and apply landing/crush damage. The
+port now collects landings and dispatches their damage after all movement, in
+player order. This prevents a lethal crush from cancelling the victim's movement
+in that same pass. Moving bodies are also drawn immediately after movement,
+as native `0x20A36` does, so subsequent support scans see the updated position.
+
+`python3 disasm/verify_falling_order.py`: **12 native two-faller cases** compare
+all positions, damage accumulators and energies, spanning three widths, impact
+mode on/off and nonlethal/lethal crush amounts. Native movement/landing code
+runs; drawing/sound are stubbed and damage callees subtract unshielded HP.
+The 8,064 contact/damage-dispatch cases remain green. These are state/dispatch
+comparisons; they do not prove all multi-tank drawing, shield-break pauses or
+death animations. Full composed multi-faller screenshots remain needed.
+Changes remain uncommitted.
+
+### Shielded crush continuation (2026-10-13)
+
+Crush landing damage now suspends when shield absorption starts a break. A
+stored landing iterator resumes after the fade, applying the victim's remainder,
+the faller's self-damage and then subsequent landings. It does not repeat movement
+or advance the fall frame counter while suspended. Parachute cleanup waits until
+the landing iterator completes. Player creation and round reset clear the pending
+iterator.
+
+`python3 disasm/verify_crush_continuation.py` executes native falling dispatch,
+`shield_and_damage` and shield absorption for two simultaneous landings onto
+shielded victims. It compares the exact event sequence:
+
+```
+impact HP -> 51 fade frames -> victim remainder -> faller self-damage
+          -> next impact HP -> 51 fade frames -> remainder -> self-damage
+```
+
+Both native and port emit the same 108 fade/HP events (102 fade frames and six
+HP requests). Pixel reads, drawing, sound and HP mutation are intercepted on the
+native side; native dispatch and absorption run. This verifies continuation and
+ordering, not complete shielded-crush RGB screenshots or scoring attribution.
+Multiple-faller rendering, death lifecycle and complete next-turn sequencing
+remain open. Changes remain uncommitted.
+
+### Two falling tanks: complete RGB sequence (2026-10-13)
+
+Added `--falling-offsets A B` to the landscape fixture. It lifts both already
+initialized tanks by the requested pixel distances, then runs the actual native
+falling wrapper `0x20158`. Native setup erases only existing tank-colored sprite
+pixels before relocating, preserving terrain. The port runs its production
+falling step and redraws around each update.
+
+The capture boundary is `0x20BDF`, after every pass. `0x20BCE` (used by the older
+single-faller shot capture) is skipped on passes that contain a landing and is
+insufficient for staggered landings. The final pass is captured after wrapper
+cleanup instead, including restored barrels. Instruction-budget yields resume
+the same CPU; native post-fall scanning can exceed one million instructions.
+
+This exposed **seven premature barrel pixels** when player 0 landed before
+player 1. Native restores moved tanks' barrels only after the entire falling
+wrapper finishes (`0x20296`). The port now retains a body-only drawing flag
+until that same global cleanup, including for tanks that have already landed.
+Round reset clears that flag.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --falling-offsets 4 10 --output-dir /tmp/scorched-two-fallers
+```
+
+**11 full RGB frames**, final player states and complete R250 state match.
+Artifacts: `/tmp/scorched-two-fallers/fall-004-falling-{web,emulator}.png`
+shows the first landed tank while the other still falls; `fall-010-aftermath-*`
+shows restored barrels. Native two-faller state cases, shielded-crush continuation
+and parachute HUD regressions pass. This fixture covers separated fallers;
+interacting/stacked tank RGB frames and death animations remain open.
+Changes remain uncommitted.
+
+### Stacked-tank crush RGB and deferred HUD (2026-10-13)
+
+Added `--stacked-fall` to the lifted-tank fixture: player 0 is placed above
+player 1 before applying the two lift offsets. The native complete falling
+wrapper now exercises visible body contact, crush damage and cleanup together.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --falling-offsets 20 4 --stacked-fall --output-dir /tmp/scorched-stacked-fall
+```
+
+The initial comparison matched all moving frames but exposed 60 final HUD pixels.
+Native temporarily sets the faller as current during victim damage (`0x20B38`),
+so the current-player guards at `0x319E8` and `0x3172D` skip refreshing the
+victim's energy/power text. The port now retains those displayed values across
+crush damage, while updating actual health and tank colors. Player selection,
+round reset and subsequent ordinary damage refresh the corresponding snapshots.
+
+A separate native full-HUD redraw then exposed the missing damage-time power
+clamp: the victim's actual native power had fallen from 200 to 140, while its
+old displayed power remained 200 until refresh. `updateTankDamageState` now
+updates the energy palette and caps power at truncated `energy*1000/maxEnergy`.
+Ordinary direct/area damage and falling/crush damage use this helper. The palette
+helper remains separately testable. `verify_damage_power.py` compares **505 real
+native 0x31663 cases**, energies 0..100 and five starting power levels.
+
+**15 full RGB frames match**, including the stacked contact and final aftermath.
+Final player states and complete R250 state match. A subsequent real native
+full-HUD redraw also matches the port's refreshed display. Artifacts end at
+`/tmp/scorched-stacked-fall/fall-014-aftermath-{web,emulator}.png`; that frame
+intentionally retains the pre-crush HUD values. Native shielded-crush ordering,
+missile and restoration regressions pass.
+
+Shielded stacked-tank RGB, lethal crush/death animation and full next-turn
+sequencing remain open. Changes remain uncommitted.
+
+### Shielded stacked landing and support rescan (2026-10-13)
+
+Added `--fall-shield` to the stacked-fall RGB fixture and allowed zero lift for
+its stationary victim. Native wrapper `0x201CC` rescans support after landing:
+when the victim's shield breaks, the upper tank resumes falling. The port now
+performs that rescan after the landing damage continuation, preserving accumulated
+fall damage and parachute deployment until the entire falling wrapper completes.
+The native verifier captures the post-rescan boundary when a landing resumes.
+
+Crush damage also retains the victim's expanded shield HUD value while actual
+shield energy changes. The port snapshots that value before crush absorption;
+ordinary shield damage, activation, player selection and round reset refresh it.
+The final fixture explicitly compares a subsequent native full-HUD refresh.
+
+With offsets `20 0`, Heavy Shield energy 55, seed 0 and sky 2, **61 full RGB
+frames match**: initial falling, all 51 shield fade frames, resumed falling and
+final aftermath. Final player states, full-HUD refresh and complete RNG state
+also match. Artifacts: `/tmp/scorched-shielded-stack/`.
+The existing unshielded stacked case still matches all 15 frames and final
+state/RNG. Shield absorption (140 cases), crush continuation, falling order,
+power clamping and missile/restoration/shield scheduling regressions pass.
+
+The otherwise identical surviving-shield fixture (energy 100) matches its four
+moving frames but fails the final aftermath at exactly three pixels:
+`(276,261..263)`, native upper shield palette slot 13 versus port lower slot 201.
+This remaining native shield repaint/palette-region behavior is not fixed.
+Artifacts: `/tmp/scorched-shielded-stack-intact/`. Lethal RGB/death animation and
+complete next-turn sequencing also remain open. Changes remain uncommitted.
+
+### Surviving shield after falling (2026-10-13)
+
+Resolved the three-pixel mismatch above. Native cleanup calls
+`draw_tank_complete` (`0x20296`), which dispatches shield drawing through
+`0x3FC46`. That callback replaces pixels with native indices >=105 with the
+main shield entry; existing lower shield entries 200+player qualify. Unlike
+activation, cleanup does not subsequently call `update_shield_color` to split
+the lower region back into its dedicated palette slot.
+
+The port now records that lower-region redraw when falling cleanup redraws a
+surviving shield, retaining it across frame reconstruction. Activation and a
+position change reset the region state. Break drawing also respects whether
+the lower region uses the main slot, instead of always reconstructing it in
+its activation palette slot.
+
+The offsets `20 0`, shield-energy 100 fixture now matches **all five full RGB
+frames**, final player states, subsequent full-HUD refresh and complete RNG.
+The fixture uses config 2 (`Shield`, weapon 46); earlier references to it as
+Heavy Shield were informal and incorrect. Artifacts remain in
+`/tmp/scorched-shielded-stack-intact/`. Broader moving/overlapping shield
+callbacks, lethal falls and next-turn sequencing still need verification.
+
+### Moving shield erasure and deferred barrel removal (2026-10-13)
+
+The stacked fixture with offsets `20 4`, config-2 shield HP 100 now compares a
+moving shield. Initial mismatch: one lower shield pixel at `(275,260)` was lost.
+Native `0x3FC11` erases only the main shield index, leaving dedicated lower
+pixels at the old position. `eraseMovingShield` preserves those indexed writes;
+movement now invokes the native-style shield redraw before scanning the next
+tank. `redrawTankShield` uses the >=105 native color eligibility rule rather
+than the activation callback's broader rule, and clears retained writes at
+pixels it replaces.
+
+A later seven-pixel mismatch showed native leaves a newly unsupported tank's
+barrel visible until its first actual movement. Port barrel suppression now
+uses the moved/body-only flag, not merely the falling flag.
+
+**Frames 0..8 match full RGB.** Frame 9 (aftermath) retains one RGB mismatch:
+`(275,260)`, palette index 201 in both, native RGB8 `(105,105,105)` versus port
+`(255,255,255)`. Native `0x202E4` calls dirty settling `0x1CEF8`, whose accepted
+settling path calls `0x1CF5F` to refresh shield colors, then recursively invokes
+the falling wrapper. The port's post-fall settling currently happens later in
+the game loop; this cleanup/settling boundary remains to be implemented and
+verified. Do not treat this fixture as entirely passing.
+Artifacts: `/tmp/scorched-moving-shield/`.
+
+The stationary surviving-shield five-frame fixture and stationary breaking
+shield 61-frame fixture still pass full RGB, final states and RNG. Falling
+order, crush continuation, parachute HUD and shield scheduling checks pass.
+Changes remain uncommitted.
+
+### Falling cleanup settles before returning (2026-10-13)
+
+Moved the port's falling cleanup through `stepTerrainCollapse` before returning,
+then rescanned support to model native `0x202E4` settling and recursive falling.
+A suspended settling continuation is reset with player/round initialization.
+Accepted settling now refreshes each live shield's dedicated lower palette
+entry, matching the palette side effect of native `0x1CF5F`; retained shield
+pixels at old coordinates consequently receive the correct current color.
+
+The moving-shield fixture now matches **all ten full RGB frames**, final player
+states, full-HUD refresh and complete RNG state. Stationary surviving and
+breaking shield fixtures still match all five and 61 frames respectively.
+The ten native dirt-collapse cases, falling order, crush continuation,
+parachute HUD, missile, restoration and shield scheduling checks pass.
+
+The shot comparator now captures native dirt-settling passes at `0x20EA2`
+after falling begins; the port labels its internal settling frames separately.
+Previously this comparator skipped those native passes and went directly from
+moving-tank frames to final aftermath. Broader shield pixel recoloring during
+settling, lethal/death rendering and full next-turn execution remain unverified.
+
+Expanded windy-parachute validation passes: **107 full RGB frames**, including
+16 newly captured post-fall settling frames (90..105), final aftermath, player
+states, HUD refresh and complete RNG. The previous 91-frame comparison omitted
+these settling passes. Artifacts: `/tmp/scorched-parachute-wind-fall/`.
+
+### Lethal stacked landing: native death handoff (2026-10-13)
+
+Ran the full-RGB stacked fixture with offsets `40 0`, seed 0, sky 2 and no
+shield. **All 28 moving frames match.** Final falling-wrapper frame 28 has 41
+mismatched pixels because the port has already removed the crushed tank.
+The native wrapper returns with faller `(268,248)`, HP 6, power 60, alive=true;
+the victim remains at `(268,260)`, HP **-6**, power 0, alive=true. The port's
+victim instead has HP 0 and alive=false. This is a lifecycle discrepancy, not
+an icon geometry discrepancy. It remains unfixed.
+
+The falling comparator now writes a structured mismatch artifact containing
+signed 32-bit native HP, alive flags, power, shield HP, port final states, and
+every pixel's indexed colors and RGB. Evidence:
+`/tmp/scorched-lethal-fall/fall-028-aftermath-diff.json` plus paired PNGs.
+
+Native `damage_tank` subtracts the full amount, preserving negative HP. When HP
+crosses zero while DS:DD5C is set, `0x31CB4` calls `0x31AA4`: palette slots 0..3
+flash RGB6 `(63,20,20)`, with sound/delays and optional shield erasure. It does
+not clear alive. Ordinary energy-palette/power updates follow that call.
+
+After falling/settling, `outer_sim_loop` checks nonpositive HP and dispatches
+`0x1DBB5` at `0x232E5`. Inspection proves the old `shop_screen` label wrong:
+this routine scores death, clears alive at `0x1DC63`, and selects `random(11)`
+from the table at `0x1DF4D`. Effect 8 is rerolled when DS:50D8 is set.
+Corrected the death handler, effect chooser/table and palette-cycle labels and
+comments; other neighboring historical shop labels still need auditing.
+`0x1DF65` cycles eight palette slots 40 times; it is not AI browsing.
+
+Next implementation must preserve lethal tanks through falling cleanup, model
+the lethal palette flash, and execute the subsequent native death dispatch and
+effects. Merely keeping the sprite visible or swapping the existing generic
+particle animation would not establish parity. No production behavior changed
+in this investigation; prior passing fixtures are not evidence for lethal
+rendering or death effects. Work remains uncommitted.
+
+### Signed lethal falling damage and death handoff (2026-10-13)
+
+Falling/landing/crush HP now remains signed and does not clear alive. Crossing
+zero records a pending death and applies the lethal notification's palette
+writes; normal energy/power updates then follow. The zero-slot flash color
+persists, while slots 1..3 use the energy gradient. Negative gradient values
+now obey the VGA DAC's six-bit mask. Expanded `verify_tank_energy_palette.py`
+to **1,608 native cases**, HP -100..100, four colors and Stars/Black skies.
+The contact/order verifiers' intercepted damage routines now preserve signed
+HP rather than imposing the port's former zero clamp.
+
+The lethal offsets `40 0` fixture now matches **all 29 captured full-RGB
+frames**, signed final HP/alive state, subsequent native full-HUD refresh and
+complete RNG. The HUD refresh required a second fix: `0x31A7E` selects EF22
+for the Max value even when nonpositive HP displays as zero. Moving-shield
+regression remains green for all ten frames, states and RNG. Crush dispatch
+(8,064 cases), falling order, continuation, missile and shield scheduling pass.
+
+Production aftermath now resolves pending fall deaths after settling, scores
+and starts each existing death animation once. The integration check
+`test_falling_death_handoff.mjs` covers two simultaneous lethal results through
+that boundary. This uses the existing generic death animation as an intermediate
+implementation: **native flash hold timing, shielded lethal notification pixels,
+11 death-effect branches, death-effect RNG and full death/next-turn screenshots
+remain open**. The 29-frame native fixture skips notification delay boundaries
+and ends before `resolve_tank_death`; it does not prove those effects. Changes
+remain uncommitted.
+
+### Blocking lethal notification frames (2026-10-13)
+
+`applyFallingHit` is now a resumable generator. Lethal damage yields at both
+native notification boundaries (delay arguments 5 then 10), retaining the
+flash palette and pre-refresh HUD while deferring shield erasure, ordinary
+energy/power refresh and later damage. Falling movement also retains a
+generator continuation so a per-step notification cannot advance other tanks
+prematurely. Round/player initialization clears both continuations and flash
+state. `fallingFlash.delay` exposes the current native delay argument; browser
+wall-clock equivalence is not established by these frame comparisons.
+
+The falling comparator now captures `0x31AE3` and `0x31AF8` before their delay
+calls instead of skipping over the lethal flash. Offsets `40 0` now match
+**31 full RGB frames**, including two flash states, final signed player state,
+full-HUD refresh and complete RNG. Offsets `40 4` kill both tanks and match
+**39 full RGB frames**, including both ordered lethal notifications and the
+same final-state/RNG checks. Artifacts: `/tmp/scorched-lethal-flash/` and
+`/tmp/scorched-double-lethal/`. The handoff integration test now asserts both
+flash delays and that victim damage finishes before lethal self-damage begins.
+Contact/dispatch (8,064), falling order, crush continuation, parachute HUD and
+shield scheduling regressions pass.
+
+The later death-effect dispatcher is still unported. Its native table at
+`0x1DF4D` maps effects 0..11 to `0x1DCCE,0x1DCF5,0x1DD0A,0x1DD37,0x1DD95,
+0x1DDB0,0x1DDC9,0x1DDEE,0x1DE12,0x1DE20,0x1DE29,0x1DE59`; random(11)
+selects only 0..10. Branches call real blast/weapon/terrain routines and cannot
+be replaced by the current generic particle overlay for parity. Full death
+and next-turn captures remain open. Changes are uncommitted.
+
+### Native death palette prelude kernel (2026-10-13)
+
+Implemented `web/js/death-effects.js` with the shared `0x1DF65` palette prelude
+used by death effects 0..5. Every iteration reads the current eight player DAC
+entries and rotates RGB triplets one slot toward the start. It performs 40
+iterations, returning the palette to its original order. Tone frequency starts
+at 1200, rises by 200 each iteration, and wraps to 1000 after exceeding 4000.
+The kernel exposes that frequency but does not synthesize sound itself.
+
+`verify_death_palette_cycle.py` executes real native `0x1DF65`, including the
+checkpoint's actual `EF00=0x443B6` DAC-read and `EF04=0x443EB` rotate/upload
+callbacks. Only sound/delay calls are intercepted. **400 palette frames match**
+across all ten player ranges, checking all 256 DAC entries and every tone
+frequency; the native indexed framebuffer remains unchanged. The port returns
+to the original palette after all 40 iterations for each player. Paired images
+for player 1 are written to `/tmp/scorched-death-palette/`.
+
+This is a verified kernel, not a completed death-effect integration. It is not
+yet wired into the runtime dispatcher. Native clears alive before the prelude
+but keeps the corpse sprite in the indexed framebuffer: `draw_tank_type`
+(`0x40A75`) itself has no alive check. The port's `drawTank` currently skips dead
+tanks, so integration must preserve corpse pixels during cycling and pause the
+outer game flow. Random effect selection, each effect body, subsequent terrain
+settling and next-turn execution remain required. Changes are uncommitted.
+
+### Runtime death queue and branch 0 (2026-10-13)
+
+Connected the death prelude to the runtime. Deaths are queued sequentially;
+`gameTick` pauses while the active death runs, and the post-fall path now waits
+before round/next-turn scoring and transitions. Effect selection uses the
+seeded random(11) stream, rerolling index 8 on MTN/Castle terrain. Effects 0..5
+run the verified 40-frame palette cycle. Dead tank sprites remain visible
+through that phase despite their cleared alive flags. Effect 0 then erases
+body/barrel and marks the affected terrain dirty. Round/player initialization
+clears the queue. **Effects 1..10 still use a legacy approximation after any
+native prelude; this is explicitly incomplete.**
+
+`verify_death_zero.py` runs actual native branch 0 from `0x1DCCE` through the
+boundary at `0x1DE63`, after palette cycling and corpse erasure but before dirt
+settling. The port side uses its runtime queue and corpse renderer. **41 full
+RGB frames match**, starting from the lethal-fall checkpoint. Artifacts:
+`/tmp/scorched-death-zero/`. The branch is selected explicitly on both sides;
+this fixture does not cover the caller's scoring/HUD or subsequent settling.
+The falling verifier now saves `after-falling.state` for these continuations.
+
+`verify_death_selection.py` separately executes native `0x1DCA4..0x1DCC7`:
+**42 cases match** the effect index, random-call bounds and repeated castle
+reroll counts. Random return values are supplied identically, so this is a
+selector/control-flow oracle, not a new RNG implementation oracle. The handoff
+test confirms that gameplay stays in aftermath and the second queued death
+has not selected its effect while the first runs. Missile, shield scheduling
+and lethal-fall handoff regressions pass. Changes remain uncommitted.
+
+Remaining death work: real branches 1..10, native sound playback/clock timing,
+caller-level corpse/state/scoring sequencing, post-effect dirt/falls, and
+complete death-to-next-turn screenshots. Queue integration does not establish
+full parity for any of those untested boundaries.
+
+### Death blast branch sequencing (2026-10-13)
+
+Encoded `deathBlastSequence` for native effects 1..3. After the shared palette
+cycle, effect 1 runs the Missile-radius blast; effect 2 runs Missile then Baby
+Nuke; effect 3 runs Missile, Baby Nuke, then Nuke. Intermediate blasts pass
+settle=0 and are followed by delay(100); the final blast passes settle=1. Corpse
+erasure follows the final blast. The radii are loaded from the already-scaled
+weapon table at DS:1242/1276/12AA, not from three hardcoded death constants.
+At the current 360-wide Large setting these values are 60, 120 and 225.
+
+`verify_death_blast_dispatch.py` executes all three actual native branch bodies
+with six radius tables, intercepting only their callees. **18 cases match**
+palette/blast/delay/erase order, blast center, radii and final-settling flags.
+This verifies dispatch, not the callee pixels, damage or wall-clock timing.
+The sequence is not yet connected to the runtime's remaining approximate
+branches; that integration must wait for each blast's damage continuation and
+requested settling before issuing the next operation.
+
+Corrected another misleading legacy label: `0x43D3A` is `ordinary_explosion`,
+not an AI shop scroll routine. Its `0x43EAB..0x43F64` damage loop runs regardless
+of the final flag; `0x43F6E` gates only the subsequent `0x1CEF8` dirt-settling
+call. Intermediate death blasts therefore cannot be implemented as visual-only
+rings or damage-free effects. Work remains uncommitted.
+
+### Runtime death blasts and retained wind pixels (2026-10-13)
+
+Connected death effects 1..3 to the ordinary explosion renderer, signed damage
+continuations, inter-blast delays, final dirt settling and corpse erasure.
+Intermediate blasts preserve their restored framebuffer pixels so the clean
+world redraw does not resurrect tanks before the native live-tank redraw at
+settling entry. Blast damage preserves signed HP and alive flags for the outer
+death handler; it does not invoke the falling-only lethal flash.
+
+`verify_death_blast_frames.py` runs the actual native branch and blast callees
+from the lethal-fall checkpoint, bypassing sound/input/delay waits. Effect 1
+passes **122 full RGB frames** and effect 2 passes **234 full RGB frames**;
+both also match final signed HP, alive flags and the complete RNG state.
+Effect 0's separate **41-frame** regression also passes. This fixture explicitly
+selects the branch and initializes the port's sky cache for the seed-0/sky-2
+checkpoint; arbitrary checkpoints and caller scoring are outside its scope.
+
+Effect 3 initially matched through frame 397, then exposed 31 resurrected wind
+label pixels when the final blast's restoration mask was released. Native
+blast writes erase that playfield text. The wind renderer now tracks which
+label pixels world writes overwrote, preserving those holes across clean-world
+repaints and resetting on round setup or a changed wind/layout. A focused
+regression verifies partial erasure, unaffected text and reset behavior.
+After that correction, the full effect-3 oracle passes **399 RGB frames**,
+including the previously failing final frame, plus signed HP, alive flags and
+the complete RNG state. Effect 2's rerun also passes all 234 frames and final
+state checks. Paired effect-3 screenshots are in `/tmp/scorched-death-three/`;
+the final pair is `death-3-398-{emulator,port}.png`.
+
+Effects 4..10 remain approximations. Caller-level scoring/death order,
+post-death falling, next-turn screenshots, and native audio/wall-clock timing
+still need verification. Runtime wiring and these branch fixtures do not
+establish end-to-end parity. Changes remain uncommitted.
+
+The next branch investigation also corrects `0x1E0F3` from the misleading
+`ai_buy_shields` label to `death_radial_rays`: branch 5 selects a radius with
+random(60)+45, uses palette slot 250, draws four symmetric ray sets per radius
+step (starting at 5, incrementing by 2), applies nearby-tank damage, then erases
+pixels still carrying slot 250. This is disassembly evidence only; that effect
+has not been implemented or compared frame by frame yet.
+
+### Runtime death effect 5: radial rays (2026-10-13)
+
+Replaced effect 5's legacy particles with native radial-ray growth, flat
+20-point area damage with shield continuation, conditional color-250 cleanup,
+and corpse erasure. The renderer retains the stochastic ray pixels across
+world repaints. Cleanup restores only pixels still carrying the ray color,
+including holes cut through dirt and tank sprites. The death caller still
+owns subsequent dirt settling and falling. Dirty bounds use native aspect
+scaling and the wrapped-playfield expansion from `0x1CD38`.
+
+The growth kernel in `web/js/death-rays.js` preserves four symmetric writes per
+line sample, duplicate center/axis samples, clipping before random(4), and the
+random(30) angle update before drawing each ray set. Using Math.PI/180 caused
+a real one-pixel divergence: the EXE uses the double **0.017453293** at DS:1BDC.
+The implementation now uses that constant before native truncation and fixed
+point aspect scaling.
+
+`verify_death_rays.py` executes actual native growth code with intercepted
+random returns and VGA writes. **Eight cases / 266 growth frames** match every
+ordered pixel write, random-call bound/order, and palette slot 250. Cases cover
+four graphics modes, radius extremes, both viewport edges, clipping and wrap.
+This kernel oracle supplies identical randomness; it does not verify the RNG
+algorithm itself or damage/cleanup.
+
+The full-frame oracle `verify_death_blast_frames.py --effect 5` executes the
+native branch and its callees from the lethal-fall checkpoint. **90 complete
+RGB frames**, final signed HP, alive flags and the **complete RNG state** match
+through branch completion at `0x1DE63`. Paired screenshots are in
+`/tmp/scorched-death-five/`, final pair `death-5-089-{emulator,port}.png`.
+Ordinary area-damage (756 native requests), impact, shield scheduling,
+restoration and death-handoff regressions pass.
+
+The full-frame case has no shield fade. Ray damage interacting with active
+shields, caller-level death/scoring order, retained tank holes during subsequent
+settling, next-turn rendering and audio/timing still need dedicated native
+coverage. Effects **4 and 6..10** remain approximations. Changes are uncommitted.
+
+### Death-to-settling framebuffer handoff (2026-10-13)
+
+Extended the death frame oracle with `--settle`, continuing through the native
+common call at `0x1DE63` and comparing at `0x1DE68` after it returns. The first
+effect-5 run exposed **40 stale erased pixels on the live tank**: native
+`0x1CF06` redraws live tanks before deciding whether dirt must move, while the
+port's retained ray-erasure layer continued covering those pixels.
+
+The settling entry and completion now perform live-tank world writes, removing
+retained erasures where the native tank redraw writes pixels. Ordinary scene
+repaints still preserve retained pixels. Tank/body/barrel/parachute rendering
+accepts a pixel writer so the native redraw shares its geometry with normal
+rendering without clearing unrelated traces or erased wind text.
+
+`verify_death_blast_frames.py CHECKPOINT --effect 5 --settle` now passes
+**145 full RGB frames**, including 54 settling captures and the final return
+frame, plus signed HP, alive flags and complete RNG state. The earlier 90-frame
+branch-only fixture remains included in that run. Ten native dirt-collapse
+kernel cases, explosion restoration and death-handoff regressions pass.
+This verifies the common settling call, not subsequent falling, another death
+dispatch, scoring or the next turn. Changes remain uncommitted.
+
+The moving-shield stacked-fall regression also passes all 10 full RGB frames,
+final player state and RNG. Parachute drawing still matches native geometry
+and preservation across 143 mapped background colors after introducing the
+explicit pixel writer.
+
+### Serial aftermath dispatch and repeated falling (2026-10-13)
+
+Native `outer_sim_loop` (`0x23298`) completes initial settling/falling/settling,
+then visits live tanks in index order. For each nonpositive signed HP value it
+resolves one death, settles, falls, and settles again before visiting the next
+tank. If any death occurred, it repeats the outer scan so an effect that killed
+an earlier-indexed tank is handled. Nonpositive-HP tanks retain their alive
+flags until their own death call; they can still fall in the meantime.
+
+The port previously cleared all pending victims' alive flags and queued their
+effects together, then could skip falling because `afterFalling` remained set.
+`web/js/aftermath.js` now exposes the native operation sequence as a generator.
+`gameTick` completes each settling pass, falling continuation, and single death
+effect before advancing. Round initialization clears the continuation. Death
+eligibility uses signed HP plus the alive flag, matching native iteration,
+rather than depending solely on the falling notification flag.
+
+`verify_aftermath_order.py` executes the actual native outer loop and live-tank
+iterator while intercepting only redraw/settle/fall/death callees. **Seven
+event traces match**, including multiple initial victims, all-dead results,
+effect-induced deaths at earlier indices and deaths induced by later falling.
+This is caller-order evidence, not pixel/scoring evidence for those callees.
+The runtime handoff test confirms only the first victim is marked dead, later
+victims remain alive during that effect, and removed support starts a falling
+pass before the next death. Shield scheduling regressions also pass.
+
+End-to-end chained-death screenshots, scoring, next-turn transitions and
+remaining native effects are still required. Work remains uncommitted.
+
+The complete ordinary-shot regression still matches **103 full RGB frames**
+through impact and falling aftermath, with final player state and complete RNG
+matching the emulator after the scheduler change.
+
+### Death effect 10 particle inputs (2026-10-13)
+
+Corrected the misleading `ai_sell_dialog` label at `0x1E3CB` to
+`death_sprite_particles`. This death branch prepares palette state, builds an
+ordered tank-pixel array at `0x408B7`, calls the particle simulation at
+`0x2EAB2` with mode flag zero, then frees the array. It is not a shop routine.
+
+`getDeathSpritePixels` reproduces native source records: the complete barrel
+line including its endpoint, followed by the body table, mirrored only as
+native does. Duplicate/overlapping pixels are retained because each record
+gets its own velocity. Colors use the native player index times eight.
+`verify_death_sprite.py` executes the real extractor with only allocation
+stubbed: **210 cases** match every ordered coordinate/color record, covering
+seven tank types, both directions, three player slots and five barrel endpoints.
+
+`randomDeathVelocity` implements native `0x32D84`: sample three R250 fractions,
+subtract 0.5, retry if their squared length is below 0.001, and divide the first
+two components by that squared length. Particle initialization multiplies by
+400 and folds negative vertical velocity positive. This is not a uniformly
+sampled angle or a unit-vector normalization. `verify_death_velocity.py`
+matches **1,500 native samples exactly** across three initial RNG states and
+compares all 250 final RNG words plus the index. Native sampling and its retry
+loop execute; seeded initial RNG tables are supplied identically to both sides.
+
+These are verified inputs for the pending effect-10 implementation. The runtime
+still uses its legacy approximation for this effect. Native movement, time
+steps, collisions, indexed-pixel erasure, cleanup and full-frame comparisons
+remain required before wiring it in. Changes remain uncommitted.
+
+### Runtime death effect 10 particle simulation (2026-10-13)
+
+Connected the verified source records and velocity sampler to the native
+particle update loop. Each update subtracts 40 from vertical velocity and
+moves by velocity/70. The original discards fractional movement when neither
+integer coordinate changes, but retains the gravity change. Native palette
+indices below 105 stop particles; particles leave no impact crater at the
+destination. Old pixels are restored in particle order. Out-of-bounds motion
+uses the native sentinel, with one horizontal wrap adjustment when enabled.
+The inactive velocity sentinel is 2000, and completion needs the native final
+pass with no active particles.
+
+`verify_death_particle_step.py` executes the actual loop body with only pixel
+and sound callbacks intercepted. **421 cases** match exact floating state,
+active/completed status and every ordered pixel read/write/erasure. Coverage
+includes fractional no-movement updates, all viewport boundaries, wrap,
+palette collision boundaries, inactive particles and interacting particles.
+The 210 source-list and 1,500 velocity/full-RNG regressions still pass.
+
+The full effect-10 oracle passes **63 complete RGB frames**, final signed HP,
+alive flags and the complete RNG state through branch completion. It executes
+the native allocation, source extraction, velocity generation and simulation.
+The timer gate receives 30 ticks between observations; elapsed real-time speed
+and sound are not established by this fixture. Paired screenshots are under
+`/tmp/scorched-death-ten/`, ending at `death-10-062-{emulator,port}.png`.
+
+The first comparison caught the palette reset using slots 0..7 instead of the
+dying player's palette range. Runtime now resets that player's eight entries,
+including the native special colors for slots 5 and 7. The oracle imports the
+checkpoint's stored tank RGB fields alongside its existing imported tank state.
+Particle writes and erased pixels persist across scene repaints; live tanks
+are restored by the already-verified settling redraw boundary.
+
+Effects **4 and 6..9** still use approximations. The effect-10 full-frame case
+does not cover shield removal, different landscapes, wall timing/audio or the
+complete chained-death/next-turn path. Changes remain uncommitted.
+
+The `--effect 10 --settle` continuation also passes: **64 RGB frames** and
+matching final HP/alive/RNG, including the live-tank redraw at common settling
+return. This fixture requires no dirt movement passes after effect 10.
+
+### Death effect 9 burst sequence (2026-10-13)
+
+Identified native `0x3B07F` as `death_overlapping_bursts`. It initializes a
+40-entry grayscale ramp, enables palette cycling, emits a central radius-30
+burst, then four offset bursts for each radius 20 down through 6. Each offset
+uses random(40-radius), then random(360), native double 0.017453293, integer
+truncation and signed fixed-point aspect scaling. The sequence contains 61
+bursts; the caller must execute each drawing callee before requesting the next.
+
+`web/js/death-bursts.js` implements that lazy sequence.
+`verify_death_bursts.py` executes the actual native dispatch with real RNG,
+trigonometry and coordinate transforms, intercepting palette/drawing callees.
+**Nine cases** across three graphics modes and three seeded placements match
+all 61 centers/radii plus the complete final RNG state. Initial RNG tables are
+supplied identically; this verifies their continuous consumption by dispatch.
+
+The drawing callee `0x3AF1F` builds concentric protected-color circles and
+accumulates dirty bounds. Final cleanup expands those bounds, clamps Y to the
+viewport, and calls a rectangle traversal with callback `0x3B005`, restoring
+only native palette indices >=170 and applying horizontal wrap. That traversal,
+palette cycling and full-frame effect comparison remain to be implemented and
+verified. Effect 9 still uses the legacy runtime approximation. Uncommitted.
+
+### Runtime death effect 9 drawing and cleanup (2026-10-13)
+
+Connected the burst sequence to native concentric drawing and rectangle
+cleanup. Each ring uses color 220-trunc(20*ring/radius), protecting existing
+colors from the next index through 240. Retained writes preserve overlap
+between bursts across scene repaints. Cleanup expands the accumulated bounds,
+clamps Y, visits pixels in native order, and restores only indices >=170;
+corpse erasure follows. The initial 40-entry grayscale palette is installed.
+
+`verify_death_burst_drawing.py` executes the real burst and circle routines:
+**eight cases** match all resulting indexed pixels, write counts and bounds
+over protected-color patterns, viewport edges and horizontal wrap. The nine
+dispatch cases now also verify all **40 grayscale palette entries**.
+
+Cleanup traversal `0x1CFC7` uses a local LFSR and the mask table at DS:0B28;
+it does **not** consume the gameplay RNG. `rectanglePixelOrder` preserves the
+native bit-length calculation (including power-of-two dimensions), skips
+coordinates outside the rectangle and visits (0,0) last.
+`verify_pixel_traversal.py` matches **nine complete coordinate sequences**, with
+each rectangle pixel visited exactly once.
+
+The full effect-9 oracle matches **62 full RGB frames** through cleanup and
+corpse erasure, plus signed HP, alive flags and complete RNG state. Paired
+screenshots are in `/tmp/scorched-death-nine/`, final pair
+`death-9-061-{emulator,port}.png`. Burst/rectangle kernel tests and explosion
+restoration regressions pass after runtime integration.
+
+This fixture does not run hardware timer interrupts. It verifies the initial
+palette and observed drawing/cleanup frames, not interrupt-driven palette
+cycling, elapsed animation timing or sound. Those remain incomplete. Effects
+**4 and 6..8** still use legacy drawing. Chained-death and next-turn screenshot
+coverage is also outstanding. Changes remain uncommitted.
+
+Effect 9's `--settle` continuation also passes **63 RGB frames**, final signed
+HP/alive flags and complete RNG, including common settling's live-tank redraw.
+No dirt movement passes are needed in this particular continuation.
+### Death effect 8 sequence and soil helpers (2026-10-13)
+
+`web/js/death-scorch.js` ports the native `0x2BD89` sequence: its 21-color
+palette, randomized sinking depth, two-zero sinking gate, soil scorching,
+vertical beam, 200 spark writes, and final strip cleanup. It also ports the
+`0x2BCC3` and `0x2BD07` pixel/column helpers. The helpers deliberately preserve
+two native details: scorching accepts color 105 while column erasure does not,
+and negative randomized column offsets perform no reads or erasures because
+the original loop condition fails before its first iteration.
+
+Verification:
+
+- `python3 disasm/verify_death_scorch.py`: 3,584 cases cover every indexed
+  input color and every possible helper random result, matching ordered pixel
+  reads/writes/restorations and random-call bounds.
+- `python3 disasm/verify_death_scorch_sequence.py`: five full native sequences
+  match ordered callbacks, palette values, final tank Y, and all 250 RNG words
+  plus the RNG index. Fixtures cover interior/edge positions, the depth-selection
+  boundary at ten remaining rows, and a tank already at the bottom. Native RNG
+  and soil helpers execute; pixel I/O, tank drawing, palette callbacks and dirty
+  marking are intercepted identically on both sides.
+
+The sequence checks isolate tank rendering and palette operations. Generator
+yields expose completed sinking rows, the beam and individual sparks without
+claiming native display durations.
+
+### Runtime death effect 8 rendering (2026-10-13)
+
+The death dispatcher now executes the sinking-beam sequence with retained
+indexed world writes. Its adapter restores barrel/body erasures to the sky,
+updates terrain occupancy, redraws the body at each new depth, installs the
+21-color palette using the round's actual ground color, and rotates a saved
+ten-color DAC buffer for each spark. The native entry is now labeled
+`death_sinking_beam` rather than the misleading `terrain_scorch_ring`.
+
+`verify_death_blast_frames.py ... --effect 8` passes **297 complete RGB frames**
+from the lethal falling checkpoint through branch completion, plus signed HP,
+alive flags and the complete RNG state. Native tank rendering, pixel callbacks
+and VGA palette operations execute in this test. Captures cover every completed
+sink row, beam setup, all 200 sparks, and cleanup. Log:
+`/tmp/scorched-death-eight.log`.
+
+The `--settle --output-dir /tmp/scorched-death-eight` continuation also passes:
+**396 complete RGB frames**, including 98 dirt-movement captures and the final
+common-settling return, with final signed HP/alive flags and complete RNG
+matching. Log: `/tmp/scorched-death-eight-settle.log`. PNG pairs are saved in
+`/tmp/scorched-death-eight`; frame 095 shows the beam, 296 branch cleanup, and
+395 the completed settling. The beam pair was also visually inspected.
+
+Effects **4, 6 and 7** still use legacy runtime drawing. Effect-8 shield and
+parachute variants, additional viewport/landscape fixtures, wall-clock timing,
+full chained-death/caller behavior and next-turn screenshots remain unverified.
+
+### Runtime death effect 7 flames (2026-10-13)
+
+`web/js/death-flames.js` and the runtime death dispatcher now implement native
+`0x24148`: six drifting flame plumes, three nested circle layers, soil shading,
+50 palette rotations, and cleanup around the final plume's drifting X. Sound
+selection still consumes RNG with sound disabled. Cleanup deliberately uses
+the final drifting X rather than the tank X, matching the native routine.
+
+The callback circle at `0x43ACA` visits its symmetric scanlines in a different
+order from the protected-color explosion circle. That order and duplicate
+pixel visits matter because the callback consumes `random(5)` over soil.
+`walkDeathFlameCircle` preserves the native callback order, fixed-point aspect,
+clipping and wrapped-spill traversal.
+
+Native soil shades 81..85 map to port slots 121..125, separately from sky
+colors. The runtime updates both retained pixels and terrain occupancy with
+those shades. Terrain settling, shield occlusion, parachute occlusion/wind
+checks and death-effect pixel readers now recognize the complete relocated
+soil range 120..144.
+
+Verification:
+
+- `verify_death_flames.py`: six native sequences across two display aspects,
+  interior/edge placements and wrapping match all ordered pixel operations,
+  palette setup, cycle requests, cleanup and complete RNG. Actual native RNG,
+  callback circles and conditional pixel shading execute.
+- `verify_death_blast_frames.py ... --effect 7`: **135 complete RGB frames**,
+  signed HP, alive flags and complete RNG match through branch completion.
+- Adding `--settle --output-dir /tmp/scorched-death-seven`: **136 RGB frames**
+  and final state/RNG match through common settling. This fixture needs no
+  dirt-movement passes. Logs are `/tmp/scorched-death-seven.log` and
+  `/tmp/scorched-death-seven-settle.log`; matching PNG pairs are in
+  `/tmp/scorched-death-seven`.
+- `verify_parachute_drawing.py`: expanded to all 150 native indices 0..149.
+- `verify_shield_drawing.py`: 750 cases, now including all five soil shades
+  in mixed backgrounds, match native masks and lower-half palettes.
+- `verify_terrain_collapse.py`: 20 cases, including shaded variants of every
+  prior fixture, match every movement pass and deposit RNG count.
+- `test_falling_death_handoff.mjs` and `git diff --check` pass.
+
+Effects **4 and 6** still use legacy runtime drawing. Death selection/caller
+scoring, full chained deaths and next-turn screenshots, additional full-frame
+fixtures, real-time pacing and audio still need verification. These checks
+establish sampled frame/state parity, not overall project completion.
+
+### Runtime death effect 6 dirt spray (2026-10-13)
+
+`web/js/death-dirt.js` ports the death-mode path through `0x1C481`. The runtime
+now executes its 50 palette flashes, upward dirt spray, terrain-dependent
+floating-point cone boundaries, randomized deposits, corpse erasure and inner
+terrain settling. The palette blends the tank's stored RGB with the round's
+ground RGB, and selects one of its first five palette slots per update.
+Sound-enabled initial flashes consume an extra `random(200)`; this affects
+later spray placement even when no audio callback is installed.
+
+The native right edge scans a wrapped coordinate, while the left edge computes
+one but still reads/checks the original X. The port preserves this asymmetry.
+Final dirty marking uses the native aspect-scaled radius and wrap rule before
+erasing the corpse, without adding a second unscaled dirty interval.
+
+`verify_death_dirt.py` executes the native RNG, floating-point cone arithmetic,
+RGB mixing and ground-color selection. Six fixtures match every palette,
+pixel-read/deposit and dirty-mark callback plus complete final RNG, covering
+obstructed cones, both wrapped edges, sound enabled, and the full-height flag.
+The runtime currently uses the normal height limit and the existing one-color
+ground-deposit table; the kernel also verifies a three-color table through its
+deposit adapter. Projectile-only horizontal/downward paths are outside this
+death-mode implementation.
+
+`verify_death_blast_frames.py ... --effect 6` matches **464 complete RGB
+frames**, signed HP, alive flags and complete RNG through branch completion,
+including effect 6's inner settling. Log: `/tmp/scorched-death-six.log`.
+The sound-disabled `--settle` continuation passes **465 complete RGB frames**
+and final state/RNG through the common post-death settling return; log:
+`/tmp/scorched-death-six-settle.log`.
+The independent `--sound --settle --output-dir /tmp/scorched-death-six` run
+also passes **465 complete RGB frames**, signed HP/alive flags and complete
+RNG. The enabled sound path produces a different soil pattern; its captures
+are saved as matched emulator/port PNG pairs in `/tmp/scorched-death-six`.
+Log: `/tmp/scorched-death-six-sound-settle.log`. Frame 200 shows the spray
+(visually inspected), and frame 464 shows final settling.
+The verifier now accepts `--sound` to enable the native sound-device RNG paths
+while bypassing audio calls and blocking waits; this does not verify audio
+output or elapsed-time pacing.
+
+Death effect **4** is the only branch still using legacy runtime drawing.
+Full caller/scoring, chained deaths and next-turn screenshots, additional
+landscape/shield fixtures, nondefault spray flags and real-time pacing remain
+unverified. No claim of overall project completion is made.
+
+### Funky Bomb / death effect 4 native primitives (2026-10-13)
+
+`web/js/death-funky.js` implements native target selection, the 60-color ramp,
+the 16.16 curved-trail traversal at `0x24CBF`, and expanding protected-color
+blasts at `0x2476B`. Death effect 4 passes spread=-1, selecting targets across
+the playfield at its bottom; the weapon's positive spread instead clamps
+targets around the impact X. All targets are selected before blast/trail RNG.
+
+The curved trail is an incremental quarter-ellipse, not an ordinary falling
+projectile. It suppresses repeated integer positions, reads the pixel before
+testing viewport limits, stores the first collision, and can retrace to erase
+up to that saved collision. The growth phase starts at radius zero and stops
+before its requested radius. Each sound-enabled growth ring consumes
+`random(3000)`; the palette protection interval changes with the ring color.
+
+Verification against real native instructions:
+
+- `verify_funky_setup.py`: nine death/weapon-spread cases match target lists,
+  all 60 ramp colors, the initial palette-cycle request, trail color 254's RGB,
+  and complete RNG state.
+- `verify_funky_trails.py`: 48 cases match ordered reads/writes/restorations
+  and saved collision coordinates, including erase endpoints, terrain hits,
+  degenerate paths, viewport edges and bottom clamping.
+- `verify_funky_growth.py`: six cases match every ordered write and complete
+  RNG across protected colors, display aspects, wrapping and sound modes.
+  Native damage iteration is intercepted in this growth-only check.
+
+The ordered-write check exposed reversed symmetric scanline groups in the
+shared `bresenhamCircleFill`. Correcting those groups preserves final shapes
+while matching the native callback order. The 207 native explosion-mask cases
+and eight native concentric-burst drawing cases pass with the correction.
+The 414 native restoration-mask cases also pass. A complete effect-9 runtime
+regression passes all 62 RGB frames, signed HP/alive flags and complete RNG;
+log: `/tmp/scorched-funky-circle-regression.log`.
+
+These primitives are **not yet wired into death effect 4 or the Funky Bomb
+weapon handler**. Required integration includes the parent growth blast,
+ordered trail/sub-blast pairs, radius-dependent damage (`100*(r-distance)/r`
+inside the radius), 80 palette rotations, trail and crater cleanup, and the
+final ordinary explosion before corpse erasure and common settling. Complete
+effect-4 RGB frame/state parity is still unproven; its runtime branch retains
+the legacy approximation until that integration is complete.
+
+
+### Death effect 4 runtime integration (2026-10-13)
+
+The death runtime now executes all eleven native branches. Effect 4 uses the
+verified Funky Bomb primitives for its parent blast, ordered curved trails
+and sub-blasts, damage continuations, 80 palette rotations, trail erasure and
+crater cleanup. Its final ordinary explosion uses the scaled Baby Nuke
+radius (40 times explosion scale), followed by inner settling and corpse
+erasure. The obsolete random-particle fallback has been removed.
+
+The sound-disabled native comparison passes **389 complete RGB frames**,
+signed HP, alive flags and complete RNG through branch completion. Log:
+`/tmp/scorched-death-four.log`. Growth and trail checkpoints sample each
+completed sub-blast; individual ordered pixel writes are covered separately
+by the primitive oracles above.
+
+This supersedes the earlier statement that effect 4 remains unwired. The
+Funky Bomb weapon handler still uses approximate projectile spawning and
+needs separate integration. Full death-caller/scoring and chained-death
+screenshots, additional shield/landscape/settings fixtures, and real-time
+pacing remain outside this branch-level verification.
+
+The sound-enabled `--sound --settle` run passes **386 complete RGB frames**,
+signed HP, alive flags and complete RNG through common post-death settling.
+Its growth-ring sound RNG produces different terrain and settling duration
+from the sound-disabled run. Log:
+`/tmp/scorched-death-four-sound-settle.log`; matched PNG pairs:
+`/tmp/scorched-death-four` (frame 044 shows trails/sub-blasts; frame 385 is
+final). The verifier now observes sound calls as well as delays during the
+shared palette prelude, since native sound-enabled preludes skip the delay.
+Audio output and wall-clock pacing are not tested.
+
+After removing the obsolete fallback, effect 0 still passes all 41 RGB
+frames (`/tmp/scorched-death-fallback-removal.log`), and
+`node disasm/test_falling_death_handoff.mjs` passes signed-HP/death-queue
+handoff checks. `node --check web/js/tank.js` and `git diff --check` pass.
+
+### Funky Bomb impact dispatch and shared sequence (2026-10-13)
+
+Native handler `0x246E0` returns immediately on shield contact after a
+shield-only damage request of 10 (`shield_and_damage`, flag 0). It consumes
+no target-selection RNG and never starts the Funky Bomb sequence. On body
+contact it requests the tank's current HP through `damage_tank`, flag 1,
+before calling `0x24894`. The port now dispatches these direct-hit operations
+through the existing `processHit` damage handling.
+
+`verify_funky_impact.py` executes the real handler in nine contact/HP cases,
+intercepting sound, damage and animation callees. It verifies the native
+damage arguments and ordering, shield early return, and the port's absence
+of spawned projectiles/RNG consumption on shield contact. It does not verify
+weapon animation pixels. `test_missile_impact.mjs` now checks Funky Bomb shield
+contacts at 5/10/100 shield HP and a body contact, including preserved body HP
+on shield overflow, shield preservation on body contact, and deferred death.
+
+The verified effect-4 stage generator has moved to `web/js/funky-bomb.js` as
+`funkyBombStages(x,y,spread)`, retaining the native order and allowing a
+positive weapon spread as well as death mode's -1. Death effect 4 uses this
+shared generator. The weapon's non-shield animation still uses its earlier
+approximate projectile spawning: connecting the shared generator to the
+weapon/game scheduler and verifying native weapon frames remains necessary.
+
+After extraction, all **389 effect-4 RGB frames**, signed HP, alive flags and
+complete RNG still match the emulator through branch completion. Log:
+`/tmp/scorched-funky-shared-regression.log`. Shared-module syntax and
+`git diff --check` also pass.
+
+### Funky Bomb weapon animation integration (2026-10-13)
+
+Weapon impacts now schedule `funkyBombStages` with the native positive spread
+rather than spawning approximate ordinary projectiles. The game suspends
+projectile processing until the handler's sub-blasts, palette cycles, trail
+and crater cleanup, final Baby Nuke explosion and inner settling finish.
+Sub-blasts use the native unit damage multiplier; the final ordinary blast
+uses the selected Funky Bomb multiplier (EXE index 5, web index 7). Damage
+remains signed and tanks stay alive for the later aftermath dispatcher.
+Shield-break damage continuations suspend the sequence through the existing
+game-level damage queue. Rendering retains trail/blast pixels across world
+redraws, and round initialization clears pending Funky Bomb impacts.
+
+`verify_death_blast_frames.py --funky-impact terrain` enters the native weapon
+handler directly and drives the port through `processHit` and `gameTick`.
+It uses the frozen landscape/tank positions from the after-falling fixture,
+with both tanks' starting HP set to 100. It compares **317 complete RGB
+frames**, signed final HP, alive flags and complete RNG through the real
+handler return, including its inner settling. Log:
+`/tmp/scorched-funky-weapon.log`. The native sound-disabled run passes.
+
+The fixture retains the checkpoint HUD, which still names its previous
+weapon; it does not simulate firing or refreshing the weapon label. Native
+damage refreshes only the active tank's energy field during this handler.
+`drawHudEnergy` now exposes that existing full-HUD field rendering for the
+comparison's matching partial refresh. Full frame comparison includes the
+HUD; no HUD pixels are excluded. The full gameplay loop's HUD refresh timing
+and a real launch-to-next-turn Funky Bomb shot remain separate checks.
+
+The nine native impact-dispatch cases and runtime shield/body contact checks
+still pass after replacing projectile spawning. Syntax checks and
+`git diff --check` pass. The prior statements that the Funky Bomb weapon
+still uses approximate projectile spawning are superseded by this section.
+
+The independent `--funky-impact body --sound` run passes **310 complete RGB
+frames**, signed HP, alive flags and complete RNG through handler return.
+This exercises the body's immediate HP-removal request followed by the
+sound-enabled sequence. Log: `/tmp/scorched-funky-body.log`. Matched
+emulator/port PNG pairs are in `/tmp/scorched-funky-body`; frame 005 shows
+curved trails and sub-blasts, and frame 309 shows final settling.
+
+### Remaining after this parity checkpoint (2026-10-13)
+
+- Verify real Funky Bomb shots from launch through falling, chained deaths,
+  scoring and next-player HUD refresh; current Funky checks enter the weapon
+  handler directly.
+- Audit HUD refresh timing in the main rendering loop. Native `0x316CE`
+  refreshes the power field only when stored power actually changes;
+  `updateTankDamageState` currently clears `hudPower` on every refresh request.
+  A retained stale power field may therefore refresh early. This finding is
+  recorded only; no speculative fix has been applied.
+- Expand complete-frame fixtures across active shields, parachutes, wrap
+  walls, landscape types, resolutions and nondefault settings.
+- Audit remaining weapon behavior approximations and their damage/cleanup
+  continuations, including napalm and the legacy Popcorn path.
+- Verify palette interrupt timing, animation pacing and broader UI/round
+  transitions. Branch-level pixel parity does not prove complete-game parity.

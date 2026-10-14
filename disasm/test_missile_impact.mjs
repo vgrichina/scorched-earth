@@ -7,17 +7,19 @@ import {isExplosionActive,stepExplosion,resumeExplosionDamage} from '../web/js/e
 import {shieldBreak,drawShieldBreak} from '../web/js/shields.js';
 import {WPN} from '../web/js/weapons.js';
 Object.assign(config,{screenWidth:360,screenHeight:480,wallType:0,explosionScale:0});
-for(const energy of [5,10,100]) {
+for(const weaponIdx of [2,7]) for(const energy of [5,10,100]) {
  const target=createPlayer(0,'Target'),attacker=createPlayer(1,'Attacker');
  Object.assign(target,{x:100,y:100,activeShield:2,shieldEnergy:energy});
  players.splice(0,players.length,target,attacker);shieldBreak.active=false;
- const shot=createProjectile(100,100,100,-100,2,1);shot.hitPixel=5;
+ const shot=createProjectile(100,100,100,-100,weaponIdx,1);shot.hitPixel=5;
  processHit(shot,'hit_tank');
  assert.equal(shot.active,false);
  assert.equal(isExplosionActive(),false,'shield contact must not explode');
  assert.equal(target.energy,100,'shield overflow must not reach tank energy');
- assert.equal(target.shieldEnergy,Math.max(0,energy-10));
+ assert.equal(target.shieldEnergy,energy<=10?energy:energy-10);
  assert.equal(shieldBreak.active,energy<=10);
+ while(shieldBreak.active)drawShieldBreak();
+ assert.equal(target.shieldEnergy,Math.max(0,energy-10));
 }
 const target=createPlayer(0,'Target'),attacker=createPlayer(1,'Attacker');
 Object.assign(target,{x:100,y:100,energy:55,activeShield:2,shieldEnergy:100});
@@ -35,7 +37,7 @@ assert.equal(target.alive,true,'area damage continuation waits for exact shield 
 while(shieldBreak.active)drawShieldBreak();
 resumeExplosionDamage();
 assert.equal(target.alive,false);
-console.log('Ordinary shield hits consume 10 shield-only HP without a blast; body hits remove energy before blast and resolve death afterward.');
+console.log('Ordinary and Funky Bomb shield hits consume 10 shield-only HP without a blast; ordinary body hits remove energy before blast and resolve death afterward.');
 // Warp reflection uses the saved pre-force velocity and only shield pixels.
 {
  const warp=createPlayer(0,'Warp'),attacker=createPlayer(1,'Attacker');
@@ -58,3 +60,16 @@ console.log('Ordinary shield hits consume 10 shield-only HP without a blast; bod
  assert.equal(isExplosionActive(),false);
 }
 console.log('Warp shield contact reflects saved incoming velocity, consumes shield HP, and lets outward velocity continue without a blast.');
+// Funky Bomb body contact makes the same immediate, shield-bypassing request.
+{
+ const target=createPlayer(0,'Target'),attacker=createPlayer(1,'Attacker');
+ Object.assign(target,{x:100,y:100,energy:55,activeShield:2,shieldEnergy:100});
+ players.splice(0,players.length,target,attacker);
+ const shot=createProjectile(100,100,100,-100,7,1);shot.hitPixel=0;
+ processHit(shot,'hit_tank');
+ assert.equal(target.energy,0);
+ assert.equal(target.shieldEnergy,100);
+ assert.equal(target.alive,true,'Funky Bomb body contact defers death until aftermath');
+ assert.equal(shot.active,false);
+}
+console.log('Funky Bomb body contact removes remaining HP while preserving shields and deferring death.');
