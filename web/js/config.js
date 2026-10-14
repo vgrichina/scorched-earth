@@ -47,7 +47,7 @@ export const config = {
   armsLevel: 4,        // EXE: ARMS=4 (gates weapon availability at struct +08)
 
   // Scoring — EXE: score.cpp modes
-  scoringMode: 0,      // EXE: SCORING=Standard (0=Standard, 1=Corporate, 2=Vicious)
+  scoringMode: 1,      // Shipped SCORING=Standard: DS:0x5148 (0=Basic, 1=Standard, 2=Greedy)
 
   // Walls — EXE: ELASTIC config variable DS:0x5154
   wallType: 0,         // Shipped SCORCH.CFG: ELASTIC=None (0=None,1=Wrap,2=Padded,3=Rubber,4=Spring,5=Concrete,6=Random,7=Erratic)
@@ -87,7 +87,7 @@ export const config = {
   bombIcon: 1,           // EXE: BOMB_ICON=Big (0=Small, 1=Big, 2=Invisible)
   tunneling: 1,          // EXE: TUNNELLING=On (weapons dig through terrain)
   uselessItems: 0,       // EXE: USELESS_ITEMS=Off (include joke/novelty items)
-  teamMode: 0,           // EXE: TEAM_MODE=None (0=None, 1=On)
+  teamMode: 0,           // DS:0x50EA: 0=None, 1=Standard, 2=Corporate, 3=Vicious
   statusBar: 1,          // EXE: STATUS_BAR=On (show status bar)
 };
 

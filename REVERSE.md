@@ -1,5 +1,13 @@
 # Scorched Earth v1.50 - Reverse Engineering Notes
 
+## Verified scoring/team mapping correction (2026-10-14)
+
+Native config writers prove **DS:0x5148 = SCORING** (Basic/Standard/Greedy)
+and **DS:0x50EA = TEAM_MODE** (None/Standard/Corporate/Vicious). Historical
+labels and claims below that call 0x5148 a teams flag or identify Corporate/
+Vicious as scoring modes are incorrect, including the recent 288-case note.
+See the final "Independent scoring and team modes" section for current evidence.
+
 ## Pixel parity audit (2026-10-13)
 
 The current check uses the original EXE in `disasm/emu`, saved checkpoints,
@@ -10271,3 +10279,275 @@ Escape returns immediately; A, Enter and Space leave the screen open.
 AI-specific buttons and the existing GAME_OVER flow must be replaced together.
 The old final-screen overlay therefore remains a visible gap. Frame:
 `/tmp/scorched-final-ranking-verified.png`.
+
+### Final Scoring AI classifications and Type/Name rendering
+
+`final-scoring.js` now includes the third `~Type` button when any player has
+an AI type, distributes all three buttons using native integer spacing, and
+renders classifications with the label changed to `~Name`. Switching back
+restores player names without changing button bounds.
+
+The final rankings verifier adds native AI types 1–7 (Moron through Cyborg).
+Each case checks initial full-screen RGB, three ring-palette phases, and both
+Type/Name toggle panel images. Toggle comparisons invoke native `0x34A1D`
+then explicitly draw the button with `0x474E1`; they verify rendering, not
+keyboard/mouse dispatch. The callback changes row text immediately but does
+not itself redraw the button when its enabled state stays unchanged.
+
+Types 8 and 9 are not verified: their classification table pointers resolve
+to malformed strings in the current checkpoint. This requires investigation
+of their native initialization/availability before assigning parity claims.
+Final-screen live integration, input dispatch, and animation timing remain
+pending. No browser was used for these comparisons.
+
+### Standard final scoring live integration
+
+The Standard final `ROUND_OVER` path now draws the verified Final Scoring
+renderer and handles its buttons directly, without the old additional
+GAME_OVER overlay. The main loop gives the dialog its own full frame and
+draws the menu immediately when it closes, avoiding a battlefield flash.
+Input state resets at each round completion.
+
+`verify_rankings_keys.py --final` builds a native final dialog from the same
+scored checkpoint used by the between-round tests. It compares production
+`gameTick` press/release transitions, native action codes, and held panel RGB.
+Q and G wait for release; Escape exits immediately; A, Enter and Space do
+nothing. `--final --ai` adds a Moron opponent and tests T/N as well, including
+released panel RGB. Type/Name updates the rows on press while the button
+remains depressed until release.
+
+The web host currently sends both Quit and New Game to its menu, preserving
+the distinct native action in `game.finalScoringAction`. Native Quit exits
+DOS; this remains a host behavior difference. Ring colors advance by one
+phase per unblocked game tick; native wall-clock timing is not verified.
+Final mouse dispatch and nonstandard scoring modes still need comparison.
+
+The T/N input comparison also exposed a native redraw artifact: a long human
+classification can overlap the wins column because width reservation skips
+slot 0. Returning to names erases the old classification glyphs in background
+color, potentially clearing part of the win digit. The renderer reproduces
+that erase-and-write sequence; repainting the full row restored one pixel
+that native leaves erased in the two-player fixture. During the held toggle,
+the depressed button still shows its previous label, without a hotkey color.
+
+### Final scoring mouse dispatch and retrace evidence
+
+`disasm/verify_final_mouse.py` executes native final-dialog input dispatch
+with only mouse driver position/button polls supplied by the harness. All
+eight two-player Standard cases pass against production `gameTick`: Quit,
+New Game, and Type each released over the button or outside, plus outside
+and blank-panel clicks. Checks include held/released panel RGB wherever the
+dialog remains open, exit timing, and the native Quit/New Game action code.
+
+```
+python3 disasm/verify_final_mouse.py /tmp/scorched-composed-rankings-fixed/rankings.state
+```
+
+The idle callback `0x34CA6` calls the active palette rotation routine at
+`0x443EB`. That routine waits for VGA port `0x3DA` bit 3 to clear and then
+become set (`0x44430..0x44438`) before writing the rotated 40-color range.
+This establishes one rotation per vertical retrace, not a free-running
+CPU loop. The local emulator toggles that bit on each read instead of
+modeling elapsed video time, so it cannot establish native milliseconds
+per rotation. Port animation still follows host animation frames; matching
+refresh rate across modes/displays remains open. No timing constant was
+changed based on the emulator's artificial status toggling.
+
+### Complete Nuke attempt: death-effect capture gap identified
+
+The full Nuke attempt now passes 430 captured RGB frames (flight, blast,
+restoration, and the long falling sequence), but is **not a passing complete
+shot comparison**. Its first run exhausted the harness's 1,000 breakpoint
+iterations. Increased that guard to 10,000 while retaining the native
+instruction-limit guard; the second run reached a phase mismatch at stage
+430: native `settling`, port capture `aftermath`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --output-dir /tmp/scorched-nuke-complete
+```
+
+The port generator actually reached `round_over` (431 captured frames), so
+this is not its 1,000-tick cutoff. Its final reported victim is (268,476), HP
+-442/dead, RNG index 195; native final equality has not yet been checked.
+A native continuation from `after-restoration.state` traced the unexpected
+settling passes to caller `0x1CCC6`, the dirt death-effect routine's final
+settling call, rather than the falling wrapper. The current port harness
+captures settling only while game state is FALLING, whereas the native
+harness's sticky `saw_falling` also captures later death-effect settling.
+Thus phase alignment must be extended to capture the death-effect frames;
+this finding does not prove either final pixels or final RNG match.
+
+Phase mismatches now save a native state and stage metadata when an output
+directory is supplied, making further diagnosis resumable. Current log and
+PNGs are under `/tmp/scorched-nuke-complete`; the native diagnostic continuation
+is `/tmp/probe-nuke-settle.py`. No game behavior was changed for this attempt.
+
+### Complete Nuke through dirt death and rankings: 798 frames pass
+
+Added `--shot-death` to the composed landscape/shot oracle. It captures the
+naturally selected dirt death effect (6) from the production `gameTick` path:
+palette flashes, dirt-deposition rows, and every inner settling pass. Other
+death effects are explicitly rejected by this option pending their composed
+capture boundaries. Native `0x232E5/0x232EA` distinguish death dispatch from
+falling, fixing the previous sticky `saw_falling` phase misclassification.
+Native death captures use delay caller `0x1C5F5`, row boundary `0x1CC85`, and
+settling boundary `0x20EA2`. Sound/delay/input waits remain bypassed, so this
+checks frame contents and order, not elapsed time.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-death --output-dir /tmp/scorched-nuke-death-frames
+```
+
+All **798 captured full RGB frames pass**, including the final aftermath.
+Final native/port states match: player 0 (91,314), HP 100/alive; player 1
+(268,476), HP -442/dead. Shot powers and the complete RNG (250 words plus
+index) match. The subsequent composed scoring/rankings comparison also
+passes full-frame RGB, win counters, and complete RNG.
+
+The harness now throws if the port aftermath exceeds its 1,000 game-tick
+budget instead of labeling an incomplete simulation as its final frame.
+Artifacts and log: `/tmp/scorched-nuke-death-frames` and its `.log` sibling.
+This is one seed/landscape, two tank-type-3 humans, no wind or shields, finite
+last Nuke, and native-selected death effect 6. It does not establish all
+weapons/death effects/modes, continuous wall-clock timing, or the intervening
+main-loop slot traversal bypassed by the existing rankings bridge. No game
+implementation change was needed to pass this expanded comparison.
+
+### Corporate/Vicious normal round awards corrected
+
+The actual normal completion routine `0x37473` branches only on Standard
+versus nonstandard scoring. Removed the old Corporate cleanup-pool formula
+and the Vicious early return. Both nonstandard modes now select the first
+living player's team, increment its team win count, and award it one tenth
+of the normal bonus directly. Divide that bonus by the team's total roster
+size: living members receive a full share and a personal win; dead members
+receive half a share without a win. All divisions truncate. No survivors
+means no awards. The round number does not enter this calculation.
+
+For example, three players on one team with two survivors receive 1,666,
+1,666 and 833 personally. Their team receives those contributions plus 500,
+for 4,665 total and one team win. Native add_score `0x377F3..0x37814` credits
+both player and team in nonstandard modes, including damage/death awards.
+A new team-score store preserves team wins/scores across rounds and resets
+when `createPlayers` starts a new roster. Team score display remains pending.
+
+`python3 disasm/verify_round_score.py` passes **288 cases** across all three
+modes, four team assignments, six round-number inputs, and four survivor
+patterns. It executes native arithmetic and win updates, intercepts score-add
+entries, and compares personal awards, team contributions, and both sets of
+win counters. It does not execute bignum score storage or validate cash.
+Native add_score's nonstandard team forwarding is accounted for at the
+interception boundary. UI, alliances, and team configuration remain outside
+this test; this is not a claim that all Corporate/Vicious scoring is verified.
+
+Further inspection of `0x324ED` found mode-dependent enemy classification
+(including a live-team-count condition) beyond the port's current team-number
+comparison. That relationship logic still needs its own native comparisons.
+
+
+### Independent scoring and team modes (supersedes earlier mode claims)
+
+The config writer at `0x1AC21..0x1AC3A` loads **DS:0x5148**, indexes the
+string table at DS:0x6288, and writes `SCORING=%s` from DS:0x088D. Its runtime
+names are **Basic, Standard, Greedy**. The writer at `0x1AF34..0x1AF4D` loads
+**DS:0x50EA**, indexes DS:0x6300, and writes `TEAM_MODE=%s` from DS:0x0A12.
+Its names are **None, Standard, Corporate, Vicious**. Both tables were read
+from the initialized `/tmp/scorched-before-walk.state`; the shipped CFG uses
+SCORING=Standard and TEAM_MODE=None. The port menu now has these names/ranges
+and defaults to scoring 1, team mode 0.
+
+This corrects the interpretation of the previous round-award changes:
+- Basic scoring gives a players×1000 winner bonus; Standard/Greedy give 5000.
+- Team mode None awards that bonus to each survivor. Enabled team modes use
+  the first surviving team's roster split and the extra one-tenth team bonus.
+- Basic suppresses damage scoring and uses +4000 enemy-kill awards.
+  Standard/Greedy enable damage scoring and use +500 enemy-kill awards.
+- Team score forwarding is controlled by TEAM_MODE, not SCORING.
+- None treats all distinct players as enemies; Standard/Corporate teams use
+  different team numbers. Vicious teams also treat everyone else as an enemy
+  when exactly one living team remains. Self is never an enemy.
+- The verified individual rankings/final layouts are selected by TEAM_MODE=0
+  for every scoring mode, not just scoring mode 0. Team-enabled layout remains
+  pending. The legacy winner-name guard uses PLAY_MODE, not scoring mode.
+
+`verify_round_score.py` now passes **1,152** native cases with scoring and team
+mode varied independently. `verify_score_relationships.py` passes **1,296**
+native enemy-classification cases and **3,888** kill/body/shield score events,
+including dead players, no living teams, and one remaining team. Score-add
+entries are intercepted: these verify arithmetic and aggregation, not native
+bignum storage/cash. Menu resolution and player-setup input regressions pass.
+
+The historical composed shot fixture explicitly selects Basic/no teams on
+both sides, preserving its existing 798-frame Nuke evidence. That evidence
+must not be described as the shipped Standard-scoring configuration. A full
+shot comparison with the corrected shipped scoring default is still needed.
+
+### Corrected shipped scoring default: composed Nuke verification
+
+The composed oracle now accepts `--scoring-mode 0|1|2`, setting native
+DS:0x5148 and port `config.scoringMode` independently to the requested value.
+Default 0 preserves the historical Basic fixture; value 1 selects the shipped
+Standard scoring setting. The option requires the real firing-input path,
+which initializes score storage and round counters identically on both sides.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state --case 0 --sky 2 --fire-input --fire-weapon 3 --scoring-mode 1 --flight-steps 150 --shot-impact --shot-aftermath --shot-falling --shot-death --output-dir /tmp/scorched-standard-nuke
+```
+
+This passes all **798 captured RGB frames**, signed final HP/alive state,
+shot powers and full RNG. Final states remain (91,314), HP 100/alive and
+(268,476), HP -442/dead. The resulting rankings also match full-frame RGB,
+win counters and full RNG: player scores are **5000 and -1500**, wins **1
+and 0**, reflecting the Standard 5000 winner award rather than Basic's 2000.
+
+Artifacts: `/tmp/scorched-standard-nuke/rankings-{web,emulator}.png`, captured
+shot pairs, state, port summary, and `/tmp/scorched-standard-nuke.log`.
+This verifies the corrected scoring default in the same seed-0, no-team,
+no-wind, unshielded two-player Nuke fixture. Other scoring-dependent damage
+scenarios and the complete enclosing input/slot loop remain outside this run.
+
+### Team round completion follows native team rules
+
+Native round-loop predicate `0x2B405`, called from `0x2ABE7`, treats TEAM_MODE
+0 (None) and 3 (Vicious) as last-player-standing: living count <= 1 ends the
+round. Modes 1 (Standard) and 2 (Corporate) iterate living players and end
+when every survivor belongs to the same team, including no-survivor draws.
+The port previously required <= 1 living player for every mode, which kept
+winning teammates fighting in Standard/Corporate. `checkRoundOver()` now
+uses the native mode-dependent condition.
+
+```
+python3 disasm/verify_team_round_end.py
+```
+
+All **704 comparisons pass**: all alive masks for rosters of 2/3/5 players,
+four team-assignment patterns, and all four team modes. The native predicate
+executes unmodified; the port side executes production `gameTick` from a
+completed aftermath iterator and checks ROUND_OVER versus NEXT_TURN. This
+tests the integrated decision boundary, not physics or the team rankings UI.
+Team configuration/assignment controls and team-enabled rankings rendering
+remain separate open work.
+
+### Native team rankings capture (reference only)
+
+`disasm/capture_team_rankings.py` initializes two named teams in an existing
+two-player video/heap checkpoint, enters native rankings, and optionally
+switches to Teams through keyboard input:
+
+```
+python3 disasm/capture_team_rankings.py /tmp/scorched-standard-nuke/rankings.state /tmp/scorched-team-rankings
+python3 disasm/capture_team_rankings.py /tmp/scorched-standard-nuke/rankings.state /tmp/scorched-team-table --team-view
+```
+
+The between-round fixture uses a panel at (87,192)..(271,286). Player Rankings
+adds a team-name column; Teams switches to Team Rankings with rank, team name,
+member count (`1 tank`), wins and score. Both views retain the remaining-round
+footer and Go button. The team view's rows are painted directly by `0x33B63`
+(loop at `0x33D7E`), so they appear in the PNG but not the JSON widget list.
+An empty row list in that dump does not indicate an empty rendered table.
+The native sorting routine `0x33932` supplies team indices at DS:EC24.
+
+This is a native reference capture, not a port comparison or a continuous
+round-award run. Team-enabled rankings/final rendering and team assignment
+controls remain unfinished. Cash/bignum storage, broader weapon/death-effect
+coverage, AI types 8/9, and native animation timing also remain open.

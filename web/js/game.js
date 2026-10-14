@@ -1,3 +1,4 @@
+import {stepFinalScoringInput,resetFinalScoringInput} from './final-scoring.js';
 import {stepRankingsInput,resetRankingsInput} from './rankings.js';
 import {startFunkyBomb,stepFunkyBomb,isFunkyBombActive,clearFunkyBombs} from './funky-bomb.js';
 import { projectileDrawing, retainWorldPixel } from './projectile-render.js';
@@ -255,10 +256,12 @@ function enterPlayState() {
   }
 }
 
-// Check if the round is over (1 or 0 players alive)
+// Native 0x2B405: Standard/Corporate teams win together. Vicious teams
+// continue fighting within the last team until only one player survives.
 function checkRoundOver() {
   const alive = players.filter(p => p.alive);
-  return alive.length <= 1;
+  if(config.teamMode===0 || config.teamMode===3)return alive.length<=1;
+  return new Set(alive.map(p=>p.team)).size<=1;
 }
 
 // EXE 0x2928F selects ground color, then resolves Random/Erratic walls,
@@ -565,6 +568,7 @@ function executeSystemMenuAction(action) {
       endOfRoundScoring(game.round);
       game.warQuote = '';
       resetRankingsInput();
+      resetFinalScoringInput();
       game.roundOverTimer = 0;
       game.state = STATE.ROUND_OVER;
       break;
@@ -870,6 +874,7 @@ export function gameTick() {
         endOfRoundScoring(game.round);
         game.warQuote = '';
         resetRankingsInput();
+        resetFinalScoringInput();
         game.roundOverTimer = 0;
         game.state = STATE.ROUND_OVER;
       } else {
@@ -919,6 +924,7 @@ export function gameTick() {
           endOfRoundScoring(game.round);
           game.warQuote = '';
           resetRankingsInput();
+          resetFinalScoringInput();
           game.roundOverTimer = 0;
           game.state = STATE.ROUND_OVER;
         }
@@ -929,7 +935,16 @@ export function gameTick() {
     case STATE.ROUND_OVER: {
       finishFiring();
       game.roundOverTimer++;
-      const rankings=config.scoringMode===0 && game.round<config.rounds;
+      if(config.teamMode===0 && game.round>=config.rounds) {
+        const action=stepFinalScoringInput(players);
+        if(action!==null) {
+          game.finalScoringAction=action;
+          // The web host returns to its menu for Quit; native action 0 exits DOS.
+          resetMenuState();game.state=STATE.CONFIG;
+        }
+        break;
+      }
+      const rankings=config.teamMode===0 && game.round<config.rounds;
       const dismissed=rankings ? stepRankingsInput(players,game.round,config.rounds)
         : game.roundOverTimer>30 && (consumeAnyKey()||consumeClick(0));
       if (dismissed) {

@@ -1,3 +1,4 @@
+import {drawFinalScoring} from './final-scoring.js';
 import {drawFunkyBomb} from './funky-bomb.js';
 import {drawNoKibitzing,closeNoKibitzing} from './no-kibitzing.js';
 import {drawRankings} from './rankings.js';
@@ -21,7 +22,7 @@ import { projectileDrawing, drawProjectileTrackingMarks } from './projectile-ren
 import { gameTick, game, STATE, getCurrentPlayer, initGameRound, SYSTEM_MENU_OPTIONS } from './game.js';
 import { drawShield, drawShieldBreak } from './shields.js';
 import { isShopActive, drawShop } from './shop.js';
-import { getLeaderboard, SCORE_MODE } from './score.js';
+import { getLeaderboard } from './score.js';
 import { menu, menuTick, drawMainMenu, drawPlayerSetupScreen, playerSetup } from './menu.js';
 import { WPN } from './weapons.js';
 import { screenFlash } from './explosions.js';
@@ -236,15 +237,19 @@ function drawLaserSight(player) {
 }
 
 function drawRoundOver() {
-  if (config.scoringMode === SCORE_MODE.STANDARD && game.round < config.rounds) {
+  if (config.teamMode === 0 && game.round >= config.rounds) {
+    drawFinalScoring(players);
+    return;
+  }
+  if (config.teamMode === 0 && game.round < config.rounds) {
     drawRankings(players,game.round,config.rounds);
     return;
   }
   const alive = players.filter(p => p.alive);
 
   // EXE: winner name display or "No Winner" (DS:0x2CE6) when all dead
-  // EXE: Vicious mode skips winner display entirely (guard at file 0x33FEC: cmp [DS:5188],1; jz skip)
-  if (config.scoringMode !== SCORE_MODE.VICIOUS) {
+  // EXE: play mode 1 skips winner display (0x33FEC: cmp [DS:5188],1).
+  if (config.playMode !== 1) {
     if (alive.length === 1) {
       drawTextShadow(104, 60, alive[0].name, alive[0].colorIndex * PLAYER_PALETTE_STRIDE + PLAYER_COLOR_FULL, 0);
     } else {
@@ -349,6 +354,17 @@ function gameLoop() {
       drawPlayerSetupScreen();
     }
 
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  // Final scoring owns the whole frame; returning to the menu must not flash
+  // the battlefield for one frame after the dialog has closed.
+  if (game.state === STATE.ROUND_OVER && config.teamMode === 0 && game.round >= config.rounds) {
+    gameTick();
+    if (game.state === STATE.ROUND_OVER) drawFinalScoring(players);
+    else drawMainMenu();
     blit();
     requestAnimationFrame(gameLoop);
     return;

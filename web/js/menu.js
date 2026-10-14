@@ -101,7 +101,7 @@ const SUBMENUS = {
         names: ['Basic', 'Greedy', 'Erratic', 'Random'] },
       { label: '~Free Market', key: 'freeMarket', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: '~Scoring Mode:', key: 'scoringMode', min: 0, max: 2, step: 1,
-        names: ['Standard', 'Corporate', 'Vicious'] },
+        names: ['Basic', 'Standard', 'Greedy'] },
     ],
   },
   physics: {
@@ -151,7 +151,7 @@ const SUBMENUS = {
         names: ['Sequential', 'Simultaneous', 'Synchronous'] },
       { label: 'Play ~Order:', key: 'playOrder', min: 0, max: 3, step: 1,
         names: ['Random', 'Losers-First', 'Winners-First', 'Round-Robin'] },
-      { label: '~Teams:', key: 'teamMode', min: 0, max: 1, step: 1, names: ['None', 'On'] },
+      { label: '~Teams:', key: 'teamMode', min: 0, max: 3, step: 1, names: ['None', 'Standard', 'Corporate', 'Vicious'] },
       { label: '~Hostile Environment', key: 'hostileEnvironment', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
       { label: 'Status ~Bar', key: 'statusBar', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
     ],

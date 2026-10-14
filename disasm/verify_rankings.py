@@ -26,6 +26,8 @@ root=Path(__file__).resolve().parent.parent
 fixtures=[ [('a',1,5000),('b',0,-1500)], [('Same',0,0),('Tie',0,0)],
  [('Long Player',3,1234567),('Short',2,-99999),('Third',2,100)],
  [(f'Tank {i+1}',i%3,1000*i) for i in range(10)] ]
+if args.final:
+ fixtures += [[('Human',1,5000,0),('Bot',0,0,t)] for t in range(1,8)]
 for completed in ((10,) if args.final else (1,9)):
  for fixture in fixtures:
     mem,cpu,ports=Memory(),CPU(),PortIO();ports.mem=mem
@@ -43,16 +45,18 @@ for completed in ((10,) if args.final else (1,9)):
                       (0xE342,completed),(0x5160,10),(0x50F6,0),(0x5188,0),(0x5110,2)):
         mem.write16(ds+off,value)
     players=[]
-    for i,(name,wins,score) in enumerate(fixture):
+    for i,entry in enumerate(fixture):
+        name,wins,score=entry[:3]
+        ai_type=entry[3] if len(entry)>3 else 0
         tank=0xD568+i*0xCA
         rgb=[63-i,10+i,20+i]
         for j,ch in enumerate(name.encode()+b'\0'):mem.write8(0x90000+i*64+j,ch)
         for off,value in ((0xB6,i*64),(0xB8,0x9000),(0xAC,wins),(0xA0,i),
-                          (0x1A,i*8),(0x22,0),(0x18,int(i==0))):
+                          (0x1A,i*8),(0x22,ai_type),(0x18,int(i==0))):
             mem.write16(ds+tank+off,value)
         call(0x11B2C,0xB87,[tank+0xBA,0x4FC8,score&65535,(score>>16)&65535])
         for j,value in enumerate(rgb):mem.write16(ds+tank+0x1C+j*2,value)
-        players.append(dict(name=name,wins=wins,score=score,colorIndex=i,displayColor=rgb,alive=i==0))
+        players.append(dict(aiType=ai_type,name=name,wins=wins,score=score,colorIndex=i,displayColor=rgb,alive=i==0))
     call(0x33FC3,0x2D54,stop=0x460C3-0x6100)
     width,height=ports.get_resolution()
     port=json.loads(subprocess.check_output(['node','--input-type=module','-e',r'''
@@ -67,6 +71,9 @@ if(c.final)initPalette(2,2);
 const layout=c.final?drawFinalScoring(c.players):drawRankings(c.players,c.completed,10);
 const result={layout,pixels:Array.from(pixels),palette:Array.from(palette6)};
 result.ringPhases=c.final?[3,4].map(phase=>{drawFinalScoring(c.players,{phase});return Array.from(palette6.slice(180*3,220*3));}):[];
+result.toggles=c.final&&c.players.some(p=>p.aiType)?[true,false].map(showTypes=>{
+  drawFinalScoring(c.players,{phase:4,showTypes,namesRestored:!showTypes});return Array.from(pixels);
+}):[];
 console.log(JSON.stringify(result));
 ''',json.dumps(dict(players=players,completed=completed,width=width,height=height,final=args.final))],cwd=root,text=True))
     bp=cpu.segs[2]*16+cpu.regs[5]
@@ -95,4 +102,18 @@ console.log(JSON.stringify(result));
         reason,_=run_fast(cpu,mem,ports,handler,1000000,bp_set={0x460C3-0x6100})
         assert reason=='breakpoint',('final palette polling',reason)
         assert [channel for rgb in ports.palette[180:220] for channel in rgb]==expected
+    for expected in port['toggles']:
+        # Execute the native Type/Name action callback on the third button.
+        call(0x34A1D,0x2D54,[ptr&15,ptr>>4,1+4*len(players)+2])
+        # The event loop redraws the activated button after its callback.
+        call(0x474E1,0x3FA9,[ptr&15,ptr>>4,1+4*len(players)+2])
+        differences=[]
+        for py in range(y,y2+1):
+            for px in range(x,x2+1):
+                native=(mem.vga_planes[px&3][start+(px>>2)+py*(width//4)] if ports.mode_x
+                        else mem.read8(0xA0000+py*width+px))
+                actual=expected[py*width+px]
+                if list(ports.palette[native])!=port['palette'][actual*3:actual*3+3]:
+                    differences.append((px,py,native,actual))
+        assert not differences,('Type/Name callback',fixture,len(differences),differences[:12])
     print(f'{len(fixture)} players, {10-completed} rounds left: '+('full final-screen RGB and three ring palette phases match.' if args.final else 'panel, winner name and player palette match.'))

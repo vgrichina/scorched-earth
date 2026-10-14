@@ -1,3 +1,4 @@
+import {resetTeamScores} from './team-scoring.js';
 // Scorched Earth - Tank Rendering
 // EXE source: icons.cpp (seg 0x1F7F+, file base 0x263F0)
 // EXE: tank color gradient at file 0x28540, 10 base colors at DS:0x57E2
@@ -133,6 +134,7 @@ export function getTankBarrel(player) {
 
 // Create identities before resolving the round's player-to-slot order.
 export function createPlayers(numPlayers, setup = []) {
+  resetTeamScores();
   deathAnimations.length=0;
   deathHudName.player=null;
   fallingContinuation = null;

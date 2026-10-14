@@ -4,7 +4,9 @@ Uses the real native collision -> impact dispatcher -> ordinary blast call chain
 Only sound/delay/input waits are bypassed. The blast completion capture follows
 area damage at 0x43F69, matching production stepExplosion callbacks. Optional
 aftermath reaches the impact handler return. Optional falling captures check
-each moving pass; death and next-turn coverage remain to be added.
+each moving pass. Optional dirt death-effect capture includes its palette,
+deposition and settling frames; other death effects remain outside this
+composed capture. Next-turn comparisons are handled by the caller.
 """
 import base64
 import json
@@ -13,8 +15,9 @@ from emu.state import save_state
 from compare_pipeline import extract_display_pixels, write_emu_png
 
 
-def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False, shields=False):
+def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False, shields=False, death=False):
     ds=0x4FC80
+    in_death=False
     saw_falling=False
     pending_landing=False
     flight_stop=0x220DE if shields else 0x22064
@@ -27,6 +30,12 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
     impacted=False
     def capture(phase):
         nonlocal stage
+        if actual['phases'][stage]!=phase and output_dir:
+            output_dir.mkdir(parents=True,exist_ok=True)
+            save_state(output_dir/'phase-mismatch.state',cpu,mem,ports,handler)
+            (output_dir/'phase-mismatch.json').write_text(json.dumps({
+                'stage':stage,'native':phase,'port':actual['phases'][stage],
+                'gameState':actual.get('gameState')}))
         assert actual['phases'][stage]==phase,(stage,phase,actual['phases'][stage])
         native=extract_display_pixels(mem,ports)
         port=base64.b64decode(actual['frames'][stage])
@@ -48,11 +57,15 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
         for off in (0x1C7E,0xCE98,0xCE9A):mem.write16(ds+off,0)
         cpu.segs[1]=0x1ADA;cpu.ip=0x21AA2-0x6100-0x1ADA0
         cpu.regs[5]=0x2400;cpu.regs[4]=0x23E0;cpu.regs[6]=0
-        points={0x20F63,flight_stop,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69}
+        points={0x232E5,0x232EA,0x20F63,flight_stop,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69}
         if falling:points.update((0x20BDF,0x201CF,0x20EA2,0x31AE3,0x31AF8))
+        if death:points.add(0x1CC85)
         waits={0x4C117,0x104F6,0x28A80}
         budgets=0
-        for _ in range(1000):
+        # Large craters can require hundreds of falling passes, each crossing
+        # several capture and wait breakpoints. Keep the instruction-budget
+        # guard below, but allow the complete Nuke aftermath to finish.
+        for _ in range(10000):
             reason,count=run_fast(cpu,mem,ports,handler,10000000,bp_set={p-0x6100 for p in points|waits})
             offset=cpu.segs[1]*16+cpu.ip+0x6100
             if reason=='max_steps':
@@ -64,7 +77,16 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
             if offset==0x20F63:
                 sp=(cpu.segs[2]<<4)+cpu.regs[4]
                 raise AssertionError(('unexpected calibration',hex(mem.read16(sp+2)*16+mem.read16(sp)+0x6100)))
+            if offset in (0x232E5,0x232EA):
+                in_death=offset==0x232E5
+                run_fast(cpu,mem,ports,handler,1)
+                continue
+            if offset==0x1CC85:
+                capture('death');cpu.ip+=5;continue
             if offset in waits:
+                sp=(cpu.segs[2]<<4)+cpu.regs[4]
+                caller=mem.read16(sp+2)*16+mem.read16(sp)+0x6100
+                if death and in_death and offset==0x104F6 and caller==0x1C5F5:capture('death')
                 if offset==0x28A80:cpu.regs[0]=0x80
                 sp=(cpu.segs[2]<<4)+cpu.regs[4]
                 cpu.ip=mem.read16(sp);cpu.segs[1]=mem.read16(sp+2);cpu.regs[4]+=4
@@ -85,7 +107,9 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 run_fast(cpu,mem,ports,handler,1)
                 continue
             if offset==0x20EA2:
-                if saw_falling:capture('settling')
+                if in_death:
+                    if death:capture('death')
+                elif saw_falling:capture('settling')
                 run_fast(cpu,mem,ports,handler,1)
                 continue
             if offset==0x231D3:
