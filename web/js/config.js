@@ -77,7 +77,7 @@ export const config = {
   talkProbability: 100,  // EXE: % chance of speech on fire/death
 
   // Economics
-  computersBuy: 0,       // EXE: COMPUTERS_BUY (0=Basic, 1=Greedy, 2=Erratic, 3=Random)
+  computersBuy: 1,       // EXE: COMPUTERS_BUY=On, boolean checkbox
 
   // Landscape
   flattenPeaks: 0,       // EXE: FLATLAND=Off (flatten terrain peaks)

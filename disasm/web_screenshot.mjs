@@ -8,7 +8,7 @@
 //   node disasm/web_screenshot.mjs shop /tmp/web_shop.png
 //   node disasm/web_screenshot.mjs game /tmp/web_game.png
 
-import { createWriteStream, readFileSync } from 'fs';
+import { createWriteStream, readFileSync, writeFileSync } from 'fs';
 import { PNG } from 'pngjs';
 
 // ─── DOM stubs ───────────────────────────────────────────────────────────────
@@ -51,8 +51,9 @@ globalThis.webkitAudioContext = undefined;
 globalThis.requestAnimationFrame = () => {};
 globalThis.localStorage = {
   _data: {},
+  _writes: 0,
   getItem(k) { return this._data[k] ?? null; },
-  setItem(k, v) { this._data[k] = String(v); },
+  setItem(k, v) { this._data[k] = String(v); this._writes++; },
 };
 
 // ─── Import web modules ──────────────────────────────────────────────────────
@@ -66,13 +67,13 @@ const fb = await import(WEB + 'framebuffer.js');
 const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } = await import(WEB + 'terrain.js');
 const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
 const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
-const { drawMainMenu, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu, playerSetup } = await import(WEB + 'menu.js');
+const { drawMainMenu, generateMenuPreviewTerrain, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu, playerSetup } = await import(WEB + 'menu.js');
 const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
 const { isShopActive, drawShop, openShop, selectShopCategory, shopTick } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
 const {getTeamScore,resetTeamScores}=await import(WEB+'team-scoring.js');
 const {mouse,initInput}=await import(WEB+'input.js');
-const { seedRandom } = await import(WEB + 'utils.js');
+const { seedRandom, getRandomState } = await import(WEB + 'utils.js');
 const { drawAllTanks } = await import(WEB + 'tank.js');
 const { blit, pixels, getWidth, getHeight } = fb;
 const terrainMod = await import(WEB + 'terrain.js');
@@ -111,12 +112,23 @@ function renderMenu() {
 
 function renderMenuFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
+  menu.activeSubmenu = state.activeSubmenu ?? null;
+  menu.configDirty = state.configDirty ?? false;
+  for(const key of ['interest','startCash','computersBuy','freeMarket','scoringMode'])if(state[key]!==undefined)config[key]=state[key];
+  if(state.soundEnabled!==undefined)config.soundEnabled=state.soundEnabled;
+  if(state.flySoundEnabled!==undefined)config.flySoundEnabled=state.flySoundEnabled;
   config.numPlayers = state.numPlayers;
   config.rounds = state.numRounds;
   if (state.landType !== undefined) config.landType = state.landType;
   if (state.skyType !== undefined) config.skyType = state.skyType;
   if (state.wallType !== undefined) config.wallType = state.wallType;
   if (state.resolvedWallType !== undefined) setResolvedWallType(state.resolvedWallType);
+  if (state.menuPreviewSeed !== undefined) {
+    seedRandom(state.menuPreviewSeed);
+    menu.terrainDirty = true;
+    drawMainMenu();
+    return;
+  }
   if (state.seed !== undefined) seedRandom(state.seed);
   initPalette(config.landType, config.skyType);
   // Inject EXE palette if available
@@ -146,7 +158,11 @@ function renderMenuFromState(stateJsonPath) {
   initSkyBackground();
 
   // Inject terrain heights from EMU checkpoint — skip ensureTerrainPreview
-  if (state.terrainHeights) {
+  if (state.menuTerrainSeed !== undefined) {
+    menu.terrainDirty = false;
+    seedRandom(state.menuTerrainSeed);
+    generateMenuPreviewTerrain();
+  } else if (state.terrainHeights) {
     menu.terrainDirty = false;  // prevent regeneration
     const w = Math.min(state.terrainHeights.length, terrainMod.terrain.length);
     for (let x = 0; x < w; x++) {
@@ -453,12 +469,17 @@ function writePNG(outPath) {
 
 // Parse args: state output.png [--mode N] [--from-state state.json]
 const args = process.argv.slice(2);
-let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, shopInputs = [];
+let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, rngOutputPath = null, menuOutputPath = null, storageOutputPath = null, shopInputs = [], menuInputs = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--mode') { modeIndex = parseInt(args[++i]); }
   else if (args[i] === '--shop-click') { shopInputs.push(args[++i].split(',').map(Number)); }
   else if (args[i] === '--shop-key') { shopInputs.push(args[++i]); }
+  else if (args[i] === '--menu-click') { menuInputs.push(args[++i].split(',').map(Number)); }
+  else if (args[i] === '--menu-key') { menuInputs.push(args[++i]); }
   else if (args[i] === '--from-state') { fromStatePath = args[++i]; }
+  else if (args[i] === '--storage-output') { storageOutputPath = args[++i]; }
+  else if (args[i] === '--menu-output') { menuOutputPath = args[++i]; }
+  else if (args[i] === '--rng-output') { rngOutputPath = args[++i]; }
   else if (!stateName) { stateName = args[i]; }
   else if (!outPath) { outPath = args[i]; }
 }
@@ -504,5 +525,23 @@ if (fromStatePath && stateName === 'shop') {
   }
 }
 
+if(menuInputs.length) {
+  globalThis.addEventListener=(type,handler)=>{_listeners[type]=handler;};
+  initInput({addEventListener(){}});
+  for(const input of menuInputs) {
+    if(Array.isArray(input)) {
+      mouse.x=input[0];mouse.y=input[1];mouse.over=true;mouse.clicked=input[2]??1;
+      menuTick();
+    } else {
+      _listeners.keydown({code:input,key:input,preventDefault(){}});
+      menuTick();
+      _listeners.keyup({code:input,preventDefault(){}});
+    }
+  }
+  drawMainMenu();
+}
+if(storageOutputPath)writeFileSync(storageOutputPath,JSON.stringify({writes:localStorage._writes,data:localStorage._data}));
+if(menuOutputPath)writeFileSync(menuOutputPath,JSON.stringify({soundEnabled:config.soundEnabled,flySoundEnabled:config.flySoundEnabled,configDirty:menu.configDirty}));
 await writePNG(outPath);
+if (rngOutputPath) writeFileSync(rngOutputPath, JSON.stringify(getRandomState()));
 console.log(`Written ${outPath} (${getWidth()}x${getHeight()})`);

@@ -11412,6 +11412,7 @@ python3 disasm/test_bios_video_detection.py
 node disasm/test_initial_shop.mjs
 node disasm/test_main_menu_mode.mjs
 ```
+
 The new mode verifier creates native states and native/port/diff PNGs under
 `/tmp/scorched-shop-vga-modes/`. Display-capture tests cover BIOS reset, row
 repetition, double-scan, visible planar pages and linear framebuffer extraction.
@@ -11740,3 +11741,230 @@ measure of port rendering errors: resolved random-sky state, preview terrain
 extraction and palette mapping need investigation in the comparison harness.
 Main-menu button positioning also still uses a height-based border calculation
 instead of the native aspect-based rule. Menu parity remains unfinished.
+
+### Main-menu bounds and SVGA button correction
+
+The initial menu capture above omitted caller setup at native 0x2A828..0x2A83D:
+XMIN/YMIN become zero and XMAX/YMAX become FG_MAXX/FG_MAXY. Retaining gameplay
+bounds caused the red strip above row 38 and shifted the sunset gradient and
+sun. `capture_menu.py` now reproduces that full-screen bounds setup before
+entering the menu. The initial 98,216-pixel result is superseded; it does not
+represent a port sky-rendering defect.
+
+Main-menu buttons now use the shared native aspect-dependent border height
+for both painting and hit testing, and the shared native button-height rule.
+The previous height-only border rule moved SVGA buttons one pixel upward.
+
+The 320x240 and 320x400 comparisons then exposed 2,945 differing pixels each:
+the preview frame extended 14 rows too far down. Native 0x3D53B..0x3D586 checks
+copyright width and reserves 14 additional rows when it wraps. The port now
+uses that same width check for the preview height; 320x480 also exercises it.
+
+Corrected captures at **all nine graphics modes match every RGB pixel**:
+320x200, 320x240, 320x400, 320x480, 360x480, 640x400, 640x480, 800x600,
+and 1024x768. Artifacts are under `/tmp/scorched-menu-mode{0..8}-fixed-compare`.
+These comparisons inject the native palette and terrain heights; they verify
+menu rendering, not independent preview generation, fresh boot, input dispatch,
+or hardware-mode switching. The application menu-resolution regression passes.
+At this checkpoint independent preview generation remained open: the port
+called the gameplay generator with YMIN=38 and YMAX=height-4. The subsequent
+work below separates full-screen sky bounds from preview-interior walk bounds.
+
+```
+python3 disasm/capture_menu.py /tmp/scorched-all-modes/mode-5.state /tmp/scorched-menu-mode5-fixed
+python3 disasm/compare_pipeline.py /tmp/scorched-menu-mode5-fixed.state --state menu --output-dir /tmp/scorched-menu-mode5-fixed-compare
+node disasm/test_main_menu_mode.mjs
+```
+
+### Independently generated procedural menu terrain
+
+The menu now uses a separate procedural preview entry point rather than the
+gameplay generator. Native 0x3D648..0x3D671 passes the preview interior as the
+walk bounds (Y=7 to the frame bottom minus one), while the sky retains the
+full-screen bounds established by the caller. The new entry point uses a fresh
+left-to-right walk without advancing the gameplay generator's direction.
+
+Native constructor 0x2990B fixes the procedural object's settings to 20/20
+with flattening **disabled**. Although main_menu temporarily writes global
+FLATLAND=1, the walk reads the object's +0x0E field, which remains zero.
+The initial isolated test incorrectly assumed flattening was enabled; the
+full native menu checkpoint exposed that mistake and the implementation and
+test were corrected. Menu palette initialization now selects Sunset instead
+of consuming the user's Random/Stars sky path before drawing a sunset.
+
+`verify_terrain_walk.py --menu` compares four seeds in all nine modes against
+the native kernel, including every generated column and the subsequent RNG
+result, with deliberately different gameplay settings in the port. All 36
+cases pass. The existing 48 gameplay walks and 48 wrapper-pass/direction
+comparisons also pass.
+
+`capture_menu.py --stop-at-walk` captures the real menu's procedural kernel
+entry. `verify_menu_generation.py` seeds native R250 on a separate stack and
+resumes the menu to its input poll. It removes terrain heights from the port
+fixture and runs the port's actual preview generator from the same seed.
+It retains the native palette, so this is independent terrain generation and
+full-frame rendering evidence, not independent palette or boot RNG evidence.
+All **eight full-frame comparisons pass**: seeds 0, 1, 42 and 65535 at each
+of 320x200 and 640x400, with zero differing RGB pixels. Artifacts are under
+`/tmp/scorched-menu-generation0` and `/tmp/scorched-menu-generation5`.
+Menu-resolution and initial-shop regressions, syntax and whitespace checks pass.
+Independent palette initialization, scanned mountain previews, startup RNG,
+other menu/HUD screens and broader gameplay/timing remain unverified.
+
+```
+python3 disasm/capture_menu.py /tmp/scorched-all-modes/mode-0.state /tmp/scorched-menu-walk0 --stop-at-walk
+python3 disasm/verify_menu_generation.py /tmp/scorched-menu-walk0.state --output-dir /tmp/scorched-menu-generation0
+python3 disasm/verify_terrain_walk.py --menu
+```
+
+### Procedural menu without palette or terrain injection
+
+`capture_menu.py --stop-before-palette` now stops at native 0x3D5FD, immediately
+before ground-color initialization. `verify_menu_generation.py
+--independent-palette` reseeds there and resumes the actual native menu through
+palette setup, terrain generation and drawing. The port receives only settings
+and the seed: native palette and terrain-height fields are removed. Its normal
+`drawMainMenu` path initializes colors and generates the preview.
+
+All **12 full-frame comparisons match every RGB pixel**: seeds 0, 1, 42 and
+65535 at 320x200, 320x240 and 640x400. These cover the compact menu, wrapped
+copyright/shorter preview, and the SVGA button geometry. Artifacts are in
+`/tmp/scorched-menu-independent{0,1,5}`. Each case also matches the complete
+post-render R250 state (index and all 250 words), exported by the headless
+renderer's new `--rng-output` option. The integrated verifier was rerun at
+320x200 with both image and RNG assertions; the other completed captures were
+checked against fresh port renders using the same RNG assertion.
+
+This closes the injected-palette gap for these procedural-menu fixtures.
+Fresh boot/timer seeding, scanned mountain previews, independent combined
+generation at the other six modes, menu input/submenus, and broader HUD/gameplay
+parity remain open. Menu-resolution and initial-shop regressions, syntax and
+whitespace checks pass. No browser was used.
+
+```
+python3 disasm/capture_menu.py /tmp/scorched-all-modes/mode-0.state /tmp/scorched-menu-palette0 --stop-before-palette
+python3 disasm/verify_menu_generation.py /tmp/scorched-menu-palette0.state --independent-palette --output-dir /tmp/scorched-menu-independent0
+```
+
+### Native Sound submenu and parent-menu appearance
+
+Sound now renders the native two-list dialog instead of the generic title,
+selection bar and footer overlay. Native 0x3BB2A..0x3BB80 places widgets at
+(10,5) and (10,20); 0x3C6A5 sizes with a ten-pixel margin and 0x3C6C7 centers
+within X=100..FG_MAXX. The dialog spans 41 vertical pixels (42 inclusive).
+Width follows the widest label and option. The active Sound button is sunken;
+other buttons use disabled embossed labels, while parent spinner labels are
+gray and their numeric values remain black. The native submenu pitch at
+0x3BA92 is always 15; the port's extra high-resolution spacing was removed.
+
+The Flight Sounds list now has native `Off / Vel / Pos` entries (DS:62B4),
+not `Off / On`. Both Sound lists wrap. Native mouse dispatch confirmed left
+click decrements (Off -> Pos), right click increments, and hotkeys S/F
+increment. Sound-specific hit areas now use the drawn dialog and widget bounds.
+This does not verify the actual velocity/position audio synthesis; the existing
+flight-audio path still needs that separate audit.
+
+`verify_sound_submenu.py` opens Sound through native keyboard dispatch and
+compares eight complete frames: initial, left click, right click, F once/twice/
+three times (wrap), and S once/twice (wrap). All **72 RGB comparisons pass**
+across all nine graphics modes. The port uses the native palette and extracted
+menu terrain backdrop; these are submenu rendering/input checks, not independent
+terrain or palette generation. Artifacts are `/tmp/scorched-sound-verify{0..8}`.
+The headless renderer now accepts `--menu-click` and `--menu-key` inputs.
+
+```
+python3 disasm/verify_sound_submenu.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-sound-verify4
+```
+
+Menu-resolution and initial-shop regressions, Python/JS syntax and whitespace
+checks pass. Other submenu layouts, exhaustive click boundaries, dismissal and
+configuration-commit behavior, held input, audio synthesis, scanned menu
+mountains and broader HUD/gameplay/timing parity remain open.
+
+### Sound dismissal, pending values and Save Changes state
+
+Native Sound widgets retain their edited values locally until the dialog
+returns. The callback at 0x3C724..0x3C768 compares those values with committed
+Sound/Flight Sounds globals and applies changes. At 0x3CF63..0x3CF7A a changed
+value sets DS:6314 and enables Save Changes. Reverting to the original value
+before dismissal does not set that flag.
+
+The port now holds a Sound draft, commits it on dismissal, and renders Save
+Changes enabled when those committed values changed. Escape and outside clicks
+close the native Sound dialog; Enter and Space leave it open. The port previously
+closed it on both keys and committed each edit immediately. Those paths now
+follow native behavior. This change covers Sound; the other submenu lifecycles
+and the Save Changes action itself still need verification.
+
+The Sound verifier now includes dismissal with/without edits, ignored Enter/
+Space, reverted edits and reopening. Each case compares both the full RGB frame
+and committed Sound/Flight Sounds values plus DS:6314. It uses the main-menu
+checkpoint's unobscured terrain heights to restore pixels hidden by the popup;
+extracting heights from the popup capture had lost some of those pixels.
+The headless renderer exports these committed settings via `--menu-output`.
+
+All **162 cases pass** (18 sequences at each of the nine graphics modes),
+including full-frame RGB and committed-setting assertions. Artifacts are under
+`/tmp/scorched-sound-close-verify{0..8}`. The menu-resolution and initial-shop
+regressions, syntax and whitespace checks pass. Save Changes execution, other
+submenu lifecycles, exhaustive input boundaries and audio behavior remain open.
+
+```
+python3 disasm/verify_sound_submenu.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-sound-close-verify4
+```
+
+### Save Changes action and isolated persistence checks
+
+Native callback 0x3BA31 calls the configuration writer, clears DS:6314, and
+refreshes the menu buttons. It does not display a Saved message. The port now
+ignores activation while Save Changes is disabled, persists enabled changes,
+clears the dirty flag and leaves the native disabled appearance with no flash.
+Menu input tracks committed configuration mutations so non-Sound edits can
+also enable saving; Sound drafts remain uncommitted until dismissal.
+
+`capture_shop_click.py --earth-dir` lets native DOS file access use a separate
+root. The Sound verifier's `--save` suite copies the game files into a temporary
+directory and restores its original SCORCH.CFG before each case. The project's
+SCORCH.CFG is not used as a write target. The headless renderer exposes its
+in-memory localStorage values and write count with `--storage-output`.
+
+The five cases are disabled save, Sound edit/save, Flight Sounds edit/save,
+repeated save, and reopening Sound after save. Assertions compare the complete
+RGB frame, committed values and dirty flag, and the persisted Sound/Flight
+Sounds settings in native SCORCH.CFG versus localStorage. The disabled case
+also verifies an unchanged native file and zero port writes; repeated save
+checks one port write total. Native write failures, browser storage failures,
+mouse activation boundaries and persistence of other setting types remain open.
+
+All **45 save cases pass** across all nine graphics modes, including RGB,
+committed-state and persisted-value assertions. Artifacts are under
+`/tmp/scorched-save-verify{0..8}`. The project SCORCH.CFG remains unchanged.
+Menu-resolution and initial-shop regressions, JS/Python syntax and whitespace
+checks pass.
+
+```
+python3 disasm/verify_sound_submenu.py /tmp/scorched-menu-mode4-fixed.state --save --output-dir /tmp/scorched-save-verify4
+```
+
+### Economics opening layout and remaining formatter investigation
+
+The Economics popup now uses the native untitled frame, 15-pixel row pitch,
+numeric spinners, aligned boolean checkboxes and scoring list. Computers Buy
+is a boolean (default On), not a four-choice strategy list. Native interest
+limits are 0.00..0.30 in 0.01 steps; starting cash is 0..1,000,000 in 5,000
+steps. The parent menu uses the same disabled appearance as the Sound popup.
+
+Default opening frames match full RGB in all nine modes, with native palette
+and terrain injected. `verify_economics_layouts.py --variants` retains an
+unresolved failure: mode 4 case 2 differs by six pixels in Interest Rate.
+The native widget and sprintf argument contain 0.3, but the emulated native
+formatter at file 0xC154 returns `0.00`; the port displays `0.30`. Investigation
+must distinguish emulator/runtime initialization issues from original behavior
+before changing the port. The variant suite is intentionally not reported as
+passing. Economics editing, dismissal, pending-value behavior and persistence
+still need native verification.
+
+```
+python3 disasm/verify_economics_layouts.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-economics
+python3 disasm/verify_economics_layouts.py /tmp/scorched-menu-mode4-fixed.state --variants --output-dir /tmp/scorched-economics-variants
+```

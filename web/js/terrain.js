@@ -207,10 +207,11 @@ function generateCastle(width, yStart, yEnd) {
 // EXE: LAND1 is the chance to change momentum; LAND2 doubles that change
 // EXE: LandGenerator struct +0x0A=flat_chance, +0x0C=bump_chance, +0x0E=flatten_peaks
 // EXE: flatten_peaks (DS:5172=FLATLAND): suppresses walk_delta to 0 when |delta| > 3
-function generateRolling(width, yStart, yEnd, heights = terrain) {
-  const changeChance = config.land1;       // default 20: % chance to alter momentum
-  const bumpChance = config.land2;         // default 20: % chance to double delta
-  const flattenPeaks = config.flattenPeaks; // EXE: DS:5172=FLATLAND, struct+0x0E
+function generateRolling(width, yStart, yEnd, heights = terrain, {
+  left = 3, right = width - 4, direction = generationDirection,
+  changeChance = config.land1, bumpChance = config.land2,
+  flattenPeaks = config.flattenPeaks,
+} = {}) {
 
   // Starting height: random within playfield
   let y = random(yEnd - yStart - 60) + yStart + 40;
@@ -218,9 +219,9 @@ function generateRolling(width, yStart, yEnd, heights = terrain) {
 
   // EXE EF42..EF3C: inclusive horizontal bounds inside the 3px frame.
   heights.fill(yEnd);
-  const first = generationDirection === 1 ? 3 : width - 4;
-  const last = generationDirection === 1 ? width - 4 : 3;
-  for (let col = first; generationDirection === 1 ? col <= last : col >= last; col += generationDirection) {
+  const first = direction === 1 ? left : right;
+  const last = direction === 1 ? right : left;
+  for (let col = first; direction === 1 ? col <= last : col >= last; col += direction) {
     heights[col] = clamp(Math.floor(y), yStart + 20, yEnd - 1);
 
     if (random(100) < changeChance) {
@@ -245,6 +246,15 @@ function generateRolling(width, yStart, yEnd, heights = terrain) {
       if (walkDelta > 0) walkDelta = 0;
     }
   }
+}
+
+// Native main_menu 0x3D61C..0x3D671: a fresh procedural generator with
+// fixed landscape settings, bounded by the preview interior. It does not
+// advance the persistent gameplay generator's alternating direction.
+export function generateMenuTerrain(left, top, right, bottom) {
+  generateRolling(config.screenWidth, top, bottom, terrain, {
+    left, right, direction: 1, changeChance: 20, bumpChance: 20, flattenPeaks: false,
+  });
 }
 
 // Build the persistent sky background: row gradients plus any bitmap pattern.

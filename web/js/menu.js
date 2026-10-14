@@ -3,7 +3,7 @@
 // EXE: dialog system at segment 0x3F19, 3D box at 0x444BB, embossed title at 0x4CEFD
 // EXE: small mode (320x200): row_height=17, start_y=5, font=1
 
-import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
+import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode, getUIBorderHeight, getUIButtonHeight } from './config.js';
 import { fillRect, hline, vline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
 import { drawText, drawTextEmbossed, measureText, FONT_HEIGHT } from './font.js';
 import { BLACK, initPalette, getPlayerColor, setPaletteRgb, updatePalette32 } from './palette.js';
@@ -12,7 +12,7 @@ import { TANK_TYPES } from './tank.js';
 import { drawUIIcon, drawIconSlider } from './hud.js';
 import { bresenhamLine } from './utils.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
-import { generateTerrain, terrain, initSkyBackground, drawSky, drawTerrain, PLAYFIELD_TOP } from './terrain.js';
+import { generateMenuTerrain, terrain } from './terrain.js';
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
          UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
@@ -32,10 +32,9 @@ function isSmallMode() { return config.screenHeight <= 200; }
 function getBtnX()   { return isSmallMode() ? 5 : 12; }   // EXE: small=5, large=12
 function getRowH()   { return isSmallMode() ? 17 : 25; }  // EXE: DS:0x6316[font_sel]
 function getStartY() { return isSmallMode() ? 5 : 15; }   // EXE: small=5, large=15
-function getBtnH()   { return config.screenHeight >= 300 ? 19 : 17; }  // EXE: dialog_create_button auto-height at file 0x48755
+function getBtnH()   { return getUIButtonHeight(); }  // EXE: dialog_create_button auto-height at file 0x48755
 // EXE: submenu item pitch 15px ([bp-0x0A]=15 at 0x3BA92; items at y=5,20,35,50...n*15+5)
-// Web adds 4px extra in hi-res (19) for readability; lo-res must be 15 (not 14)
-function getSubRowH() { return getScreenH() >= 400 ? 19 : 15; }
+function getSubRowH() { return 15; }
 function getScreenW() { return config.screenWidth; }
 function getScreenH() { return config.screenHeight; }
 
@@ -43,9 +42,11 @@ function getScreenH() { return config.screenHeight; }
 function getFrameX() { return getRightX(); }
 function getFrameY() { return 6; }
 function getFrameW() { return getScreenW() - 6 - getRightX(); }
-// EXE: draw_flat_box(minx, 6, maxx, maxy) where maxy = fg_getmaxy - 36 = screenH-37 (inclusive)
-// Height = maxy - miny + 1 = (screenH-37) - 6 + 1 = screenH - 42
-function getFrameH() { return getScreenH() - 42; }
+// Native 0x3D53B..0x3D586 reserves 14 extra rows when copyright wraps.
+function getFrameH() {
+  const wraps = measureText('Copyright (c) 1991-1995 Wendell Hicken') > getScreenW() - 1 - getRightX() - 10;
+  return getScreenH() - (wraps ? 56 : 42);
+}
 // Interior (1px inset)
 function getPrevX() { return getFrameX() + 1; }
 function getPrevY() { return getFrameY() + 1; }
@@ -74,7 +75,7 @@ const SUBMENUS = {
     title: 'Sound',
     items: [
       { label: '~Sound:', key: 'soundEnabled', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Flight Sounds:', key: 'flySoundEnabled', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: '~Flight Sounds:', key: 'flySoundEnabled', min: 0, max: 2, step: 1, names: ['Off', 'Vel', 'Pos'] },
     ],
   },
   hardware: {
@@ -95,11 +96,10 @@ const SUBMENUS = {
   economics: {
     title: 'Economics',
     items: [
-      { label: '~Interest Rate:', key: 'interest', min: 0, max: 50, step: 5, suffix: '%' },
-      { label: '~Cash at Start:', key: 'startCash', min: 0, max: 10000000, step: 50000 },
-      { label: 'Computers ~Buy', key: 'computersBuy', min: 0, max: 3, step: 1,
-        names: ['Basic', 'Greedy', 'Erratic', 'Random'] },
-      { label: '~Free Market', key: 'freeMarket', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: '~Interest Rate:', key: 'interest', min: 0, max: 30, step: 1, rate: true },
+      { label: '~Cash at Start:', key: 'startCash', min: 0, max: 1000000, step: 5000, cash: true },
+      { label: 'Computers ~Buy', key: 'computersBuy', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Free Market', key: 'freeMarket', min: 0, max: 1, step: 1, checkbox: true },
       { label: '~Scoring Mode:', key: 'scoringMode', min: 0, max: 2, step: 1,
         names: ['Basic', 'Standard', 'Greedy'] },
     ],
@@ -177,6 +177,8 @@ export const menu = {
   screen: 'config',        // 'config' | 'player_setup' (no 'title' — EXE goes straight to menu)
   selectedOption: 0,       // main menu selected index
   activeSubmenu: null,     // null or submenu key string
+  soundDraft: null,
+  configDirty: false,
   submenuSelected: 0,      // selected item within submenu
   terrainDirty: true,      // regenerate terrain preview
   playerSetupIdx: 0,
@@ -216,7 +218,10 @@ export function initPlayerSetup() {
 // --- Helper: format a config value for display ---
 function formatValue(item) {
   if (item.disabled) return item.fixed;
-  const val = config[item.key];
+  const val = menu.activeSubmenu==='sound' && SUBMENUS.sound.items.includes(item)
+    ? soundSettings()[item.key] : config[item.key];
+  if(item.rate)return (val/100).toFixed(2);
+  if(item.cash)return val.toLocaleString('en-US');
   if (item.names) return item.names[val] || String(val);
   if (item.float) return val.toFixed(2);
   return String(val) + (item.suffix || '');
@@ -254,12 +259,33 @@ function computeSubmenuWidth(sub) {
 // --- Helper: adjust a config value ---
 function adjustValue(item, dir) {
   if (item.disabled || !item.key) return;
+  if (SUBMENUS.sound.items.includes(item)) {
+    const count=item.max-item.min+1;
+    const settings=soundSettings();
+    settings[item.key]=item.min+(settings[item.key]-item.min+dir+count)%count;
+    return;
+  }
+  if(item.checkbox){config[item.key]=config[item.key]?0:1;return;}
   const step = item.step * dir;
   if (item.float) {
     config[item.key] = Math.round(Math.max(item.min, Math.min(item.max, config[item.key] + step)) * 100) / 100;
   } else {
     config[item.key] = Math.max(item.min, Math.min(item.max, config[item.key] + step));
   }
+}
+
+function soundSettings() {
+  return menu.soundDraft ??= {soundEnabled:config.soundEnabled,flySoundEnabled:config.flySoundEnabled};
+}
+function closeSubmenu() {
+  if(menu.activeSubmenu==='sound') {
+    for(const [key,value] of Object.entries(soundSettings())) {
+      if(config[key]!==value)menu.configDirty=true;
+      config[key]=value;
+    }
+    menu.soundDraft=null;
+  }
+  menu.activeSubmenu=null;
 }
 
 // --- Helper: center text X in right panel ---
@@ -288,15 +314,18 @@ function boxSunken(x, y, w, h, fill) {
 export function menuTick() {
   menu.blinkTimer++;
   if (menu.saveFlash > 0) menu.saveFlash--;
-
+  const previousConfig={...config};
+  let result=menu.screen;
   switch (menu.screen) {
     case 'config':
-      if (menu.activeSubmenu) return handleSubmenuInput();
-      return handleMainMenuInput();
+      result=menu.activeSubmenu?handleSubmenuInput():handleMainMenuInput();
+      break;
     case 'player_setup':
-      return handlePlayerSetupInput();
+      result=handlePlayerSetupInput();
+      break;
   }
-  return menu.screen;
+  if(Object.keys(config).some(key=>config[key]!==previousConfig[key]))menu.configDirty=true;
+  return result;
 }
 
 // Hit-test: is mouse over a main menu button?
@@ -307,7 +336,7 @@ function hitTestMenuButton(mx, my) {
     const spinner = item.type === 'spinner';
     const width = spinner ? 10 + measureText(item.label) + measureText(String(config[item.key]))
       : item.action === 'start' ? BTN_W : measureText(item.label) + 12;
-    const top = spinner ? by : by - (getScreenH() >= 400 ? 3 : 2);
+    const top = spinner ? by : by - getUIBorderHeight();
     if (mx >= bx && mx < bx + width && my >= top && my < top + (spinner ? 12 : getBtnH())) return i;
   }
   return -1;
@@ -324,8 +353,10 @@ function activateMenuItem(item) {
     return 'player_setup';
   }
   if (item.type === 'button' && item.action === 'save') {
+    if (!menu.configDirty) return null;
     saveConfig();
-    menu.saveFlash = 60;
+    menu.configDirty = false;
+    menu.saveFlash = 0;
   }
   if (item.type === 'submenu') {
     menu.activeSubmenu = item.submenu;
@@ -445,23 +476,32 @@ function handleSubmenuInput() {
     }
   }
 
-  // Mouse: click items to select, left/right half to adjust value
-  if (mouse.over && consumeClick(0)) {
+  // Sound lists use left/right buttons; other submenu controls use screen halves.
+  const leftClick=mouse.over&&consumeClick(0);
+  const rightClick=mouse.over&&['sound','economics'].includes(menu.activeSubmenu)&&consumeClick(2);
+  if (leftClick || rightClick) {
     const rowH = getSubRowH();
-    const dlgW = computeSubmenuWidth(sub);
-    const dlgH = 30 + sub.items.length * rowH;
-    const dlgX = Math.floor((getScreenW() - dlgW) / 2);
-    const dlgY = Math.floor((getScreenH() - dlgH) / 2);
+    const nativeLayout=menu.activeSubmenu==='sound'?soundSubmenuLayout():menu.activeSubmenu==='economics'?economicsSubmenuLayout():null;
+    const dlgW = nativeLayout ? nativeLayout.width+1 : computeSubmenuWidth(sub);
+    const dlgH = nativeLayout ? nativeLayout.height+1 : 30 + sub.items.length * rowH;
+    const dlgX = nativeLayout ? nativeLayout.x : Math.floor((getScreenW() - dlgW) / 2);
+    const dlgY = nativeLayout ? nativeLayout.y : Math.floor((getScreenH() - dlgH) / 2);
 
     // Check if click is inside dialog
     if (mouse.x >= dlgX && mouse.x < dlgX + dlgW && mouse.y >= dlgY && mouse.y < dlgY + dlgH) {
       // Hit-test items
       for (let i = 0; i < sub.items.length; i++) {
-        const iy = dlgY + 18 + i * rowH;
-        if (mouse.y >= iy - 1 && mouse.y < iy + rowH - 1) {
+        const iy = dlgY + (nativeLayout ? 5 : 18) + i * rowH;
+        if (mouse.y >= iy - (nativeLayout ? 0 : 1) && mouse.y < iy + (nativeLayout ? 12 : rowH - 1)) {
           menu.submenuSelected = i;
           const clickedItem = sub.items[i];
           if (!clickedItem.disabled) {
+            if(nativeLayout) {
+              const end=clickedItem.checkbox ? dlgX+20+Math.max(...sub.items.filter(i=>i.checkbox).map(i=>measureText(i.label)))+11
+                : dlgX+20+measureText(clickedItem.label)+(clickedItem.names?Math.max(...clickedItem.names.map(measureText)):measureText(clickedItem.cash?'1,000,000':'0.30')+5);
+              if(mouse.x>=dlgX+10 && mouse.x<=end)adjustValue(clickedItem,rightClick?1:-1);
+              break;
+            }
             const midX = dlgX + dlgW / 2;
             adjustValue(clickedItem, mouse.x > midX ? 1 : -1);
           }
@@ -470,7 +510,7 @@ function handleSubmenuInput() {
       }
     } else {
       // Click outside dialog = close
-      menu.activeSubmenu = null;
+      closeSubmenu();
     }
   }
 
@@ -484,8 +524,9 @@ function handleSubmenuInput() {
     applyGraphicsMode();
   }
 
-  if (consumeKey('Escape') || consumeKey('Enter') || consumeKey('Space')) {
-    menu.activeSubmenu = null;
+  const space=consumeKey('Space'),enter=consumeKey('Enter');
+  if (consumeKey('Escape') || ((space || enter) && menu.activeSubmenu!=='sound')) {
+    closeSubmenu();
   }
 
   return 'config';
@@ -611,9 +652,13 @@ function handlePlayerSetupInput() {
 function ensureTerrainPreview() {
   if (!menu.terrainDirty) return;
   menu.terrainDirty = false;
-  initPalette(config.landType, config.skyType);
-  initSkyBackground();
-  generateTerrain();
+  // Native menu temporarily selects Sunset independently of Landscape settings.
+  initPalette(config.landType, 4);
+  generateMenuPreviewTerrain();
+}
+
+export function generateMenuPreviewTerrain() {
+  generateMenuTerrain(getPrevX(), getPrevY(), getPrevX() + getPrevW() - 1, getPrevY() + getPrevH() - 1);
 }
 
 export function drawMainMenu() {
@@ -623,6 +668,13 @@ export function drawMainMenu() {
   boxRaised(0, 0, getScreenW(), getScreenH());
 
   // 2. Left panel: 11 buttons
+  const nativeModal = ['sound','economics'].includes(menu.activeSubmenu);
+  const menuLabel = (x,y,label,color=UI_HIGHLIGHT) => {
+    if(nativeModal) {
+      drawText(x+1,y,label.replace('~',''),UI_LIGHT_BORDER);
+      drawText(x,y,label.replace('~',''),UI_DARK_TEXT);
+    } else drawText(x,y,label,color);
+  };
   for (let i = 0; i < MENU_ITEMS.length; i++) {
     const item = MENU_ITEMS[i];
     const bx = getBtnX();
@@ -630,8 +682,8 @@ export function drawMainMenu() {
 
     if (item.type === 'spinner') {
       // EXE spinner is an unboxed label/value with two small arrow glyphs.
-      drawText(bx + 8, by, item.label, UI_HIGHLIGHT);
-      drawText(bx + 10 + measureText(item.label), by, String(config[item.key]), UI_HIGHLIGHT);
+      drawText(bx+8,by,nativeModal?item.label.replace('~',''):item.label,nativeModal?UI_DARK_TEXT:UI_HIGHLIGHT);
+      drawText(bx+10+measureText(item.label),by,String(config[item.key]),UI_HIGHLIGHT);
       // Spinner arrow edge pixels, EXE 0x478EF..0x47A6E.
       hline(bx, bx + 6, by + 5, UI_BRIGHT_BORDER);
       hline(bx, bx + 6, by + 7, UI_LIGHT_BORDER);
@@ -643,10 +695,16 @@ export function drawMainMenu() {
       }
     } else {
       const width = item.action === 'start' ? BTN_W : measureText(item.label) + 12;
+      if(nativeModal && item.submenu===menu.activeSubmenu) {
+        drawBox3DSunken(bx,by-getUIBorderHeight(),width,getBtnH(),UI_BACKGROUND,
+          UI_MED_BORDER,UI_BRIGHT_BORDER,UI_DARK_BORDER,UI_LIGHT_BORDER);
+        drawText(bx+7,by+2,item.label.replace('~',''),UI_HIGHLIGHT);
+        continue;
+      }
       // dialog_create_button subtracts DS:6E28 (2 or 3) from the text baseline.
-      boxRaised(bx, by - (getScreenH() >= 400 ? 3 : 2), width, getBtnH());
-      if (item.action === 'save') drawText(bx + 6, by, item.label, UI_LIGHT_BORDER);
-      drawText(bx + 5, by, item.label, item.action === 'save' ? UI_DARK_TEXT : UI_HIGHLIGHT);
+      boxRaised(bx, by - getUIBorderHeight(), width, getBtnH());
+      if (item.action === 'save' && !nativeModal && !menu.configDirty) drawText(bx + 6, by, item.label, UI_LIGHT_BORDER);
+      menuLabel(bx + 5, by, item.label, item.action === 'save' && !menu.configDirty ? UI_DARK_TEXT : UI_HIGHLIGHT);
     }
   }
 
@@ -766,11 +824,13 @@ function drawTerrainPreview() {
 }
 
 function drawSubmenu() {
+  if (menu.activeSubmenu === 'sound') { drawSoundSubmenu(); return; }
+  if (menu.activeSubmenu === 'economics') { drawEconomicsSubmenu(); return; }
   const sub = SUBMENUS[menu.activeSubmenu];
   if (!sub) return;
 
   const itemCount = sub.items.length;
-  // EXE: item spacing 14px; +5px at screenH >= 400
+  // Native submenu item pitch is 15 pixels in every graphics mode.
   const rowH = getSubRowH();
   const dlgW = computeSubmenuWidth(sub);
   const dlgH = 30 + itemCount * rowH;
@@ -806,6 +866,69 @@ function drawSubmenu() {
 
   // Footer
   drawText(dlgX + 8, dlgY + dlgH - 12, 'ESC/Enter: Back', UI_MED_BORDER);
+}
+
+// Native 0x3BB2A..0x3BB80: two list widgets, no title or footer.
+function soundSubmenuLayout() {
+  const width = Math.max(...SUBMENUS.sound.items.map(item =>
+    30 + measureText(item.label) + Math.max(...item.names.map(measureText))));
+  const height = 41;
+  return {x:100+Math.floor((getScreenW()-1-100-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height};
+}
+function drawSoundSubmenu() {
+  const {x,y,width,height}=soundSubmenuLayout();
+  boxRaised(x,y,width+1,height+1);
+  for (const [i,item] of SUBMENUS.sound.items.entries()) {
+    const bx=x+10,by=y+5+i*15;
+    drawText(bx+8,by,item.label,UI_HIGHLIGHT);
+    drawText(bx+10+measureText(item.label),by,formatValue(item),UI_HIGHLIGHT);
+    hline(bx,bx+6,by+5,UI_BRIGHT_BORDER);
+    hline(bx,bx+6,by+7,UI_LIGHT_BORDER);
+    for(let k=0;k<4;k++) {
+      setPixel(bx+k,by+4-k,UI_DARK_BORDER);
+      if(k<3)setPixel(bx+6-k,by+4-k,UI_MED_BORDER);
+      setPixel(bx+k,by+8+k,k===3?UI_MED_BORDER:UI_DARK_BORDER);
+      setPixel(bx+6-k,by+8+k,UI_MED_BORDER);
+    }
+  }
+}
+
+function economicsSubmenuLayout() {
+  const sub=SUBMENUS.economics;
+  const width=Math.max(...sub.items.map(item=>item.checkbox ? 42+measureText(item.label)
+    : (item.names?30:35)+measureText(item.label)+(item.names?Math.max(...item.names.map(measureText)):measureText(item.cash?'1,000,000':'0.30'))));
+  const height=86;
+  return {x:100+Math.floor((getScreenW()-1-100-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height};
+}
+function drawEconomicsSubmenu() {
+  const {x,y,width,height}=economicsSubmenuLayout();
+  boxRaised(x,y,width+1,height+1);
+  const checkboxX=x+20+Math.max(...SUBMENUS.economics.items.filter(i=>i.checkbox).map(i=>measureText(i.label)));
+  for(const [i,item] of SUBMENUS.economics.items.entries()) {
+    const bx=x+10,by=y+5+i*15;
+    drawText(bx+8,by,item.label,UI_HIGHLIGHT);
+    if(item.checkbox) {
+      const cy=by;
+      fillRect(checkboxX,cy,checkboxX+11,cy+11,UI_BACKGROUND);
+      hline(checkboxX,checkboxX+11,cy,UI_BRIGHT_BORDER);
+      hline(checkboxX,checkboxX+11,cy+11,UI_LIGHT_BORDER);
+      vline(checkboxX,cy,cy+10,UI_MED_BORDER);
+      vline(checkboxX+11,cy+1,cy+11,UI_DARK_BORDER);
+      if(config[item.key]) {
+        for(let k=0;k<3;k++)setPixel(checkboxX+3+k,cy+6+k,UI_HIGHLIGHT);
+        for(let k=0;k<5;k++)setPixel(checkboxX+5+k,cy+8-k,UI_HIGHLIGHT);
+      }
+    } else {
+      drawText(bx+10+measureText(item.label),by,formatValue(item),UI_HIGHLIGHT);
+      hline(bx,bx+6,by+5,UI_BRIGHT_BORDER);hline(bx,bx+6,by+7,UI_LIGHT_BORDER);
+      for(let k=0;k<4;k++) {
+        setPixel(bx+k,by+4-k,UI_DARK_BORDER);
+        if(k<3)setPixel(bx+6-k,by+4-k,UI_MED_BORDER);
+        setPixel(bx+k,by+8+k,k===3?UI_MED_BORDER:UI_DARK_BORDER);
+        setPixel(bx+6-k,by+8+k,UI_MED_BORDER);
+      }
+    }
+  }
 }
 
 // --- Player setup dialog layout (EXE: dialog widget system, centered) ---
@@ -942,6 +1065,7 @@ export function drawPlayerSetupScreen() {
 export function resetMenuState() {
   menu.screen = 'config';
   menu.activeSubmenu = null;
+  menu.soundDraft = null;
   menu.terrainDirty = true;
   menu.saveFlash = 0;
 }
