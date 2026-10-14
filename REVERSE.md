@@ -9175,12 +9175,141 @@ curved trails and sub-blasts, and frame 309 shows final settling.
   handler directly.
 - Audit HUD refresh timing in the main rendering loop. Native `0x316CE`
   refreshes the power field only when stored power actually changes;
-  `updateTankDamageState` currently clears `hudPower` on every refresh request.
-  A retained stale power field may therefore refresh early. This finding is
-  recorded only; no speculative fix has been applied.
+  The premature `hudPower` refresh is fixed and covered by the native
+  comparison below; broader main-loop HUD refresh timing remains to verify.
 - Expand complete-frame fixtures across active shields, parachutes, wrap
   walls, landscape types, resolutions and nondefault settings.
 - Audit remaining weapon behavior approximations and their damage/cleanup
   continuations, including napalm and the legacy Popcorn path.
 - Verify palette interrupt timing, animation pacing and broader UI/round
   transitions. Branch-level pixel parity does not prove complete-game parity.
+
+
+### Damage-time power HUD refresh (2026-10-13)
+
+`updateTankDamageState` now preserves retained `hudPower` when clamping does
+not change stored power. Native `0x316CE` compares the clamped value against
+the existing power at `0x316FD` and skips both the field clear and text draw
+when equal. Energy/palette updates remain independent. Previously, every
+refresh request cleared the retained power value, making the main HUD render
+new text before the native field was refreshed.
+
+`python3 disasm/verify_damage_power.py` now enables the native active-player
+HUD path and observes clear/text calls, rather than only checking stored
+power with HUD disabled. All **505 cases** (energies 0..100, power levels
+0/100/200/500/1000) match both power and refresh decisions. The pre-fix port
+failed immediately at energy=0, power=0: native emitted no draw, but the port
+cleared the retained HUD state. Drawing callees are intercepted, so this is
+refresh-timing evidence, not a glyph-pixel or full-shot comparison.
+
+Falling/death handoff, parachute HUD retention, and ordinary/Funky Bomb
+impact regressions pass. Full launch-to-next-turn screenshots and broader HUD
+timing remain open. This change has not been deployed.
+
+`verify_power_hud_pixels.py CHECKPOINT` adds real native rendering coverage
+for this fix. It seeds the displayed power field through native `0x316CE`,
+then executes `0x31663` with different stored power and HP values. The port
+renders its actual full HUD after `updateTankDamageState`; the test compares
+the power field's RGB crop with the real native VGA output. Font, text,
+formatting and rectangle-clear callees run without drawing stubs.
+
+All **18 power-field RGB crops** and stored powers match for HP
+-6/0/6/20/55/100 and power 0/200/1000, including an older displayed 777 that
+must persist when stored power does not change. Command:
+`python3 disasm/verify_power_hud_pixels.py /tmp/scorched-lethal-flash/after-falling.state`.
+This is a 360x480 field-level comparison; other HUD widgets, resolutions and
+whole-shot timing are not covered by this test.
+
+
+### Native energy HUD field pixels (2026-10-13)
+
+`verify_energy_hud_pixels.py CHECKPOINT` executes real native `0x318D8`,
+including palette updates, signed arithmetic, formatting, rectangle clearing
+and glyph drawing. It compares the energy field with the port's actual full
+HUD render. All **33 RGB crops** match at 360x480 for HP
+-6/0/1/6/20/49/50/99/100/101/200 and maximum energy 50/100/200.
+
+The comparison found an extra port-side upper clamp at 1000. Native
+`0x31A30..0x31A4A` clamps only negative display values to zero. Removing the
+upper clamp fixes above-maximum fixtures (first failure: HP=99, maximum=50).
+These above-maximum states are synthetic boundary cases; ordinary gameplay
+reachability is not claimed. Normal damage cases retain their existing
+appearance. This remains field-level evidence, not full-HUD or full-shot
+parity.
+
+Command: `python3 disasm/verify_energy_hud_pixels.py /tmp/scorched-lethal-flash/after-falling.state`.
+The 18 native power-field RGB cases, 505 power/refresh-decision cases, and
+parachute HUD retention regression still pass. Changes remain undeployed.
+
+### Continuous shot aftermath state audit (2026-10-13)
+
+The continuous shot oracle now reads HP as signed 32-bit values, compares
+final stored shot power for each player, and checks all 250 RNG words plus
+the RNG index at the impact-handler return (`0x231D3`). Previously it read
+only the low HP word and did not compare RNG at this boundary. These checks
+help detect hidden state drift before the next turn even when RGB matches.
+
+The ordinary fixture still passes **103 complete RGB frames** through impact,
+falling and settling, signed HP/alive state and complete RNG:
+`/tmp/scorched-shot-rng-audit.log`. The parachute fixture passes **124 complete
+RGB frames**, final positions/signed HP/alive flags/power, complete RNG and
+parachute inventory: `/tmp/scorched-shot-parachute-rng-audit.log`.
+
+Commands use `verify_landscape_sequence.py /tmp/scorched-before-walk.state
+--case 0 --sky 2 --full-frame --projectile-head 180 150 --flight-steps 150
+--shot-impact --shot-aftermath --shot-falling`, with `--shot-parachute` for
+the second run. Both fixtures survive; they do not prove chained death or
+next-player behavior. The first run preceded adding the power assertion;
+the second includes it. Launch coordinates/angle/power are fixture inputs,
+not an input-driven firing UI sequence.
+
+Next-player coverage requires returning through the surrounding turn loop,
+not treating `0x231D3` as a turn-completion proof. Native `0x2AB5A..0x2AB80`
+walks the ordered far-pointer table at DS:E4F6, skips dead tanks, and reaches
+the full HUD call at `0x2AB94`. The current composed shot fixture enters the
+flight block directly and does not yet carry a real outer-turn call stack.
+
+### Native next-player slot selection (2026-10-13)
+
+`python3 disasm/verify_next_player.py` executes the native turn-loop slot
+advance at `0x2ABDA`, then follows the ordered far-pointer table and dead-tank
+skip loop through the full-HUD call at `0x301B2` (caller `0x2AB94`). It compares
+the selected tank and slot with the production `gameTick` NEXT_TURN path.
+All **564 cases** pass across 2..5 players, ascending/reversed/rotated orders,
+all alive masks with at least two survivors, and every starting slot.
+The port also resets retained energy/power/shield/parachute HUD fields when
+selecting the next player, ready for its full redraw.
+
+This oracle forces round continuation and intercepts the round-over check,
+shield-maintenance and input calls. It stops before native HUD drawing.
+It therefore establishes slot selection only, not round-over correctness,
+wind updates, interstitial behavior, HUD pixels, or a complete shot-to-turn
+call chain. The existing production selection algorithm required no change.
+
+### Post-shot next-player HUD screenshot (2026-10-13)
+
+`verify_landscape_sequence.py --shot-next-player` now follows a surviving
+shot fixture with production NEXT_TURN selection and a full HUD/world render.
+After comparing the native aftermath, `verify_next_player_frame.py` resumes
+the verified native slot-advance block and executes its real full HUD call,
+stopping at `0x2AB99`. The next selected player, complete 360x480 RGB image,
+and full RNG state match. No HUD pixels are masked out.
+
+The parachute fixture passes all **124 shot frames plus the next-player
+screen**. Log: `/tmp/scorched-next-player.log`; image pair:
+`/tmp/scorched-next-player/next-player-{emulator,web}.png`. The port image was
+visually inspected. Command:
+`python3 disasm/verify_landscape_sequence.py /tmp/scorched-before-walk.state
+--case 0 --sky 2 --full-frame --projectile-head 180 150 --flight-steps 150
+--shot-impact --shot-aftermath --shot-falling --shot-parachute
+--shot-next-player --output-dir /tmp/scorched-next-player`.
+
+Scope: the native flight fixture has no real enclosing turn-loop stack, so
+next-player capture re-enters `0x2ABDA` with the previous player's slot and
+the already-compared game state. It intercepts round-over, shield-maintenance
+and input calls. Wind changes are disabled. The port capture renders the
+underlying gameplay screen, not the hotseat interstitial. This proves the
+composed surviving-shot/selection/HUD result for this fixture; it does not
+prove an uninterrupted input-driven launch-to-next-turn call chain, chained
+deaths, wind updates, or interstitial timing. No additional runtime fix was
+needed for this comparison.

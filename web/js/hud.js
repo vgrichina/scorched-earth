@@ -247,8 +247,9 @@ export function drawHudEnergy(player) {
   const x=LEFT+Math.max(measureText('Power'),measureText('Max'))+8;
   const width=measureText('8888 ');
   fillRect(x,ROW2_Y,x+width-1,ROW2_Y+11,UI_BACKGROUND);
-  const fuelVal=Math.max(0,Math.min(1000,Math.trunc(
-    (player.hudEnergy??player.energy??0)*1000/(player.maxEnergy??100))));
+  // Native 0x31A30 clamps negative values to zero, without an upper cap.
+  const fuelVal=Math.max(0,Math.trunc(
+    (player.hudEnergy??player.energy??0)*1000/(player.maxEnergy??100)));
   drawText(x,ROW2_Y,String(fuelVal).padStart(4),UI_DEEP_SHADOW);
 }
 

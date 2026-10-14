@@ -45,10 +45,11 @@ parser.add_argument('--flight-steps',type=int,default=0,help='Compose launch, fr
 parser.add_argument('--fall-shield',type=int,help='Shield (config 2) HP for the stacked-fall victim')
 parser.add_argument('--stacked-fall',action='store_true',help='Place player 0 above player 1 for the falling-offsets fixture')
 parser.add_argument('--falling-offsets',type=int,nargs=2,help='Lift both tanks by these pixels, then compare native falling frames')
+parser.add_argument('--shot-next-player',action='store_true',help='Compare next-player HUD after surviving aftermath; wind changes disabled')
 parser.add_argument('--shot-parachute',action='store_true',help='Give falling target one parachute for composed shot capture')
 parser.add_argument('--shot-falling',action='store_true',help='Compare each moving falling-tank frame; requires --shot-aftermath')
 parser.add_argument('--shot-aftermath',action='store_true',help='Also compare the completed native impact aftermath; requires --shot-impact')
-parser.add_argument('--shot-impact',action='store_true',help='Continue real flight into ordinary impact and blast restoration; aftermath coverage is pending')
+parser.add_argument('--shot-impact',action='store_true',help='Continue real flight into ordinary impact and blast restoration; add --shot-aftermath for falling/settling')
 parser.add_argument('--flight-collisions',action='store_true',help='Execute native collision traversal and wall response during flight; impacts fail the fixture')
 parser.add_argument('--explosion',type=int,nargs=3,metavar=('X','Y','RADIUS'),help='Compare ordinary blast growth/cycling/restoration before damage')
 parser.add_argument('--shields',type=int,nargs=2,choices=range(6),help='Compose settled shield drawing for both tanks after HUD setup')
@@ -63,6 +64,8 @@ if args.stacked_fall and not args.falling_offsets:parser.error('--stacked-fall r
 if args.falling_offsets:
     args.full_frame=True
     if any(v<0 or v>40 for v in args.falling_offsets):parser.error('falling offsets must be 0..40')
+if args.shot_next_player and (not args.shot_aftermath or args.rounds!=1 or args.wind or args.wall not in (None,0)):
+    parser.error('--shot-next-player requires single-round --shot-aftermath with zero wind and ordinary walls')
 if args.shot_parachute and not args.shot_falling: parser.error('--shot-parachute requires --shot-falling')
 if args.shot_falling and not args.shot_aftermath: parser.error('--shot-falling requires --shot-aftermath')
 if args.shot_aftermath and not args.shot_impact: parser.error('--shot-aftermath requires --shot-impact')
@@ -90,6 +93,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
     if args.seed is not None: seed=args.seed
     if args.sky is not None: sky=args.sky
     if args.wall is not None: wall=args.wall
+    if args.shot_next_player and wall!=0:parser.error('--shot-next-player requires --wall 0 for this case')
     mem,cpu,ports=Memory(),CPU(),PortIO();ports.mem=mem
     handler=InterruptHandler(mem,cpu,str(root/'earth'),ports)
     load_state(args.checkpoint,cpu,mem,ports,handler)
@@ -137,8 +141,8 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {drawShield,SHIELD_CONFIG,applyShieldDamage,drawShieldBreak,shieldBreak,eraseShieldContact} from './web/js/shields.js';"
         "import {WPN} from './web/js/weapons.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
-        "if(shotImpact)config.tunneling=0;if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield,shotNextPlayer]=JSON.parse(process.argv[10]);Object.assign(config,{skyType:sky,wallType:wall,wind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
+        "if(shotNextPlayer)config.changeWind=false;if(shotImpact)config.tunneling=0;if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
         "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
@@ -168,10 +172,11 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "if(stackedFall){players.forEach(p=>{p.hudEnergy=undefined;p.hudPower=undefined;p.hudShieldEnergy=undefined;});drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "if(shotParachute){players.forEach(p=>p.hudParachuteCount=undefined);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
-        "results.push({parachuteInventory:players.map(p=>p.inventory[WPN.PARACHUTE]),playerState:players.map(p=>({x:p.x,y:p.y,energy:p.energy,alive:p.alive})),initialPlayers,frames,motion,phases,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
+        "results.push({playerPower:players.map(p=>p.power),parachuteInventory:players.map(p=>p.inventory[WPN.PARACHUTE]),playerState:players.map(p=>({x:p.x,y:p.y,energy:p.energy,alive:p.alive})),initialPlayers,frames,motion,phases,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
-        "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield])],cwd=root,text=True))
+        "order:game.turnOrder,pixels:Buffer.from(p).toString('base64'),palette:[...palette6]});"
+        "if(shotNextPlayer){if(game.state!==STATE.NEXT_TURN)throw new Error('fixture did not survive');const previousPlayer=game.currentPlayer;game.nextTurnTimer=15;gameTick();t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();results.at(-1).nextPlayer={previousPlayer,player:game.currentPlayer,pixels:encode(),palette:[...palette6],rng:getRandomState()};}}console.log(JSON.stringify(results));",
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
@@ -427,3 +432,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         assert not differences,(seed,len(differences),differences[:10])
         scope='full frame' if args.full_frame else 'landscape + player setup' if args.players else 'landscape'
         print(f'Round {round+1}, seed {seed}, sky {sky}->{resolved}, wall {wall}, max wind {args.wind}, generator {selected}, tank types {args.tank_types}, head {args.projectile_head}, icon {args.bomb_icon}, erased {args.erase_head}, sky grid {args.restore_sky_grid}, flight steps {args.flight_steps}, native collisions {args.flight_collisions}, explosion {args.explosion}, trace {args.trace}, shields {args.shields}: complete {scope} pixels, RGB, state and RNG match EXE.',flush=True)
+
+        if args.shot_next_player:
+            from verify_next_player_frame import compare_next_player_frame
+            compare_next_player_frame(cpu,mem,ports,handler,actual['nextPlayer'],args.output_dir)

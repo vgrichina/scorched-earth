@@ -300,10 +300,13 @@ export function updateTankEnergyPalette(player) {
 export function updateTankDamageState(player, {refreshHud=true} = {}) {
   if (refreshHud) {
     player.hudEnergy = undefined;
-    player.hudPower = undefined;
   }
   const maximum = Math.max(0,Math.trunc(player.energy*1000/(player.maxEnergy??100)));
-  player.power = Math.min(player.power,maximum);
+  const power = Math.min(player.power,maximum);
+  // Native 0x316CE leaves the displayed field untouched when power is
+  // unchanged, even if an earlier damage sequence retained an older value.
+  if (refreshHud && power !== player.power) player.hudPower = undefined;
+  player.power = power;
   updateTankEnergyPalette(player);
 }
 

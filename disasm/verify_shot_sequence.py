@@ -79,15 +79,21 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 native_players=[]
                 for i in range(mem.read16(ds+0x50D4)):
                     base=ds+0xD568+i*0xCA
+                    energy=mem.read16(base+0xA2)+(mem.read16(base+0xA4)<<16)
+                    if energy>=0x80000000:energy-=0x100000000
                     native_players.append(dict(x=mem.read16(base+14),y=mem.read16(base+16),
-                        energy=mem.read16(base+0xA2),alive=bool(mem.read16(base+0x18))))
+                        energy=energy,alive=bool(mem.read16(base+0x18))))
                 print('Aftermath player state:',native_players,flush=True)
                 if 'playerState' in actual:
                     print('Port player state:',actual['playerState'],flush=True)
                 capture('aftermath')
                 if 'playerState' in actual:assert native_players==actual['playerState']
+                assert [mem.read16(ds+0xD568+i*0xCA+0x9E) for i in range(len(native_players))]==actual['playerPower'],'aftermath shot powers differ'
+                native_rng=dict(index=mem.read16(ds+0xEC06),
+                    words=[mem.read16(ds+0xEA12+i*2) for i in range(250)])
+                assert native_rng==actual['rng'],'shot aftermath RNG differs'
                 assert stage==len(actual['frames']),(stage,len(actual['frames']))
-                print(f'{stage} shot RGB frames match through completed impact aftermath.',flush=True)
+                print(f'{stage} shot RGB frames, signed HP/alive state and complete RNG match through completed impact aftermath.',flush=True)
                 return
             if offset==0x22064:
                 motion=[mem.read_float64(0x90000+off) for off in (4,12,20,28)]
