@@ -13964,3 +13964,19 @@ this requires a math fix, not an epsilon workaround. Ballistic targeting and
 power animation, remaining horizontal/untargeted guidance behavior, and composed
 real-landscape launch/trajectory/impact RGB comparisons remain open. The smaller
 native fixtures and HUD crops above do not establish full-game pixel parity.
+
+### Horizontal guidance native trigger diagnostic
+
+`verify_horizontal_guidance_trigger.py /tmp/scorched-guidance-target.state`
+executes native 0x22660 through the actual direction callee at 0x426EC, stopping
+before the drawing callback at 0x226EB (or inactive exit 0x226F8). With obstacle
+avoidance DS:510E disabled, 33 of 63 cases differ from production applyGuidance.
+Cases span X=98/100/102, Y=97..103, target=(100,100), vertical velocities
+-10/0/10. The port activates on neighboring rows; native requires exact row
+equality. At X=98/Y=100/vy=-10 native correction is -1 but port returns +1;
+with vy=0 native leaves guidance inactive while the port activates it. This
+confirms that replacing the tolerance alone is insufficient. The direction
+routine considers velocity and optionally obstacle checks; its complete
+translation and the separate horizontal callback 0x25B30 remain to implement.
+This diagnostic intentionally exits nonzero until those mismatches are fixed;
+it does not establish composed flight or rendering parity.
