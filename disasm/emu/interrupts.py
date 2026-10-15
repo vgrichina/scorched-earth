@@ -20,6 +20,7 @@ class InterruptHandler:
 
         # Keyboard input queue
         self.key_queue = collections.deque()
+        self._dos_pending_scan = None
 
         # Timer tick counter
         self.tick_count = 0
@@ -47,7 +48,11 @@ class InterruptHandler:
         self._heap_seg = after_image_seg
 
     def push_key(self, scancode, ascii_char=0):
-        self.key_queue.append((scancode, ascii_char))
+        # BIOS/DOS character reads receive make events, not raw IRQ releases.
+        # A queued break with ASCII zero looks like an extended-key prefix to
+        # Fastgraph, which then blocks waiting for a nonexistent second byte.
+        if not scancode & 0x80:
+            self.key_queue.append((scancode, ascii_char))
 
     # -- Main dispatcher ------------------------------------------------------
 
@@ -202,16 +207,21 @@ class InterruptHandler:
         ah = self.cpu.get_reg8(4)
 
         if ah == 0x07:  # Direct char input without echo (blocking)
-            if self.key_queue:
+            if self._dos_pending_scan is not None:
+                self.cpu.set_reg8(0, self._dos_pending_scan)
+                self._dos_pending_scan = None
+            elif self.key_queue:
                 sc, asc = self.key_queue.popleft()
                 self.cpu.set_reg8(0, asc)  # AL = character
+                if asc == 0:
+                    self._dos_pending_scan = sc
             else:
                 # Spin-wait: rewind IP to re-execute INT 21h
                 self.cpu.ip = (self.cpu.ip - 2) & 0xFFFF
             return True
 
         if ah == 0x0B:  # Check stdin status
-            if self.key_queue:
+            if self.key_queue or self._dos_pending_scan is not None:
                 self.cpu.set_reg8(0, 0xFF)  # AL = FFh = input available
             else:
                 self.cpu.set_reg8(0, 0x00)  # AL = 00h = no input

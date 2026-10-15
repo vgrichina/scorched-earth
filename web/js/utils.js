@@ -26,6 +26,14 @@ function lcgRand() {
   return _lcgHi & 0x7FFF;
 }
 
+// Native weighted selection uses Borland rand(), independently of R250.
+export function legacyRandomFraction() { return lcgRand() / 32767; }
+export function getLegacyRandomState() { return ((_lcgHi << 16) | _lcgLo) >>> 0; }
+export function setLegacyRandomState(seed) {
+  _lcgLo = seed & 0xffff;
+  _lcgHi = (seed >>> 16) & 0xffff;
+}
+
 // R250 table (250 x 16-bit words) and index
 const _r250Table = new Uint16Array(250);
 let _r250Index = 0;
@@ -83,6 +91,14 @@ export function randomFraction() {
 // Read-only snapshot for comparing complete RNG state without advancing it.
 export function getRandomState() {
   return { index: _r250Index, words: Array.from(_r250Table) };
+}
+
+// Restore a complete native checkpoint without consuming random values.
+export function setRandomState({index, words}) {
+  if (!Number.isInteger(index) || index < 0 || index >= 250 || words.length !== 250)
+    throw new RangeError('Invalid R250 state');
+  _r250Index = index;
+  _r250Table.set(words);
 }
 
 // Default seed — overridden by main.js init()

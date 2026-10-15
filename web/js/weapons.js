@@ -147,7 +147,7 @@ export function getAvailableWeapons(armsLevel) {
 // Create initial inventory for a player (Baby Missile = infinite)
 export function createInventory() {
   const inv = new Array(WEAPONS.length).fill(0);
-  inv[WPN.BABY_MISSILE] = -1;  // infinite ammo
+  inv[WPN.BABY_MISSILE] = 99;  // Native quantity; firing never decrements Baby Missiles.
   return inv;
 }
 

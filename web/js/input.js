@@ -6,6 +6,7 @@
 // Web: tracks key state array + mouse position/buttons/delta
 
 const keys = {};
+const heldKeys = new Set();
 const keyText = {};
 
 import { config } from './config.js';
@@ -25,8 +26,9 @@ export function initInput(canvas) {
   canvasEl = canvas || document.getElementById('screen');
 
   window.addEventListener('keydown', (e) => {
-    // Native S/E/Minus dispatch waits for release before another press.
-    if (e.repeat && (e.code === 'KeyS' || e.code === 'KeyE' || e.code === 'Minus')) {
+    heldKeys.add(e.code);
+    // Native S/E/P/G/Minus dispatch waits for release before another press.
+    if (e.repeat && (e.code === 'KeyS' || e.code === 'KeyE' || e.code === 'Minus' || e.code === 'KeyP' || e.code === 'KeyG')) {
       e.preventDefault();
       return;
     }
@@ -35,6 +37,7 @@ export function initInput(canvas) {
     e.preventDefault();
   });
   window.addEventListener('keyup', (e) => {
+    heldKeys.delete(e.code);
     keys[e.code] = false;
     e.preventDefault();
   });
@@ -133,3 +136,6 @@ export function getMouseDelta() {
   mouse.dy = 0;
   return { dx, dy };
 }
+
+// Physical release state is independent of one-shot event consumption.
+export function anyKeyHeld() { return heldKeys.size !== 0; }

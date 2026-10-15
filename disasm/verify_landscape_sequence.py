@@ -19,7 +19,7 @@ from emu.cpu import CPU
 from emu.memory import Memory
 from emu.ports import PortIO
 from emu.interrupts import InterruptHandler
-from emu.state import load_state
+from emu.state import load_state, save_state
 from emu.execute import run_fast
 from compare_pipeline import extract_display_pixels, write_emu_png
 
@@ -59,6 +59,7 @@ parser.add_argument('--shot-falling',action='store_true',help='Compare each movi
 parser.add_argument('--shot-aftermath',action='store_true',help='Also compare the completed native impact aftermath; requires --shot-impact')
 parser.add_argument('--shot-impact',action='store_true',help='Continue real flight into ordinary impact and blast restoration; add --shot-aftermath for falling/settling')
 parser.add_argument('--flight-collisions',action='store_true',help='Execute native collision traversal and wall response during flight; impacts fail the fixture')
+parser.add_argument('--texture-scale',type=int,choices=range(3),help='Prepare native/port explosion cache before landscape; requires --explosion or --shot-impact')
 parser.add_argument('--explosion',type=int,nargs=3,metavar=('X','Y','RADIUS'),help='Compare ordinary blast growth/cycling/restoration before damage')
 parser.add_argument('--activate-shields',action='store_true',help='Run real shield activation before maintenance and flight, instead of inserting settled shields')
 parser.add_argument('--shields',type=int,nargs=2,choices=range(6),help='Compose settled shield drawing for both tanks after HUD setup')
@@ -105,6 +106,7 @@ if args.shield_shot:
     args.shields=[0,3];args.projectile_head=[0,0];args.flight_collisions=True
     if not args.flight_steps: parser.error('--shield-shot requires --flight-steps')
 if args.shields and (not args.full_frame or (args.projectile_head and not args.shield_shot and not args.flight_collisions) or args.explosion or args.restore_sky_grid): parser.error('--shields requires --full-frame with collision-enabled flight and without explosion/sky-grid')
+if args.texture_scale is not None and not (args.explosion or args.shot_impact): parser.error('--texture-scale requires --explosion or --shot-impact')
 if args.explosion and (not args.full_frame or args.projectile_head or args.restore_sky_grid or args.explosion[2]<=0): parser.error('--explosion requires --full-frame, positive radius, and no head/sky-grid')
 if args.flight_collisions and not args.flight_steps: parser.error('--flight-collisions requires --flight-steps')
 if not 0<=args.flight_steps<=(500 if args.shot_impact else 30): parser.error('--flight-steps must be 0..30, or 0..500 with --shot-impact')
@@ -170,6 +172,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {drawWindIndicator,drawHud,drawPlayfieldBorder} from './web/js/hud.js';import {gameTick,STATE} from './web/js/game.js';"
         "import {createPlayers,players,drawAllTanks,getTankAim,getTankBarrel,checkTanksFalling,stepFallingTanks,isFallingSettling,fallingFlash,deathAnimations,drawDeathAnimations} from './web/js/tank.js';"
         "import {getEffectiveWallType,launchProjectile,clearProjectiles,projectiles,stepSingleProjectile} from './web/js/physics.js';import {retainWorldPixel,projectileDrawing,drawProjectileHead,drawProjectileTrackingMarks} from './web/js/projectile-render.js';"
+        "import {prepareExplosionTexture} from './web/js/explosion-texture.js';"
         "import {seedRandom,getRandomState} from './web/js/utils.js';"
         "import {palette6,resolvedSkyType} from './web/js/palette.js';"
         "import * as t from './web/js/terrain.js';import {pixels,setPixel,getPixel,getBackgroundColor} from './web/js/framebuffer.js';"
@@ -181,10 +184,10 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "import {WPN} from './web/js/weapons.js';"
         "import {initInput} from './web/js/input.js';"
         "import fs from 'node:fs';"
-        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield,shotNextPlayer,changeWind,windOverwrites,activateShields,fireInput,fireWeapon,fireAmmo,shotDeath,scoringMode]=JSON.parse(process.argv[10]);Object.assign(config,{startCash:1000000,scoringMode,teamMode:0,skyType:sky,wallType:wall,wind,changeWind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
+        "const [seed,sky,wall,wind,mountains,percent,rounds,withPlayers,fullFrame]=process.argv.slice(1,10).map(Number);const [names,types,head,icon,erase,restoreGrid,flightSteps,trace,explosion,shields,shieldShot,breakShield,shieldHole,fadeHud,shotImpact,shotAftermath,shotFalling,shotParachute,fallingOffsets,stackedFall,fallShield,shotNextPlayer,changeWind,windOverwrites,activateShields,fireInput,fireWeapon,fireAmmo,shotDeath,scoringMode,textureScale]=JSON.parse(process.argv[10]);Object.assign(config,{startCash:1000000,scoringMode,teamMode:0,skyType:sky,wallType:wall,wind,changeWind,mtnPercent:percent,playOrder:0,numPlayers:2,tracePaths:Number(trace),gravity:0.2,viscosity:0});"
         "const listeners={};if(fireInput){globalThis.window={addEventListener:(k,f)=>listeners[k]=f};initInput({addEventListener(){}});config.soundEnabled=0;config.talkingTanks=0;}"
         "if(shotImpact)config.tunneling=0;if(mountains){globalThis.fetch=async path=>({ok:fs.existsSync(path),arrayBuffer:async()=>fs.readFileSync(path)});await t.loadMTNFiles();}"
-        "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);const results=[];for(let round=0;round<rounds;round++){"
+        "t.reinitTerrainBuffers();if(withPlayers){createPlayers(2);players.forEach((p,i)=>Object.assign(p,{name:names[i],tankType:types[i]}));game.round=1;game.initialShop=true;}seedRandom(seed);if(textureScale!==null){config.explosionScale=textureScale;prepareExplosionTexture();}const results=[];for(let round=0;round<rounds;round++){"
         "if(withPlayers){game.state=STATE.ROUND_SETUP;gameTick();}else{prepareRoundBackground();t.generateTerrain();}"
         "t.drawSky();t.drawTerrain();drawWindIndicator(game.wind);if(withPlayers)drawAllTanks();"
         "if(fireInput){const p=players[game.currentPlayer];p.selectedWeapon=fireWeapon+2;p.inventory[p.selectedWeapon]=fireWeapon?fireAmmo:-1;}"
@@ -193,7 +196,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "if(shields&&flightSteps)drawHud(players[game.currentPlayer],game.wind,game.round,{});"
         "if(breakShield){game.currentPlayer=fadeHud?1:0;drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "if(shieldShot){game.currentPlayer=0;head.splice(0,2,players[1].x,players[1].y-SHIELD_CONFIG[3].radius);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
-        "if(shotParachute)players[1].inventory[WPN.PARACHUTE]=1;"
+        "if(shotParachute){players[1].inventory[WPN.PARACHUTE]=1;players[1].parachuteArmed=true;}"
         "const initialPlayers=players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY}));"
         "let blastPlayerState=null;const frames=[],motion=[],shieldUses=[],phases=[],flightPalettes=[],explosionPalettes=[];const encode=()=>Buffer.from(pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c)).toString('base64');"
         "if(fallingOffsets){if(fallShield!==null){players[1].activeShield=2;players[1].shieldEnergy=fallShield;}if(stackedFall){players[0].x=players[1].x;players[0].y=players[1].y;}players.forEach((p,i)=>p.y-=fallingOffsets[i]);const world=()=>{t.drawSky();t.drawTerrain();drawAllTanks();players.forEach(drawShield);drawPlayfieldBorder();};world();checkTanksFalling();for(let tick=0;tick<1000;tick++){world();const moving=stepFallingTanks(game.wind);world();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);const fading=shieldBreak.active;if(fading)drawShieldBreak();projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push(fading?'shield':fallingFlash.delay?'lethal':moving?'falling':'aftermath');if(!moving)break;}}"
@@ -205,7 +208,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "let launchState=null;if(head){clearProjectiles();if(fireInput){game.state=STATE.AIM;listeners.keydown({code:'Space',key:' ',preventDefault(){}});gameTick();if(game.state!==STATE.FLIGHT||projectiles.length!==1)throw new Error('Space failed to launch');const shot=projectiles[0];head.splice(0,2,shot.x,shot.y);launchState={motion:[shot.vx,shot.vy,shot.x,shot.y],owner:shot.attackerIdx,rng:getRandomState()};}else launchProjectile(head[0],head[1],45,200,2,0);drawProjectileTrackingMarks(head[0],head[1],icon);if(erase){config.bombIcon=icon;projectileDrawing.advance(projectiles[0]);projectileDrawing.draw();projectileDrawing.finish(projectiles[0]);projectileDrawing.draw();}else if(!flightSteps)drawProjectileHead(head[0],head[1],icon);}"
         "if(flightSteps){config.bombIcon=icon;const shot=projectiles[0];for(let i=0;i<flightSteps;i++){"
         "t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);"
-        "if(shields)players.forEach(drawShield);const status=stepSingleProjectile(shot,getPixel,game.wind);if(shotImpact&&status!=='flying'){if(!status.startsWith('hit_'))throw new Error('shot escaped '+status);processHit(shot,status);projectileDrawing.finish(shot);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('impact');while(isExplosionActive()){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();stepExplosion();drawHud(players[game.currentPlayer],game.wind,game.round,{});frames.push(encode());flightPalettes.push([...palette6]);phases.push('blast');}blastPlayerState=players.map(p=>({energy:p.energy,alive:p.alive}));if(shotAftermath){game.state=STATE.EXPLOSION;gameTick();for(let tick=0;(game.state===STATE.FALLING||game.state===STATE.EXPLOSION)&&tick<1000;tick++){const wasFalling=game.state===STATE.FALLING,wasDeath=deathAnimations[0];if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();}gameTick();if(shotDeath&&wasDeath&&deathAnimations.includes(wasDeath)){if(wasDeath.effect!==6)throw new Error('shot death capture currently supports effect 6, got '+wasDeath.effect);drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);drawDeathAnimations();projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('death');}if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();}if(shotFalling&&wasFalling&&game.state===STATE.FALLING){drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push(fallingFlash.delay?'lethal':isFallingSettling()?'settling':'falling');}}if(game.state===STATE.FALLING||game.state===STATE.EXPLOSION)throw new Error('shot aftermath exceeded 1000 game ticks');t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('aftermath');}break;}if(shieldShot&&status==='hit_tank')processHit(shot,status);else if(status!=='flying')throw new Error('fixture hit '+status);"
+        "if(shields)players.forEach(drawShield);const status=stepSingleProjectile(shot,getPixel,game.wind);if(shotImpact&&status!=='flying'){if(!status.startsWith('hit_'))throw new Error('shot escaped '+status);processHit(shot,status);projectileDrawing.finish(shot);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('impact');while(isExplosionActive()){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();stepExplosion();drawHud(players[game.currentPlayer],game.wind,game.round,{});frames.push(encode());flightPalettes.push([...palette6]);phases.push('blast');}blastPlayerState=players.map(p=>({energy:p.energy,alive:p.alive}));if(shotAftermath){game.state=STATE.EXPLOSION;gameTick();for(let tick=0;(game.state===STATE.FALLING||game.state===STATE.EXPLOSION)&&tick<1000;tick++){const wasFalling=game.state===STATE.FALLING,wasDeath=deathAnimations[0],wasBlastFinished=wasDeath?.blastFinished,wasOperation=wasDeath?.operation;if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();}gameTick();if(textureScale!==null&&wasDeath?.blastStarted&&(!wasBlastFinished||wasDeath.operation!==wasOperation)){drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);drawDeathAnimations();projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('death-blast');}if(shotDeath&&wasDeath&&deathAnimations.includes(wasDeath)){if(wasDeath.effect!==6)throw new Error('shot death capture currently supports effect 6, got '+wasDeath.effect);drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);drawDeathAnimations();projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('death');}if(wasFalling){t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();}if(shotFalling&&wasFalling&&game.state===STATE.FALLING){drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push(fallingFlash.delay?'lethal':isFallingSettling()?'settling':'falling');}}if(game.state===STATE.FALLING||game.state===STATE.EXPLOSION)throw new Error('shot aftermath exceeded 1000 game ticks');t.drawSky();t.drawTerrain();drawAllTanks();if(shields)players.forEach(drawShield);drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);projectileDrawing.draw();frames.push(encode());flightPalettes.push([...palette6]);phases.push('aftermath');}break;}if(shieldShot&&status==='hit_tank')processHit(shot,status);else if(status!=='flying')throw new Error('fixture hit '+status);"
         "projectileDrawing.advance(shot);projectileDrawing.draw();drawProjectileTrackingMarks(shot.x,shot.y,icon);"
         "frames.push(encode());flightPalettes.push([...palette6]);motion.push([shot.vx,shot.vy,shot.x,shot.y]);shieldUses.push(players.map(p=>p.shieldFlightUses));phases.push('flight');}if(shotImpact&&!phases.includes('impact'))throw new Error('shot did not impact');}"
         "if(explosion){startExplosion(...explosion,0);while(isExplosionActive()){"
@@ -213,7 +216,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "stepExplosion();frames.push(encode());explosionPalettes.push([...palette6]);}}"
         "if(restoreGrid)for(let y=38;y<=476;y+=7)for(let x=3;x<=356;x+=7)setPixel(x,y,getBackgroundColor(y,x));"
         "if(stackedFall){players.forEach(p=>{p.hudEnergy=undefined;p.hudPower=undefined;p.hudShieldEnergy=undefined;});drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
-        "if(shotParachute){players.forEach(p=>p.hudParachuteCount=undefined);drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
+        "if(shotParachute){players.forEach(p=>{p.hudParachuteCount=undefined;p.hudParachuteArmed=undefined;});drawHud(players[game.currentPlayer],game.wind,game.round,{});}"
         "const p=pixels.map(c=>c>=80&&c<110?c+40:c===120?80:c===127?87:c>=128&&c<=143?c-40:c);"
         "results.push({gameState:game.state,blastPlayerState,shotWeapon:fireInput?fireWeapon:0,launchState,playerPower:players.map(p=>p.power),parachuteInventory:players.map(p=>p.inventory[WPN.PARACHUTE]),playerState:players.map(p=>({x:p.x,y:p.y,energy:p.energy,alive:p.alive})),initialPlayers,frames,motion,shieldUses,phases,flightPalettes,explosionPalettes,wind:game.wind,sky:resolvedSkyType,wall:getEffectiveWallType(),rng:getRandomState(),"
         "players:players.map(p=>({tankType:p.tankType,x:p.x,y:p.y,power:p.power,...getTankAim(p),endX:getTankBarrel(p).endX,endY:getTankBarrel(p).endY})),"
@@ -221,8 +224,16 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
         "if(fireInput&&shotAftermath&&game.state===STATE.NEXT_TURN){gameTick();drawHud(players[game.currentPlayer],game.wind,game.round,{});const p=players[game.currentPlayer];results.at(-1).weaponReturn={pixels:encode(),palette:[...palette6],weapon:p.selectedWeapon-2,ammo:p.inventory[fireWeapon+2]};}"
         "if(fireInput&&shotAftermath&&game.state===STATE.ROUND_OVER){gameTick();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawRankings(players,game.round,config.rounds);results.at(-1).rankings={pixels:encode(),palette:[...palette6],rng:getRandomState(),scores:players.map(p=>p.score),cash:players.map(p=>p.cash),wins:players.map(p=>p.wins)};}"
         "if(shotNextPlayer){if(!shotImpact)game.state=STATE.NEXT_TURN;if(game.state!==STATE.NEXT_TURN)throw new Error('fixture did not survive');const previousPlayer=game.currentPlayer;for(const [x,y,c] of windOverwrites)retainWorldPixel(x,y,c>=80&&c<=104?c+40:c>=120&&c<150?c-40:c);game.nextTurnTimer=15;gameTick();t.drawSky();t.drawTerrain();drawAllTanks();drawPlayfieldBorder();drawHud(players[game.currentPlayer],game.wind,game.round,{});drawWindIndicator(game.wind);if(shields)players.forEach(drawShield);projectileDrawing.draw();results.at(-1).nextPlayer={previousPlayer,state:game.state,shieldUses:players.map(p=>p.shieldFlightUses),overwrites:windOverwrites,wind:game.wind,player:game.currentPlayer,pixels:encode(),palette:[...palette6],rng:getRandomState()};}}console.log(JSON.stringify(results));",
-        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player,args.change_wind,args.wind_overwrite,args.activate_shields,args.fire_input,args.fire_weapon,args.fire_ammo,args.shot_death,args.scoring_mode])],cwd=root,text=True))
+        str(seed),str(sky),str(wall),str(args.wind),str(int(args.mountains)),str(args.mtn_percent),str(args.rounds),str(int(args.players)),str(int(args.full_frame)),json.dumps([names,args.tank_types,args.projectile_head,args.bomb_icon,args.erase_head,args.restore_sky_grid,args.flight_steps,args.trace,args.explosion,args.shields,args.shield_shot,args.shield_break,args.shield_hole,args.shield_fade_hud,args.shot_impact,args.shot_aftermath,args.shot_falling,args.shot_parachute,args.falling_offsets,args.stacked_fall,args.fall_shield,args.shot_next_player,args.change_wind,args.wind_overwrite,args.activate_shields,args.fire_input,args.fire_weapon,args.fire_ammo,args.shot_death,args.scoring_mode,args.texture_scale])],cwd=root,text=True))
     call(0x32994,0x2C89,[seed])
+    if args.texture_scale is not None:
+        mem.write16(ds+0x5112,args.texture_scale)
+        mem.write16(ds+0x51A6,65535)
+        mem.write16(ds+0x5104,0);mem.write16(ds+0x5106,0)
+        mem.write16(ds+0x510A,0)
+        cpu.segs[1]=0x2431;cpu.ip=0x2B471-0x6100-0x24310;cpu.regs[4]=0x2400
+        reason,count=run_fast(cpu,mem,ports,handler,30000000,bp_set={0x2B64B-0x6100})
+        assert reason=='breakpoint',('texture setup',reason,count)
     for round,actual in enumerate(actual_rounds):
         call(0x2927E,0x22CA)
         if args.players:
@@ -401,7 +412,7 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                         mem.write16(target+0x2C,5)
                         call(0x301B2,0x2945,[mem.read16(ds+0x5182),mem.read16(ds+0x5184)])
                     from verify_shot_sequence import compare_shot
-                    compare_shot(cpu,mem,ports,handler,actual,args.output_dir,args.flight_steps,args.shot_aftermath,args.shot_falling,bool(args.shields),death=args.shot_death)
+                    compare_shot(cpu,mem,ports,handler,actual,args.output_dir,args.flight_steps,args.shot_aftermath,args.shot_falling,bool(args.shields),death=args.shot_death,textured=args.texture_scale is not None)
                     if args.shot_parachute:
                         for i,count in enumerate(actual['parachuteInventory']):
                             target=ds+0xD568+i*0xCA
@@ -452,13 +463,13 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
             if args.erase_head:
                 call(0x22A14 if args.bomb_icon==1 else 0x228DB,0x1ADA,[*args.projectile_head,1])
         if args.explosion:
-            # Ordinary path only: stop before terrain settling, damage and debris.
-            for off,value in ((0xEF46,0),(0x5104,0),(0x5106,0)):
+            # Stop before terrain settling, damage and debris.
+            for off,value in ([(0xEF46,0)] + ([(0x5104,0),(0x5106,0)] if args.texture_scale is None else [])):
                 mem.write16(ds+off,value)
             cpu.segs[1]=0x3DAE;cpu.ip=0x43D3A-0x6100-0x3DAE0;cpu.regs[4]=0x2400
             for j,value in enumerate([0x110,0x60,*args.explosion,0]):mem.write16(stack+j*2,value&65535)
             stage=0
-            capture_points={0x43DDD:12,0x43E2E:4,0x43E71:4,0x43E9F:0}
+            capture_points={0x43DDD:12,0x43E2E:4,0x43E71:4,0x43E9F:0,0x4403F:4,0x44086:4,0x440D5:4}
             for _ in range(1000):
                 reason,count=run_fast(cpu,mem,ports,handler,10000000,
                     bp_set={*(p-0x6100 for p in capture_points),0x104F6-0x6100,0x28A80-0x6100})
@@ -474,8 +485,12 @@ for case,(seed,sky,wall) in enumerate(((0,1,0),(1,3,1),(42,7,6),(65535,5,7))):
                         args.output_dir.mkdir(parents=True,exist_ok=True)
                         for name,frame,pal in (('emulator',native_frame,ports.palette),('web',port_frame,mapped)):
                             write_emu_png(dict(width=360,height=480,pixels=frame,palette=pal),args.output_dir/f'explosion-{stage:03d}-{name}.png')
+                    if differences and args.output_dir:
+                        save_state(args.output_dir/'explosion-mismatch.state',cpu,mem,ports,handler)
                     assert not differences,('explosion',stage,len(differences),differences[:10])
                     stage+=1
+                    if stage % 25 == 0:
+                        print(f'Explosion: {stage} full RGB frames match.',flush=True)
                     if offset==0x43E9F:break
                     cpu.regs[4]+=capture_points[offset];cpu.ip+=3
                 else:

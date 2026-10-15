@@ -135,6 +135,13 @@ def _exec_d9_reg(cpu, modrm_byte):
         cpu.fpu_set_st(0, abs(cpu.fpu_st(0)))
     elif modrm_byte == 0xE4:  # FTST
         _fpu_compare(cpu, cpu.fpu_st(0), 0.0)
+    elif modrm_byte == 0xE5:  # FXAM (stack values use Python binary64)
+        value = cpu.fpu_st(0)
+        classification = (0x0100 if math.isnan(value) else
+                          0x0500 if math.isinf(value) else
+                          0x4000 if value == 0 else 0x0400)
+        sign = 0x0200 if math.copysign(1.0, value) < 0 else 0
+        cpu.fpu_sw = (cpu.fpu_sw & ~0x4700) | classification | sign
     elif modrm_byte == 0xE8:  # FLD1
         cpu.fpu_push(1.0)
     elif modrm_byte == 0xE9:  # FLDL2T
@@ -369,6 +376,19 @@ def _exec_esc(cpu, mem, base_op, mod, reg, rm, disp, seg_override):
                 cpu.fpu_push(float(val))
             elif reg == 7:  # FISTP qword
                 _write_mem_int(mem, cpu, mod, rm, disp, seg_override, 64, cpu.fpu_pop())
+            elif reg == 6:  # FBSTP packed BCD: 18 digits and a sign byte
+                phys, _ = compute_ea(cpu, mod, rm, disp, seg_override)
+                value = cpu.fpu_pop()
+                if not math.isfinite(value) or abs(_round_integer(cpu, value)) >= 10**18:
+                    cpu.fpu_sw |= 1  # masked invalid operation
+                    mem.load_bytes(phys, bytes.fromhex('00000000000000c0ffff'))
+                else:
+                    number = abs(_round_integer(cpu, value))
+                    for i in range(9):
+                        pair = number % 100
+                        mem.write8(phys+i, (pair//10 << 4) | pair%10)
+                        number //= 100
+                    mem.write8(phys+9, 0x80 if math.copysign(1.0, value) < 0 else 0)
 
 
 def _decode_float80(raw):
@@ -388,7 +408,16 @@ def _decode_float80(raw):
 
 
 def _encode_float80(mem, phys, val):
-    """Encode Python float as 80-bit extended precision (approximate)."""
-    # Simple: just write as float64 in the first 8 bytes, fill rest
-    mem.write_float64(phys, val)
-    mem.write16(phys + 8, 0)
+    """Encode a binary64 value exactly in x87's explicit-significand format."""
+    sign = 0x8000 if math.copysign(1.0, val) < 0 else 0
+    if math.isnan(val):
+        exponent, significand = 0x7FFF, 0xC000000000000000
+    elif math.isinf(val):
+        exponent, significand = 0x7FFF, 0x8000000000000000
+    elif val == 0:
+        exponent, significand = 0, 0
+    else:
+        fraction, power = math.frexp(abs(val))
+        exponent, significand = power-1+16383, int(fraction * (1 << 64))
+    mem.load_bytes(phys, significand.to_bytes(8, 'little'))
+    mem.write16(phys+8, sign | exponent)

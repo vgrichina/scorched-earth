@@ -24,6 +24,10 @@ export const config = {
   graphicsMode: 4,     // EXE default: mode 4 (360×480, custom Mode-X)
   screenWidth: 360,    // derived from GRAPHICS_MODES[graphicsMode]
   screenHeight: 480,
+  biosKeyboard: 0,
+  firingDelay: 100,
+  fallingDelay: 10,
+  smallMemory: 0,       // EXE DS:510A / LOWMEM: disable cached explosion texture
 
   // Physics — EXE: from SCORCH.CFG, used in extras.cpp physics loop
   gravity: 0.2,        // EXE: GRAVITY=0.200000 (DS:0x512A, range 0.05-10.0, accel = 2500×G px/sec²)
@@ -88,12 +92,15 @@ export const config = {
   tunneling: 1,          // EXE: TUNNELLING=On (weapons dig through terrain)
   uselessItems: 0,       // EXE: USELESS_ITEMS=Off (include joke/novelty items)
   teamMode: 0,           // DS:0x50EA: 0=None, 1=Standard, 2=Corporate, 3=Vicious
+  fastComputers: 0,
+  attackFile: 'talk1.cfg',
+  dieFile: 'talk2.cfg',
   statusBar: 1,          // EXE: STATUS_BAR=On (show status bar)
 };
 
 // Keys to persist in localStorage (exclude derived/constant values)
 const PERSIST_KEYS = [
-  'graphicsMode',
+  'graphicsMode', 'smallMemory', 'biosKeyboard', 'firingDelay', 'fallingDelay',
   'gravity', 'viscosity', 'edgesExtend', 'suspendDirt', 'wind', 'changeWind',
   'landType', 'skyType', 'wallType', 'land1', 'land2', 'randomLand',
   'numPlayers', 'rounds', 'armsLevel',
@@ -101,7 +108,7 @@ const PERSIST_KEYS = [
   'talkingTanks', 'playOrder',
   'soundEnabled', 'flySoundEnabled',
   'fallingTanks', 'impactDamage', 'explosionScale', 'tracePaths', 'extraDirt',
-  'playMode', 'hostileEnvironment', 'talkProbability',
+  'fastComputers', 'attackFile', 'dieFile', 'playMode', 'hostileEnvironment', 'talkProbability',
   'computersBuy', 'flattenPeaks', 'mtnPercent',
   'bombIcon', 'tunneling', 'uselessItems', 'teamMode', 'statusBar',
 ];
@@ -137,9 +144,17 @@ function loadConfig() {
 
 // Apply graphics mode → update screenWidth/screenHeight from mode table
 export function applyGraphicsMode() {
+  delete config.activeGraphicsMode;
   const mode = GRAPHICS_MODES[config.graphicsMode] || GRAPHICS_MODES[0];
   config.screenWidth = mode.w;
   config.screenHeight = mode.h;
+}
+
+// A Hardware edit changes the saved selection, not the running graphics mode.
+// The override exists only after such an edit; explicit mode initialization
+// clears it. It is deliberately absent from persisted configuration.
+export function getActiveGraphicsMode() {
+  return GRAPHICS_MODES[config.activeGraphicsMode ?? config.graphicsMode] || GRAPHICS_MODES[0];
 }
 
 loadConfig();

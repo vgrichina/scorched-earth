@@ -25,7 +25,8 @@ globalThis.document = {
   getElementById() { return canvas; },
   documentElement: { style: { setProperty() {} } },
 };
-globalThis.localStorage = { getItem() { return null; } };
+const stored = new Map();
+globalThis.localStorage = { getItem(key) { return stored.get(key) ?? null; }, setItem(key,value) { stored.set(key,value); } };
 globalThis.fetch = async () => ({ ok: false });
 globalThis.requestAnimationFrame = callback => { nextFrame = callback; ready(); };
 await import('../web/js/main.js');
@@ -42,15 +43,37 @@ menu.activeSubmenu = 'hardware';
 menu.submenuSelected = 0;
 assert.equal(config.graphicsMode, 4);
 for (const listener of listeners.get('keydown'))
-  listener({ code: 'ArrowRight', key: 'ArrowRight', preventDefault() {} });
+  listener({ code: 'KeyG', key: 'KeyG', preventDefault() {} });
+nextFrame();
+assert.equal(config.graphicsMode, 4, 'Hardware edits stay pending until dismissal');
+assert.deepEqual([canvas.width, canvas.height], [360, 480]);
+for (const listener of listeners.get('keyup'))
+  listener({ code: 'KeyG', key: 'KeyG', preventDefault() {} });
+for (const listener of listeners.get('keydown'))
+  listener({ code: 'Escape', key: 'Escape', preventDefault() {} });
 nextFrame();
 assert.equal(config.graphicsMode, 5);
-assert.deepEqual([canvas.width, canvas.height, getWidth(), getHeight()], [640, 400, 640, 400]);
+assert.deepEqual([canvas.width, canvas.height, getWidth(), getHeight()], [360, 480, 360, 480], 'Committing mode does not resize the active native menu');
 menu.activeSubmenu = null;
 menu.screen = 'player_setup';
 game.state = STATE.PLAYER_SETUP;
 const { initPlayerSetup } = await import('../web/js/menu.js');
 initPlayerSetup();
 nextFrame();
-assert.deepEqual([getWidth(), getHeight()], [640, 400], 'setup must retain the selected mode');
-console.log('Application loop preserves menu/setup resolution and resizes on Hardware changes.');
+assert.deepEqual([getWidth(), getHeight()], [360, 480], 'player setup retains the active resolution');
+function press(code, key=code) {
+  for(const listener of listeners.get('keydown')) listener({code,key,preventDefault(){}});
+  nextFrame();
+  for(const listener of listeners.get('keyup')) listener({code,key,preventDefault(){}});
+}
+for(const name of ['A','B']) {
+  press('Key'+name,name);press('Enter');press('KeyD','d');
+}
+assert.equal(game.state,STATE.SHOP);
+assert.deepEqual([getWidth(),getHeight()],[360,480],'game entry retains active resolution');
+const {getActiveGraphicsMode,saveConfig}=await import('../web/js/config.js');
+assert.equal(getActiveGraphicsMode().displayAspect,0.55,'game geometry uses active pixel aspect');
+saveConfig();
+const fresh=await import('../web/js/config.js?fresh-mode-test');
+assert.deepEqual([fresh.config.screenWidth,fresh.config.screenHeight],[640,400],'fresh session applies saved graphics mode');
+console.log('Hardware selection preserves menu/player/shop resolution and aspect; a fresh session applies the saved mode.');

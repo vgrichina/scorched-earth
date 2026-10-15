@@ -177,6 +177,7 @@ def extract_state(state_path):
         tank['cash']=bignum(base+0xbe)
         tank['earnedInterest']=bignum(base+0xc2)
         tank['team']=mem.read16(base+0x30)
+        tank['parachuteArmed']=bool(mem.read16(base+0x28))
 
         # Inventory: far pointer at sub+0xB2 → word array of weapon_count entries
         inv_off = mem.read16(base + 0xB2)

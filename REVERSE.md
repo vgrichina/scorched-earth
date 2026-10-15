@@ -11968,3 +11968,1999 @@ still need native verification.
 python3 disasm/verify_economics_layouts.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-economics
 python3 disasm/verify_economics_layouts.py /tmp/scorched-menu-mode4-fixed.state --variants --output-dir /tmp/scorched-economics-variants
 ```
+
+### Native decimal formatter: emulator FPU fixes
+
+The Economics interest mismatch above was an emulator defect. Native sprintf
+at 0xC154 dispatches through 0x1076A to 0x6FEF and the numeric conversion at
+0x760F. That conversion uses FXAM (0x766E), an 80-bit temporary (0x76C9), and
+FBSTP (0x7788). FXAM and FBSTP were unimplemented; the 80-bit store wrote a
+binary64 value followed by a zero exponent. Stale comparison flags could thus
+classify nonzero interest as zero; the other two defects also prevented correct
+conversion when that branch was bypassed.
+
+The emulator now classifies represented values, writes the actual x87 extended
+format, and stores rounded 18-digit packed BCD with sign and masked-invalid
+output. No port formatting workaround is needed. Regression tests cover status
+flags, signed zero, exact extended encodings, packed decimal digits, rounding
+modes and invalid stores. Ten calls to the real native sprintf also verify
+zero, fractional, negative and larger values at several precisions.
+
+All **45 Economics opening frames pass** (five settings fixtures in each of
+nine graphics modes), comparing the entire native and port RGB images.
+Artifacts are `/tmp/scorched-economics-fpu{0..8}`. These comparisons still
+inject native palette and backdrop terrain. The ten FPU unit tests, 24 native
+atan2 cases, menu-resolution and initial-shop regressions also pass, along
+with Python syntax and whitespace checks.
+
+This is not a claim of complete x87 emulation: the internal stack still uses
+binary64, lacks empty-register tags, and does not implement unmasked exception
+delivery. Economics editing and dismissal remain separate outstanding work.
+
+```
+python3 disasm/test_fpu_math.py
+python3 disasm/test_fpu_segments.py
+python3 disasm/verify_float_format.py /tmp/scorched-menu-mode4-fixed.state
+```
+
+### Economics keyboard edits and pending configuration
+
+Native callback 0x3C8E8..0x3C9C8 applies all five Economics widget values only
+after dismissal, marking Save Changes dirty if any committed value changed.
+The port now keeps a separate Economics draft. Escape commits and closes;
+Enter and Space leave the popup open. Checkboxes toggle, the scoring list
+wraps, and a numeric increment beyond the maximum wraps to the minimum
+(the native Cash hotkey changes 1,000,000 to 0).
+
+`verify_economics_input.py` executes native dialog dispatch and compares the
+full RGB frame plus all five committed settings and the dirty flag. Its 19
+sequences cover opening, Escape/Enter/Space, each hotkey with/without dismissal,
+scoring wrap, reverting a checkbox before dismissal, edited Enter/Space, and
+reopening. All **38 cases pass** in modes 0 and 4 (320x200 and 360x480).
+Artifacts: `/tmp/scorched-economics-input{0,4}-wrap`.
+
+Other modes for these interaction sequences, mouse boundaries/directions,
+numeric editing and repeat behavior, modifiers, and Economics persistence
+remain unverified. Opening-frame parity across all nine modes is separate
+from this interaction coverage; neither proves full menu or gameplay parity.
+
+```
+python3 disasm/verify_economics_input.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-economics-input4-wrap
+```
+
+### Economics mouse sequences and Alt shortcut coverage
+
+The Economics verifier's `--mouse` suite now drives both buttons at the upper
+arrow, lower arrow and label area of all five rows, plus outside dismissal
+with and without an edit. All **68 sequences pass** in modes 0 and 4, with
+full RGB and committed settings/dirty-state assertions. These are sampled
+coordinates, not an exhaustive boundary or held-repeat audit. Artifacts are
+`/tmp/scorched-economics-mouse{0,4}`.
+
+The original 19 keyboard sequences also pass in mode 8 (1024x768), bringing
+that suite to **57 verified cases** across modes 0, 4 and 8. Artifacts:
+`/tmp/scorched-economics-input8-wrap`. Menu-resolution and initial-shop
+regressions, syntax and whitespace checks pass.
+
+Menu hotkeys now honor either Alt key for reversed widget adjustment, matching
+native dialog dispatch at 0x46274. The screenshot harness accepts `Alt+KeyI`
+and `AltRight+KeyI`. Twelve mode-4 Alt sequences pass for Interest, Cash,
+Computers Buy and Free Market: pending edit, dismissal and reverse/restore.
+
+The full `--alt` suite **still fails** at Alt+S: a global native handler opens
+the System Menu over the Economics popup instead of reversing Scoring Mode.
+The port currently treats it as a widget shortcut. The gameplay-only System
+Menu in game.js/main.js does not supply this nested menu behavior or the native
+two-column layout. Implementing and verifying that global overlay remains open;
+the failing fixture is retained at `/tmp/scorched-economics-alt4/KeyS-alt-0.png`.
+
+```
+python3 disasm/verify_economics_input.py /tmp/scorched-menu-mode4-fixed.state --mouse --output-dir /tmp/scorched-economics-mouse4
+python3 disasm/verify_economics_input.py /tmp/scorched-menu-mode4-fixed.state --alt --output-dir /tmp/scorched-economics-alt4
+```
+
+### Nested System Menu opening and Sound controls
+
+The Alt+S opening failure above is resolved for the configuration screen.
+The port retains the underlying submenu and its draft while drawing the native
+two-column System Menu. Geometry follows 0x3F4F8: 20/24-pixel row pitch,
+auto-sized columns, centered title and two separator lines, native button
+borders and disabled labels, plus a Sound checkbox. The 360x480 opening frame
+matches all 172,800 RGB pixels.
+
+Escape and either outside click return to the underlying dialog; Enter/Space
+leave the overlay open. Sound edits stay local until dismissal. Native
+0x3F803..0x3F846 commits Sound without marking configuration dirty, disables
+Flight Sounds when Sound is off, and restores its saved mode when re-enabled.
+The overlay follows that path. The verifier now also compares committed Sound
+and Flight Sounds, preventing an unchanged backdrop from hiding a state error.
+
+All **33 nested-overlay sequences pass** in modes 0, 4 and 8: opening, Escape,
+Enter/Space, Sound shortcut before/after dismissal, both mouse buttons on
+Sound, outside dismissal before/after edits, and preservation of the Economics
+draft through the nested overlay. Artifacts: `/tmp/scorched-system{0,4,8}`.
+
+This is partial System Menu implementation: action buttons (Save/Restore,
+Reassign Players, New/Quit), confirmations, context-dependent availability,
+global entry outside configuration, and replacement of the gameplay renderer
+remain open. Exhaustive boundaries, nested re-entry and non-default saved
+Flight Sounds values also need comparison. The new overlay must not be counted
+as complete System Menu parity.
+
+```
+python3 disasm/verify_economics_input.py /tmp/scorched-menu-mode4-fixed.state --system --output-dir /tmp/scorched-system4
+```
+
+### Quit/New confirmation opening and cancellation
+
+System Menu Quit and New now open separate native-style confirmation dialogs.
+Native 0x3F93B sizes the frame to the prompt plus 20 pixels (or the two button
+labels plus 30, whichever is larger), uses a 53-pixel height, centers the frame,
+and distributes Yes/No buttons evenly at baseline y+27. Button height and
+border inset follow the active graphics mode.
+
+The System Menu closes before the confirmation opens, leaving the underlying
+Economics popup visible. No, Escape and outside clicks dismiss the prompt and
+return directly to that popup; Enter/Space leave it open. The port now follows
+those paths, including No via either mouse button. Both 360x480 opening frames
+match all 172,800 pixels. The verifier's `--confirm` suite checks full RGB plus
+committed Economics/Sound settings and the dirty flag for both prompts.
+
+All **48 confirmation cases pass** across modes 0, 4 and 8, covering opening,
+No, Escape, ignored Enter/Space, outside dismissal, and left/right No clicks.
+Artifacts: `/tmp/scorched-confirm{0,4}-fixed` and `/tmp/scorched-confirm8`.
+Menu-resolution and initial-shop regressions, syntax and whitespace checks pass.
+
+Acceptance is deliberately still outstanding: Yes/Y does not yet execute
+native-equivalent quit/restart transitions. Native Quit calls 0x23A1:0x054A;
+New sets DS:50F6 and calls 0x1A4A:0x0A90. These paths need tracing through
+cleanup/control transfer and comparison before claiming functional completion.
+Other System Menu actions and the gameplay renderer also remain open.
+
+```
+python3 disasm/verify_economics_input.py /tmp/scorched-menu-mode4-fixed.state --confirm --output-dir /tmp/scorched-confirm4-fixed
+```
+
+### New Game acceptance, caller continuation and preview edge correction
+
+New Game Yes/Y now commits the underlying submenu draft, closes nested menus,
+and regenerates the main-menu preview. Native New sets DS:50F6, unwinds the
+dialogs, and the caller eventually returns to 0x3D140 after clearing that flag.
+Quit is different: 0x2A95A performs DOS cleanup, market saving and process exit;
+its acceptance remains unimplemented rather than being treated as a restart.
+
+`verify_menu_restart.py` replaces capture_menu.py's synthetic return address
+with the real caller continuation (runtime 2431:0445, file 0x2A855), supplying
+its local frame at BP=2500. It executes Y from the native confirmation through
+the caller and back to main_menu, then runs to input readiness. This remains a
+reconstructed fixture, not fresh-process boot proof. Native and port R250 are
+seeded before acceptance; restarted palette, sun and terrain are generated
+independently, with no post-restart pixel/height/RNG injection.
+
+All **four mode-4 seeds pass** (0, 1, 42, 65535), comparing complete RGB frames
+and all 250 R250 words plus index. The seed-0 frame exposed four extra yellow
+sun-edge pixels: menu rendering rounded the 16.16 aspect scale where native
+truncates it. Changing to truncation resolved the mismatch. Artifacts:
+`/tmp/scorched-restart4-fixed`.
+
+The **mode-0 restart test still fails**. Its native R250 index is already 83
+at re-entry to main_menu, before palette/terrain construction; after rendering,
+native index 146 differs from port index 73 and the preview differs. The
+pre-entry consumption in the caller needs tracing; do not compensate by
+inserting an unexplained fixed number of random draws. Re-entry checkpoints
+are now saved by the verifier, including
+`/tmp/scorched-restart0-trace/seed-0-entry.state`.
+
+Acceptance with pending edits, mouse acceptance, other modes, player-state
+cleanup and Quit's DOS exit remain open. Menu-resolution/initial-shop tests,
+syntax and whitespace checks pass.
+
+```
+python3 disasm/verify_menu_restart.py /tmp/scorched-menu-mode4-fixed.state --output-dir /tmp/scorched-restart4-fixed
+python3 disasm/verify_menu_restart.py /tmp/scorched-menu-mode0-fixed.state --output-dir /tmp/scorched-restart0-trace
+```
+
+### Restart RNG: explosion texture generation and cache
+
+The mode-0 restart mismatch above is resolved. The first extra random call
+returns to 0x2F1B1, inside the explosion texture generator called by native
+setup at 0x2B604. Setup caches the scaled Nuke radius in DS:51A6. Both fixtures
+start with cached radius 225; the 320-wide setup changes it to 75 and rebuilds
+a 151x151 texture. The 360-wide setup retains 225 and reuses its cache.
+
+`explosion-texture.js` implements native 0x2F111, 0x2F2F6 and 0x2F451: four
+random corners, conditional edge midpoint writes (zero means unset), clamped
+distance-scaled perturbations, rounded center averages and the native quadrant
+recursion order. It returns the actual bitmap rather than consuming dummy
+random values. Native rejects bitmaps larger than 65535 bytes before RNG use;
+setup still records the attempted radius. Aspect-scaled width/height follow
+signed 16.16 coordinate rounding. Restart now prepares this cache before
+regenerating the menu.
+
+The restart fixture explicitly supplies the **initial** native cache radius;
+it does not supply texture pixels, post-restart heights or RNG state. All four
+320x200 restart seeds now match complete RGB and all R250 words/index:
+`/tmp/scorched-restart0-texture`. The native pre-menu indices differ by seed
+(83, 117, 208, 163), confirming why a fixed draw offset would have been wrong.
+
+`verify_explosion_texture.py` compares every bitmap byte and full RNG state
+against native execution for 11x9, 17x15, 151x151 and the rejected 248x451
+allocation, at seeds 0 and 42. All eight cases pass. Broader cache lifecycles,
+Small Memory handling, normal gameplay setup and use of this bitmap by the
+explosion renderer remain outstanding; this change integrates restart setup.
+
+```
+python3 disasm/verify_explosion_texture.py /tmp/scorched-menu-mode4-fixed.state
+python3 disasm/verify_menu_restart.py /tmp/scorched-menu-mode0-fixed.state --output-dir /tmp/scorched-restart0-texture
+```
+
+### Textured explosion growth renderer
+
+`drawTexturedExplosionGrowth` implements the pixel-growth portion of native
+0x43FC3: final-radius texture origin transformed with signed 16.16 arithmetic,
+fixed cached stride, protected indices 200..239, and native callback circle
+geometry. It is not yet selected by `stepExplosion`; palette cycling and
+band-by-band restoration must be connected and verified first.
+
+`verify_textured_explosion_growth.py` executes native origin calculation,
+circle/scanline code, and the actual texture callback 0x43F7F. It supplies a
+synthetic framebuffer and full 64KB texture segment, comparing each radius
+step across all nine mode aspect factors, protected pixels, clipped corners,
+and wrap walls. This tests renderer addressing, not real texture allocation
+or normal game initialization. Native palette calls are skipped in this test.
+
+Wrap tests revealed that the callback performs 16-bit offset arithmetic and
+can read beyond the allocated bitmap into surrounding heap memory. The helper
+reproduces offset wrapping; missing bytes default to zero. Full live-heap
+parity for these out-of-bitmap reads remains unresolved and must not be
+claimed from synthetic-segment comparisons.
+
+```
+python3 disasm/verify_textured_explosion_growth.py
+python3 disasm/verify_explosion_growth.py
+```
+
+Result: **2,160 textured growth frames pass across 108 cases**. Ordinary
+explosion regression also passes: 404 growth frames and 26 palette
+initializations. JavaScript syntax and whitespace checks pass.
+
+### Textured explosion animation phases
+
+`startExplosion` now selects the cached texture at the native scaled Baby Nuke
+threshold (40 times the configured resolution-dependent scale). When selected,
+`stepExplosion` grows by one radius per frame, rotates the 40-entry red palette
+after each growth step, cycles another 99 times, and restores ten inclusive
+color bands (200..204, 204..208, through 236..240). Restored pixels survive the
+main loop's clean-world repaint, and captured restoration accumulates across
+bands. The textured path skips ordinary-blast blackening and unconditional
+whole-circle restoration, matching the jump to 0x43E9F. The ordinary path is
+unchanged apart from sharing the palette rotation helper.
+
+`verify_textured_explosion_animation.py` runs native 0x43FC3 through return,
+including actual VGA palette operations and native band selection. It compares
+every frame at rotation boundaries. Texture segment/framebuffer are synthetic;
+setTerrainPixel is intercepted to return constant sky zero, and audio, delays,
+input servicing, game setup, and live heap contents are excluded. The port is
+repainted with the base framebuffer before every step to exercise retention.
+Normal game setup still needs the texture-cache preparation call at the correct
+native point; currently restart preparation supplies the production cache.
+
+Ordinary regressions pass: 150 palette phases, terrain restoration timing,
+wrapped crater cleanup, and shield-damage continuation tests.
+
+Result: **1,788 textured animation frames and VGA palettes match native across
+12 cases**, covering aspects from modes 0/4/8, centered and wrapped blasts, and
+pre-existing protected pixels. This proves the synthetic animation kernel,
+not full gameplay integration or real-heap wraparound parity.
+
+### Normal game startup prepares the explosion texture
+
+The native main-menu caller runs setup 0x2B471 at 0x2A8CD, before the player
+initialization call at 0x2A8D7 and initial shopping. `initGameRound` now calls
+`prepareExplosionTexture` before market/player setup. This makes textured
+blasts available on a normal game start, not only after New Game confirmation.
+The cache still survives between starts; unchanged radii consume no random
+numbers, including cached failed allocations.
+
+`verify_explosion_setup.py` runs the actual native equipment initialization,
+weapon scaling and cache allocation through 0x2B64B, then compares radius,
+width/height, every allocated texture byte and all R250 state against the
+port's actual `initGameRound` with two human players. Each configuration runs
+twice to check cache reuse. Mode dimensions/aspect and an initialized heap are
+fixture inputs; this is not a fresh-process boot or AI-player initialization
+test. The verifier uses the native stack segment; its earlier synthetic
+0x8000 stack could overlap a larger native heap allocation.
+
+Initial-shop, round-sky, and round-order regressions pass. Small Memory,
+low-color modes, live-heap wraparound reads and full gameplay screenshots
+remain outside this verification.
+
+```
+python3 disasm/verify_explosion_setup.py /tmp/scorched-menu-mode4-fixed.state
+```
+
+Result: **all 12 mode/scale configurations pass twice** (modes 0, 2, 4, 8;
+all three scales): 24 setup comparisons match texture bytes, dimensions,
+cached radius and complete RNG state, including allocation rejection and
+cache reuse. The larger mode-4 medium texture passes with the native stack.
+
+### Full landscape textured-blast comparison
+
+`verify_landscape_sequence.py --texture-scale N --explosion X Y R` now runs
+native equipment/texture setup before landscape generation, and calls the
+port texture preparation at the same point in its seeded stream. No generated
+texture bytes, terrain or post-setup RNG are shared. Textured growth/cycle/band
+boundaries are captured alongside the existing ordinary-blast boundaries.
+The test executes native sky restoration and compares full RGB frames with
+terrain, tank sprites, HUD and border. It stops before damage/debris; this
+independent explosion fixture does not yet prove flight-to-impact integration.
+
+Result: **185 full 360x480 RGB frames match with zero tolerance**, from blast
+growth through palette cycling and real sky restoration. Final full-frame
+pixels, state and complete R250 state also match. Configuration: seed 0,
+plain sky, solid walls, Small explosion scale, centered radius-75 blast.
+Artifacts: `/tmp/scorched-textured-landscape` (emulator/web PNG pairs).
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --full-frame --explosion 180 300 75 --texture-scale 0 --output-dir /tmp/scorched-textured-landscape
+```
+
+Other skies, wrap-edge heap reads, actual weapon flight/impact and aftermath
+still need composed textured-blast coverage.
+
+### Textured weapon flight-to-impact capture
+
+`--texture-scale` can now compose with `--shot-impact`. The shot verifier
+preserves the native setup-generated bitmap instead of forcing the ordinary
+branch, and captures all three textured rotation sites. Native collision,
+weapon dispatch, actual texture rendering/restoration and area damage execute;
+Space firing and creation remain independently driven in native and port.
+No shot position, post-setup RNG or generated texture is injected.
+
+Result: **239 continuous full RGB frames pass** for seed 0, Nuke, Small scale,
+plain sky/solid walls: real Space launch, 53 free-flight frames, impact at
+(239,438), radius-75 textured blast, restoration and area damage. Final player
+state and complete RNG also match. Artifacts: `/tmp/scorched-textured-shot`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --fire-input --fire-weapon 3 --flight-steps 300 --shot-impact --texture-scale 0 --output-dir /tmp/scorched-textured-shot
+```
+
+The extended `--shot-aftermath` run is **not yet verified**. After the primary
+239 frames, native reaches a second ordinary blast at (259,476), radius 20,
+settle=1, called from 0x1DD81 during the falling tank's death. Tank 0 is dead
+with signed HP -102. The current port capture skips intermediate non-dirt
+death-animation frames, so it expects `aftermath` where native reports another
+`blast`. This is a capture coverage gap, not yet evidence of an implementation
+pixel mismatch. Extend non-dirt death capture before claiming aftermath parity.
+Diagnostic checkpoint: `/tmp/scorched-textured-aftermath/phase-mismatch.state`.
+
+The textured aftermath capture now includes ordinary/textured blasts driven
+inside `stepDeathBlasts`: first growth step through restoration/damage, without
+capturing idle/delay ticks as blast frames. Native `0x43F69` remains active for
+secondary death blasts, which are labeled separately from the primary weapon
+blast. This extends capture coverage; it does not bypass death processing or
+change production animation behavior.
+
+Result: **261 continuous full RGB frames pass through completed aftermath**:
+primary shot plus all 21 secondary death-blast frames and final aftermath.
+Native and port agree on tank 0 at (259,476), dead with HP -102, and tank 1 at
+(91,191), alive with HP 100. Complete RNG state matches. The subsequent
+shot-to-rankings comparison also passes full RGB, score/cash storage, wins and
+RNG. The earlier failure was indeed missing capture coverage, not a production
+rendering mismatch. Intermediate falling/settling frames were not requested
+in this run; only the blast frames and completed aftermath are proven here.
+
+Artifacts: `/tmp/scorched-textured-aftermath-death`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --fire-input --fire-weapon 3 --flight-steps 300 --shot-impact --shot-aftermath --texture-scale 0 --output-dir /tmp/scorched-textured-aftermath-death
+```
+
+### Textured shot falling frames and Storm restoration
+
+The same Nuke shot with `--shot-falling` passes **364 full RGB frames**:
+239 primary shot frames, 101 moving falling passes, two lethal-flash frames,
+21 secondary death-blast frames and completed aftermath. Final player state,
+complete RNG and the follow-on rankings/score/cash/wins checks all pass. This
+case produced no separately captured settling frames; it does not establish
+coverage for a different crater with visible settling motion.
+Artifacts: `/tmp/scorched-textured-falling`.
+
+A separate Storm-sky centered radius-75 blast passes **185 full RGB frames**
+including actual restoration to the generated cloud background. Final full
+frame, state and complete RNG match. Artifacts: `/tmp/scorched-textured-storm`.
+Neither test covers wrapped texture reads into surrounding native heap.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --fire-input --fire-weapon 3 --flight-steps 300 --shot-impact --shot-aftermath --shot-falling --texture-scale 0 --output-dir /tmp/scorched-textured-falling
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --sky 3 --full-frame --explosion 180 300 75 --texture-scale 0 --output-dir /tmp/scorched-textured-storm
+```
+
+### Wrapped textured blasts against the native heap
+
+The full landscape verifier now saves `explosion-mismatch.state` when a blast
+frame differs, making live native texture-pointer and heap inspection possible.
+This complements the existing PNG pair diagnostics.
+
+Left-edge radius-75 blast at (3,300), seed 0, Small scale, plain sky and wrap
+walls passes all **185 full RGB frames**, final pixels/state and complete RNG.
+The texture is independently generated and allocated in the actual native
+heap; this run does not inject a synthetic full segment into native memory.
+Artifacts: `/tmp/scorched-textured-wrap`.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --wall 1 --full-frame --explosion 3 300 75 --texture-scale 0 --output-dir /tmp/scorched-textured-wrap
+```
+
+The symmetric right-edge blast at (356,300) also passes **185 full RGB frames**,
+final state and complete RNG: `/tmp/scorched-textured-wrap-right`. Combined,
+370 full frames match for both wrap edges. These initialized-heap cases do not
+justify claiming arbitrary out-of-bitmap heap reads are reproduced: the port
+still defaults missing texture bytes to zero and does not emulate general
+native heap history. No production change was needed for these two cases.
+
+```
+python3 disasm/verify_landscape_sequence.py /tmp/scorched-all-modes/mode-4.state --case 0 --wall 1 --full-frame --explosion 356 300 75 --texture-scale 0 --output-dir /tmp/scorched-textured-wrap-right
+```
+
+### Small Memory texture-cache lifecycle
+
+Native setup at 0x2B619..0x2B645 frees an existing texture when DS:510A
+(Small Memory/LOWMEM) is enabled, zeros its far pointer and resets cached
+radius to -1. If the pointer is already null (including a failed allocation),
+it leaves the cached radius and dimensions untouched. Port config now stores
+`smallMemory` (default off), and texture preparation implements these rules.
+Hardware's visible Small Memory control is still the old disabled placeholder;
+this change establishes the backend behavior, not Hardware UI parity.
+
+`verify_explosion_setup.py` now runs each mode/scale through low-memory states
+0,0,1,1,0 using actual game initialization. It compares every texture byte,
+dimensions, radius and complete RNG after each transition, including rebuilding
+a freed texture and retaining the cache for a failed allocation. Initial human
+shop regression still passes.
+
+A newly captured native Hardware menu at `/tmp/scorched-hardware-native.png`
+shows a compact seven-row dialog (Graphics Mode, Bios Keyboard, Small Memory,
+Pointer, Mouse Rate, Firing Delay, Falling Delay, with spacing as rendered),
+including disabled Pointer/Mouse Rate in this fixture. The port's current
+placeholder list does not match this layout; old prose calling it complete
+must not be treated as current parity evidence.
+
+Result: **60 setup/cache comparisons pass** (four representative mode aspects,
+three scales, five Small Memory transitions), including exact texture bytes
+and complete RNG. Hardware dialog rendering and input remain outstanding.
+
+### Hardware dialog layout and pending settings
+
+Replaced the Hardware placeholder list with the seven-row native dialog seen
+in the no-pointer fixture: Graphics Mode, Bios Keyboard and Small Memory
+checkboxes, disabled Pointer=None and Mouse Rate=0.0, Firing Delay and Falling
+Delay. Native 0x3BB86..0x3BDBA constructs these controls; numeric delays use
+step 5 and ranges 0..500 / 0..1000. Layout has 15-pixel rows, no title/footer,
+content-derived width and right-panel centering. Disabled text uses the native
+unselected text color, not the border shade.
+
+Hardware edits use a pending draft and commit on dismissal, consistent with
+native 0x3C76B onward after dialog_run returns. Small Memory is now accessible
+through the menu. Bios Keyboard and delay values are persisted; their DOS
+input/timing effects are not implemented by this UI change. Pointer capability
+variants remain unimplemented (this matches the supplied no-pointer fixture).
+
+`verify_hardware_input.py` compares full RGB plus committed Bios/Small Memory/
+delay/dirty state for opening, Escape/Enter/Space, pending checkbox and delay
+edits, and Small Memory/delay commit. Bios Keyboard close was attempted but the
+native input helper stalls at 0x1056D after changing keyboard backend; that
+case is excluded explicitly rather than treated as a pass. Graphics-mode
+switching and mouse boundary tests remain outside this verifier.
+
+All **11 cases pass at 360x480**. Application RAF-loop regression now checks
+that mode changes stay pending until Escape and then resize the framebuffer;
+it passes, as does initial-shop regression. Shared Economics rendering is
+being regression-tested separately.
+
+Final result: **22 Hardware cases pass across 320x200 and 360x480**, and all
+19 Economics keyboard/RGB/state regression cases pass. Hardware artifacts:
+`/tmp/scorched-hardware-input` and `/tmp/scorched-hardware-input0`.
+
+```
+python3 disasm/verify_hardware_input.py /tmp/scorched-menu-mode4-fixed.state
+python3 disasm/verify_hardware_input.py /tmp/scorched-menu-mode0-fixed.state --output-dir /tmp/scorched-hardware-input0
+```
+
+### Hardware mouse hit bounds
+
+The Hardware mouse verifier now covers both buttons on all seven rows,
+checkbox edges, native-record-derived right/bottom edges for Small Memory and
+the two delay fields, outside dismissal and committed edits. Native widget
+bounds are stored at offsets 0x48..0x4E. A click on Small Memory's right border
+(local x=106) exposed a seven-pixel checkbox mismatch: native toggles,
+while the port does not. The native checkbox hit bounds extend one pixel past
+the painted right border. An initial interpretation of the diff reversed the
+expected/actual states; direct pixel inspection corrected that interpretation.
+
+Updated native-style checkbox hit tests to include the extra pixel and use each
+Hardware numeric field's maximum value when computing its clickable width.
+The old calculation reused Economics' 0.30 field width for Hardware delays.
+The application mode-switch regression passes after the correction.
+
+Boundary probes confirm native widget right and bottom coordinates are
+inclusive. The Small Memory checkbox hit area ends at local x=106 (its painted
+box ends at 105). Firing Delay ends at x=110; Falling Delay ends at x=124,
+including space for the grouped maximum `1,000`. The port now uses those
+content-derived extents and retains inclusive boundary comparisons.
+
+Result: **172 Hardware mouse cases pass** (86 each at 320x200 and 360x480),
+including full RGB, committed settings and dirty state. Coverage includes both
+buttons on every row, sampled right/bottom boundaries of Small Memory and both
+delay fields, outside dismissal, and committed checkbox/delay edits. It does
+not cover held-button repetition or all possible pointer-capability variants.
+Artifacts: `/tmp/scorched-hardware-mouse0-final` and
+`/tmp/scorched-hardware-mouse4-final`. Application mode-switch regression and
+whitespace checks pass.
+
+```
+python3 disasm/verify_hardware_input.py /tmp/scorched-menu-mode0-fixed.state --mouse --output-dir /tmp/scorched-hardware-mouse0-final
+python3 disasm/verify_hardware_input.py /tmp/scorched-menu-mode4-fixed.state --mouse --output-dir /tmp/scorched-hardware-mouse4-final
+```
+
+### Hardware graphics selection does not resize the active menu
+
+Native G followed by Escape commits DS:6312 from 4 to 5 and marks config dirty,
+but the active framebuffer stays 360x480. Start, with the fixture's synthetic
+return replaced by the actual caller continuation, also opens player setup at
+360x480. Native commit code 0x3C76B..0x3C78A stores the selection; the call at
+0x3CF8F logs "Graphics mode changed!" and is not a graphics reinitialization.
+The old application test asserting an immediate resize was a port assumption,
+not native evidence.
+
+Removed the port's Hardware-close resize. Menu/player-setup aspect calculations
+now use active screen dimensions, and texture preparation also uses the active
+mode's aspect rather than a pending saved selection. The application RAF test
+checks selection commits while menu and player setup retain the current size.
+Actual application of a newly saved mode later in startup/gameplay remains to
+be traced; this change does not establish that lifecycle transition.
+
+Both pending G and G/Escape compare exact RGB and committed graphics selection
+in modes 0 and 4: **four native comparisons pass**. Native Start was traced with
+an isolated DOS file root at `/tmp/scorched-mode-earth`; its resulting player
+setup screenshot is `/tmp/scorched-mode-start.png`.
+
+The cache setup verifier now supplies both width and height for each mode;
+previously it set width alone and left height at the default 480, which becomes
+an invalid mixed-mode fixture once active dimensions determine pixel aspect.
+
+All **60 texture setup/cache lifecycle comparisons pass again** with consistent
+active dimensions, including exact bytes and full RNG. Initial-shop and the
+updated application menu/player-resolution regressions pass; syntax and
+whitespace checks pass.
+
+### Saved graphics mode versus active rendering mode
+
+Native config output at 0x1AA99 uses editable DS:6312 to write the selected
+mode name. Active mode is stored separately at DS:6E26 and drives graphics
+initialization and aspect. Main-menu entry at 0x3D1A3 copies the active mode
+back into the editable selection; changing the selection does not rewrite the
+active index. Startup config/argument processing sets the active index.
+
+The port now retains an unpersisted active-mode override after Hardware edits.
+`getActiveGraphicsMode` is used by terrain, tank, projectile, shield, explosion
+and death-effect geometry, and CSS aspect. Game entry no longer calls
+`applyGraphicsMode`; a fresh configuration load applies the saved selection.
+Returning through `resetMenuState` restores the editable selection from the
+active mode, matching native menu entry. This prevents gameplay geometry from
+silently using the selected mode's aspect while its framebuffer is still in
+the old mode.
+
+The application RAF regression exercises Hardware commit, both player names,
+Done through initial shop, active pixel aspect, persistence, and fresh config
+loading: old menu/player/shop resolution stays 360x480; a fresh load applies
+640x400. Player-input and initial-shop regressions pass. Native geometry checks
+pass 207 explosion masks and 585 projectile launch/RGB cases across all modes.
+The Hardware pending/commit RGB comparisons still pass after the refactor.
+
+The native runtime trace now confirms actual initial-shop entry after typing
+and committing both player names: framebuffer **360x480**, active DS:6E26=4,
+selected DS:6312=5. No graphics switch occurred through menu, player setup or
+shop. The trace used the reconstructed real main-menu caller and isolated DOS
+root; artifacts are `/tmp/scorched-mode-shop.state` and `.png`. This is stronger
+than the earlier player-setup-only trace, but is not a fresh-process reload
+screenshot comparison.
+
+### Bios Keyboard dismissal: emulator release events
+
+The earlier Hardware Bios-close stall at native fg_readkey (0x1056D) came
+from emulator event delivery: scheduled key releases were appended to the
+BIOS/DOS character queue as ASCII zero. Fastgraph interpreted that zero as an
+extended-key prefix and blocked waiting for another byte. `push_key` now omits
+break events from the character queue; the scheduled IRQ still receives the
+release scancode and updates native key-down state. The IRQ delivery regression
+now checks those two paths separately. Its make/release test and all 768 BIOS
+modifier flag cases pass.
+
+The previously excluded Bios Keyboard close case now passes native RGB/state.
+Hardware coverage includes switching to BIOS mode, reopening Hardware, editing
+Small Memory while in BIOS mode, and switching BIOS mode off again. The full
+regression also exposed a port dirty-state regression from the active-mode
+refactor: a no-edit Hardware close created a transient config property and
+marked settings dirty. The override is now created only when the mode selection
+actually changes.
+
+Result: **34 Hardware keyboard/RGB/state cases pass** across 320x200 and
+360x480, including BIOS-mode commit, reopen, edit and disable. The former
+Bios-close exclusion has been removed. Extended/non-character BIOS key paths,
+held input, and pointer capability variants are not covered by these cases.
+
+### Hardware arrows and DOS extended-key reads
+
+Native Hardware ignores Left/Right rather than stepping the currently selected
+row. The port's generic submenu navigation changed the graphics selection,
+causing 21/30 pixel differences for Left/Right. Hardware now consumes arrow
+keys without selecting or adjusting rows; hotkeys and mouse controls retain
+their verified behavior. The application mode-change test uses native G,
+replacing its previous unsupported ArrowRight shortcut.
+
+BIOS-mode arrow delivery exposed another emulator issue: DOS INT 21h/AH=07
+returned the initial zero byte but discarded the extended scan code. Fastgraph
+then blocked on its second read. The DOS handler now keeps that scan byte for
+the following read and reports input ready while it is pending. INT 16h still
+returns an extended key as a single scan/ASCII word. Three unit tests cover
+byte ordering, status between reads, following ASCII preservation, empty-read
+blocking and separate BIOS behavior. IRQ release delivery and all 768 modifier
+flag checks also pass. Mid-key checkpoint persistence remains outside these
+tests (the existing state format does not serialize keyboard queues).
+
+Native full RGB/settings comparisons pass **21 arrow cases**: eight single-key
+IRQ/BIOS cases plus Down/Right at 360x480; twelve single-key/combined/dismissal
+cases across both backends at 320x200. Application mode/persistence regression,
+syntax and whitespace checks pass. Artifacts: `/tmp/scorched-hardware-arrows-fixed4`,
+`/tmp/scorched-hardware-arrow-sequence4`, `/tmp/scorched-hardware-arrows-fixed0`.
+
+
+### Physics submenu: native six-row dialog
+
+Native constructor 0x3BF06..0x3C0E4 creates six rows: Air Viscosity,
+Gravity, Suspend Dirt, Tanks Fall, Borders Extend, Effect of Walls. The
+previous eight-row port mixed in sky/wind controls and omitted Tanks Fall.
+Native layout is titleless, 15-pixel rows, height 101, centered in the
+right-hand panel. The 360x480 fixture has bounds (143,189)..(316,290).
+The shared compact renderer now reproduces this layout and checkbox.
+
+Constructor constants establish viscosity step 1 / range 0..20; gravity
+step 0.1 / range 0.05..10 with one decimal; suspended dirt step 5 / range
+0..100 (displayed without percent); borders step 5 / range 0..10000 with
+thousands separators. Suspend Dirt is 100 minus native DS:5158; falling
+is DS:5162, viscosity DS:5180, gravity DS:512A, borders DS:513E, walls
+DS:5156. Commit paths are 0x3C9xx..0x3CB1C. Edits stay in a draft until
+Escape or outside dismissal; Enter/Space and arrows are ignored.
+
+New verify_physics_input.py compares full native RGB and committed settings:
+32 opening/hotkey/dismissal cases across modes 0 and 4; twelve left/right
+mouse edits with dismissal in mode 4; four arrows; fifteen reverse-step,
+wall-list-cycle, repeated-gravity and reopen cases. All 63 pass. Application
+mode/persistence regression also passes. Artifacts are /tmp/scorched-physics-
+input{0,4}, -mouse4, -arrows4, -limits4. Native palette and preview terrain
+are fixture inputs; native dialog pixels are never injected into the port.
+
+Still open: other resolutions and starting settings, float rounding at
+half-way boundaries, widget-edge mouse tests, held input, and the Landscape
+submenu's native placement of sky/wind controls. This does not establish
+complete menu or gameplay parity.
+
+
+### Landscape submenu: native nine-row dialog
+
+Native constructor 0x3C0E7..0x3C345 creates Sky, Max. Wind, Changing Wind,
+Hostile Environment, Bumpiness, Slope, Flatten Peaks, Random Land, and
+Percent Scanned Mountains. This supersedes the earlier menu table and the
+port's generic six-row Landscape dialog. Sky is DS:5110 (despite historical
+TERRAIN_TYPE naming); it is not the port's separate landType setting.
+Sky names are Plain/Shaded/Stars/Storm/Sunset/Cavern/Black/Random.
+Native sky capability callback 0x3BA5E checks available color count; the
+current port supports the 256-color list. Low-color capability is unverified.
+
+Max. Wind is 0..500, step 5; Bumpiness, Slope and scanned-mountain percent
+are 0..100, step 2 (DS:6380=2.0). Checkbox fields use DS:50FA, 513C, 5172,
+5150; numerical fields use DS:515C, 516E, 5170, and float64 DS:5132.
+The compact dialog has 15-pixel rows, height 146, bounds (131,166)..(327,312)
+at 360x480. Checkbox positions align to the longest checkbox label.
+
+The port uses deferred edits and native dismissal rules, consumes arrows,
+and leaves the existing Sunset menu preview unchanged when Landscape
+settings commit. Sky/wind controls are restored in their correct submenu;
+the invented Land Type selector is removed from this dialog. The shared
+renderer helpers were renamed drawSettingsSubmenu/settingsSubmenuLayout.
+
+verify_landscape_input.py passes 85 full-RGB/committed-settings cases:
+44 opening/edit/dismissal cases across 320x200 and 360x480, 20 mouse cases
+(including both buttons and outside dismissal after a sky edit), 4 arrows,
+and 17 reverse-step/sky-cycle/reopen cases. Artifacts are
+/tmp/scorched-landscape-input{0,4}, -mouse4, -arrows4, -limits4.
+Application mode/persistence and Physics opening regressions pass; syntax
+and whitespace checks pass. Native preview terrain/palette remain fixture
+inputs, not evidence of an independent startup or gameplay render.
+
+Remaining coverage includes other resolutions/starting settings, exact
+widget-edge hit testing, held input, low-color capabilities, and the effect
+of these edits on complete subsequent rounds. Play Options and Weapons
+still use generic layouts and incorrect field groupings.
+
+
+### Play Options: nine native rows and filename editing
+
+Constructor 0x3C348..0x3C536 creates Mode, Teams, Status Bar, Play Order,
+Fast Computers, Talking Tanks, Talk Probability, Attack File and Die File.
+The former port dialog duplicated physics/weapons/landscape controls instead.
+The compact renderer now matches the native row set and list names, uses
+checkboxes, and defers config writes until dismissal. Talk Probability is
+0..100, step 5, without a percent suffix. Native DS fields are 5188, 50EA,
+5142, 519C, 50EE, 5118, 511A; filename buffers are ECD8 and ED18.
+
+Native dialog alignment call 0x3C52E aligns checkbox and text-field right
+edges. At 360x480 its bounds are (141,166)..(317,313), width 176, height 147.
+The two filename fields are 13-pixel widgets with 14-pixel painted borders.
+A/D start empty replacement buffers; letters, digits and period are allowed,
+length is capped at 12, Backspace removes the final character, Enter accepts
+nonempty edits, and Escape/empty Enter restore the old filename. Config now
+persists fastComputers, attackFile and dieFile. Speech loading still uses the
+built-in phrase arrays: arbitrary filename resolution is NOT implemented.
+Fast Computers' gameplay effects likewise remain to be connected/verified.
+
+The native editor (0x49F52) uses palette entry 162 for its cursor, setting it
+to (10,10,10), then alternating with (45,45,45) after 250 polls without a
+pointer or 25 with one. The port initializes the missing cursor color and
+blinks via its frame counter. Verification explicitly aligns cursor phase
+using --menu-blink-frame; it proves cursor geometry/color phases, NOT native
+CPU-poll timing. No dialog pixels or typed text are injected from captures.
+
+Mouse activation reaches the native editor while its initiating button is
+still held; 0x49FE1..0x4A02C immediately cancels the empty edit. Both label
+and field clicks therefore leave these supplied fixtures unchanged; A/D
+hotkeys provide persistent editing. Port mouse handling matches those cases.
+Rapid-release pointer variants remain unproven.
+
+verify_playoptions_input.py passes 98 native RGB/committed-settings cases:
+52 basic/list/checkbox/filename cases across modes 0 and 4; 12 reverse/list
+cycles; 6 typing/period/Backspace/empty/cancel/length cases; 4 arrows; and
+24 mouse/dismissal cases. Artifacts: /tmp/scorched-playoptions-input0,
+-input4 (first 18 cases), -attack4, -die4, -limits4, -text4, -arrows4,
+-mouse4-final (18 rows), -fields4, -outside4, -outside-right4. The intermediate
+mouse/typing failures were retained for diagnosis; suffix-specific runs
+verify their corrections. Player setup input, initial shop, application
+mode/persistence, syntax and whitespace regressions pass.
+
+Remaining: Weapons layout, file loading, Fast Computers semantics, text
+mouse cancellation with nonempty buffers, exact blink timing, untested
+resolutions/settings and the broader gameplay/system-menu gaps.
+
+
+### Weapons submenu: compact layout and deferred edits
+
+Native constructor 0x3C539..0x3C6A0 creates seven rows: Arms Level, Bomb
+Icon, Tunneling, Scale, Trace Paths, Extra Dirt, Useless Items. Unlike the
+other previously generic dialogs, its old row labels/list names were already
+correct. Tunneling, Trace Paths, Extra Dirt and Useless Items are checkboxes,
+not Off/On lists. The compact dialog has 15-pixel rows and height 116.
+
+The port now uses the shared native settings renderer and draft/commit rules.
+Arms Level wraps 0..4; Bomb Icon is Small/Big/Invisible; Scale is
+Normal/Medium/Large. Enter, Space and arrows are ignored, hotkeys increment,
+Alt-hotkeys reverse, mouse buttons decrement/increment, and Escape or outside
+click commits only changed settings. Native DS fields are 518A, 51A2, 513A,
+5112, 5168, 50FC and 50FE respectively.
+
+verify_weapons_input.py compares native RGB and committed config, with
+opening coverage across all nine graphics modes; full basic keyboard cases
+in modes 0 and 4; reversed shortcuts/list wrapping/reopening, arrows, both
+mouse buttons and outside dismissal in mode 4. Its --edges option derives
+actual widget rectangles from native memory and tests inclusive right/bottom
+bounds and adjacent outside pixels for Arms Level and two checkboxes.
+Native palette/preview terrain remain fixture inputs. This does not prove
+independent startup generation or all downstream weapon effects.
+
+All seven configuration submenus now use native-style compact renderers.
+Remaining work includes Sound/Economics arrow semantics, full pointer and
+held-input coverage, text cursor timing/file loading, Fast Computers effects,
+System Menu actions, and broader gameplay fidelity. No full-parity claim.
+
+Weapons result: **111 native RGB/settings cases pass** (36 basic, 11
+reverse/cycle/reopen, 17 mouse, 4 arrows, 7 additional opening resolutions,
+36 boundary clicks). Artifacts: /tmp/scorched-weapons-input{0,4}, -limits4,
+-mouse4, -arrows4, -open{1,2,3,5,6,7,8}, -edges4. Application mode/persistence,
+player setup, initial shop, syntax and whitespace regressions pass.
+
+
+### Sound/Economics extended arrows
+
+Native capture confirms the remaining two configuration submenus also ignore
+extended arrows. Before correction, Left changed Sound (24 RGB pixels) and
+Economics interest (6 RGB pixels), despite unchanged native settings/display.
+The port now consumes arrows uniformly in configuration submenus, removing
+the obsolete generic row navigation. Filename editing remains a separate
+input path; this change does not alter player setup navigation.
+
+Both verifiers now accept --arrows. All 24 RGB/committed-settings cases pass:
+four individual arrows, Down/Right/Escape, and a valid edit followed by arrows
+and Escape, for Sound and Economics at both 320x200 and 360x480. Artifacts:
+/tmp/scorched-{sound,economics}-arrows{0,4}; initial failing captures remain
+under -arrows-before4. Application mode/persistence, player setup, syntax and
+whitespace checks pass. Held input and other BIOS/pointer variants remain
+outside this check; full gameplay and System Menu parity remain unfinished.
+
+
+### System Menu: Reassign Players roster and existing player editor
+
+System Menu P / Reassign Players now closes the System Menu and opens a
+roster over the underlying configuration dialog. Native callback 0x3F41A
+calls 0x357B0. Numbered buttons invoke the ordinary player editor through
+0x352B7 -> 0x27BFD; the editor preserves the underlying screen instead of
+painting the initial-setup striped backdrop. The port reuses its existing
+player editor with that backdrop distinction and writes accepted name/type/
+color/tank edits to the corresponding player, then returns to the roster.
+
+Roster geometry follows 0x35212 and 0x356FA: minimum name width measured from
+"Minimum", type-column width from the class labels, title/name-dependent
+dialog width, 18-pixel rows, and vertical compression when needed. Human
+class labels read "Sentient" in the native roster. Names use each player's
+base color index, not the darkest ramp slot. Native row-label baseline is
+widget top +2, so its position relative to button text differs with the UI
+border height. Buttons are 18 pixels wide.
+
+After Done, native redraws the selected player's button last; in 360x480,
+its lower border overlaps the next button's top border by one pixel. The
+port preserves that drawing order. Escape in the player editor leaves it
+open; Escape in the roster dismisses the roster. Enter/Space in the roster
+are ignored. The reused Done button also exposed an existing small-mode
+bug: it now uses native border offset and 17/19-pixel button height.
+
+verify_reassign_players.py compares full RGB and committed player fields
+(name, type, color, tank), plus Economics settings/dirty state. Its supplied
+fixtures explicitly cover human players. **24 cases pass**: nine roster/
+selection/Done/rename/Escape cases in each of modes 0 and 4, plus six
+left/right mouse selection and outside-dismissal cases in mode 4.
+Artifacts: /tmp/scorched-reassign4 (first eight cases), -escape4,
+-reassign0 (opening/dismissal), -player0, -rename0, -mouse4. Initial failing
+captures remain in the base directories; suffix runs verify corrections.
+Application mode/persistence, initial shop, player input and whitespace
+regressions pass. Native roster data/palette/preview are fixture inputs;
+no native dialog pixels are injected.
+
+Still open: AI reassignment comparisons, long-name resizing, ten-player
+compression, color/tank changes across contexts, fresh startup lifecycle,
+gameplay System Menu integration, and other System Menu actions. Reassign
+Players is not claimed complete across those unverified contexts.
+
+### Reassign Players: retained name width and additional failures
+
+Native 0x35420 compares an edited name width to DS:EC46 and updates layout
+only if it grows. The port now retains the maximum name width for the life
+of the roster, resetting it on a fresh opening. All four full RGB/settings
+comparisons pass at 360x480: long name, editor reopen, shorten, and dismiss/
+reopen after shortening. Artifacts: /tmp/scorched-reassign-names-fixed4.
+Player setup, mode persistence, initial shop and whitespace regressions pass.
+Removed the unsupported I shortcut for tank selection; the native ignores
+it, and the filtered tank-change comparison now passes.
+
+Extended AI checks pass for seven explicit classes (pending and committed)
+and pending Unknown, but Unknown commit fails: native resolves type 8 to 3
+in this fixture. Disassembly 0x27DBE..0x27DFE explains this: selection type 8
+sets tank+0x24 to -2 and draws random(7)+1 for tank+0x22, unless +0x24 was
+already -2. The port still needs this selected/resolved distinction and RNG
+integration; do not hardcode the fixture's resolved value.
+
+The first tank-icon click comparison also fails (native retains tank 3,
+port commits 0). Native commit 0x27E5F..0x27E97 gates a changed tank type on
+both tank+0x18 and DS:50E2 being nonzero. Further captures must distinguish
+selection hit geometry from commit gating before changing the shared editor.
+Artifacts: /tmp/scorched-reassign-types4 and /tmp/scorched-reassign-icons4.
+
+### Reassign Players: Unknown AI selection versus resolved type
+
+The port now stores native tank+0x24 as aiSelection (-1 initially, -2 for
+Unknown, explicit computer type minus one otherwise), separately from aiType
+at +0x22. Reassignment of Unknown consumes random(7)+1 only when previous
+aiSelection was not -2. Reaccepting an existing Unknown writes aiType=8
+without consuming RNG, matching the native branch at 0x27DC9. Human selection
+leaves +0x24 unchanged. Roster and reopened editor display Unknown via the
+selection marker even when its resolved aiType is a concrete class.
+
+The verifier now compares both fields and the complete 250-word R250 state
+plus index. The screenshot harness restores only the initial checkpoint RNG,
+not the native result. Six 360x480 cases pass full RGB, committed settings,
+and RNG: Unknown pending, Done, reopen, second Done, switch to human, and
+switch to Moron. Artifacts: /tmp/scorched-reassign-unknown-fixed4,
+-unknown-reopen4, -unknown-switch4. Player setup, mode persistence, initial
+shop and whitespace regression checks pass.
+
+320x200 remains unfinished: Unknown pending has matching state/RNG but 602
+RGB mismatches confined to the AI radio controls (79,47)..(209,87). Native
+small-mode rings are visibly smaller than the port's fixed 5/3 radii.
+Artifact: /tmp/scorched-reassign-unknown-fixed0. Initial player setup Unknown
+resolution and gameplay lifecycle beyond this reassignment path still need
+verification/integration; tank-icon commit gating remains open.
+
+### Small-mode AI radio geometry
+
+Fixed the 602-pixel AI editor mismatch at 320x200. Native dialog setup at
+0x49617 checks FG_MAXY < 210 and sets DS:6FF2/6FF4 to 3/2, replacing the
+initial 5/3 radii. Radio rendering at 0x47FA4 and 0x47FBA reads those fields.
+The shared player editor now uses that height condition for its outer/inner
+rings, retaining the native circle iterator and aspect scaling. Captured
+editor memory confirms 3/2 in mode 0 and 5/3 in mode 4.
+
+Eight full RGB/settings/R250 comparisons pass: Unknown pending and Done in
+modes 0 and 4, plus mode-0 reopen, second Done, switch to human, and switch
+to Moron. Artifacts: /tmp/scorched-reassign-radio-fixed{0,4} and
+/tmp/scorched-reassign-radio-reopen0. Player setup, mode persistence, initial
+shop and whitespace regressions pass. No native result pixels are injected.
+
+The tank commit mismatch is still open. Both main-menu fixtures have
+native tank+0x18=0 and DS:50E2=0, confirming the commit guard identified at
+0x27E83..0x27E97 prevents changing the stored tank type in this context.
+Editor selection versus committed type needs separate captures next.
+
+### Reassign Players: tank preview, mouse buttons and configuration commit
+
+Configuration-menu reassignment now retains the existing tank type on Done,
+matching the native DS:50E2 guard at 0x27E83..0x27E97. Selection still moves
+the editor's slider; reopening restores the committed type. This applies to
+the currently implemented configuration roster. Gameplay reassignment will
+need the active-play/live-tank guard plus tank-stat recalculation and redraw;
+it is not implemented by simply retaining tank type in that future context.
+
+The shared player editor now accepts right-button selection as native does.
+Its Name label stays highlighted after selecting a tank (native has no
+focus-dependent dimming here). Before fixing, pending left-button selection
+had 70 mismatched Name-label pixels; right-button selection had 52 slider
+pixels mismatched because it was ignored.
+
+36 full RGB/settings/R250 cases pass: human tank 0 and 5, computer-only tank
+6, both mouse buttons, each pending/Done/reopen, in modes 0 and 4. Artifacts:
+/tmp/scorched-reassign-icons-fixed{0,4}. Player setup input, mode persistence,
+initial shop and whitespace regressions pass. Held/dragged input, exact hit
+boundaries, ten-player layout, fresh-start persistence and gameplay System
+Menu integration remain to be covered.
+
+### Ten-player roster geometry and exposed initialization mismatch
+
+The verifier's --ten-players reaches ten through native Players hotkeys
+before opening Economics/System/Reassign Players. No additional tank structs
+are synthesized. Initial captures failed by 3126 pixels at 320x200 and 2243
+at 360x480. Native uses label `1~0` for player ten and normalizes all numbered
+buttons to the widest label. The port now measures the widest number,
+uses that width for drawing/hit testing and offsets the name/type columns
+from the button edge. Compression at 0x358CA subtracts i+1 from each row,
+so compressed rowY is 24, with pitch 17, rather than rowY 25.
+
+Both ten-player openings now match full RGB/settings/R250; artifacts:
+/tmp/scorched-reassign-ten-fixed{0,4}. Existing two-player selection and Done
+also match after preserving the widest-digit rule (digit 1 is narrower than
+some other digits): /tmp/scorched-reassign-two-width-fixed4. Player setup,
+mode persistence, initial shop and whitespace regressions pass.
+
+The expanded last-player editor cases expose an unresolved initialization
+issue, not a completed ten-player editor claim. Native newly enabled slot 10
+still has uninitialized player identity/color fields: its editor title reads
+Player 1 (of 10), its tank previews are black, and Done remains enabled with
+an empty name. The port instead uses slot index for the title, canonical red
+for color index zero and disables empty-name Done. Pending captures mismatch
+760 pixels in mode 0 and 819 in mode 4. Artifacts:
+/tmp/scorched-reassign-ten-final{0,4}. The remaining rename/reopen and mouse
+cases are present in the verifier but were not reached after that failure.
+Next work must reconcile native player initialization and identity fields,
+including the normal Start lifecycle, rather than special-case slot ten.
+
+### Reassign editor identity, RGB and modal roster state
+
+Native editor title reads tank+0xA0, and its preview color uses tank RGB at
++0x1C/+0x1E/+0x20, independently of the player array position/palette base.
+The port now keeps identityIndex and colorRgb as player fields. Configuration
+slots created before normal setup use zero identity/RGB/type/selection,
+matching the newly enabled native slots. Normal createPlayer/setup assigns
+identity and canonical selected RGB. Reassignment preserves an enabled Done
+button even for an empty existing name; initial name entry still uses its
+ordinary validation. Fixtures compare initial/final identity and RGB fields.
+
+While editing, the roster's selected button is sunken, its label moves +2/+2,
+and other numbered buttons lose hotkeys and use dark text with a one-pixel
+light shadow. This became visible above/below the editor in ten-player mode.
+Small-mode opening, last-player selection, rename/Done, reopen, and first Done
+match full RGB/settings/R250 in /tmp/scorched-reassign-identity-final0.
+Large-mode last-player selection, rename/Done and reopen match in
+/tmp/scorched-reassign-identity-label4 (opening passed earlier runs).
+Two-player selection/Done passes in /tmp/scorched-reassign-identity-two4.
+Player input, mode persistence, initial shop and whitespace regressions pass.
+
+Ten-player mouse cases remain failing: newly enabled native slots have null
+name pointers. capture_shop_click changes bytes at address zero (confirmed
+0000900001005000 before, b300900001005000 after in mode 0); the extractor then
+reads those interrupt-vector bytes as every uninitialized slot's name. This
+is not a verified normal-name result, and the failure has not been masked.
+Next checks need a genuinely initialized ten-player checkpoint and an audit
+of the capture harness's writes at zero. Full Start/reassignment persistence
+and gameplay System Menu remain unfinished.
+
+### Mouse capture null-pointer guard: ten-player comparisons unblocked
+
+The address-zero writes were a capture-harness bug. Native mouse query at
+0x4BDB1 tests the first coordinate far pointer and skips BOTH coordinate
+writes if it is null; button-only polls deliberately pass that null pointer.
+capture_shop_click.py previously wrote through both pointers unconditionally.
+It now preserves the native guard. Applied the same correction to the copied
+poll adapters in verify_final_mouse, verify_rankings_mouse,
+verify_team_rankings_mouse, verify_shop_exit and verify_shop_done_bounds.
+
+All 14 ten-player cases now pass full RGB, committed fields (including native
+identity/RGB/AI selection) and full R250 state across modes 0 and 4: opening,
+last-player keyboard selection, rename/Done, reopen, first-player Done, and
+last-player selection via both mouse buttons. Artifacts:
+/tmp/scorched-reassign-null-fixed{0,4}. Direct memory checks also confirm the
+first two interrupt vectors remain unchanged through both mouse captures.
+No null-name results were discarded or patched after capture.
+
+Corrected-harness regressions pass: four rankings press/release cases, eight
+final-dialog transitions/retained-panel RGB cases, six team-rankings cases,
+48 shop Done boundaries, and final-shop left-click Done through accounting,
+market update, landscape generation and player-order entry. Existing player
+input, mode persistence, initial shop and whitespace checks pass.
+
+This resolves the prior invalid mouse evidence for the newly enabled slots.
+Normal Start initialization of ten players, reassignment/start persistence,
+held/dragged input and gameplay System Menu remain separate open work.
+
+### Reassignment to Start: retained name and missing backdrop animation
+
+Added --start to verify_reassign_players.py. Like verify_menu_restart, this
+restores the captured menu's synthetic caller frame before exercising Start
+(return 2431:0445, caller BP 2500). Without it, Start returns into invalid
+code at 0000:0000. capture_shop_click now preserves the underlying emulator
+exception instead of obscuring it with a TypeError while counting steps.
+The screenshot harness now renders player setup when menu input transitions
+to that screen, and reports the current editor fields.
+
+Native Start retains the previous player's name underneath a blank modal
+replacement buffer. Cancel restores that previous name. initPlayerSetup now
+preserves existing names while opening empty edit buffers; its Done rendering
+stays disabled during initial modal name entry. The native rename-to-x,
+Start, Escape sequence matches editor fields, roster, RNG and every RGB pixel
+inside the 202x146 player panel. Artifacts:
+/tmp/scorched-reassign-start-cancel4. Existing player input, graphics-mode,
+initial-shop and whitespace regressions pass.
+
+Full-screen comparison remains failing: 135982 pixels differ outside the
+panel because native has already rotated the 40-entry backdrop palette by
+one step, while setupPlayerBackdrop generates a static ramp. Native ramp
+construction at 0x26B69 matches the current scale formula; the missing part is
+palette-cycle execution/timing. Do not resolve this by injecting the final
+native palette. Next work: trace setup animation callback and reproduce its
+initial rotation plus subsequent updates, then extend Start checks to AI
+and all initialized players.
+
+### Setup backdrop rotation and pre-editor texture preparation
+
+Native 0x26C61 rotates the 40-entry palette once immediately after creating
+the first player's ramp. Idle callback 0x273A0 increments DS:5008 and rotates
+again when the counter exceeds 100, or on every callback with DS:6E42 set;
+it resets the counter after rotation. Modal name entry does not execute that
+callback. The port now performs the initial rotation and advances the palette
+on setup idle ticks, pausing while editing a name. Later players rebuild the
+ramp without the first-player rotation. Pointer mode is supported by the
+callback helper; current Hardware exposes no pointer. Native callback counts
+are matched; real DOS busy-loop speed versus browser frame pacing is not
+claimed calibrated.
+
+verify_setup_palette.py executes the native callback directly and compares
+all 120 palette channels with independently generated port colors. Twelve
+samples cover 100/101-poll boundary, subsequent rotations, full 40-step wrap,
+and pointer callbacks. Both mode-0 and mode-4 checkpoints pass.
+
+Full-screen Start comparisons exposed a second issue: native prepares its
+scaled explosion texture before player setup, while the port deferred it to
+initGameRound. Start now prepares the cache immediately. The mode-0 fixture
+changes radius 225 to 75 and consumes R250 (index 154 to 101); mode 4 retains
+its existing radius. The verifier supplies only the initial native cache
+radius and checks the complete final R250 state. Initial shop entry retains
+the idempotent cache preparation for direct initGameRound callers.
+
+All four Start-after-rename / cancel-name cases now pass full-screen RGB,
+editor fields, committed roster and complete R250 state in modes 0 and 4.
+Artifacts: /tmp/scorched-reassign-start-rng{0,4}. The small-mode native Start
+needed 5179610 instructions before its first poll, so --start comparisons use
+a ten-million instruction budget. Player input, mode persistence, initial
+shop and whitespace regressions pass. Remaining startup work includes AI
+selection/resolution, progression through all players, and full-session
+persistence; gameplay System Menu and drag/hold coverage remain open.
+
+### Startup progression: inherited type and deferred palette publication
+
+Native Done stores player type/tank choice as defaults for the next player
+(0x279E2, 0x27B3E..0x27B76). Startup now commits each accepted player's fields
+immediately and carries the selected human/computer class and tank choice
+into the next editor. Computer successors do not enter modal name editing.
+Unknown commits random(7)+1 with selection marker -2; the selected Unknown
+class remains available for the next editor. resolvedAiType carries that
+result through createPlayers so game creation does not lose or reroll it.
+
+The native ramp builder (0x26B69) changes the palette buffer, but does not
+publish it. For later players, the old visible backdrop remains until the
+idle callback's next rotation publishes the newly colored ramp. Port setup
+now separates ramp preparation from publication. This fixed 143308 background
+pixels in the player-two human transition while preserving the already exact
+editor panel.
+
+Human and Chooser transitions to player two pass full RGB, editor fields,
+committed roster and full R250 state in modes 0 and 4. Unknown transition also
+passes in mode 4. Artifacts: /tmp/scorched-start-next-fixed{0,4} and
+/tmp/scorched-start-unknown4. Player input, mode persistence, initial shop,
+12 native palette samples and whitespace regressions pass. This does not yet
+prove empty-name computer naming, every tank default, or completion of the
+whole setup-to-shop lifecycle; those remain open.
+Unknown transition also passes in mode 0 (/tmp/scorched-start-unknown0), for
+six progression comparisons across the two modes. A direct createPlayers
+check preserves resolved type 3 / Unknown marker -2 without consuming RNG.
+
+### Empty computer names: native table and RNG order
+
+Native 0x2D844 performs random(67) and returns a string from DS:53AE. Added
+player-names.js with the 67 original names/spellings in native order. Startup
+Done now generates a name only for an unnamed computer, after Unknown type
+resolution (0x27A0F..0x27A8B). Existing nonempty names consume no name RNG.
+
+verify_computer_names.py calls the actual native routine with controlled
+R250 words and checks the returned name plus complete resulting RNG state
+against the port. All 69 cases pass: every table entry and unsigned modulo
+inputs 32767/65535. Existing player input, mode persistence, initial shop and
+whitespace regressions pass.
+
+Added --empty-first-name to the Start verifier: it clears the existing
+allocated first-name buffer before the sequence (an explicit input-state
+variation, not a result patch). Native and port both generate Ralph with
+identical final R250 state in /tmp/scorched-empty-after4. Full integration
+still fails: native player-two computer editor has an empty hidden name
+field, while the port supplies the retained second name nb. Native also
+publishes the green backdrop in this path, unlike the named predecessor
+path checked earlier. The failing case remains in the verifier; Unknown
+empty-name case is queued after it and has not been reached. Further work
+must trace the dialog's initial focus/name-buffer lifecycle and callback
+execution rather than infer that all next-player contexts are equivalent.
+
+### Ordinary Start versus Start after reassignment: persistent dialog flag
+
+The earlier named/empty-name distinction was a correlation, not the cause.
+Opening a Reassign Players editor sets DS:500C=1 (0x27C28). Builder 0x283E2
+uses this flag to supply the stored name instead of an empty name, and
+0x284C1 installs the setup idle callback only when the flag is zero. The port
+now preserves this flag across the corresponding paths, uses empty names on
+ordinary Start, and disables setup idle updates after reassignment.
+
+Rechecked Start-after-reassignment player-two Chooser output: all 172800 RGB
+pixels match (/tmp/scorched-reassign-mode-regression4). Ordinary Start empty
+Chooser and Unknown now both pass editor fields, committed roster and full
+R250 state. Their default replay still fails full RGB: 143308 backdrop pixels
+differ while the editor matches exactly. Do not report these default cases
+as passing.
+
+Added optional capture_shop_click.py --setup-trace to observe callback entry,
+poll number, counter, player identity and pointer flag without altering the
+native execution. Tracing the first player's Done action records 119 setup
+callbacks: one for player zero and 118 for player one. The native counter
+moves from 33 to 51, including one rotation of the new green ramp. Instrumented
+and original native screenshots match all pixels.
+
+web_screenshot.mjs now accepts --menu-idle COUNT to replay explicit idle ticks
+between inputs. Appending the measured 118 ticks after Done produces exact
+full-screen RGB for both ordinary Chooser and Unknown transitions in mode 4
+(/tmp/scorched-empty-mode4/idle-diff.png and
+/tmp/scorched-empty-unknown-mode4/idle-diff.png). No final native palette is
+injected. This isolates the remaining mismatch to scheduling; it does not
+prove matching callback history before Done, callback counter initialization,
+other capture durations, or real-time DOS/browser pacing. Those remain open,
+as does the complete setup-to-shop lifecycle. Player-input, mode-persistence,
+and initial-shop regression tests pass.
+
+### Name entry does execute the setup idle callback
+
+Correction to the earlier modal-pause claim: text editor 0x49F52 invokes the
+parent dialog's idle callback at 0x4A032..0x4A042 when there is no mouse press.
+The ordinary Start trace records 118 callbacks while the first player's empty
+name editor remains active. Its inherited DS:5008 counter starts at 59 and
+ends at 76, with a backdrop rotation. Artifact:
+/tmp/scorched-start-initial-trace.{state,json,png}.
+
+Removed the editName guard from the port's setup idle update. Reassignment
+still suppresses updates via its persistent DS:500C equivalent. Added
+verify_setup_palette.py --modal to exercise normal samples through menuTick
+while name entry remains active, comparing against actual native callback
+execution. Both mode-0 and mode-4 checkpoints pass the 101-callback boundary,
+subsequent rotations and full 40-step wrap; the existing three pointer samples
+continue exercising the callback helper directly. Player input, mode
+persistence and initial shop regressions pass.
+
+Also replayed 201 extra idle ticks after the reassignment->Start->Chooser
+transition: the full 172800-pixel screen remains identical to native, verifying
+that removing the modal pause does not enable the disabled callback path.
+Artifact: /tmp/scorched-reassign-mode-regression4/idle201-diff.png.
+
+Remaining animation verification must carry the initial native callback
+counter and align callback counts for each input, including name editing.
+The single post-Done alignment from the prior entry does not establish this
+full history or real-time pacing. No full startup parity claim yet.
+
+### Startup callback history aligned across every input
+
+Moved the persistent DS:5008 equivalent into menu.setupBackdropPolls so a
+checkpoint replay can restore its initial counter alongside the existing
+initial roster/RNG/cache state. Runtime initialization remains zero and setup
+entry does not reset it. No final palette or final counter is injected.
+
+Added --menu-setup-callbacks COUNT to web_screenshot.mjs: after an input it
+accounts for the callback already executed by that input, then advances the
+remaining measured callbacks through normal menuTick calls. The replay fails
+if those ticks do not execute setup callbacks. verify_reassign_players.py
+--align-setup-idle records native callback traces per action, supplies their
+counts to replay, and checks the final persistent counter. Optional
+--check-each-step also checks full RGB and counter after each input.
+
+Ordinary Start with empty first names now passes full RGB, editor fields,
+committed roster and complete R250 state for both Chooser and Unknown in
+modes 0 and 4. Artifacts: /tmp/scorched-start-aligned{0,4}. Independent prefix
+replays checked all six Chooser input snapshots in each mode: all twelve
+screens and their counters match. Measured callback counts are
+0,118,121,120,120,119; counters are 59,76,96,14,33,51. The Start/name-entry
+snapshot is included, so this verifies more than just the final green ramp.
+
+The --align-setup-idle schedule is explicit emulation-time input; this does
+not calibrate actual DOS busy-loop speed to requestAnimationFrame. Broader
+name editing/blinking durations, other setup choices, all-player completion,
+and setup-to-shop/gameplay lifecycle remain unverified. Modal palette,
+player input, graphics-mode persistence, initial shop, syntax and whitespace
+checks pass.
+
+### Startup tank selection survives switching back to Human
+
+Added verify_reassign_players.py --start-tanks cases for tank indices 0, 5
+and 6, covering advancement to the next editor and switching back to Human.
+The index-6 switch exposed a real mismatch: native retains index 6 and leaves
+its icon enabled, while the port reset the selection to zero and darkened the
+icon. Native 0x27575..0x27577 skips the historical disable/reset branch; the
+computer transition at 0x274FC..0x27540 enables the last tank and the Human
+transition does not undo that change.
+
+setSetupHuman now preserves the tank and records that the extra tank has been
+enabled in this editor. Both rendering and mouse selection honor this state.
+Fresh Human editors still initially show the extra tank disabled. The change
+is scoped to the current editor; it does not invent cross-editor persistence.
+
+Computer tank 6 -> next computer passes full RGB, fields, roster and R250 in
+mode 4. Computer tank 6 -> Human now matches full RGB and fields in both modes
+0 and 4, with matching callback counter/R250; the mode-0 verifier also checks
+the unchanged roster. Artifacts: /tmp/scorched-start-tanks{0,4}, including
+mode-4 human-fixed*. Initial mismatch was tankType 0 versus native 6; after
+fixing the selection alone, 114 icon pixels still differed. Preserving the
+enabled icon closes those remaining differences.
+
+Player-input, mode-persistence and initial-shop regressions pass. Other newly
+added tank cases have not yet been run. All-player setup completion and the
+setup-to-shop lifecycle remain open.
+
+### Post-setup duplicate computer names
+
+Native 0x26DC2..0x26E10 makes a separate pass after all player editors finish.
+For each computer, it rerolls the name while another player has the same name.
+The comparator at 0x28687 calls the ASCII case-insensitive routine 0x0C2C1.
+Human duplicates are preserved. Iteration order matters: earlier computers
+compare against later names before those later players have been processed.
+
+Added resolveDuplicateComputerNames and invoke it on final setup Done, before
+returning start_game. Accepted setup names and the existing roster are updated;
+createPlayers receives the resolved names when opening the initial shop.
+
+verify_duplicate_names.py executes the actual native post-editor loop, using
+the native name setter to allocate initial test names and controlled initial
+R250 words. Five cases cover human/computer collisions, case-only collisions,
+two colliding computers, unchanged human duplicates and distinct computers.
+Names and complete R250 state match from both mode-0 and mode-4 checkpoints.
+These are direct routine checks, not an entire boot/setup/shop capture.
+
+New test_setup_completion.mjs enters Bob for both players through menu input,
+changes the second player to computer, and verifies final Done rerolls Bob
+then Joe before opening the initial shop with the accepted identities. Existing
+player-input and initial-shop checks pass. Full native setup-to-shop screenshot
+parity remains open.
+
+All twelve --start-tanks cases (indices 0, 5, 6; next-player and Human switch;
+modes 0 and 4) now pass full RGB, editor fields, committed roster and full
+R250 state. Artifacts: /tmp/scorched-start-all-tanks{0,4}.
+
+### First complete setup-to-shop replay: remaining icon palette mismatch
+
+Extended web_screenshot.mjs menu replay to handle start_game by mirroring
+main.js startGame (framebuffer/terrain buffer reset, round initialization,
+initGameRound) and then drawing/handling the shop. Final Done no longer leaves
+the harness indexing beyond playerSetup.
+
+Continued /tmp/scorched-start-next-fixed4/start-next-human-11.state with Escape
+then Done to /tmp/scorched-setup-first-shop4.state, and replayed the full menu
+sequence from that comparison's initial base.json. Full R250 state matches
+(index 192), with accepted names x and nb. Full-screen comparison is not yet
+exact: 202/172800 pixels differ, confined to item icons/counts. Artifacts:
+/tmp/scorched-setup-first-shop4{,-port,-diff}.png and port JSON/RNG outputs.
+
+Native 0x160C6..0x1620A initializes 21 staged shop colors and publishes them at
+palette 170. Native final palette[2] remains player red (63,10,10), while
+palette[172] is animated (49,7,0). The current port tickAccentPalette writes
+indices 2/8..11/14..18 directly and does not initialize the shaded-icon range
+170..190 when leaving setup. This appears to explain the remaining mismatch;
+no palette fix has yet been applied. Next: model native shop palette staging,
+publication and lifecycle, then align shop callback timing and verify both
+resolutions. Do not inject the final native palette to make this pass.
+
+### Shop palette publication and initial Baby Missile quantity
+
+Implemented native shop palette initialization (0x160C6..0x1620A): 21 staged
+colors are published at VGA 170..190. The animation callback updates staging
+offsets 2, 8..11 and 14..18 and publishes at 170, rather than altering player
+colors at low palette indices. Removed the erroneous low-color save/restore.
+The shop callback counter now persists across openings and wraps at 101.
+First-viewer initialization occurs at the beginning of each shop pass.
+
+verify_shop_palette.py executes native initialization and 202 callbacks,
+comparing all 21 palette colors at every step and verifying unrelated colors
+remain unchanged. Both mode checkpoints pass. Added --shop-trace capture
+instrumentation and initial shopFrame restoration to the replay harness.
+The native final-Done transition executes 118 shop callbacks, taking the
+checkpoint's initial counter 22 to 39. No final palette is injected.
+
+The palette correction left 22 differing pixels in the initial Baby Missile
+quantity: native inventory starts at 99 while createInventory used -1 and the
+shop rendered zero. Initial inventory now uses native 99; firing already
+exempts Baby Missiles from decrementing. The initial-shop test verifies buying
+more at the cap is rejected, then buys the next weapon through real input.
+
+Full menu/reassignment/two-human-setup/first-shop replay now matches every
+pixel at 320x200 and 360x480, plus complete R250 state and shop callback counter.
+Artifacts: /tmp/scorched-first-shop-fixed{0,4}{,-diff}.png, matching native
+/tmp/scorched-first-shop-traced{0,4}.state. This covers the retained-name path;
+ordinary empty-name completion and AI shopping are not implied by this result.
+Added verify_reassign_players.py --start-shop to reproduce the transition,
+trace its callbacks and include committed roster/RNG checks.
+
+Initial-shop purchase/round progression, duplicate-name setup completion,
+player input, graphics-mode persistence and whitespace checks pass. Remaining
+work includes broader setup-to-shop cases, subsequent shopper/round palette
+lifecycle, real-time animation pacing, and the wider gameplay parity backlog.
+The integrated --start-shop --align-setup-idle verifier also passes in mode 4:
+full RGB, committed roster/settings, complete R250 state and both animation
+counters (/tmp/scorched-first-shop-integrated4).
+
+### Ordinary setup completion and the second human shop
+
+Added ordinary-first-shop to --start-shop: ordinary Start, type x/y into the
+two name editors, accept both, then open the initial shop. With measured
+setup/shop callback counts, both mode 0 and mode 4 pass full RGB, committed
+roster/settings, complete R250 state and both callback counters. Artifacts:
+/tmp/scorched-ordinary-shop{0,4}. This closes the previously unverified ordinary
+(two newly named humans) completion path; it does not cover AI shopping.
+
+Extended replay to dispatch gameTick after setup completion, so shop Done
+actually advances to the next player. It also paints shop frames along that
+path. Added --menu-shop-callbacks to account for the callback executed by an
+input before replaying the remaining measured idle callbacks; --start-shop
+now uses it and includes a start-second-shop case.
+
+Native first-shop Done opens the next human shop directly (0x1478A -> 0x16068),
+without the port's automatic NO KIBITZING prompt. openShop no longer enables
+privacy by default. The separately verified gameplay K-key dialog remains
+unchanged. The initial-shop regression now checks direct second-shop entry.
+
+The next-shop transition executes 119 native callbacks (one before Done,
+118 afterward), preserving the palette counter from 39 to 57. Replaying the
+full setup/first-shop/second-shop sequence matches every pixel at 320x200 and
+360x480, with matching complete R250 state, counter and selected shopper.
+Artifacts: /tmp/scorched-second-shop-fixed{0,4}{,-diff}.png; native checkpoints
+/tmp/scorched-next-shop0.state and /tmp/scorched-next-shop-privacy4.state (the
+latter filename predates discovering that native shows no privacy prompt).
+
+Initial-shop/round progression, duplicate-name setup completion, graphics-mode
+persistence, gameplay K-key privacy behavior, syntax and whitespace checks
+pass. Broader AI shopping, subsequent rounds and gameplay pixel parity remain
+open.
+
+Running verify_shop_exit.py from the newly reached second-shop checkpoint has
+confirmed native cash/interest against the port, market-update ordering, and
+entry into landscape setup before player-order setup. Its remaining native
+landscape-generation segment was still running at the last observation;
+no final landscape/player-order completion or pixel comparison is claimed.
+
+### Computers Buy gate and corrected AI routine identification
+
+The outstanding verify_shop_exit.py process completed successfully from the
+newly reached second-shop checkpoint: native finishes landscape generation
+and reaches player-order setup 0x2AE53 after the previously checked interest
+and market stages. This is flow/accounting evidence, not a landscape pixel
+comparison.
+
+Found a significant old reverse-engineering error in aiAutoPurchase comments:
+0x1DBB5 is resolve_tank_death, and its random(11) jump table selects death
+visuals. It is not an AI purchase routine. Removed those false attributions;
+the current enabled-buy heuristic remains explicitly unverified and needs
+replacement rather than cosmetic tuning.
+
+Actual AI purchase entry is 0x18A2F. DS:515E==0 returns immediately; otherwise
+it dispatches through DS:0266 + aiType*16. In the current native checkpoint,
+Moron (1) dispatches to file 0x2CD0E and types 2..7 to 0x18B47. The latter
+starts with a cash threshold and ordered shield/inventory checks. Full
+purchase behavior has not yet been traced or ported.
+
+Added the missing config.computersBuy guard. verify_ai_shop_gate.py executes
+the native disabled entry for all seven AI classes, asserting the entire data
+segment and palette remain unchanged. Port checks cover direct aiAutoPurchase
+and real gameTick advancement to the next human shop, asserting unchanged
+player data, full RNG state, palette and shop counter. Both mode-0 and mode-4
+checkpoints pass. Initial-shop/round progression and setup-completion tests
+also pass. Enabled AI purchases remain a substantive parity gap.
+
+### Enabled AI buying: common buyer (0x18B47)
+
+Replaced the random death-effect-derived purchase heuristic for AI types 2..7
+with their actual shared native purchase routine, reached through 0x18A2F.
+The Moron/type-1 dispatch to 0x2CD0E still needs tracing and retains the legacy
+heuristic; enabled AI buying as a whole is not yet complete.
+
+The common buyer consumes no RNG. With initial cash strictly above $50,000 it
+tries missing Heavy Shield then Force Shield; it then tries missing Shield and
+Parachute. Every purchase requires cash strictly greater than its price and an
+available item. Buying Parachute also sets tank+0x28 (port: parachuteArmed).
+It buys Baby Nukes (native index 2, web 4), then Missiles (native 1, web 3),
+until each inventory reaches at least five or funds/availability prevent buying.
+Finally, if Battery stock is below eight, it buys one bundle if affordable.
+The $50,000 gate is evaluated once before either large shield purchase.
+
+`disasm/verify_ai_shop_purchase.py CHECKPOINT` invokes the real native dispatch,
+executes purchases, and compares cash, all 48 inventory entries, parachute arming,
+and unchanged R250 state against the port. The 162 cases cover six AI types,
+nine balances (including exact-price and $50,000 boundaries), and stock 0/4/8.
+Both 320x200 and 360x480 first-shop checkpoints pass all cases (324 comparisons).
+These cases use the fixture's
+standard prices and availability; team funds, altered market prices, and disabled
+items still need dedicated coverage. Parachute arming is captured by the buyer,
+but the broader gameplay/HUD toggle semantics remain a separate parity task.
+Initial shop, setup completion, and all seven Computers Buy=Off regressions pass.
+
+Fixture construction note: native bignums must have a canonical limb count.
+Writing a small value into a two-limb object without reducing its count creates
+invalid comparator behavior and is not a valid native cash-boundary probe.
+
+### Moron buying (0x2CD0E): legacy heuristic removed
+
+The type-1 buyer now follows its native weighted routine. It builds 30 weapon
+weights once, including only initially missing, available, strictly affordable
+items, and normalizes them. If their sum is zero it does nothing. Otherwise it
+makes ten draws, rechecking price and availability before each purchase without
+rebuilding weights or excluding items bought in earlier attempts.
+
+The selector at 0x32AF5 uses Borland's LCG rand()/32767, not R250. Its loop returns
+the index *after* subtracting each probability, clamped to 29. The port preserves
+that observable off-by-one, including draw zero selecting native weapon 0. A zero
+draw may therefore attempt a rejected purchase of full-stock Baby Missiles.
+The verifier skips only the hardware sound wait at 0x4C117 on this rejection.
+
+`verify_ai_shop_purchase.py CHECKPOINT --moron` adds 108 native comparisons:
+nine balances, three inventory levels, and four initial LCG states. It checks
+cash, all inventory entries, parachute flag, final LCG state, and unchanged R250.
+Both 320x200 and 360x480 fixtures pass (216 comparisons). The common buyer
+passes its 162-case regression, and all seven Computers Buy=Off checks pass.
+The legacy random buy/sell/category helpers have been
+removed. Utils exposes the existing LCG fraction and snapshot/restore separately
+from R250, preserving their independence.
+
+Remaining buyer coverage: altered market prices, team cash ownership, disabled
+items, and broader randomized/inventory-cap scenarios. This is purchase-state
+parity evidence, not proof of complete gameplay or screenshot parity.
+
+### AI purchase coverage: market prices, arms restrictions, shared funds
+
+Extended `verify_ai_shop_purchase.py` with combinable `--market`, `--restricted`,
+and `--team` fixtures. Market fixtures supply changed costs to native weapon
+records and use those same costs in the port (generated through twelve unsold
+market updates). This verifies purchase behavior under changed prices, not the
+market-update algorithm itself. Restricted fixtures use Arms=0 and clear native
+availability for records whose native arms requirement exceeds zero. Other
+availability flags retain their checkpoint values.
+
+Team fixtures set team mode, player team 0, and team type 2. They swap already
+allocated native cash objects before assigning the test balance so shared funds
+are independent of personal funds. Both native and port assertions require the
+personal balance to remain unchanged and the shared balance to match afterward.
+
+On `/tmp/scorched-first-shop-traced0.state`, these additional matrices pass:
+- Moron, changed prices + Arms=0: 108 cases.
+- Common buyers, changed prices: 162 cases.
+- Common buyers, Arms=0: 162 cases.
+- Moron, shared team funds + changed prices: 108 cases.
+- Common buyers, shared team funds + changed prices + Arms=0: 162 cases.
+
+All 702 compare balances, inventory, parachute arming, final LCG state and
+unchanged R250. No production buyer changes were needed. Still unverified:
+market evolution against native, arbitrary mixed inventories and overflow caps,
+team modes/types beyond this shared-funds branch, and settings-dependent item
+filters beyond the Arms=0 fixture. Next visual work should verify gameplay/HUD
+parachute-arming semantics, which the buyer now records but the existing HUD and
+falling code do not fully honor.
+
+### Parachute arming: HUD, purchases, and falling
+
+Native tank+0x28 is now an explicit `parachuteArmed` flag, initialized false
+(0x30F05), extracted from checkpoints, and restored by gameplay screenshot
+replay. HUD icon brightness now follows this flag (0x3DE6C); the count still
+follows inventory. Previously owning parachutes made the icon bright even when
+the native player had them disarmed.
+
+Human purchases from empty stock arm parachutes (0x149F8..0x14A25). Existing
+stock and AI purchases do not change the flag in buy_weapon; the common AI buyer
+has its own explicit arming action. Falling now honors the native flag and
+positive-health guards (0x20871..0x20896). An armed, healthy falling tank with
+nonpositive stock normalizes its count to zero and disarms (0x208AB..0x208C8).
+
+Verification:
+- `verify_parachute_hud_pixels.py /tmp/scorched-lethal-flash/after-falling.state`:
+  12 native RGB count/icon crops match for six counts and both armed states.
+- `verify_parachute_arming.py` on that checkpoint: 16 native branch outcomes
+  match actual port falling, varying armed state, stock -1/0/1/8, and health.
+- `verify_parachute_purchase.py /tmp/scorched-first-shop-traced0.state`:
+  18 native purchase results match humans/two AI types, stock 0/1/99, both flags.
+- `verify_parachute_prediction.py`: 8,064 native predictions and port deployment
+  outcomes pass. Its fixtures now explicitly arm parachutes and recreate players
+  between cases to prevent pending falling continuations leaking across cases.
+- Landing/HUD-count retention and initial human shop regressions pass.
+
+The composed landscape/shot parachute fixture now explicitly arms the port
+player just as it already sets native tank+0x28; this larger composed capture
+has not been rerun in this step. Parachute keyboard/mouse toggling and any
+retained HUD icon state through gameplay transitions still need native checks.
+
+### Parachute P toggle and accidental guidance consumption
+
+Native scan 0x19 dispatches through 0x2F86D to 0x1F655. With the status bar
+enabled, a nonzero parachute count permits XOR of tank+0x28; zero count leaves
+it unchanged. The dispatch waits for keyboard release. Human AIM now implements
+P with those gates, and the input layer ignores repeated P keydowns.
+
+The new `verify_parachute_toggle_pixels.py` executes native keyboard dispatch,
+compares armed state and inventory, then checks the production HUD before firing,
+at launch, and after full refresh. On
+`/tmp/scorched-lethal-flash/after-falling.state`, 48 scenarios (six counts, both
+armed states, toggle/no-toggle, status on/off) pass all **144 native RGB crops**.
+A repeated port keydown verifies that one held press toggles only once.
+
+The launch comparison exposed stale guidance indices in behaviors.js:
+VERT=40 referred to Parachute, and HORZ=39 referred to Lazy Boy. Firing could
+therefore consume parachutes and attach the wrong guidance behavior. Guidance
+constants now use WPN's canonical indices. This fixes the demonstrated
+parachute-loss/HUD mismatch; the legacy automatic guidance priority/selection
+policy still requires a separate audit against native selected-guidance state.
+Landing/HUD-count retention regression and diff whitespace checks pass.
+
+The full composed shot/falling capture was started in
+`/tmp/scorched-parachute-armed-audit`; at this entry, flight frames through 40
+match. Its final result must be checked before claiming composed-flow parity.
+Mouse hit regions, toggle sound, and broader guidance selection remain open.
+Mouse follow-up evidence: the 360x480 gameplay checkpoint's native hit-region
+table (DS:56AE, count DS:EA10) maps rectangle [113,17]..[150,28] to scan 0x19
+for both left and right buttons. This includes the parachute count and icon.
+The port currently routes left clicks through generic firing; HUD hit-region
+handling should precede that path.
+
+### Parachute mouse hit region and landing HUD state
+
+The previous composed capture completed 124 matching shot frames (flight,
+impact, explosion, falling, aftermath), plus HP/alive state and complete RNG,
+but its subsequent full-HUD refresh failed on 33 parachute-icon pixels. Native
+0x20215..0x20241 disarms and clamps stock when the last deployed parachute is
+consumed. The port now does likewise and retains `hudParachuteArmed` alongside
+the stale count until full refresh/player selection. The landing regression
+now checks both actual disarming and retained HUD state. Screenshot replay's
+explicit full-refresh fixture clears both cached values.
+
+Parachute HUD mouse handling now precedes generic aim/firing. In the full HUD,
+the native count/icon region is inclusive [113,17]..[150,28] in the tested
+360x480 mode. Its right edge is icon-start+20, not the next widget's start
+(icon-start+25). Both buttons toggle if inventory is nonzero; a click with zero
+stock is consumed without firing. Moving the pointer to click the widget does
+not alter aim/power. Basic HUD and status-disabled modes have no such port region.
+
+`verify_parachute_mouse_pixels.py /tmp/scorched-lethal-flash/after-falling.state`
+passes 16 cases / 48 RGB crops, exercising native hit-region scanning and its
+resulting key dispatch at both corners for both buttons, stock 0/1, and both
+armed states. It also checks the port's complete surrounding coordinate grid,
+no firing, and unchanged aim/power. Other HUD click regions remain unported.
+
+Corrected composed capture is running in `/tmp/scorched-parachute-armed-audit-fixed`;
+its terminal result still needs inspection before claiming the final refresh passes.
+The corrected composed capture subsequently completed with exit 0: all 124
+shot RGB frames, signed HP/alive state, complete RNG, and the final refreshed
+full frame match the native EXE (round 1, seed 0, sky 2, no wind, tank types 3/3).
+Artifacts: `/tmp/scorched-parachute-armed-audit-fixed`. Landing/HUD retention
+and initial-shop regressions also pass. No capture process remains running.
+
+### Contact Trigger mouse dispatch
+
+The native full-HUD table maps both buttons in [258,17]..[290,28] to scan 0x0C
+(Minus), and also maps the right button in the adjacent fuel field
+[295,17]..[335,28] to that key. The port now consumes those clicks before its
+fallback aim/fire path, toggles only with positive Contact Trigger inventory,
+and clears the retained icon state. Clicking empty stock does not fire or move
+aim/power. Fuel-field left clicks remain a separate unimplemented action.
+
+`verify_contact_mouse_pixels.py` runs native mouse-region scanning, then the
+real resulting keyboard dispatch, and compares the port through initial draw,
+firing, and full refresh. The initial 16 main-region cases / 48 RGB crops pass.
+Expanded coverage adding the fuel-field right-click corners is running; record
+its terminal result before claiming those additional cases pass.
+
+Next guidance audit evidence: native 0x32090 reads selected tank+0x9A, returns
+the none sentinel without spending anything, clears depleted selection through
+0x32049, or decrements exactly the selected item. The port's automatic
+Horz/Vert/Heat priority still disagrees; fixing numeric item indices did not
+resolve selection semantics. The firing caller 0x306E9..0x30729 additionally
+handles Play Mode and resets selected guidance, which must be included in the
+port and native verification rather than testing only the leaf routine.
+The expanded Contact Trigger mouse verifier completed successfully: all 24
+scenarios / 72 native RGB crops pass, including fuel-field right clicks. The
+port boundary checks cover neighboring pixels and ensure left clicks in the
+fuel region are not misclassified as Contact Trigger clicks. Initial-shop and
+parachute landing/HUD regressions pass; diff whitespace checks are clean.
+
+### Selected guidance and G-key cycling
+
+Replaced automatic Horz/Vert/Heat inventory priority with the native selected
+item model (tank+0x9A). `cycleGuidance` follows 0x30AF0: scan forward through
+Heat/Bal/Horz/Vert/Lazy Boy, skipping empty stock, with None as an always-valid
+wrap point. New players start at None. G invokes this in human AIM when the
+status bar is enabled; autorepeat is ignored, matching the native release wait.
+
+Firing selection now follows 0x306E9..0x30729 / 0x32090: consume the selected
+item only, clear a depleted selection, skip consumption in synchronous mode,
+translate Bal to the no-flight-guidance sentinel, and reset the player selection.
+The native HUD also resets via 0x32049. This does not prove guidance trajectory
+behavior or the target-selection flow described below.
+
+Verification on `/tmp/scorched-lethal-flash/after-falling.state`:
+- `verify_guidance_selection.py`: 46 native full firing-path cases compare
+  cycling, inventory, reset selection, and launch guidance across three modes.
+- `verify_guidance_hud_pixels.py`: 36 native G-key scenarios compare selection
+  and RGB for all six selections, empty/full/alternating stock, status on/off;
+  port repeat keydowns do not cycle twice or spend inventory.
+- Initial-shop, setup completion, parachute landing/HUD regressions and diff
+  whitespace checks pass.
+
+Important remaining flow: sequential non-Heat guidance with positive stock
+enters target selection at 0x11092 (called by 0x30577), before continuing launch.
+Eight such cases are explicitly excluded from the 46-case firing comparison,
+not counted as passing. The original attempted complete matrix reached the
+native dialog input loop at 0x112D5, confirming that it awaits user input.
+The port still lacks this dialog and Bal's target-dependent power adjustment.
+Guidance HUD mouse cycling also remains to be wired.
+
+Captured the actual native Choose Target overlay at its input loop 0x11192:
+`/tmp/scorched-guidance-target.state` and `/tmp/scorched-guidance-target.png`.
+It is a small centered top-of-playfield panel, not a full-screen menu. Native
+input supports digit tank selection and mouse targeting; trace those paths
+before implementing the interaction. The capture process finished successfully.
+
+### Choose Target component: native selection rules and overlay
+
+Added `web/js/guidance-target.js` with independently verified selection helpers
+and retained-screen panel rendering. These components are not yet wired to the
+firing state machine; the dialog-dependent firing cases remain incomplete.
+
+Native 0x11341 interprets digits as ordinal living tanks sorted left-to-right,
+not player identity. Equal x retains roster order; selecting the shooter or an
+invalid ordinal leaves the dialog open. Right-click's 0x26491 uses truncated
+Euclidean distance, strictly below 100, retaining the first living player on
+distance ties; unlike digits, this path can select the shooter. Native mouse
+click dispatch first requires inclusive playfield bounds. Left click stores the
+point and clears the target pointer; after restoring the overlay, a pixel below
+native color 80 assigns the special DS:DD4C target pointer (0x1130B..0x11334).
+That post-restore special-target behavior still needs port integration.
+
+`verify_guidance_targets.py /tmp/scorched-guidance-target.state` passes 288
+native digit/nearest-player comparisons: two player positions in both orders
+and tied, all alive/dead masks, both shooters, digits 0..3, and eight mouse
+positions including 99/100-pixel boundaries. It invokes native 0x11341 and
+0x26491 and compares selected pointers against the helper results.
+
+`verify_guidance_target_pixels.py` on that checkpoint passes the complete panel
+RGB comparison: native dialog bounds [138,38]..[220,65] at 360x480, title width
+74 + 8 border/padding, text at x+4,y+8. Repeated draws preserve the original
+framebuffer for exact close/restore. The native capture, not a recreated
+mockup, supplies the pixel reference.
+
+Next: split the firing continuation at native 0x30577, retain the current HUD
+selection during target choice, handle digit/left/right input and release waits,
+restore the screen, apply target-dependent Bal power adjustment, then resume
+launch without consuming weapon/guidance ammo a second time. None of this
+interaction or ballistic continuation is claimed complete by the component tests.
+
+### Ballistic power solver: initial native comparison, not integrated
+
+Added `web/js/ballistic-power.js` as an isolated translation of EXE 0x254E9,
+returning both signed AX power and the possibly incremented global angle.
+It includes muzzle offsets, horizontal aspect divisor 0.55, wind / 2000,
+wind/gravity rotation, strict-mode rejection, and native truncation.
+Runtime 0x06EDC is atan despite the disassembler's `_tan` label. Runtime
+0x07C54 uses sin/cos division on its hardware-FPU path, not a direct tan.
+
+`python3 disasm/verify_ballistic_power.py /tmp/scorched-guidance-target.state`
+executes the native routine for 1620 combinations of angle, wind, gravity,
+target point, barrel geometry and strict mode. Current result: 1604 agree,
+16 fail, all at initial angle 0 or 180. The near-zero denominator changes
+whether the native routine increments the angle or returns a large signed
+power. Investigate intermediate trig rounding/runtime path before integration;
+do not mask these failures with a denominator tolerance. The verifier remains
+failing intentionally, and neither live firing nor existing AI uses this helper.
+Energy variation and additional tank geometry coverage also remain to be added.
+
+### Ballistic horizontal mismatch traced to host math (follow-up)
+
+The new `--trace-horizontal` option stops at native 0x25778, 0x257B2 and
+0x257CA to expose the rotation, tangent and denominator in the first case.
+Checkpoint DS:BE30 is **0**, so 0x07C54 uses its software `CD 3E F0` tangent,
+not the hardware sin/cos path. Reverted the helper to Math.tan accordingly;
+the previous 1604/1620 result used the wrong runtime branch. The corrected
+branch currently agrees in 1588/1620 of the original cases.
+
+First divergence is the host implementation of atan, not the translated
+geometry: Python math.atan(0.5) is 0.46364760900080615 here, versus JavaScript
+Math.atan(0.5) = 0.4636476090008061. The emulator's software-math handler in
+`disasm/emu/fpu.py` delegates to Python math. Its denominator becomes
+-2.2737367544323204e-14, whereas JS produces zero and takes the angle retry.
+Thus these cases require validation of actual Borland software transcendental
+behavior before either host library can be declared the fidelity reference.
+Do not patch an epsilon, special-case these coordinates, or change the emulator
+math solely to make this comparison green. This precision caveat affects the
+horizontal singularity evidence; live target/firing integration remains pending.
+
+Expanded comparison completed: 19,248/19,440 match, with 192 mismatches all
+at initial angle 0 or 180 (96 each). Matrix now covers energies 0/25/100,
+both directions, six barrel geometries, strict/non-strict, three winds,
+three gravities, three target points and ten angles. Exit status remains 1;
+this is diagnostic evidence, not a passing fidelity gate.
+
+### Direct Borland software-FPU execution establishes the missing reference
+
+`python3 disasm/probe_native_software_math.py /tmp/scorched-guidance-target.state`
+now executes the installed INT 34h..3Eh handlers as original integer machine
+code. The override is process-local and restored in finally; production emulator
+behavior is unchanged. It uses original SS=5F4A, whose low memory contains the
+software-FPU state, and FINIT before standalone operations. Synthetic SS=8000
+from the earlier fixture has zeroed software-FPU storage and must not be reused
+for this direct handler path without initialization. IVT 34h..3Dh points to
+4C8C:2147; 3Eh points to 4C8C:26D5.
+
+Original unary results at 0.5: atan 0.4636476090008061, sin
+0.479425538604203, cos 0.8775825618903728, tan 0.5463024898437905.
+The original atan agrees with JS for this argument, unlike the Python shortcut.
+But full native ballistic execution still differs from both shortcut and port:
+for the first horizontal case, phi=0.4636476090008061,
+dx=143.10835055998655, dy=-71.55417527999327, denominator=
+6.505906924303417e-15. It returns signed AX=-12390 and leaves angle=0.
+The Python shortcut returned 2368 at angle=0, JS 1470 at angle=1.
+This exposes the software-FPU's extended intermediates, not merely a host atan
+choice. A faithful numeric implementation must preserve that precision through
+arithmetic/transcendentals and the explicit qword stores. The broad host-shortcut
+matrix remains useful for ordinary cases but is not an exact numerical oracle
+at these singularities. No live-game integration or precision workaround added.
+
+### Live sequential Horz/Vert/Lazy Choose Target continuation
+
+`game.js` now pauses these three guidance modes after projectile/contact/guidance
+ammo consumption, retains selection during the dialog, and resumes a prepared
+shot without spending ammo again. `main.js` preserves the modal framebuffer.
+Digit selection rejects the shooter and waits for physical key release even on
+success (native 0x111DF); Escape/invalid keys leave the dialog open. Initial
+entry waits for keys and mouse release. Left clicks choose a point; right clicks
+choose the nearest living tank inside the native playfield limits. The selected
+point/player reaches the projectile and is used by the existing guidance code.
+Input now tracks physical held keys separately from consumed one-shot events.
+
+Validation:
+- `node disasm/test_guidance_target_flow.mjs`: nine flows across all three modes
+  and digit/left/right selection, including invalid/self input, release waits,
+  exactly-once ammo consumption, target transfer and framebuffer restoration.
+- `verify_guidance_selection.py /tmp/scorched-lethal-flash/after-falling.state`:
+  expanded to 52 native cases, including six real modal-entry cases stopped at
+  0x11192. Selection, inventory, and no premature projectile agree.
+- Existing native overlay RGB and 288 target-selection comparisons still pass.
+
+Limits: Bal Guidance still uses the earlier incomplete path until native math
+and its power animation are implemented. The native pixel<80 dummy target
+pointer behavior is not represented yet. Full composed modal/launch RGB frames,
+held-button retry semantics, invalid-input beep and guidance trajectories
+(including Lazy Boy behavior) are not claimed verified by these flow tests.
+
+### Target dialog held-button dispatch now matches native bounds
+
+The live modal now polls `mouse.buttons` rather than one-shot clicks, matching
+0x111F6..0x112D3. Dragging a held button from outside into the playfield selects
+without requiring another press. Coordinates are truncated before the inclusive
+3..width-4 / 38..height-4 checks; left takes precedence over other held buttons,
+and any non-left button follows nearest-player lookup. Initial release waits
+remain in place. Pending click flags are cleared as the modal polls.
+
+`verify_guidance_pointer.py /tmp/scorched-guidance-target.state` executes the
+native dispatch from 0x111FE through 0x112D3 for 104 combinations of boundary,
+self/tie/distance points and button masks 0..7; all results match. Only the
+invalid-target sound call is bypassed. `test_guidance_target_flow.mjs` now passes
+15 complete port flows including held left/right drag-in. The 52 native firing
+entry cases and native panel RGB comparison also still pass.
+
+The special pointer at DS:DD4C remains unimplemented. Inspection confirms it is
+assigned only after dialog restoration and only when a coordinate selection has
+no player pointer and sampled pixel<80. DD4C also overlaps the ground-color
+globals in the native layout; do not assume it is an ordinary living player or
+substitute nearest-tank lookup. Its downstream use still needs tracing before
+assigning semantics in the port. Full-frame modal/HUD continuity also remains
+unverified; the panel-only RGB test does not cover that boundary.
+
+### Projectile target coordinates and pointer are now separate
+
+Native create_projectile 0x217B0..0x217F8 copies tank+3A/+3C to projectile
++44/+46, then independently copies tank+AE/+B0 to projectile+3E/+40.
+The port previously passed the living player object as guidanceTarget, causing
+those coordinates to move if the selected player moved. It now captures an
+independent point and stores `guidanceTargetReference` separately. Coordinate
+clicks sample the restored framebuffer at launch and assign a frozen dummy
+marker when pixel<80; player selections retain the player reference regardless
+of that pixel. The marker represents DS:DD4C without pretending it is a tank.
+
+`verify_guidance_target_capture.py /tmp/scorched-guidance-target.state` passes
+512 native comparisons: all 256 pixel indices, coordinate/player selection,
+actual pointer-classification instructions and actual projectile field-copy
+instructions. The 15 firing-flow tests now verify selected-player movement
+cannot mutate the stored coordinate. Existing 52 firing/modal-entry comparisons
+and panel RGB test remain passing. Downstream reference-dependent callbacks
+still require translation; storing the dummy marker does not claim their
+behavior is implemented. In particular native Lazy Boy installs callback
+1E50:00CF immediately at 0x21810, while the port has no corresponding behavior.
+
+### Lazy Boy route decision translated and compared
+
+Added isolated `web/js/lazy-boy.js:lazyBoyRouteStep`, translating native
+0x25037..0x25250. This is direct pixel movement, not a velocity homing force.
+The target delta is normalized by max(abs(dx),abs(dy)), next integer coordinates
+truncate, and obstacle avoidance can switch to upward motion unless already at
+the top boundary. Pointer equality is tested against the pixel's palette group
+(pixel / 8, truncated), including dummy group 10. The primary free-pixel test is
+>=105, whereas the upward fallback accepts only >105. These distinct boundaries
+are preserved. A zero delta exits and subpixel movement skips pixel reads.
+
+`verify_lazy_boy_route.py /tmp/scorched-guidance-target.state` passes 1152
+native comparisons of movement fields, decision result, and ordered pixel reads.
+It covers integer/fractional starts, top boundary, four targets, eight primary
+pixel values, four fallback values, and null/player/dummy references. It runs
+actual route instructions and injects only framebuffer reads, stopping before
+digging/collision/rendering side effects. The helper is not integrated yet.
+Next: implement the remaining callback effects at 0x25250..0x254E1, including
+terrain clearing, attacker/shield collision handling, target arrival, drawing,
+and dt*DS:31FC budget (loop while positive, decrement by one each step). Native
+position writeback occurs only at the normal loop exit; early collision exits
+follow separate handling. Do not route Lazy Boy through ordinary gravity steps.
+
+### Lazy Boy callback sequence and initial live adapter
+
+`lazyBoyMovement` now models callback events through 0x254E1: positive dt*500
+budget, subpixel steps, upward fallback, dig, attacker shield exception, hit,
+velocity assignment, drawing and normal-only position writeback. Early exits
+preserve the callback's separate collision path. `verify_lazy_boy_movement.py`
+passes 162 native event-order/budget/writeback cases. It records native rendering,
+terrain and collision callees rather than executing their side effects, so this
+is not full RGB evidence. The existing 1152 route/read comparisons still pass.
+
+Targeted Lazy Boy projectiles now execute this generator in the live FLIGHT
+loop instead of ordinary gravity. Adapter converts web palette indices to native
+indices, samples pending projectile drawing writes, clears terrain pixels while
+digging, and forwards hit coordinates to existing collision handling. Projectile
+DrawingLayer.advance now accepts optional drawing coordinates so intermediate
+heads do not prematurely write back projectile position. Its default behavior
+is unchanged; the existing 250-position projectile lifecycle test passes.
+
+`node disasm/test_lazy_boy_live.mjs` passes straight flight, arrival, three-pixel
+digging and blocked tank contact using production adapter/render/terrain data.
+The 15 target/firing-flow checks also pass. Remaining limits: no full native RGB
+flight replay yet, dig sound is not wired, collision/shield handlers and weapon
+behavior scheduling need composed verification, and Lazy Boy in modes without
+an explicit target still follows the prior incomplete path. Ballistic precision
+and broader guidance parity remain open. The special pointer now has an actual
+use: route pixel-group matching, including dummy group 10 (native colors 80..87).
+
+### First composed Lazy Boy framebuffer comparisons
+
+`verify_lazy_boy_pixels.py /tmp/scorched-guidance-target.state` passes 24 complete
+40x64 synthetic framebuffers and final positions (two callbacks each across
+three bomb icons, trace off/on and sky/obstacle scenes). Native movement executes
+0x24FCF plus its actual draw wrapper and bomb-head drawing routines. Only raw
+pixel IO, constant sky restoration, sound and terrain-mark bookkeeping are
+substituted; reads observe the actual accumulated native framebuffer. The port
+uses `stepLazyBoyProjectile`, its persistent drawing layer and tracking marks.
+Comparison is exact native-index equality over the entire supplied frame,
+including previous head erasure and border tracking marks, not a cropped head.
+Fixture border values are explicit (EF26=155 matches UI_DARK_BORDER).
+
+This validates the composed drawing adapter for these scenes. It is not a real
+landscape/RGB-palette or launch/modal-HUD replay, nor collision aftermath.
+`verify_projectile_erasure.py --layer` also passes 243 native stateful frames;
+`test_lazy_boy_live.mjs` remains passing. Broader integration work remains.
+
+### Guidance count timing during the live target modal fixed
+
+Native firing consumes guidance inventory before Choose Target but leaves the
+old count painted until selection resets immediately before launch. The port's
+world repaint had exposed the reduced count early. `hudGuidanceCount` now
+captures that pre-consumption count for sequential Horz/Vert/Lazy targeting and
+is cleared by launchPreparedShot when selection becomes None.
+
+`verify_guidance_modal_hud.py /tmp/scorched-lethal-flash/after-falling.state`
+first failed on Horz/stock=1, then passes all 12 native HUD RGB crops: three
+guidance types with stocks 1/3, at modal entry and resumed launch. Native resume
+uses the existing dialog stack, injects the selected player and proceeds through
+restoration/reset to 0x30769. Port resume goes through gameTick and pointer input.
+The test checks the guidance widget crop, not the entire HUD/frame. Existing
+15 target flows and 36 native G-key/HUD cases remain passing.
+
+### Targeted vertical guidance trigger moved to crossed-pixel traversal
+
+Native 0x22714..0x2279C activates only when sampled integer X equals the saved
+target X. The previous port checked rounded position before physics with a
++/-2 tolerance, triggering early or missing a target crossed in one large step.
+For explicit targets, `triggerVerticalGuidance` now runs on collision-free
+samples in the production line walker. It consumes guidance once, assigns X
+correction 0 and Y correction -1 when targetY>sampleY, otherwise +1 (including
+equal heights). The old pre-step branch is retained only for the still-incomplete
+untargeted mode path.
+
+`verify_vertical_guidance_trigger.py /tmp/scorched-guidance-target.state` passes
+135 actual native branch comparisons over neighboring columns and vertical
+relationships. `test_vertical_guidance_crossing.mjs` verifies production physics
+crosses target columns 102/105/110 from X=100 in one step and does not trigger at
+111/112. The 15 target selection flows and 756 native free-flight motion steps
+still pass. This verifies activation only: the subsequent callback native
+1E50:099C and its drawing/correction timing remain incompletely translated.
+
+### Targeted vertical guidance now uses native attraction/overshoot logic
+
+Added `guidanceAttractionStep` from 0x2589C..0x25B2F. It computes targetX-X,
+Y-targetY, sign-based crossing detection, distance-squared guard <0.001, and
+velocity += delta * (10000*dt / sqrt(sqrt(distanceSquared))). Native mode 1
+crossing requests erase/impact/removal; other modes clear the callback. Equal
+coordinates do not count as crossed. This fixes the previous constant +/-1
+acceleration for explicitly targeted vertical shots. The vertical trigger marks
+this callback active; applyGuidance uses it on subsequent ticks, and FLIGHT
+handles its impact request without stepping ordinary physics first.
+
+`verify_guidance_attraction.py /tmp/scorched-guidance-target.state` passes 972
+actual native callback comparisons (coordinates around target, nine sign pairs,
+three modes and three dt values), comparing both velocity values and action.
+Exploding cases stop before side-effect callees; this test does not validate
+explosion drawing. Production crossing/attraction tests verify high-speed column
+crossing, acceleration and overshoot request. Existing 135 native triggers and
+15 target-selection flows remain passing. Heat still has its prior separate
+callback implementation; composed vertical trajectory/RGB/impact timing and
+per-step control semantics remain to verify.
+
+### Heat attraction corrected; current work checkpoint
+
+Heat now shares `guidanceAttractionStep` in mode 2, fixing the previous Y
+correction sign. Crossing disables the callback as in native code. The 972-case
+native attraction comparison also checks 108 production Heat callbacks.
+
+At this checkpoint, the FPU and DOS keyboard unit tests and the setup completion,
+menu mode, initial shop, parachute HUD, guidance target flow, Lazy Boy live and
+vertical crossing regressions all pass. Full pixel-perfect parity is unfinished.
+The isolated ballistic solver remains unintegrated: its diagnostic matches
+19,248/19,440 host-emulated cases, with 192 horizontal-angle failures. Original
+software-math probes demonstrate extended-precision/transcendental differences;
+this requires a math fix, not an epsilon workaround. Ballistic targeting and
+power animation, remaining horizontal/untargeted guidance behavior, and composed
+real-landscape launch/trajectory/impact RGB comparisons remain open. The smaller
+native fixtures and HUD crops above do not establish full-game pixel parity.

@@ -1,4 +1,4 @@
-import {config,GRAPHICS_MODES} from './config.js';
+import {config,getActiveGraphicsMode} from './config.js';
 import {random} from './utils.js';
 import {bresenhamCircleFill} from './explosions.js';
 
@@ -16,7 +16,7 @@ export function drawDeathBurst({x,y,radius},options={}) {
     const color=220-Math.trunc(ring*20/radius);
     bresenhamCircleFill(x,y,ring,color,{...options,protectedMin:color+1,protectedMax:240});
   }
-  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect=getActiveGraphicsMode().displayAspect;
   const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
   const scaleY=aspect>1?Math.trunc(65536/aspect):65536;
   return {left:x+Math.floor(-radius*scaleX/65536),right:x+Math.floor(radius*scaleX/65536),
@@ -27,7 +27,7 @@ export function drawDeathBurst({x,y,radius},options={}) {
 // randomly offset bursts at each radius from 20 down through 6.
 export function* deathBurstSequence(x,y,roll=random) {
   yield {x,y,radius:30};
-  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect=getActiveGraphicsMode().displayAspect;
   const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
   const scaleY=aspect>1?Math.trunc(65536/aspect):65536;
   for (let radius=20;radius>5;radius--) {

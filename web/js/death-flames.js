@@ -1,12 +1,12 @@
 // Native effect 7 (0x24148), using native palette indices in the I/O adapter.
 import {random} from './utils.js';
-import {config,GRAPHICS_MODES} from './config.js';
+import {config,getActiveGraphicsMode} from './config.js';
 import {getEffectiveWallType,WALL} from './physics.js';
 
 // 0x43ACA callback circle. Unlike the protected-color circle, callback order
 // is observable: the flame callback consumes RNG when it encounters soil.
 export function walkDeathFlameCircle(cx,cy,radius,visit,{wrap=getEffectiveWallType()===WALL.WRAP}={}) {
-  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect=getActiveGraphicsMode().displayAspect;
   const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
   const scaleY=aspect>1?Math.trunc(65536/aspect):65536;
   const left=3,right=config.screenWidth-4;

@@ -2,7 +2,7 @@
 // Callers await each damage operation before advancing, then execute the final
 // ordinary explosion with settling. This generator does not erase a corpse.
 import {startExplosion,stepExplosion,isExplosionActive,drawExplosion,applyExplosionDamage} from './explosions.js';
-import {config,GRAPHICS_MODES} from './config.js';
+import {config,getActiveGraphicsMode} from './config.js';
 import {getPixel,getBackgroundColor,setPixel} from './framebuffer.js';
 import {terrain,terrainBitmap,PLAYFIELD_TOP} from './terrain.js';
 import {setPaletteRgb} from './palette.js';
@@ -37,7 +37,7 @@ export function* funkyBombStages(x,y,spread) {
   const grow=(center,radius,base)=>{
     for(const _ of drawFunkyBlast(center.x,center.y,radius,base,
       {writePixel:retainWorldPixel,sound:!!config.soundEnabled})) {}
-    const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+    const aspect=getActiveGraphicsMode().displayAspect;
     const scale=aspect<1?Math.trunc(aspect*65536):65536;
     const left=center.x+Math.floor(-radius*scale/65536),right=center.x+Math.floor(radius*scale/65536);
     markTerrainCollapse(left-1,right+1);

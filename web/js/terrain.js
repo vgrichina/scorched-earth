@@ -8,7 +8,7 @@
 
 import { random, clamp } from './utils.js';
 import { createStarSky, createSunsetSky, createStormSky } from './sky.js';
-import { config, GRAPHICS_MODES } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { setPixel, setBackground, setBackgroundPixels, clearToBackground } from './framebuffer.js';
 import { SKY_PAL_START, SKY_PAL_COUNT, TERRAIN_PAL_START } from './constants.js';
 import { resolvedSkyType, setPaletteRgb } from './palette.js';
@@ -291,9 +291,9 @@ export function initSkyBackground({ reuseStars = false, wrap = config.wallType =
     setBackgroundPixels(cachedStars);
   }
   if (resolvedSkyType === 3) setBackgroundPixels(createStormSky(config.screenWidth, config.screenHeight,
-    GRAPHICS_MODES[config.graphicsMode].displayAspect, wrap));
+    getActiveGraphicsMode().displayAspect, wrap));
   if (resolvedSkyType === 4) setBackgroundPixels(createSunsetSky(config.screenWidth, config.screenHeight,
-    GRAPHICS_MODES[config.graphicsMode].displayAspect));
+    getActiveGraphicsMode().displayAspect));
   previousSkyType = resolvedSkyType;
 }
 

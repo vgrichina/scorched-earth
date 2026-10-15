@@ -299,6 +299,27 @@ export function drawRankingsWinnerName(rankingPlayers=players) {
     winner&&config.teamMode===0?(winner.colorIndex??winner.index)*PLAYER_PALETTE_STRIDE:UI_HIGHLIGHT);
 }
 
+// Native full-HUD mouse table: count plus icon, inclusive edges.
+export function parachuteHudContains(x, y) {
+  if (!config.statusBar || config.screenWidth <= 320) return false;
+  const barX = LEFT + Math.max(measureText('Power'), measureText('Max')) + 8;
+  const left = barX + measureText('8888 ') + measureText('99 ') + 25;
+  const right = left + measureText('99 ') + 20;
+  return x >= left && x <= right && y >= ROW2_Y && y <= ROW2_Y + 11;
+}
+
+export function contactTriggerHudContains(x, y, button = 0) {
+  if (!config.statusBar || config.screenWidth <= 320) return false;
+  const barX = LEFT + Math.max(measureText('Power'), measureText('Max')) + 8;
+  const countWidth = measureText('99 ');
+  const left = barX + measureText('8888 ') + 4 * countWidth + 90 + measureText('100% ');
+  if (y < ROW2_Y || y > ROW2_Y + 11) return false;
+  if (x >= left && x <= left + countWidth + 15) return true;
+  // Native fuel field maps right click to Minus; left click remains Fuel.
+  const fuelLeft = left + countWidth + 20;
+  return button === 2 && x >= fuelLeft && x <= fuelLeft + 40;
+}
+
 export function drawHud(player, wind, round, opts) {
   // EXE: [EF22] = VGA 152 = black → web palette 205 (UI_DEEP_SHADOW) — used for most HUD text
   // EXE: palette 163 = player's color (fg_setrgb at 0x3030E) — only for player name at E9DC
@@ -490,7 +511,7 @@ export function drawHud(player, wind, round, opts) {
     // Widget 3 (0x3DE5E): parachute icon at E9F2
     // EXE: color = struct[0x28] > 0 ? [EF22] : [EF24]
     // EXE: draw_icon_alive(E9F2, ROW2_Y, D554=38, color)
-    drawIcon(x, ROW2_Y, ICON_PARACHUTE, paraColor);
+    drawIcon(x, ROW2_Y, ICON_PARACHUTE, (player.hudParachuteArmed ?? player.parachuteArmed) ? hudTextColor : dimColor);
     x += 25; // → E9F4
 
     drawHudShield(player);
@@ -500,7 +521,7 @@ export function drawHud(player, wind, round, opts) {
     // the empty sentinel here; generic icon 10 replaces both count and icon.
     const guidanceWeapon = player.guidanceWeapon ?? WPN.LASER;
     if (guidanceWeapon !== WPN.LASER) {
-      drawText(x, ROW2_Y, String(player.inventory?.[guidanceWeapon] || 0), hudTextColor);
+      drawText(x, ROW2_Y, String(player.hudGuidanceCount ?? (player.inventory?.[guidanceWeapon] || 0)), hudTextColor);
     }
     x += countFieldW; // E9FC
     if (guidanceWeapon === WPN.LASER) drawUIIcon(x, ROW2_Y, 10, hudTextColor);

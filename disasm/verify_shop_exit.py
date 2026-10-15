@@ -27,7 +27,7 @@ if args.button:
         address=cpu.segs[1]*16+cpu.ip
         if address in points:break
         sp=cpu.segs[2]*16+cpu.regs[4]
-        if address==0x4bda3-0x6100:
+        if address==0x4bda3-0x6100 and (mem.read16(sp+4) or mem.read16(sp+6)):
             for i,value in enumerate((275,110)):
                 mem.write16(mem.read16(sp+4+i*4)+16*mem.read16(sp+6+i*4),value)
         cpu.regs[0]=args.button if tick<60 else 0

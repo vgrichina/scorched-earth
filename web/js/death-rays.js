@@ -1,6 +1,6 @@
 // Native death effect 5 growth (0x1E0F3..0x1E236). Cleanup and damage belong
 // to the death dispatcher; each step emits the four symmetric ray sets.
-import {config,GRAPHICS_MODES} from './config.js';
+import {config,getActiveGraphicsMode} from './config.js';
 import {random,walkExeLine} from './utils.js';
 import {PLAYFIELD_TOP} from './terrain.js';
 import {getEffectiveWallType,WALL} from './physics.js';
@@ -16,7 +16,7 @@ export function createDeathRays(x,y,roll=random) {
 export function stepDeathRays(rays,{roll=random,writePixel=writeWorldPixel,
   wrap=getEffectiveWallType()===WALL.WRAP}={}) {
   if (rays.growth>=rays.radius) return false;
-  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect=getActiveGraphicsMode().displayAspect;
   const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
   const scaleY=aspect>1?Math.trunc(65536/aspect):65536;
   const emit=(x,y)=>{

@@ -1,7 +1,10 @@
+import {lazyBoyMovement} from './lazy-boy.js';
+import {closeGuidanceTarget, guidanceDigitTarget, guidancePointerTarget, captureGuidanceTarget} from './guidance-target.js';
+import {anyKeyHeld} from './input.js';
 import {stepFinalScoringInput,resetFinalScoringInput} from './final-scoring.js';
 import {stepRankingsInput,resetRankingsInput} from './rankings.js';
 import {startFunkyBomb,stepFunkyBomb,isFunkyBombActive,clearFunkyBombs} from './funky-bomb.js';
-import { projectileDrawing, retainWorldPixel } from './projectile-render.js';
+import { projectileDrawing, retainWorldPixel, writeWorldPixel, nativeIndex } from './projectile-render.js';
 // Scorched Earth - Game State Machine
 // EXE source: play.cpp (seg 0x28B9, file base 0x2F830)
 // EXE: main game loop dispatch at file 0x2F78A
@@ -10,22 +13,23 @@ import { projectileDrawing, retainWorldPixel } from './projectile-render.js';
 // EXE: play modes — Sequential (0), Simultaneous (1), Synchronous (2) at DS config
 
 import { config } from './config.js';
+import { prepareExplosionTexture } from './explosion-texture.js';
 import { roundOrder } from './turn-order.js';
 import { random, clamp } from './utils.js';
 import { PLAYER_COLOR_MAX, PLAYER_PALETTE_STRIDE } from './constants.js';
 import { players, checkTanksFalling, stepFallingTanks, createPlayers, resetAndPlaceTanks, startDeathAnimation, stepDeathAnimations, deathAnimations, deathHudName, getTankBarrel, updateTankDamageState } from './tank.js';
 import { getTerrainY } from './terrain.js';
 import { launchProjectile, stepSingleProjectile, projectiles, spawnProjectiles,
-         clearProjectiles, hasActiveProjectiles,
+         clearProjectiles, hasActiveProjectiles, DT,
          WALL, setResolvedWallType, getEffectiveWallType } from './physics.js';
 import { getPixel, setPixel, getBackgroundColor } from './framebuffer.js';
-import { drawWindIndicator } from './hud.js';
+import { drawWindIndicator, parachuteHudContains, contactTriggerHudContains } from './hud.js';
 import { startExplosion, stepExplosion, isExplosionActive,
          applyExplosionDamage, resumeExplosionDamage, addDirt, addDirtTower, createTunnel,
          applyDisrupter } from './explosions.js';
 import { isKeyDown, consumeKey, consumeClick, consumeAnyKey, getMouseDelta, mouse } from './input.js';
 import { WEAPONS, BHV, WPN, cycleWeapon } from './weapons.js';
-import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType } from './behaviors.js';
+import { handleBehavior, handleFlightBehavior, napalmParticleStep, applyGuidance, selectGuidanceType, consumeSelectedGuidance, cycleGuidance } from './behaviors.js';
 import { isAI, startAITurn, stepAITurn, setAIWind } from './ai.js';
 import { endOfRoundScoring, applyInterest, scoreOnDeath, scoreOnDamage } from './score.js';
 import { checkShieldDeflection, applyShieldDamage, shieldBreak, cycleShield } from './shields.js';
@@ -70,6 +74,7 @@ export const STATE = {
   GAME_OVER: 'game_over',
   SYNC_AIM: 'sync_aim',       // EXE: synchronous mode — sequential aim collection
   SYNC_FIRE: 'sync_fire',     // EXE: synchronous mode — batch launch
+  GUIDANCE_TARGET: 'guidance_target',
   SCREEN_HIDE: 'screen_hide', // EXE: K-key "No Kibitzing" dialog
   SYSTEM_MENU: 'system_menu', // EXE: F9 system menu
   TERRAIN_REVEAL: 'terrain_reveal', // EXE: progressive left-to-right terrain draw
@@ -179,6 +184,7 @@ function advancePlayer() {
   // Native player selection redraws the full HUD (0x2AB94 / 0x3EFEA).
   for (const player of players) {
     player.hudParachuteCount = undefined;
+    player.hudParachuteArmed = undefined;
     player.hudEnergy = undefined;
     player.hudPower = undefined;
     player.hudShieldEnergy = undefined;
@@ -228,6 +234,8 @@ function advancePlayer() {
 
 // Create player identities and open shopping before the first landscape setup.
 export function initGameRound(setup = []) {
+  // Native caller runs 0x2B471 after the menu, before player/shop setup.
+  prepareExplosionTexture();
   initMarket();  // Initialize market prices at game start (EXE: mkt_init_defaults)
   game.playOrderLastFirstId = -1;  // EXE DS:0x51A4: reset to -1 (first round) on new game
   createPlayers(config.numPlayers, setup);
@@ -393,6 +401,8 @@ function handleAimInput(player) {
 //
 // Native 0x30661 guards attack speech using TALKING_TANKS and the player's
 // AI type. Shield state does not control the speech call.
+let pendingGuidanceShot = null;
+
 function fireWeapon(player) {
   const { endX: startX, endY: startY } = getTankBarrel(player);
 
@@ -420,7 +430,25 @@ function fireWeapon(player) {
   }
 
   // EXE: guidance_type set on projectile at fire time, ammo consumed
+  const selected = player.guidanceWeapon ?? WPN.LASER;
+  // Native 0x30531 pauses sequential Horz/Vert/Lazy firing after consumption.
+  // Bal's power animation still needs the exact numeric continuation.
+  if (config.playMode === 0 &&
+      [WPN.HORZ_GUIDANCE,WPN.VERT_GUIDANCE,WPN.LAZY_BOY].includes(selected) &&
+      player.inventory[selected] > 0) {
+    player.hudGuidanceCount = player.inventory[selected];
+    const guidanceType = consumeSelectedGuidance(player);
+    pendingGuidanceShot = {player,startX,startY,weaponIdx,contactTriggerActive,guidanceType,waitRelease:true,opening:true};
+    game.state = STATE.GUIDANCE_TARGET;
+    return;
+  }
   const guidanceType = selectGuidanceType(player);
+  launchPreparedShot({player,startX,startY,weaponIdx,contactTriggerActive,guidanceType});
+}
+
+function launchPreparedShot({player,startX,startY,weaponIdx,contactTriggerActive,guidanceType,target}) {
+  player.guidanceWeapon = WPN.LASER;
+  player.hudGuidanceCount = undefined;
 
   clearProjectiles();
   playFireSound();
@@ -432,6 +460,11 @@ function fireWeapon(player) {
   // Set guidance type on the newly launched projectile
   if (guidanceType && projectiles.length > 0) {
     projectiles[projectiles.length - 1].guidanceType = guidanceType;
+    if (target) {
+      const captured = captureGuidanceTarget(target,getPixel(target.x,target.y));
+      projectiles[projectiles.length - 1].guidanceTarget = captured.point;
+      projectiles[projectiles.length - 1].guidanceTargetReference = captured.reference;
+    }
   }
 
   // EXE: DS:0x1C76 pushed to launchProjectile at extras.cpp 0x21357
@@ -440,6 +473,39 @@ function fireWeapon(player) {
   }
 
   game.state = STATE.FLIGHT;
+}
+
+// Native Lazy Boy owns movement and rendering; ordinary gravity is bypassed.
+export function stepLazyBoyProjectile(proj) {
+  const reference = proj.guidanceTargetReference;
+  const movement = lazyBoyMovement({x:proj.x,y:proj.y,target:proj.guidanceTarget,
+    referenceIndex:reference?.kind === 'dummy' ? 10 : reference?.index ?? null,
+    attackerIdx:proj.attackerIdx}, DT,
+    (x,y)=>nativeIndex(projectileDrawing.io.getPixel(x,y)),PLAYFIELD_TOP);
+  proj.hitPixel = null;
+  for (;;) {
+    const step=movement.next();
+    if (step.done) {
+      if (step.value.completed) {proj.x=step.value.x;proj.y=step.value.y;}
+      return 'flying';
+    }
+    const event=step.value;
+    if (event.kind==='erase') projectileDrawing.finish(proj);
+    else if (event.kind==='dig') {
+      if (event.x>=0 && event.x<config.screenWidth && event.y>=0 && event.y<config.screenHeight) {
+        terrainBitmap[event.y*config.screenWidth+event.x]=0;
+        writeWorldPixel(event.x,event.y,getBackgroundColor(event.y,event.x));
+      }
+    } else if (event.kind==='velocity') {
+      proj.vx=event.dx;proj.vy=-event.dy;
+    } else if (event.kind==='draw') projectileDrawing.advance(proj,event.x,event.y);
+    else if (event.kind==='hit') {
+      proj.x=event.x;proj.y=event.y;
+      proj.hitPixel=event.pixel;
+      proj.hitVelocity={vx:proj.vx,vy:proj.vy};
+      return event.pixel<80?'hit_tank':'hit_terrain';
+    }
+  }
 }
 
 // Native 0x30771 runs after all flight/aftermath work. Only a depleted
@@ -619,11 +685,36 @@ export function gameTick() {
           fireWeapon(player);
         }
       } else {
+        if (mouse.over && parachuteHudContains(mouse.x, mouse.y)) {
+          const leftClick = consumeClick(0), rightClick = consumeClick(2);
+          if (leftClick || rightClick) {
+            getMouseDelta();
+            if (player.inventory[WPN.PARACHUTE] !== 0) {player.parachuteArmed = !player.parachuteArmed;player.hudParachuteArmed = undefined;}
+            break;
+          }
+        }
+        if (mouse.over && contactTriggerHudContains(mouse.x, mouse.y, mouse.clicked & 1 ? 0 : 2)) {
+          const leftClick = consumeClick(0), rightClick = consumeClick(2);
+          if (leftClick || rightClick) {
+            getMouseDelta();
+            if (player.inventory[WPN.CONTACT_TRIGGER] > 0) {
+              player.contactTriggerArmed = !player.contactTriggerArmed;
+              player.hudContactTriggerArmed = undefined;
+            }
+            break;
+          }
+        }
         // Native scan 0x0C -> 0x1F2C5: arm/disarm Contact Trigger.
         if (consumeKey('Minus') && config.statusBar && player.inventory[WPN.CONTACT_TRIGGER]>0) {
           player.contactTriggerArmed=!player.contactTriggerArmed;
           player.hudContactTriggerArmed=undefined;
         }
+        // Native P (scan 0x19) toggles parachutes when stock is nonzero.
+        if (consumeKey('KeyP') && config.statusBar && player.inventory[WPN.PARACHUTE] !== 0) {
+          player.parachuteArmed = !player.parachuteArmed;
+          player.hudParachuteArmed = undefined;
+        }
+        if (consumeKey('KeyG') && config.statusBar) cycleGuidance(player);
         if (consumeKey('KeyS') && config.statusBar) cycleShield(player);
         if (consumeKey('KeyE') && config.statusBar && activateShield(player)) break;
         // Native input dispatch 0x2F78A: scan code 0x25 (K) calls
@@ -763,14 +854,18 @@ export function gameTick() {
             }
           }
 
-          // Apply guidance corrections before physics step
-          applyGuidance(proj);
+          const lazyBoy = proj.guidanceType === WPN.LAZY_BOY && proj.guidanceTarget;
+          const guidanceResult = !lazyBoy ? applyGuidance(proj) : undefined;
+          if (guidanceResult==='explode') {
+            projectileDrawing.finish(proj);
+            proj.x=Math.trunc(proj.x);proj.y=Math.trunc(proj.y);
+          }
+          const result = guidanceResult==='explode' ? 'hit_guidance'
+            : lazyBoy ? stepLazyBoyProjectile(proj)
+            : stepSingleProjectile(proj, getPixel, game.wind);
+          if (!lazyBoy && result === 'flying') projectileDrawing.advance(proj);
 
-          // Physics step
-          const result = stepSingleProjectile(proj, getPixel, game.wind);
-          if (result === 'flying') projectileDrawing.advance(proj);
-
-          if (result === 'hit_terrain' || result === 'hit_tank' || result === 'hit_wall') {
+          if (result === 'hit_guidance' || result === 'hit_terrain' || result === 'hit_tank' || result === 'hit_wall') {
             // EXE: rising tone on terrain hit (extras.cpp 0x24DCD), starts 1000 Hz, +200/step
             if (result === 'hit_terrain') playTerrainHitSound(3);
             processHit(proj, result);
@@ -1104,6 +1199,47 @@ export function gameTick() {
     }
 
     // --- No Kibitzing / System Menu states ---
+
+    case STATE.GUIDANCE_TARGET: {
+      const shot = pendingGuidanceShot;
+      if (shot.waitRelease) {
+        while (consumeAnyKey()) {}
+        mouse.clicked = 0;
+        getMouseDelta();
+        if (!anyKeyHeld() && (!shot.opening || mouse.buttons === 0)) {
+          shot.waitRelease = false;
+          shot.opening = false;
+          if (shot.target) {
+            closeGuidanceTarget();
+            pendingGuidanceShot = null;
+            launchPreparedShot(shot);
+          }
+        }
+        break;
+      }
+      let target = null;
+      for (let digit = 0; digit <= 9; digit++) {
+        if (consumeKey(`Digit${digit}`) || consumeKey(`Numpad${digit}`)) {
+          target = guidanceDigitTarget(players,shot.player,digit);
+          shot.waitRelease = true;
+          break;
+        }
+      }
+      if (!target && !shot.waitRelease && consumeAnyKey()) shot.waitRelease = true;
+      if (!target && !shot.waitRelease && mouse.over) {
+        target = guidancePointerTarget(players,mouse.x,mouse.y,mouse.buttons);
+        mouse.clicked = 0;
+      }
+      getMouseDelta();
+      if (target && shot.waitRelease) {
+        shot.target = target;
+      } else if (target) {
+        closeGuidanceTarget();
+        pendingGuidanceShot = null;
+        launchPreparedShot({...shot,target});
+      }
+      break;
+    }
 
     case STATE.SCREEN_HIDE: {
       // Native modal privacy dialog returns to the same player's input.

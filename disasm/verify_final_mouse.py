@@ -110,7 +110,7 @@ console.log(JSON.stringify([pressed,sample()]));
         if tick==120:
             check_frame(port[1]);break
         sp=cpu.segs[2]*16+cpu.regs[4]
-        if address==0x4BDA3:
+        if address==0x4BDA3 and (mem.read16(sp+4) or mem.read16(sp+6)):
             for i,value in enumerate(xy if tick<60 else release):
                 mem.write16(mem.read16(sp+4+i*4)+16*mem.read16(sp+6+i*4),value)
         cpu.regs[0]=int(tick<60)

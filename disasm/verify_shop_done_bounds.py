@@ -43,7 +43,7 @@ for case,port in zip(cases,actual):
   address=c.segs[1]*16+c.ip
   if address==exit_point:native=True;break
   sp=c.segs[2]*16+c.regs[4]
-  if address==0x4bda3-0x6100:
+  if address==0x4bda3-0x6100 and (m.read16(sp+4) or m.read16(sp+6)):
    for i,v in enumerate((case['x'],case['y'])):
     m.write16(m.read16(sp+4+i*4)+16*m.read16(sp+6+i*4),v)
   c.regs[0]=case['button'] if tick<60 else 0

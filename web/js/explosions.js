@@ -8,7 +8,7 @@
 //   0.7x attenuation per hit [DS:1D60 = f64 0.7], threshold [DS:1D68 = f64 0.001]
 // EXE: explosion fire palette VGA 170-199 (3 bands × 10 entries)
 
-import { config, GRAPHICS_MODES } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { palette6, setPaletteRgb } from './palette.js';
 import { getEffectiveWallType, WALL } from './physics.js';
 import { getPixel, getBackgroundColor } from './framebuffer.js';
@@ -20,6 +20,7 @@ import { playExplosionSound } from './sound.js';
 import { applyShieldDamage, shieldBreak } from './shields.js';
 import { markTerrainCollapse } from './terrain-collapse.js';
 import { random } from './utils.js';
+import { explosionTextureCache } from './explosion-texture.js';
 import { TERRAIN_PAL_START, FIRE_PAL_BASE, FIRE_PAL_COUNT,
          PLAYER_PALETTE_STRIDE } from './constants.js';
 
@@ -199,12 +200,16 @@ function setupExplosionPalette() {
 export function startExplosion(cx, cy, radius, attackerIndex, onComplete = null, {captureRestoration=false} = {}) {
   setupExplosionPalette();
   playExplosionSound(radius);
+  const scale = (config.screenWidth === 320 ? [0.5, 0.75, 1] : [1, 2, 3])[config.explosionScale];
+  const texture = radius >= Math.trunc(40 * scale) && explosionTextureCache.pixels
+    ? {...explosionTextureCache} : null;
   const anim = {
     cx, cy, radius, attackerIndex, onComplete, captureRestoration,
+    texture, restoreBand: 200, restored: captureRestoration ? new Map() : null,
     frame: 0,
-    maxFrames: Math.ceil(radius / (radius < 40 ? 1 : 2)),
+    maxFrames: Math.ceil(radius / (texture || radius < 40 ? 1 : 2)),
     currentRadius: 1,
-    radiusStep: radius < 40 ? 1 : 2,
+    radiusStep: texture || radius < 40 ? 1 : 2,
     pixels: new Map(),
     cycleCount: 0,
     blackened: false,
@@ -223,7 +228,7 @@ export function bresenhamCircleFill(cx, cy, radius, colorIdx,
     wrap = getEffectiveWallType() === WALL.WRAP } = {}) {
   const W = config.screenWidth;
   const H = config.screenHeight;
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = getActiveGraphicsMode().displayAspect;
   const scaleX = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const scaleY = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   let si = 0;             // x step (doubled coords)
@@ -296,12 +301,33 @@ export function bresenhamCircleFill(cx, cy, radius, colorIdx,
   scanline(hw, -h);
 }
 
+// Native 0x43FC3 growth uses a fixed texture origin for the final radius.
+// The cached bitmap can be larger than this blast; its stride stays unchanged.
+export function drawTexturedExplosionGrowth(cx, cy, radius, currentRadius, texture, writePixel = setPixel) {
+  const aspect = getActiveGraphicsMode().displayAspect;
+  const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
+  const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
+  const left = cx + Math.floor(-radius * sx / 65536);
+  const top = cy + Math.floor(-radius * sy / 65536);
+  bresenhamCircleFill(cx, cy, currentRadius, 0, {
+    protectedMin: 200, protectedMax: 239,
+    writePixel(x, y) {
+      // Native callback adds into a 16-bit segment offset. Wrapped blasts
+      // may read outside the allocated bitmap; absent heap bytes default to
+      // zero here until the surrounding native heap is reconstructed.
+      const offset = ((y - top) * texture.width + x - left) & 0xffff;
+      writePixel(x, y, 200 + (texture.pixels[offset] ?? 0));
+    },
+  });
+}
+
 // EXE 0x43E97 invokes the unconditional callback circle at 0x43ACA.
 // Restore every covered pixel, including blast colors and traces, to sky.
-export function restoreExplosionTerrain(cx, cy, radius, restoredPixels = null) {
+export function restoreExplosionTerrain(cx, cy, radius, restoredPixels = null, predicate = null) {
   const columns = new Set();
   bresenhamCircleFill(cx, cy, radius, 0, {
     writePixel(x, y) {
+      if (predicate && !predicate(x, y)) return;
       terrainBitmap[y * config.screenWidth + x] = 0;
       const color=getBackgroundColor(y,x);
       setPixel(x, y, color);
@@ -313,14 +339,21 @@ export function restoreExplosionTerrain(cx, cy, radius, restoredPixels = null) {
   if (columns.size) markTerrainCollapse(Math.min(...columns),Math.max(...columns));
 }
 
-// Native ordinary-blast growth, then large-blast palette cycling.
+function cycleExplosionPalette() {
+  const first = [...palette6.slice(600, 603)];
+  for (let i = 200; i < 239; i++)
+    setPaletteRgb(i, ...palette6.slice((i + 1) * 3, (i + 2) * 3));
+  setPaletteRgb(239, ...first);
+}
+
+// Native ordinary/textured growth, palette cycling, and restoration.
 // Native delay timing and post-restoration damage still need matching.
 export function stepExplosion() {
   if (!currentExplosion) return false;
   const anim = currentExplosion;
-  if (anim.currentRadius > anim.radius && (anim.radius <= 30 || anim.blackened)) {
-    const restored=anim.captureRestoration?new Map():null;
-    restoreExplosionTerrain(anim.cx, anim.cy, anim.radius,restored);
+  if (anim.currentRadius > anim.radius && (anim.texture ? anim.restoreBand >= 240 : anim.radius <= 30 || anim.blackened)) {
+    const restored=anim.restored;
+    if (!anim.texture) restoreExplosionTerrain(anim.cx, anim.cy, anim.radius,restored);
     anim.onComplete?.(restored);
     currentExplosion = explosionQueue.shift() || null;
     if (currentExplosion) setupExplosionPalette();
@@ -329,13 +362,36 @@ export function stepExplosion() {
   // Keep the earlier color bands across the main loop's clean-world repaint.
   for (const [index, color] of anim.pixels)
     setPixel(index % config.screenWidth, Math.floor(index / config.screenWidth), color);
+  if (anim.texture) {
+    const writePixel = (x, y, color) => {
+      anim.pixels.set(y * config.screenWidth + x, color);
+      setPixel(x, y, color);
+    };
+    if (anim.currentRadius <= anim.radius) {
+      drawTexturedExplosionGrowth(anim.cx, anim.cy, anim.radius, anim.currentRadius++, anim.texture, writePixel);
+      anim.frame++;
+    } else if (anim.cycleCount < 99) {
+      anim.cycleCount++;
+    } else {
+      // Native bands overlap at their endpoints: 200..204, 204..208, ...
+      const restored = new Map();
+      restoreExplosionTerrain(anim.cx, anim.cy, anim.radius, restored, (x, y) => {
+        const color = getPixel(x, y);
+        return color >= anim.restoreBand && color <= anim.restoreBand + 4;
+      });
+      for (const [index, color] of restored) {
+        anim.pixels.set(index, color);
+        anim.restored?.set(index, color);
+      }
+      anim.restoreBand += 4;
+    }
+    cycleExplosionPalette();
+    return true;
+  }
   if (anim.currentRadius > anim.radius) {
     if (anim.cycleCount < 49) {
       // EXE 0x443EB rotates entries 200..239 one position toward lower indices.
-      const first = [...palette6.slice(600, 603)];
-      for (let i = 200; i < 239; i++)
-        setPaletteRgb(i, ...palette6.slice((i + 1) * 3, (i + 2) * 3));
-      setPaletteRgb(239, ...first);
+      cycleExplosionPalette();
       anim.cycleCount++;
     } else {
       // EXE 0x43E50 clears only the first 25 entries before the final upload.
@@ -369,7 +425,7 @@ export function drawExplosion() {
 
 // Native area-damage request at 0x43EAB, before shield/energy accounting.
 export function getExplosionDistance(cx, cy, x, y) {
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = getActiveGraphicsMode().displayAspect;
   const scaleX = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const scaleY = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   const squared = dx => {

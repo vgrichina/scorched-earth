@@ -1,6 +1,7 @@
 """Continuous flight-to-impact capture for verify_landscape_sequence.py.
 
-Uses the real native collision -> impact dispatcher -> ordinary blast call chain.
+Uses the real native collision -> impact dispatcher -> blast call chain.
+Optional textured capture preserves the independently prepared native cache.
 Only sound/delay/input waits are bypassed. The blast completion capture follows
 area damage at 0x43F69, matching production stepExplosion callbacks. Optional
 aftermath reaches the impact handler return. Optional falling captures check
@@ -15,15 +16,15 @@ from emu.state import save_state
 from compare_pipeline import extract_display_pixels, write_emu_png
 
 
-def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False, shields=False, death=False):
+def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, aftermath=False, falling=False, shields=False, death=False, textured=False):
     ds=0x4FC80
     in_death=False
     saw_falling=False
     pending_landing=False
     flight_stop=0x220DE if shields else 0x22064
-    # Ordinary weapon, no saved blast background. Same initialized weapon table as
-    # the checkpoint, including its resolution-dependent Large radius.
-    for off,value in ((0xE344,actual.get('shotWeapon',0)),(0xEF46,0),(0x5104,0),(0x5106,0)):
+    # Preserve the setup-generated bitmap for textured cases; ordinary fixtures
+    # explicitly disable it. Both use the initialized/scaled weapon table.
+    for off,value in ([(0xE344,actual.get('shotWeapon',0)),(0xEF46,0)] + ([] if textured else [(0x5104,0),(0x5106,0)])):
         mem.write16(ds+off,value)
     mem.write16(0x9003A,0)
     stage=0
@@ -49,7 +50,8 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
         if differences and output_dir:
             save_state(output_dir/'mismatch.state',cpu,mem,ports,handler)
         assert not differences,(stage,phase,len(differences),[(x,y,n,p,ports.palette[n],mapped[p]) for x,y,n,p in differences[:10]])
-        if phase!='flight' or stage%20==0:print(f'Shot frame {stage}: {phase} RGB matches.',flush=True)
+        if phase not in ('flight','blast') or stage%20==0:
+            print(f'Shot frame {stage}: {phase} RGB matches.',flush=True)
         stage+=1
     for step in range(max_steps):
         for off,pof in ((0,20),(2,28)):
@@ -57,7 +59,7 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
         for off in (0x1C7E,0xCE98,0xCE9A):mem.write16(ds+off,0)
         cpu.segs[1]=0x1ADA;cpu.ip=0x21AA2-0x6100-0x1ADA0
         cpu.regs[5]=0x2400;cpu.regs[4]=0x23E0;cpu.regs[6]=0
-        points={0x232E5,0x232EA,0x20F63,flight_stop,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69}
+        points={0x232E5,0x232EA,0x20F63,flight_stop,0x231D3,0x43D3A,0x43DDD,0x43E2E,0x43E71,0x43F69,0x4403F,0x44086,0x440D5}
         if falling:points.update((0x20BDF,0x201CF,0x20EA2,0x31AE3,0x31AF8))
         if death:points.add(0x1CC85)
         waits={0x4C117,0x104F6,0x28A80}
@@ -150,8 +152,11 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                 capture('impact')
                 points.remove(offset)
                 continue
-            capture('blast')
+            capture('death-blast' if textured and in_death else 'blast')
             if offset==0x43F69:
+                if textured and in_death:
+                    run_fast(cpu,mem,ports,handler,1)
+                    continue
                 if actual.get('blastPlayerState') is not None:
                     state=[]
                     for i in range(mem.read16(ds+0x50D4)):
@@ -165,12 +170,13 @@ def compare_shot(cpu, mem, ports, handler, actual, output_dir, max_steps, afterm
                         save_state(output_dir/'after-restoration.state',cpu,mem,ports,handler)
                         (output_dir/'after-restoration-port.json').write_text(json.dumps({
                             'frame':actual['frames'][stage], 'palette':actual['flightPalettes'][stage]}))
-                    points.remove(offset)
+                    if textured:run_fast(cpu,mem,ports,handler,1)
+                    else:points.remove(offset)
                     continue
                 assert stage==len(actual['frames']),(stage,len(actual['frames']))
                 print(f'{stage} continuous shot RGB frames match through crater restoration and area damage; aftermath pending.',flush=True)
                 return
-            cpu.regs[4]+={0x43DDD:12,0x43E2E:4,0x43E71:4}[offset]
+            cpu.regs[4]+={0x43DDD:12,0x43E2E:4,0x43E71:4,0x4403F:4,0x44086:4,0x440D5:4}[offset]
             cpu.ip+=3
         else:raise AssertionError('shot native block did not finish')
     raise AssertionError('native shot did not impact')

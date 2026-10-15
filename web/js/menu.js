@@ -3,16 +3,18 @@
 // EXE: dialog system at segment 0x3F19, 3D box at 0x444BB, embossed title at 0x4CEFD
 // EXE: small mode (320x200): row_height=17, start_y=5, font=1
 
-import { config, saveConfig, GRAPHICS_MODES, applyGraphicsMode, getUIBorderHeight, getUIButtonHeight } from './config.js';
+import { config, saveConfig, GRAPHICS_MODES, getUIBorderHeight, getUIButtonHeight } from './config.js';
 import { fillRect, hline, vline, drawBox3DRaised, drawBox3DSunken, setPixel } from './framebuffer.js';
 import { drawText, drawTextEmbossed, measureText, FONT_HEIGHT } from './font.js';
 import { BLACK, initPalette, getPlayerColor, setPaletteRgb, updatePalette32 } from './palette.js';
-import { consumeKey, consumeClick, consumeTextInput, mouse } from './input.js';
-import { TANK_TYPES } from './tank.js';
+import { consumeKey, consumeClick, consumeTextInput, isKeyDown, mouse } from './input.js';
+import { TANK_TYPES, players, createUninitializedPlayer } from './tank.js';
 import { drawUIIcon, drawIconSlider } from './hud.js';
-import { bresenhamLine } from './utils.js';
+import { bresenhamLine, random } from './utils.js';
 import { AI_TYPE, AI_NAMES } from './ai.js';
+import { randomComputerName, resolveDuplicateComputerNames } from './player-names.js';
 import { generateMenuTerrain, terrain } from './terrain.js';
+import { prepareExplosionTexture } from './explosion-texture.js';
 import { UI_HIGHLIGHT, UI_DARK_TEXT, UI_DARK_BORDER, UI_BACKGROUND,
          UI_LIGHT_ACCENT, UI_DEEP_SHADOW, UI_LIGHT_BORDER, UI_MED_BORDER,
          UI_BRIGHT_BORDER, PLAYER_PALETTE_STRIDE, PLAYER_COLOR_FULL,
@@ -83,14 +85,12 @@ const SUBMENUS = {
     items: [
       { label: '~Graphics Mode:', key: 'graphicsMode', min: 0, max: GRAPHICS_MODES.length - 1, step: 1,
         names: GRAPHICS_MODES.map(m => m.name) },
-      { label: '~Bios Keyboard', key: null, fixed: 'N/A', disabled: true },
-      { label: '~Small Memory', key: null, fixed: 'N/A', disabled: true },
-      { label: '~Mouse Enabled', key: null, fixed: 'On', disabled: true },
-      { label: '~Firing Delay:', key: null, fixed: 'N/A', disabled: true },
-      { label: '~Hardware Delay:', key: null, fixed: 'N/A', disabled: true },
-      { label: 'Falling ~Delay:', key: null, fixed: 'N/A', disabled: true },
-      { label: '~Calibrate Joystick', key: null, fixed: 'N/A', disabled: true },
-      { label: '~Fast Computers', key: null, fixed: 'N/A', disabled: true },
+      { label: '~Bios Keyboard', key: 'biosKeyboard', checkbox: true, min: 0, max: 1, step: 1 },
+      { label: '~Small Memory', key: 'smallMemory', checkbox: true, min: 0, max: 1, step: 1 },
+      { label: '~Pointer:', key: null, fixed: 'None', disabled: true },
+      { label: '~Mouse Rate:', key: null, fixed: '0.0', disabled: true },
+      { label: '~Firing Delay:', key: 'firingDelay', min: 0, max: 500, step: 5 },
+      { label: 'Falling ~Delay:', key: 'fallingDelay', grouped: true, min: 0, max: 1000, step: 5 },
     ],
   },
   economics: {
@@ -108,52 +108,41 @@ const SUBMENUS = {
     title: 'Physics',
     items: [
       { label: '~Air Viscosity:', key: 'viscosity', min: 0, max: 20, step: 1 },
-      { label: '~Gravity:', key: 'gravity', min: 0.05, max: 10, step: 0.05, float: true },
-      { label: '~Borders Extend:', key: 'edgesExtend', min: 0, max: 500, step: 5 },
+      { label: '~Gravity:', key: 'gravity', min: 0.05, max: 10, step: 0.1, float: true, decimals: 1 },
+      { label: '~Suspend Dirt:', key: 'suspendDirt', min: 0, max: 100, step: 5 },
+      { label: 'Tanks ~Fall', key: 'fallingTanks', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Borders Extend:', key: 'edgesExtend', min: 0, max: 10000, step: 5, grouped: true },
       { label: '~Effect of Walls:', key: 'wallType', min: 0, max: 7, step: 1,
         names: ['None', 'Wrap-around', 'Padded', 'Rubber', 'Spring', 'Concrete', 'Random', 'Erratic'] },
-      { label: '~Suspend Dirt:', key: 'suspendDirt', min: 0, max: 100, step: 5, suffix: '%' },
-      { label: '~Sky:', key: 'skyType', min: 0, max: 7, step: 1,
-        names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black', 'Random'] },
-      { label: '~Max. Wind:', key: 'wind', min: 0, max: 500, step: 5 },
-      { label: '~Changing Wind', key: 'changeWind', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
     ],
   },
   landscape: {
     title: 'Landscape',
     items: [
-      { label: 'Land ~Type:', key: 'landType', min: 0, max: 6, step: 1,
-        names: ['Flat', 'Slope', 'Rolling', 'Mountain', 'V-Shaped', 'Castle', 'Cavern'] },
-      { label: '~Bumpiness:', key: 'land1', min: 0, max: 100, step: 5 },
-      { label: 'S~lope:', key: 'land2', min: 0, max: 100, step: 5 },
-      { label: '~Flatten Peaks', key: 'flattenPeaks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Random Land', key: 'randomLand', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Percent Scanned Mountains:', key: 'mtnPercent', min: 0, max: 100, step: 5 },
+      { label: '~Sky:', key: 'skyType', min: 0, max: 7, step: 1,
+        names: ['Plain', 'Shaded', 'Stars', 'Storm', 'Sunset', 'Cavern', 'Black', 'Random'] },
+      { label: '~Max. Wind:', key: 'wind', min: 0, max: 500, step: 5 },
+      { label: '~Changing Wind', key: 'changeWind', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Hostile Environment', key: 'hostileEnvironment', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Bumpiness:', key: 'land1', min: 0, max: 100, step: 2 },
+      { label: 'S~lope:', key: 'land2', min: 0, max: 100, step: 2 },
+      { label: '~Flatten Peaks', key: 'flattenPeaks', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Random Land', key: 'randomLand', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Percent Scanned Mountains:', key: 'mtnPercent', min: 0, max: 100, step: 2 },
     ],
   },
   playoptions: {
     title: 'Play Options',
     items: [
-      { label: 'Ta~lking Tanks:', key: 'talkingTanks', min: 0, max: 2, step: 1, names: ['Off', 'Computers', 'All'] },
-      { label: 'Talk ~Probability:', key: 'talkProbability', min: 0, max: 100, step: 10, suffix: '%' },
-      { label: 'Tanks ~Fall', key: 'fallingTanks', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Impact Damage', key: 'impactDamage', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Arms Level:', key: 'armsLevel', min: 0, max: 4, step: 1 },
-      { label: '~Bomb Icon:', key: 'bombIcon', min: 0, max: 2, step: 1,
-        names: ['Small', 'Big', 'Invisible'] },
-      { label: '~Tunneling', key: 'tunneling', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Scale:', key: 'explosionScale', min: 0, max: 2, step: 1,
-        names: ['Normal', 'Medium', 'Large'] },
-      { label: 'Trace ~Paths', key: 'tracePaths', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Extra Dirt', key: 'extraDirt', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Useless Items', key: 'uselessItems', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Mode:', key: 'playMode', min: 0, max: 2, step: 1,
-        names: ['Sequential', 'Simultaneous', 'Synchronous'] },
-      { label: 'Play ~Order:', key: 'playOrder', min: 0, max: 3, step: 1,
-        names: ['Random', 'Losers-First', 'Winners-First', 'Round-Robin'] },
+      { label: '~Mode:', key: 'playMode', min: 0, max: 2, step: 1, names: ['Sequential', 'Simultaneous', 'Synchronous'] },
       { label: '~Teams:', key: 'teamMode', min: 0, max: 3, step: 1, names: ['None', 'Standard', 'Corporate', 'Vicious'] },
-      { label: '~Hostile Environment', key: 'hostileEnvironment', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: 'Status ~Bar', key: 'statusBar', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Status ~Bar', key: 'statusBar', min: 0, max: 1, step: 1, checkbox: true },
+      { label: 'Play ~Order:', key: 'playOrder', min: 0, max: 3, step: 1, names: ['Random', 'Losers-First', 'Winners-First', 'Round-Robin'] },
+      { label: '~Fast Computers', key: 'fastComputers', min: 0, max: 1, step: 1, checkbox: true },
+      { label: 'Ta~lking Tanks:', key: 'talkingTanks', min: 0, max: 2, step: 1, names: ['Off', 'Computers', 'All'] },
+      { label: 'Talk ~Probability:', key: 'talkProbability', min: 0, max: 100, step: 5 },
+      { label: '~Attack File:', key: 'attackFile', text: true, maxLength: 12 },
+      { label: '~Die File:', key: 'dieFile', text: true, maxLength: 12 },
     ],
   },
   weapons: {
@@ -162,12 +151,12 @@ const SUBMENUS = {
       { label: '~Arms Level:', key: 'armsLevel', min: 0, max: 4, step: 1 },
       { label: '~Bomb Icon:', key: 'bombIcon', min: 0, max: 2, step: 1,
         names: ['Small', 'Big', 'Invisible'] },
-      { label: '~Tunneling', key: 'tunneling', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: '~Tunneling', key: 'tunneling', min: 0, max: 1, step: 1, checkbox: true },
       { label: '~Scale:', key: 'explosionScale', min: 0, max: 2, step: 1,
         names: ['Normal', 'Medium', 'Large'] },
-      { label: 'Trace ~Paths', key: 'tracePaths', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Extra Dirt', key: 'extraDirt', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
-      { label: '~Useless Items', key: 'uselessItems', min: 0, max: 1, step: 1, names: ['Off', 'On'] },
+      { label: 'Trace ~Paths', key: 'tracePaths', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Extra Dirt', key: 'extraDirt', min: 0, max: 1, step: 1, checkbox: true },
+      { label: '~Useless Items', key: 'uselessItems', min: 0, max: 1, step: 1, checkbox: true },
     ],
   },
 };
@@ -178,11 +167,24 @@ export const menu = {
   selectedOption: 0,       // main menu selected index
   activeSubmenu: null,     // null or submenu key string
   soundDraft: null,
+  economicsDraft: null,
+  hardwareDraft: null,
+  physicsDraft: null,
+  landscapeDraft: null,
+  playoptionsDraft: null,
+  weaponsDraft: null,
+  textEdit: null,
+  systemOverlay: null,
+  systemConfirmation: null,
+  reassignPlayers: false,
+  reassignEditing: false,
+  systemFlightSound: null,
   configDirty: false,
   submenuSelected: 0,      // selected item within submenu
   terrainDirty: true,      // regenerate terrain preview
   playerSetupIdx: 0,
   playerSetupField: 0,
+  setupBackdropPolls: 0, // Native DS:5008 persists across setup sessions.
   blinkTimer: 0,
   saveFlash: 0,            // frames to show "Saved!" feedback
 };
@@ -191,21 +193,42 @@ export const menu = {
 export const playerSetup = [];
 
 // EXE 0x26B69 builds a 40-color ramp; 0x26C74 paints nine-pixel stripes.
-function setupPlayerBackdrop(colorIndex) {
+// Native DS:500C persists after opening an existing-player editor.
+let setupReassignmentMode = false;
+let setupBackdropPhase = 0, setupBackdropColor = 0;
+function setupPlayerBackdrop(colorIndex, initialRotation = false) {
+  setupBackdropColor = colorIndex;
+  setupBackdropPhase = initialRotation ? 1 : 0;
+  // Rebuilding the native ramp does not publish it until the next rotation.
+  if (initialRotation) paintPlayerBackdrop();
+}
+function paintPlayerBackdrop() {
+  const colorIndex = setupBackdropColor;
   const rgb = getPlayerColor(colorIndex);
   for (let i = 0; i < 40; i++) {
-    const scale = i < 20 ? i + 5 : 44 - i;
+    const source = (i + setupBackdropPhase) % 40;
+    const scale = source < 20 ? source + 5 : 44 - source;
     setPaletteRgb(180 + i, ...rgb.map(channel => Math.trunc(channel * scale / 24)));
   }
   updatePalette32();
 }
 
+// One native idle callback (0x273A0), also called by modal text entry at 0x4A042.
+export function tickPlayerSetupBackdrop(pointer = false) {
+  menu.setupBackdropPolls = (menu.setupBackdropPolls + 1) & 0xffff;
+  if (menu.setupBackdropPolls > 100 || pointer) {
+    menu.setupBackdropPolls = 0;
+    setupBackdropPhase = (setupBackdropPhase + 1) % 40;
+    paintPlayerBackdrop();
+  }
+}
+
 export function initPlayerSetup() {
-  setupPlayerBackdrop(0);
+  setupPlayerBackdrop(0, true);
   playerSetup.length = 0;
   for (let i = 0; i < config.numPlayers; i++) {
     playerSetup.push({
-      name: '',
+      name: setupReassignmentMode ? (players[i]?.name ?? '') : '',
       editName: '',
       aiType: AI_TYPE.HUMAN,
       colorIndex: i % 10,
@@ -219,11 +242,12 @@ export function initPlayerSetup() {
 function formatValue(item) {
   if (item.disabled) return item.fixed;
   const val = menu.activeSubmenu==='sound' && SUBMENUS.sound.items.includes(item)
-    ? soundSettings()[item.key] : config[item.key];
+    ? soundSettings()[item.key] : menu.activeSubmenu==='economics' && SUBMENUS.economics.items.includes(item)
+      ? economicsSettings()[item.key] : menu.activeSubmenu==='hardware' && SUBMENUS.hardware.items.includes(item) ? hardwareSettings()[item.key] : menu.activeSubmenu==='physics' && SUBMENUS.physics.items.includes(item) ? physicsSettings()[item.key] : menu.activeSubmenu==='landscape' && SUBMENUS.landscape.items.includes(item) ? landscapeSettings()[item.key] : menu.activeSubmenu==='playoptions' && SUBMENUS.playoptions.items.includes(item) ? playoptionsSettings()[item.key] : menu.activeSubmenu==='weapons' && SUBMENUS.weapons.items.includes(item) ? weaponsSettings()[item.key] : config[item.key];
   if(item.rate)return (val/100).toFixed(2);
-  if(item.cash)return val.toLocaleString('en-US');
+  if(item.cash||item.grouped)return val.toLocaleString('en-US');
   if (item.names) return item.names[val] || String(val);
-  if (item.float) return val.toFixed(2);
+  if (item.float) return val.toFixed(item.decimals ?? 2);
   return String(val) + (item.suffix || '');
 }
 
@@ -259,13 +283,23 @@ function computeSubmenuWidth(sub) {
 // --- Helper: adjust a config value ---
 function adjustValue(item, dir) {
   if (item.disabled || !item.key) return;
+  if (item.text) {menu.textEdit={key:item.key,value:''};menu.blinkTimer=0;return;}
   if (SUBMENUS.sound.items.includes(item)) {
     const count=item.max-item.min+1;
     const settings=soundSettings();
     settings[item.key]=item.min+(settings[item.key]-item.min+dir+count)%count;
     return;
   }
-  if(item.checkbox){config[item.key]=config[item.key]?0:1;return;}
+  if (SUBMENUS.economics.items.includes(item) || SUBMENUS.hardware.items.includes(item) || SUBMENUS.physics.items.includes(item) || SUBMENUS.landscape.items.includes(item) || SUBMENUS.playoptions.items.includes(item) || SUBMENUS.weapons.items.includes(item)) {
+    const settings=SUBMENUS.weapons.items.includes(item)?weaponsSettings():SUBMENUS.playoptions.items.includes(item)?playoptionsSettings():SUBMENUS.landscape.items.includes(item)?landscapeSettings():SUBMENUS.physics.items.includes(item)?physicsSettings():SUBMENUS.hardware.items.includes(item)?hardwareSettings():economicsSettings();
+    if(item.checkbox)settings[item.key]=settings[item.key]?0:1;
+    else if(item.names)settings[item.key]=(settings[item.key]+dir+item.names.length)%item.names.length;
+    else {
+      const next=settings[item.key]+item.step*dir;
+      settings[item.key]=next>item.max?item.min:next<item.min?item.max:next;
+    }
+    return;
+  }
   const step = item.step * dir;
   if (item.float) {
     config[item.key] = Math.round(Math.max(item.min, Math.min(item.max, config[item.key] + step)) * 100) / 100;
@@ -277,7 +311,66 @@ function adjustValue(item, dir) {
 function soundSettings() {
   return menu.soundDraft ??= {soundEnabled:config.soundEnabled,flySoundEnabled:config.flySoundEnabled};
 }
+function economicsSettings() {
+  return menu.economicsDraft ??= Object.fromEntries(SUBMENUS.economics.items.map(item=>[item.key,config[item.key]]));
+}
+function hardwareSettings() {
+  return menu.hardwareDraft ??= Object.fromEntries(SUBMENUS.hardware.items.filter(i=>i.key).map(i=>[i.key,config[i.key]]));
+}
+function physicsSettings() {
+  return menu.physicsDraft ??= Object.fromEntries(SUBMENUS.physics.items.map(item=>[item.key,config[item.key]]));
+}
+function landscapeSettings() {
+  return menu.landscapeDraft ??= Object.fromEntries(SUBMENUS.landscape.items.map(item=>[item.key,config[item.key]]));
+}
+function playoptionsSettings() {
+  return menu.playoptionsDraft ??= Object.fromEntries(SUBMENUS.playoptions.items.map(item=>[item.key,config[item.key]]));
+}
+function weaponsSettings() {
+  return menu.weaponsDraft ??= Object.fromEntries(SUBMENUS.weapons.items.map(item=>[item.key,config[item.key]]));
+}
 function closeSubmenu() {
+  if(menu.activeSubmenu==='weapons') {
+    for(const [key,value] of Object.entries(weaponsSettings())) {
+      if(config[key]!==value) {config[key]=value;menu.configDirty=true;}
+    }
+    menu.weaponsDraft=null;
+  }
+  if(menu.activeSubmenu==='playoptions') {
+    for(const [key,value] of Object.entries(playoptionsSettings())) {
+      if(config[key]!==value) {config[key]=value;menu.configDirty=true;}
+    }
+    menu.playoptionsDraft=null;
+    menu.textEdit=null;
+  }
+  if(menu.activeSubmenu==='landscape') {
+    for(const [key,value] of Object.entries(landscapeSettings())) {
+      if(config[key]!==value) {config[key]=value;menu.configDirty=true;}
+    }
+    menu.landscapeDraft=null;
+  }
+  if(menu.activeSubmenu==='physics') {
+    for(const [key,value] of Object.entries(physicsSettings())) {
+      if(config[key]!==value) {config[key]=value;menu.configDirty=true;}
+    }
+    menu.physicsDraft=null;
+  }
+  if(menu.activeSubmenu==='hardware') {
+    if(hardwareSettings().graphicsMode!==config.graphicsMode)
+      config.activeGraphicsMode ??= config.graphicsMode;
+    for(const [key,value] of Object.entries(hardwareSettings())) {
+      if(config[key]!==value)menu.configDirty=true;
+      config[key]=value;
+    }
+    menu.hardwareDraft=null;
+  }
+  if(menu.activeSubmenu==='economics') {
+    for(const [key,value] of Object.entries(economicsSettings())) {
+      if(config[key]!==value)menu.configDirty=true;
+      config[key]=value;
+    }
+    menu.economicsDraft=null;
+  }
   if(menu.activeSubmenu==='sound') {
     for(const [key,value] of Object.entries(soundSettings())) {
       if(config[key]!==value)menu.configDirty=true;
@@ -314,6 +407,71 @@ function boxSunken(x, y, w, h, fill) {
 export function menuTick() {
   menu.blinkTimer++;
   if (menu.saveFlash > 0) menu.saveFlash--;
+  if(menu.screen==='config') {
+    if(menu.reassignPlayers) {
+      if(menu.reassignEditing) {
+        handlePlayerSetupInput();
+      } else {
+        const {x,y,width,height,rowH,rowY,buttonW}=reassignLayout();
+        const click=mouse.over&&(consumeClick(0)||consumeClick(2));
+        if(consumeKey('Escape') || (click&&(mouse.x<x||mouse.x>x+width||mouse.y<y||mouse.y>y+height)))menu.reassignPlayers=false;
+        else for(let i=0;i<config.numPlayers;i++) {
+          const by=y+rowY+i*rowH;
+          if(consumeKey('Digit'+((i+1)%10)) || (click&&mouse.x>=x+10&&mouse.x<x+10+buttonW&&mouse.y>=by-getUIBorderHeight()&&mouse.y<by-getUIBorderHeight()+getUIButtonHeight())) {
+            const p=players[i];
+            playerSetup[i]={identityIndex:p?.identityIndex??i,colorRgb:p?.colorRgb,doneEnabled:true,name:p?.name??'',aiType:p?.aiType?(p.aiSelection===-2?AI_TYPE.UNKNOWN:p.aiType):0,computerType:p?.aiType?(p.aiSelection===-2?AI_TYPE.UNKNOWN:p.aiType):AI_TYPE.TOSSER,colorIndex:p?.colorIndex??i,tankType:p?.tankType??3};
+            menu.playerSetupIdx=i;menu.playerSetupField=0;menu.reassignEditing=true;setupReassignmentMode=true;
+            break;
+          }
+        }
+      }
+      return menu.screen;
+    }
+    if(menu.systemConfirmation) {
+      const {x,y,width,height,noX,noW,yesX,yesW}=systemConfirmationLayout();
+      const click=mouse.over&&(consumeClick(0)||consumeClick(2));
+      const noClick=click&&mouse.x>=noX&&mouse.x<noX+noW&&mouse.y>=y+27-getUIBorderHeight()&&mouse.y<y+27-getUIBorderHeight()+getUIButtonHeight();
+      const yesClick=click&&mouse.x>=yesX&&mouse.x<yesX+yesW&&mouse.y>=y+27-getUIBorderHeight()&&mouse.y<y+27-getUIBorderHeight()+getUIButtonHeight();
+      if(menu.systemConfirmation==='new'&&(consumeKey('KeyY')||yesClick)) {
+        closeSubmenu();
+        prepareExplosionTexture();
+        resetMenuState();
+        return menu.screen;
+      }
+      const outside=click&&(mouse.x<x||mouse.x>x+width||mouse.y<y||mouse.y>y+height);
+      if(consumeKey('KeyN')||consumeKey('Escape')||noClick||outside)menu.systemConfirmation=null;
+      consumeKey('Enter');consumeKey('Space');
+      return menu.screen;
+    }
+    if(menu.systemOverlay) {
+      const left=mouse.over&&consumeClick(0),right=mouse.over&&consumeClick(2);
+      const {x,y,width,height,rowH}=systemOverlayLayout();
+      let action=consumeKey('KeyQ')?'quit':consumeKey('KeyN')?'new':consumeKey('KeyP')?'players':null;
+      const layout=systemOverlayLayout();
+      for(const [row,name] of [[2,'new'],[3,'quit']]) {
+        const bx=x+layout.column,by=y+5+(row+1)*rowH-getUIBorderHeight();
+        if((left||right)&&mouse.x>=bx&&mouse.x<bx+measureText(layout.right[row])+12&&mouse.y>=by&&mouse.y<by+getUIButtonHeight())action=name;
+      }
+      const playersY=y+5+3*rowH-getUIBorderHeight();
+      if((left||right)&&mouse.x>=x+10&&mouse.x<x+22+measureText(layout.left[2])&&mouse.y>=playersY&&mouse.y<playersY+getUIButtonHeight())action='players';
+      const soundY=y+5+5*rowH,soundEnd=x+20+measureText('~Sound:')+11;
+      if(consumeKey('KeyS') || ((left||right) && mouse.x>=x+10&&mouse.x<=soundEnd&&mouse.y>=soundY&&mouse.y<=soundY+11))menu.systemOverlay.sound=menu.systemOverlay.sound?0:1;
+      if(action || consumeKey('Escape') || ((left||right) && (mouse.x<x||mouse.x>x+width||mouse.y<y||mouse.y>y+height))) {
+        config.soundEnabled=menu.systemOverlay.sound;
+        menu.systemFlightSound ??= config.flySoundEnabled;
+        config.flySoundEnabled=config.soundEnabled?menu.systemFlightSound:0;
+        menu.systemOverlay=null;
+        if(action==='players') {while(players.length<config.numPlayers)players.push(createUninitializedPlayer(players.length));menu.reassignPlayers=true;menu.reassignNameWidth=0;menu.reassignOrder=Array.from({length:config.numPlayers},(_,i)=>i);}
+        else if(action)menu.systemConfirmation=action;
+      }
+      consumeKey('Enter');consumeKey('Space');
+      return menu.screen;
+    }
+    if((isKeyDown('AltLeft')||isKeyDown('AltRight')) && consumeKey('KeyS')) {
+      menu.systemOverlay={sound:config.soundEnabled};
+      return menu.screen;
+    }
+  }
   const previousConfig={...config};
   let result=menu.screen;
   switch (menu.screen) {
@@ -346,6 +504,7 @@ function hitTestMenuButton(mx, my) {
 function activateMenuItem(item) {
   if (item.type === 'button' && item.action === 'start') {
     saveConfig();
+    prepareExplosionTexture();
     initPlayerSetup();
     menu.screen = 'player_setup';
     menu.playerSetupIdx = 0;
@@ -442,22 +601,22 @@ function handleMainMenuInput() {
 
 function handleSubmenuInput() {
   const sub = SUBMENUS[menu.activeSubmenu];
+  if(menu.textEdit) {
+    if(consumeKey('Backspace'))menu.textEdit.value=menu.textEdit.value.slice(0,-1);
+    menu.textEdit.value=(menu.textEdit.value+consumeTextInput().replace(/[^a-zA-Z0-9.]/g,'')).slice(0,12);
+    if(consumeKey('Enter')) {
+      if(menu.textEdit.value)playoptionsSettings()[menu.textEdit.key]=menu.textEdit.value;
+      menu.textEdit=null;
+    } else if(consumeKey('Escape'))menu.textEdit=null;
+    return 'config';
+  }
   if (!sub) { menu.activeSubmenu = null; return 'config'; }
 
-  if (consumeKey('ArrowUp')) {
-    menu.submenuSelected = (menu.submenuSelected - 1 + sub.items.length) % sub.items.length;
-  }
-  if (consumeKey('ArrowDown')) {
-    menu.submenuSelected = (menu.submenuSelected + 1) % sub.items.length;
-  }
-
-  const item = sub.items[menu.submenuSelected];
+  // Native configuration dialogs ignore extended arrows; they do not
+  // select a row or change values. Text editors consume input above.
+  for(const key of ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'])consumeKey(key);
   const prevSky = config.skyType;
   const prevLand = config.landType;
-  const prevGfxMode = config.graphicsMode;
-
-  if (consumeKey('ArrowLeft')) adjustValue(item, -1);
-  if (consumeKey('ArrowRight')) adjustValue(item, 1);
 
   // EXE: hotkey letters — extract char after '~' in label, match Key<X>
   // EXE dialog system handles hotkeys generically for all submenu items
@@ -469,8 +628,9 @@ function handleSubmenuInput() {
       const hotkey = si.label[tildeIdx + 1].toUpperCase();
       if (consumeKey('Key' + hotkey)) {
         menu.submenuSelected = i;
-        // Select + increment value (same as right-arrow)
-        adjustValue(si, 1);
+        // Native dialog key dispatch reverses shortcuts when BIOS Alt is held.
+        const reverse=isKeyDown('AltLeft')||isKeyDown('AltRight');
+        adjustValue(si, reverse ? -1 : 1);
         break;
       }
     }
@@ -478,10 +638,10 @@ function handleSubmenuInput() {
 
   // Sound lists use left/right buttons; other submenu controls use screen halves.
   const leftClick=mouse.over&&consumeClick(0);
-  const rightClick=mouse.over&&['sound','economics'].includes(menu.activeSubmenu)&&consumeClick(2);
+  const rightClick=mouse.over&&['sound','economics','hardware','physics','landscape','playoptions','weapons'].includes(menu.activeSubmenu)&&consumeClick(2);
   if (leftClick || rightClick) {
     const rowH = getSubRowH();
-    const nativeLayout=menu.activeSubmenu==='sound'?soundSubmenuLayout():menu.activeSubmenu==='economics'?economicsSubmenuLayout():null;
+    const nativeLayout=menu.activeSubmenu==='sound'?soundSubmenuLayout():menu.activeSubmenu==='economics'?economicsSubmenuLayout():menu.activeSubmenu==='hardware'?hardwareSubmenuLayout():menu.activeSubmenu==='physics'?settingsSubmenuLayout():['landscape','playoptions','weapons'].includes(menu.activeSubmenu)?settingsSubmenuLayout(menu.activeSubmenu):null;
     const dlgW = nativeLayout ? nativeLayout.width+1 : computeSubmenuWidth(sub);
     const dlgH = nativeLayout ? nativeLayout.height+1 : 30 + sub.items.length * rowH;
     const dlgX = nativeLayout ? nativeLayout.x : Math.floor((getScreenW() - dlgW) / 2);
@@ -492,14 +652,17 @@ function handleSubmenuInput() {
       // Hit-test items
       for (let i = 0; i < sub.items.length; i++) {
         const iy = dlgY + (nativeLayout ? 5 : 18) + i * rowH;
-        if (mouse.y >= iy - (nativeLayout ? 0 : 1) && mouse.y < iy + (nativeLayout ? 12 : rowH - 1)) {
+        if (mouse.y >= iy - (nativeLayout ? 0 : 1) && mouse.y < iy + (nativeLayout ? (sub.items[i].text?13:12) : rowH - 1)) {
           menu.submenuSelected = i;
           const clickedItem = sub.items[i];
           if (!clickedItem.disabled) {
             if(nativeLayout) {
-              const end=clickedItem.checkbox ? dlgX+20+Math.max(...sub.items.filter(i=>i.checkbox).map(i=>measureText(i.label)))+11
-                : dlgX+20+measureText(clickedItem.label)+(clickedItem.names?Math.max(...clickedItem.names.map(measureText)):measureText(clickedItem.cash?'1,000,000':'0.30')+5);
-              if(mouse.x>=dlgX+10 && mouse.x<=end)adjustValue(clickedItem,rightClick?1:-1);
+              const end=clickedItem.text ? dlgX+nativeLayout.width-10 : clickedItem.checkbox ? (menu.activeSubmenu==='playoptions'?dlgX+nativeLayout.width-10:dlgX+20+Math.max(...sub.items.filter(i=>i.checkbox).map(i=>measureText(i.label)))+12)
+                : dlgX+20+measureText(clickedItem.label)+(clickedItem.names?Math.max(...clickedItem.names.map(measureText)):measureText(['physics','landscape','playoptions','weapons'].includes(menu.activeSubmenu)?numericMaximumText(clickedItem):menu.activeSubmenu==='hardware'?clickedItem.max.toLocaleString('en-US'):clickedItem.cash?'1,000,000':'0.30')+5);
+              const start=clickedItem.text?dlgX+20+measureText(clickedItem.label):dlgX+10;
+              // Native type-4 editor observes the activating mouse button and
+              // immediately exits with an empty edit (0x49FE1..0x4A02C).
+              if(!clickedItem.text && mouse.x>=start && mouse.x<=end)adjustValue(clickedItem,rightClick?1:-1);
               break;
             }
             const midX = dlgX + dlgW / 2;
@@ -515,17 +678,13 @@ function handleSubmenuInput() {
   }
 
   // Mark terrain dirty if landscape/sky changed
-  if (config.skyType !== prevSky || config.landType !== prevLand) {
+  if (sub!==SUBMENUS.landscape && (config.skyType !== prevSky || config.landType !== prevLand)) {
     menu.terrainDirty = true;
   }
 
-  // Apply graphics mode change — updates screenWidth/screenHeight
-  if (config.graphicsMode !== prevGfxMode) {
-    applyGraphicsMode();
-  }
 
   const space=consumeKey('Space'),enter=consumeKey('Enter');
-  if (consumeKey('Escape') || ((space || enter) && menu.activeSubmenu!=='sound')) {
+  if (consumeKey('Escape') || ((space || enter) && !['sound','economics','hardware','physics','landscape','playoptions','weapons'].includes(menu.activeSubmenu))) {
     closeSubmenu();
   }
 
@@ -533,22 +692,61 @@ function handleSubmenuInput() {
 }
 
 function setSetupHuman(setup, human) {
+  if (setup.aiType !== AI_TYPE.HUMAN || !human) setup.extraTankEnabled = true;
   if (setup.aiType !== AI_TYPE.HUMAN) setup.computerType = setup.aiType;
   setup.aiType = human ? AI_TYPE.HUMAN : setup.computerType;
-  if (human && setup.tankType === 6) setup.tankType = 0;
+  // Native 0x27575..0x27577 skips the old computer-only tank reset.
+  // Switching player type preserves the tank selection, including index 6.
 }
 
+function finishReassignPlayer() {
+  const i=menu.playerSetupIdx;
+  if(players[i]) {
+    const p=players[i],setup=playerSetup[i],previousSelection=p.aiSelection;
+    // This roster is opened from configuration (native DS:50E2=0).
+    // Native 0x27E83..0x27E97 commits tank changes only during active play
+    // and for a live tank; the editor preview still follows the selection.
+    Object.assign(p,Object.fromEntries(['name','aiType','colorIndex'].map(key=>[key,setup[key]])));
+    // Native 0x27DBE: Unknown retains its label separately from the AI used.
+    if(p.aiType===AI_TYPE.UNKNOWN) {
+      p.aiSelection=-2;
+      if(previousSelection!==-2)p.aiType=random(7)+1;
+    } else if(p.aiType!==AI_TYPE.HUMAN)p.aiSelection=p.aiType-1;
+  }
+  menu.reassignEditing=false;
+  menu.reassignOrder=menu.reassignOrder.filter(index=>index!==i).concat(i);
+  return 'config';
+}
 function advancePlayerSetup() {
+  if(menu.reassignEditing)return finishReassignPlayer();
+  const setup=playerSetup[menu.playerSetupIdx];
+  setup.resolvedAiType=setup.aiType===AI_TYPE.UNKNOWN?random(7)+1:setup.aiType;
+  if(setup.aiType!==AI_TYPE.HUMAN&&!setup.name.length)setup.name=randomComputerName();
+  const p=players[menu.playerSetupIdx];
+  if(p) {
+    Object.assign(p,{name:setup.name,aiType:setup.resolvedAiType,tankType:setup.tankType});
+    if(setup.aiType)p.aiSelection=setup.aiType===AI_TYPE.UNKNOWN?-2:setup.aiType-1;
+  }
   menu.playerSetupIdx++;
   menu.playerSetupField = 0;
-  if (menu.playerSetupIdx >= config.numPlayers) return 'start_game';
-  setupPlayerBackdrop(playerSetup[menu.playerSetupIdx].colorIndex);
+  if (menu.playerSetupIdx >= config.numPlayers) {
+    resolveDuplicateComputerNames(playerSetup);
+    for (let i=0;i<playerSetup.length;i++)if(players[i])players[i].name=playerSetup[i].name;
+    return 'start_game';
+  }
+  const next=playerSetup[menu.playerSetupIdx];
+  next.aiType=setup.aiType;
+  next.computerType=setup.aiType||setup.computerType;
+  next.tankType=setup.tankType;
+  if(next.aiType!==AI_TYPE.HUMAN)delete next.editName;
+  setupPlayerBackdrop(next.colorIndex);
   return 'player_setup';
 }
 
 function handlePlayerSetupInput() {
   const setup = playerSetup[menu.playerSetupIdx];
   const lay = getPlayerSetupLayout();
+  if (!menu.reassignEditing && !setupReassignmentMode) tickPlayerSetupBackdrop();
 
   // EXE 0x49F52 edits a separate buffer. Enter commits it and returns to
   // the dialog; a subsequent Done action advances to the next player.
@@ -570,8 +768,8 @@ function handlePlayerSetupInput() {
   }
 
   if (consumeKey('Space')) setSetupHuman(setup, setup.aiType !== AI_TYPE.HUMAN);
-  const tankCount = setup.aiType === AI_TYPE.HUMAN ? 6 : 7;
-  if (consumeKey('KeyI')) setup.tankType = (setup.tankType + 1) % tankCount;
+  const tankCount = setup.aiType !== AI_TYPE.HUMAN || setup.extraTankEnabled ? 7 : 6;
+  consumeKey('KeyI'); // Native tank selector has no I shortcut.
   if (setup.aiType !== AI_TYPE.HUMAN) {
     for (let i = 0; i < AI_SETUP_LABELS.length; i++) {
       const label = AI_SETUP_LABELS[i];
@@ -598,12 +796,12 @@ function handlePlayerSetupInput() {
   if (consumeKey('ArrowDown') && menu.playerSetupField < 2) menu.playerSetupField++;
 
   // Enter or the Done hotkey advances after the name has been committed.
-  if ((consumeKey('Enter') || consumeKey('KeyD')) && (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN)) {
+  if ((consumeKey('Enter') || consumeKey('KeyD')) && (setup.doneEnabled ?? (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN))) {
     return advancePlayerSetup();
   }
 
   // Mouse clicks
-  if (mouse.over && consumeClick(0)) {
+  if (mouse.over && (consumeClick(0) || consumeClick(2))) {
     // Name field click
     if (setup.aiType !== AI_TYPE.HUMAN &&
         mouse.x >= lay.dlgX + 20 && mouse.x <= lay.dlgX + 191 &&
@@ -631,7 +829,7 @@ function handlePlayerSetupInput() {
     }
     // Done button click
     else if (mouse.x >= lay.doneX && mouse.x < lay.doneX + lay.doneW &&
-             mouse.y >= lay.doneY && mouse.y < lay.doneY + lay.doneH && (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN)) {
+             mouse.y >= lay.doneY && mouse.y < lay.doneY + lay.doneH && (setup.doneEnabled ?? (setup.name.trim() || setup.aiType !== AI_TYPE.HUMAN))) {
       return advancePlayerSetup();
     }
   }
@@ -668,7 +866,7 @@ export function drawMainMenu() {
   boxRaised(0, 0, getScreenW(), getScreenH());
 
   // 2. Left panel: 11 buttons
-  const nativeModal = ['sound','economics'].includes(menu.activeSubmenu);
+  const nativeModal = ['sound','economics','hardware','physics','landscape','playoptions','weapons'].includes(menu.activeSubmenu);
   const menuLabel = (x,y,label,color=UI_HIGHLIGHT) => {
     if(nativeModal) {
       drawText(x+1,y,label.replace('~',''),UI_LIGHT_BORDER);
@@ -770,6 +968,90 @@ export function drawMainMenu() {
   if (menu.activeSubmenu) {
     drawSubmenu();
   }
+  if(menu.systemOverlay)drawSystemOverlay();
+  if(menu.systemConfirmation)drawSystemConfirmation();
+  if(menu.reassignPlayers) {drawReassignPlayers();if(menu.reassignEditing)drawPlayerSetupScreen(true);}
+}
+
+function reassignLayout() {
+  // Native DS:EC46 grows after edits (0x35420), but only resets on opening.
+  const nameWidth=menu.reassignNameWidth=Math.max(menu.reassignNameWidth??0,measureText('Minimum'),...players.slice(0,config.numPlayers).map(p=>measureText(p.name)));
+  const typeWidth=Math.max(...['Sentient',...AI_NAMES].map(measureText));
+  const width=40+Math.max(measureText('Reassign Players'),nameWidth+typeWidth);
+  let rowY=25,rowH=18,height=25+(config.numPlayers-1)*18+getUIButtonHeight()-getUIBorderHeight()-1+10;
+  if(height>getScreenH()-1) {rowY=24;rowH=17;height-=config.numPlayers+6;}
+  return {x:Math.floor((getScreenW()-1-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height,rowH,rowY,nameWidth,buttonW:12+Math.max(...Array.from({length:config.numPlayers},(_,i)=>measureText(String(i+1))))};
+}
+function drawReassignPlayers() {
+  const {x,y,width,height,rowH,rowY,nameWidth,buttonW}=reassignLayout();
+  boxRaised(x,y,width+1,height+1);
+  drawText(x+Math.floor((width-measureText('Reassign Players')+1)/2),y+5,'Reassign Players',UI_HIGHLIGHT);
+  hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);hline(x+5,x+width-5,y+19,UI_MED_BORDER);
+  for(const i of menu.reassignOrder) {
+    const by=y+rowY+i*rowH,p=players[i];
+    const pressed=menu.reassignEditing&&i===menu.playerSetupIdx;
+    if(pressed)boxSunken(x+10,by-getUIBorderHeight(),buttonW,getUIButtonHeight(),UI_BACKGROUND);
+    else boxRaised(x+10,by-getUIBorderHeight(),buttonW,getUIButtonHeight());
+    const offset=pressed?2:0;
+    const label=menu.reassignEditing?String(i+1):(i===9?'1~0':'~'+(i+1));
+    if(menu.reassignEditing&&!pressed)drawText(x+16,by,label,UI_LIGHT_BORDER);
+    drawText(x+15+offset,by+offset,label,menu.reassignEditing&&!pressed?UI_DARK_TEXT:UI_HIGHLIGHT);
+    drawText(x+14+buttonW,by-getUIBorderHeight()+2,p?.name??'',(p?.colorIndex??i)*PLAYER_PALETTE_STRIDE);
+    drawText(x+19+buttonW+nameWidth,by-getUIBorderHeight()+2,p?.aiType?AI_NAMES[p.aiSelection===-2?AI_TYPE.UNKNOWN:p.aiType]:'Sentient',UI_HIGHLIGHT);
+  }
+}
+
+function systemConfirmationLayout() {
+  const text=menu.systemConfirmation==='quit'?'Do you want to quit?':'Do you really want to restart the game?';
+  const width=Math.max(measureText(text)+20,measureText('~Yes')+measureText('~No')+30),height=53;
+  const x=Math.floor((getScreenW()-1-width)/2),y=Math.floor((getScreenH()-1-height)/2);
+  const yesW=measureText('~Yes')+12,noW=measureText('~No')+12;
+  const gap=Math.floor((width-(yesW-1)-(noW-1))/3);
+  return {text,x,y,width,height,yesX:x+gap,yesW,noX:x+2*gap+yesW-1,noW};
+}
+function drawSystemConfirmation() {
+  const {text,x,y,width,height,yesX,yesW,noX,noW}=systemConfirmationLayout();
+  boxRaised(x,y,width+1,height+1);
+  drawText(x+10,y+10,text,UI_HIGHLIGHT);
+  for(const [bx,bw,label] of [[yesX,yesW,'~Yes'],[noX,noW,'~No']]) {
+    boxRaised(bx,y+27-getUIBorderHeight(),bw,getUIButtonHeight());
+    drawText(bx+5,y+27,label,UI_HIGHLIGHT);
+  }
+}
+
+// Native 0x3F4F8: two columns and a Sound checkbox, centered on the screen.
+function systemOverlayLayout() {
+  const left=['~Clear Screen','~Mass Kill','Reassign ~Players','Reassign ~Teams'];
+  const right=['Save ~Game','~Restore Game','~New Game','~Quit Game'];
+  const column=10+Math.max(...left.map(label=>10+measureText(label)+11));
+  const width=column+Math.max(...right.map(label=>measureText(label)+11))+10;
+  const rowH=getScreenH()>201?24:20,height=5*rowH+26;
+  return {left,right,column,width,height,rowH,x:Math.floor((getScreenW()-1-width)/2),y:Math.floor((getScreenH()-1-height)/2)};
+}
+function drawSystemOverlay() {
+  const {left,right,column,width,height,rowH,x,y}=systemOverlayLayout();
+  boxRaised(x,y,width+1,height+1);
+  const title='System Menu';
+  drawText(x+Math.floor((width-measureText(title)+1)/2),y+5,title,UI_HIGHLIGHT);
+  hline(x+5,x+width-5,y+18,UI_LIGHT_BORDER);
+  hline(x+5,x+width-5,y+19,UI_MED_BORDER);
+  for(const [col,labels] of [left,right].entries()) {
+    for(const [row,label] of labels.entries()) {
+      const bx=x+(col?column:10),by=y+5+(row+1)*rowH;
+      boxRaised(bx,by-getUIBorderHeight(),measureText(label)+12,getUIButtonHeight());
+      const disabled=col===0 && row!==2;
+      if(disabled)drawText(bx+6,by,label.replace('~',''),UI_LIGHT_BORDER);
+      drawText(bx+5,by,disabled?label.replace('~',''):label,disabled?UI_DARK_TEXT:UI_HIGHLIGHT);
+    }
+  }
+  const by=y+5+5*rowH,cx=x+20+measureText('~Sound:');
+  drawText(x+18,by,'~Sound:',UI_HIGHLIGHT);
+  hline(cx,cx+11,by,UI_BRIGHT_BORDER);hline(cx,cx+11,by+11,UI_LIGHT_BORDER);
+  vline(cx,by,by+10,UI_MED_BORDER);vline(cx+11,by+1,by+11,UI_DARK_BORDER);
+  if(menu.systemOverlay.sound) {
+    for(let k=0;k<3;k++)setPixel(cx+3+k,by+6+k,UI_HIGHLIGHT);
+    for(let k=0;k<5;k++)setPixel(cx+5+k,by+8-k,UI_HIGHLIGHT);
+  }
 }
 
 function drawTerrainPreview() {
@@ -802,8 +1084,8 @@ function drawTerrainPreview() {
   // Its X coordinate uses signed 16.16 pixel-aspect scaling (0x43B4E).
   const centerX = (getScreenW() - 1) >> 1, centerY = MAXY - 5;
   const radius = Math.trunc((getScreenW() - 1) / 3);
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
-  const xScale = aspect < 1 ? Math.round(aspect * 65536) : 65536;
+  const aspect = (GRAPHICS_MODES.find(m=>m.w===config.screenWidth&&m.h===config.screenHeight)?.displayAspect ?? 1);
+  const xScale = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const span = (dx, dy) => {
     const y = centerY + dy;
     if (y < y0 || y >= y1) return;
@@ -825,8 +1107,22 @@ function drawTerrainPreview() {
 
 function drawSubmenu() {
   if (menu.activeSubmenu === 'sound') { drawSoundSubmenu(); return; }
-  if (menu.activeSubmenu === 'economics') { drawEconomicsSubmenu(); return; }
+  if (menu.activeSubmenu === 'economics') { drawSettingsSubmenu(); return; }
+  if (menu.activeSubmenu === 'weapons') { drawSettingsSubmenu('weapons'); return; }
+  if (menu.activeSubmenu === 'playoptions') { drawSettingsSubmenu('playoptions'); return; }
+  if (menu.activeSubmenu === 'landscape') { drawSettingsSubmenu('landscape'); return; }
+  if (menu.activeSubmenu === 'physics') { drawSettingsSubmenu('physics'); return; }
+  if (menu.activeSubmenu === 'hardware') { drawSettingsSubmenu('hardware'); return; }
   const sub = SUBMENUS[menu.activeSubmenu];
+  if(menu.textEdit) {
+    if(consumeKey('Backspace'))menu.textEdit.value=menu.textEdit.value.slice(0,-1);
+    menu.textEdit.value=(menu.textEdit.value+consumeTextInput().replace(/[^a-zA-Z0-9.]/g,'')).slice(0,12);
+    if(consumeKey('Enter')) {
+      if(menu.textEdit.value)playoptionsSettings()[menu.textEdit.key]=menu.textEdit.value;
+      menu.textEdit=null;
+    } else if(consumeKey('Escape'))menu.textEdit=null;
+    return 'config';
+  }
   if (!sub) return;
 
   const itemCount = sub.items.length;
@@ -900,26 +1196,56 @@ function economicsSubmenuLayout() {
   const height=86;
   return {x:100+Math.floor((getScreenW()-1-100-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height};
 }
-function drawEconomicsSubmenu() {
-  const {x,y,width,height}=economicsSubmenuLayout();
+function hardwareSubmenuLayout() {
+  const width=Math.max(...SUBMENUS.hardware.items.map(item=>item.checkbox ? 42+measureText(item.label)
+    : (item.names?30:35)+measureText(item.label)+measureText(item.names?'1024x768':item.fixed??String(item.max))));
+  const height=116;
+  return {x:100+Math.floor((getScreenW()-1-100-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height};
+}
+function numericMaximumText(item) {
+  return item.float ? item.max.toFixed(item.decimals) : item.max.toLocaleString('en-US');
+}
+function settingsSubmenuLayout(kind='physics') {
+  const width=Math.max(...SUBMENUS[kind].items.map(item=>item.text ? 33+measureText(item.label)+item.maxLength*7 : item.checkbox ? 42+measureText(item.label)
+    : (item.names?30:35)+measureText(item.label)+(item.names?Math.max(...item.names.map(measureText)):measureText(numericMaximumText(item)))));
+  const height=(kind==='playoptions'?12:11)+15*SUBMENUS[kind].items.length;
+  return {x:100+Math.floor((getScreenW()-1-100-width)/2),y:Math.floor((getScreenH()-1-height)/2),width,height};
+}
+function drawSettingsSubmenu(kind='economics') {
+  const sub=SUBMENUS[kind];
+  const settings=kind==='weapons'?weaponsSettings():kind==='playoptions'?playoptionsSettings():kind==='landscape'?landscapeSettings():kind==='physics'?physicsSettings():kind==='hardware'?hardwareSettings():economicsSettings();
+  const {x,y,width,height}=['physics','landscape','playoptions','weapons'].includes(kind)?settingsSubmenuLayout(kind):kind==='hardware'?hardwareSubmenuLayout():economicsSubmenuLayout();
   boxRaised(x,y,width+1,height+1);
-  const checkboxX=x+20+Math.max(...SUBMENUS.economics.items.filter(i=>i.checkbox).map(i=>measureText(i.label)));
-  for(const [i,item] of SUBMENUS.economics.items.entries()) {
+  const checkboxX=kind==='playoptions'?x+width-22:x+20+Math.max(...sub.items.filter(i=>i.checkbox).map(i=>measureText(i.label)));
+  for(const [i,item] of sub.items.entries()) {
     const bx=x+10,by=y+5+i*15;
-    drawText(bx+8,by,item.label,UI_HIGHLIGHT);
-    if(item.checkbox) {
+    drawText(bx+8,by,item.label,item.disabled?UI_DARK_TEXT:UI_HIGHLIGHT);
+    if(item.text) {
+      const tx=x+20+measureText(item.label);
+      boxSunken(tx,by-1,x+width-10-tx+1,14,UI_BACKGROUND);
+      const editing=menu.textEdit?.key===item.key;
+      const value=editing?menu.textEdit.value:settings[item.key];
+      drawText(tx+2,by,value,UI_HIGHLIGHT);
+      if(editing) {
+        // Native editor blinks by changing cursor palette entry 162.
+        const shade=Math.floor(menu.blinkTimer/20)%2===0?10:45;
+        setPaletteRgb(162,shade,shade,shade);
+        updatePalette32();
+      }
+      if(editing)vline(tx+2+measureText(value)+(value.length?1:0),by+1,by+10,162);
+    } else if(item.checkbox) {
       const cy=by;
       fillRect(checkboxX,cy,checkboxX+11,cy+11,UI_BACKGROUND);
       hline(checkboxX,checkboxX+11,cy,UI_BRIGHT_BORDER);
       hline(checkboxX,checkboxX+11,cy+11,UI_LIGHT_BORDER);
       vline(checkboxX,cy,cy+10,UI_MED_BORDER);
       vline(checkboxX+11,cy+1,cy+11,UI_DARK_BORDER);
-      if(config[item.key]) {
+      if(settings[item.key]) {
         for(let k=0;k<3;k++)setPixel(checkboxX+3+k,cy+6+k,UI_HIGHLIGHT);
         for(let k=0;k<5;k++)setPixel(checkboxX+5+k,cy+8-k,UI_HIGHLIGHT);
       }
     } else {
-      drawText(bx+10+measureText(item.label),by,formatValue(item),UI_HIGHLIGHT);
+      drawText(bx+10+measureText(item.label),by,formatValue(item),item.disabled?UI_DARK_TEXT:UI_HIGHLIGHT);
       hline(bx,bx+6,by+5,UI_BRIGHT_BORDER);hline(bx,bx+6,by+7,UI_LIGHT_BORDER);
       for(let k=0;k<4;k++) {
         setPixel(bx+k,by+4-k,UI_DARK_BORDER);
@@ -943,15 +1269,16 @@ function getPlayerSetupLayout() {
   const inputW = 109, nameFieldY = dlgY + 19, fieldH = 14;
   const colorSize = 13, colorRowX = dlgX + 19, colorRowY = dlgY + 83;
   const iconRowY = dlgY + 111;
-  const doneX = dlgX + 122, doneY = dlgY + 117, doneW = 36, doneH = 19;
+  const doneX = dlgX + 122, doneY = dlgY + 120-getUIBorderHeight(), doneW = 36, doneH = getUIButtonHeight();
   return { dlgX, dlgY, dlgW, dlgH, rowH: 22, labelX, valX, inputW,
     nameFieldY, fieldH, colorRowY, colorRowX, colorSize, iconRowY,
     doneX, doneY, doneW, doneH };
 }
 
-// EXE 0x44E93 circle iterator with aspect scaling; radio rings use radii 5/3.
+// EXE 0x44E93 circle iterator; DS:6FF2/6FF4 are 3/2 in small mode,
+// otherwise 5/3 (small-mode initialization at 0x4961F).
 function drawSetupRadio(cx, cy, selected) {
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = (GRAPHICS_MODES.find(m=>m.w===config.screenWidth&&m.h===config.screenHeight)?.displayAspect ?? 1);
   const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   const ring = (radius, color) => {
@@ -967,14 +1294,14 @@ function drawSetupRadio(cx, cy, selected) {
     }
     mirror(x >> 1, (y + 1) >> 1);
   };
-  ring(5, UI_DEEP_SHADOW);
-  ring(3, selected ? UI_DARK_BORDER : UI_DARK_TEXT);
+  ring(getScreenH() - 1 < 210 ? 3 : 5, UI_DEEP_SHADOW);
+  ring(getScreenH() - 1 < 210 ? 2 : 3, selected ? UI_DARK_BORDER : UI_DARK_TEXT);
 }
 
 const AI_SETUP_LABELS = ['~Moron', 'S~hooter', '~Poolshark', '~Tosser',
   '~Chooser', '~Spoiler', 'C~yborg', '~Unknown'];
 
-export function drawPlayerSetupScreen() {
+export function drawPlayerSetupScreen(overlay=false) {
   // EXE: full-screen player-colored fill hides the menu behind the dialog.
   // EXE fills screen with the current player's color, then draws the centered
   // dialog on top — menu buttons are NOT visible.
@@ -982,10 +1309,10 @@ export function drawPlayerSetupScreen() {
   if (idx >= config.numPlayers) return;
 
   const setup = playerSetup[idx];
-  setPaletteRgb(164, ...getPlayerColor(setup.colorIndex));
+  setPaletteRgb(164, ...(setup.colorRgb ?? getPlayerColor(setup.colorIndex)));
   updatePalette32();
 
-  for (let x = 0; x < getScreenW(); x += 9) {
+  if(!overlay)for (let x = 0; x < getScreenW(); x += 9) {
     fillRect(x, 0, Math.min(x + 8, getScreenW() - 1), getScreenH() - 1,
       180 + Math.floor(x / 9) % 40);
   }
@@ -997,16 +1324,14 @@ export function drawPlayerSetupScreen() {
 
   // Title: "Player N (of M)" centered in dialog, in player color
   // EXE: x = dlg.left + (dlg.right - dlg.left - textWidth) / 2  (0x26F09-0x26F1D)
-  const titleStr = `Player ${idx + 1} (of ${config.numPlayers})`;
+  const titleStr = `Player ${(setup.identityIndex ?? idx) + 1} (of ${config.numPlayers})`;
   const titleX = lay.dlgX + Math.floor((lay.dlgW - 1 - measureText(titleStr)) / 2);
   drawText(titleX, lay.dlgY + 2, titleStr, UI_HIGHLIGHT);
   boxSunken(lay.dlgX + 10, lay.dlgY + 15, lay.dlgW - 20, 59, UI_BACKGROUND);
 
   if (setup.aiType === AI_TYPE.HUMAN) {
     // Name field — label + sunken input box
-    const nameSelected = menu.playerSetupField === 0;
-    const nameColor = nameSelected ? UI_HIGHLIGHT : UI_DARK_TEXT;
-    drawText(lay.labelX, lay.nameFieldY + 1, '~Name:', nameColor);
+    drawText(lay.labelX, lay.nameFieldY + 1, '~Name:', UI_HIGHLIGHT);
     boxSunken(lay.valX, lay.nameFieldY, lay.inputW, lay.fieldH, UI_BACKGROUND);
     const displayName = setup.editName ?? setup.name;
     drawText(lay.valX + 2, lay.nameFieldY + 1, displayName, UI_HIGHLIGHT);
@@ -1025,7 +1350,7 @@ export function drawPlayerSetupScreen() {
   // EXE 0x27081: tank silhouettes, followed by the type-6 slider.
   for (let i = 0; i < TANK_TYPES.length; i++) {
     const cx = lay.dlgX + 25 + i * 25, cy = lay.dlgY + 95;
-    const enabled = i < 6 || setup.aiType !== AI_TYPE.HUMAN;
+    const enabled = i < 6 || setup.aiType !== AI_TYPE.HUMAN || setup.extraTankEnabled;
     boxSunken(cx - 6, cy - 12, 14, 15, enabled ? UI_DEEP_SHADOW : UI_DARK_TEXT);
     const tank = TANK_TYPES[i];
     const color = 164;
@@ -1055,7 +1380,7 @@ export function drawPlayerSetupScreen() {
   boxRaised(lay.doneX, lay.doneY, lay.doneW, lay.doneH);
   const doneTx = lay.doneX + 5;
   const doneTy = lay.doneY + Math.floor((lay.doneH - FONT_HEIGHT) / 2);
-  if (!(setup.doneEnabled ?? (setup.aiType !== AI_TYPE.HUMAN || !!setup.name.trim()))) {
+  if (!(setup.doneEnabled ?? (setup.aiType !== AI_TYPE.HUMAN || (setup.editName === undefined && !!setup.name.trim())))) {
     drawText(doneTx + 1, doneTy, '~Done', UI_LIGHT_BORDER);
     drawText(doneTx, doneTy, '~Done', UI_DARK_TEXT);
   } else drawText(doneTx, doneTy, '~Done', UI_HIGHLIGHT);
@@ -1063,9 +1388,23 @@ export function drawPlayerSetupScreen() {
 
 // Reset menu state when re-entering from game over / system menu
 export function resetMenuState() {
+  // Native main_menu entry copies the active mode (DS:6E26) into its
+  // editable graphics selection (DS:6312), without switching hardware.
+  if(config.activeGraphicsMode!==undefined)config.graphicsMode=config.activeGraphicsMode;
   menu.screen = 'config';
   menu.activeSubmenu = null;
   menu.soundDraft = null;
+  menu.economicsDraft = null;
+  menu.hardwareDraft = null;
+  menu.physicsDraft = null;
+  menu.landscapeDraft = null;
+  menu.playoptionsDraft = null;
+  menu.weaponsDraft = null;
+  menu.textEdit = null;
+  menu.systemOverlay = null;
+  menu.systemConfirmation = null;
+  menu.reassignPlayers = false;
+  menu.reassignEditing = false;
   menu.terrainDirty = true;
   menu.saveFlash = 0;
 }

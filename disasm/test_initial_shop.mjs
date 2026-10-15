@@ -5,7 +5,7 @@ import {players} from '../web/js/tank.js';
 import {terrainBitmap,reinitTerrainBuffers} from '../web/js/terrain.js';
 import {seedRandom,getRandomState} from '../web/js/utils.js';
 import {initInput} from '../web/js/input.js';
-import {getMarketPrice} from '../web/js/shop.js';
+import {getMarketPrice,shop} from '../web/js/shop.js';
 import {WEAPONS} from '../web/js/weapons.js';
 const handlers={};
 globalThis.window={addEventListener(type,handler){handlers[type]=handler;}};
@@ -26,7 +26,11 @@ assert.equal(terrainBitmap.some(Boolean),false);
 assert.deepEqual(game.turnOrder,[]);
 const cash=players[0].cash;
 const prices=WEAPONS.map((_,i)=>getMarketPrice(i));
-key('Enter'); // Buy the selected weapon using the real shop input path.
+assert.equal(players[0].inventory[2],99);
+key('Enter'); // Native rejects buying more Baby Missiles at the quantity cap.
+assert.equal(players[0].cash,cash);
+key('ArrowDown');
+key('Enter'); // Buy Missiles using the real shop input path.
 assert(players[0].cash<cash);
 const bought=[...players[0].inventory],cashAfter=players[0].cash;
 key('KeyD'); // Alice finishes.
@@ -34,7 +38,7 @@ assert.equal(game.shopPlayerIdx,1);
 assert.equal(game.state,STATE.SHOP);
 assert.equal(players[0].cash,cashAfter,'Interest waits until every player finishes shopping');
 assert.deepEqual(WEAPONS.map((_,i)=>getMarketPrice(i)),prices,'Market prices stay fixed during shopping');
-key('Space'); // Bob dismisses the privacy screen.
+assert.equal(shop.kibitz,false,'Native opens the next human shop without a privacy prompt');
 key('KeyD'); // Bob finishes.
 assert.equal(game.state,STATE.ROUND_SETUP);
 const interest=Math.trunc(cashAfter*Math.trunc(config.interest/100*10000)/10000);

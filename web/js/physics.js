@@ -1,3 +1,4 @@
+import {triggerVerticalGuidance} from './guidance-trigger.js';
 // Scorched Earth - Projectile Physics
 // EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
 // EXE: physics timestep calibrated via MIPS benchmark (adaptive dt, default 0.02)
@@ -7,7 +8,7 @@
 // EXE: speed capped at 1000 before position integration (0x21AA2).
 
 import { WPN, WEAPONS } from './weapons.js';
-import { config, GRAPHICS_MODES } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { walkExeLine } from './utils.js';
 import { players } from './tank.js';
 import { PLAYFIELD_TOP, terrainBitmap } from './terrain.js';
@@ -116,7 +117,7 @@ export function getLaunchVelocity(angleDeg, power) {
   // EXE 0x211AD / 0x212BF: truncate trig components before applying the
   // graphics mode's signed 16.16 aspect transform (0x44761).
   const angleRad = angleDeg * 0.017453293;
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = getActiveGraphicsMode().displayAspect;
   const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   return { vx: Math.floor(Math.trunc(Math.cos(angleRad) * power) * sx / 65536),
@@ -335,7 +336,10 @@ export function stepSingleProjectile(proj, getPixelFn, wind) {
   let collision = 'flying';
   walkExeLine(startX, startY, sx, sy, (x, y) => {
     const result = sampleCollision(x, y);
-    if (result === 'flying') return true;
+    if (result === 'flying') {
+      triggerVerticalGuidance(proj,x,y);
+      return true;
+    }
     proj.x = x; proj.y = y;
     collision = result;
     return false;

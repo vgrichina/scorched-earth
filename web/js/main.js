@@ -1,3 +1,4 @@
+import {drawGuidanceTarget} from './guidance-target.js';
 import {drawFinalScoring} from './final-scoring.js';
 import {drawFunkyBomb} from './funky-bomb.js';
 import {drawNoKibitzing,closeNoKibitzing} from './no-kibitzing.js';
@@ -8,7 +9,7 @@ import {shieldActivation,advanceShieldActivation} from './shield-activation.js';
 // EXE: game loop dispatch at file 0x2F78A, VGA blit via Fastgraph V4.02
 // Phase 6: Title screen, config menu, full game flow
 
-import { config, GRAPHICS_MODES, applyGraphicsMode } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { initFramebuffer, reinitFramebuffer, getWidth, getHeight, blit, setPixel, getPixel, fillRect, hline, vline, drawBox3DRaised } from './framebuffer.js';
 import { initPalette, BLACK, LASER_GREEN, LASER_WHITE } from './palette.js';
 import { drawSky, drawTerrain, initSkyBackground, PLAYFIELD_TOP, reinitTerrainBuffers, loadMTNFiles } from './terrain.js';
@@ -39,7 +40,7 @@ import { COLOR_HUD_TEXT, COLOR_HUD_HIGHLIGHT,
 // pixel modes (320×400 aspect=0.50, 360×480 aspect=0.55), the display should
 // show corrected proportions: displayWidth/displayHeight = w / (h * displayAspect)
 function updateCSSAspect() {
-  const mode = GRAPHICS_MODES[config.graphicsMode] || GRAPHICS_MODES[0];
+  const mode = getActiveGraphicsMode();
   // CSS aspect = display width / display height
   // Display height = canvas height * displayAspect (tall pixels compress vertically)
   const cssAspect = mode.w / (mode.h * mode.displayAspect);
@@ -71,8 +72,8 @@ async function init() {
 
 // Called when transitioning from menu to game
 function startGame() {
-  // Apply selected graphics mode — reinit framebuffer + terrain at new resolution
-  applyGraphicsMode();
+  // Native game entry retains the active graphics mode; saved selection is
+  // applied by configuration loading in a fresh session.
   reinitFramebuffer();
   reinitTerrainBuffers();
   updateCSSAspect();
@@ -285,8 +286,8 @@ function gameLoop() {
   if (game.state === STATE.TITLE || game.state === STATE.CONFIG || game.state === STATE.PLAYER_SETUP) {
     const result = menuTick();
 
-    // Menus use the selected EXE graphics mode too. A Hardware change must
-    // resize the backing buffers before drawing that same frame.
+    // Keep buffers synchronized with the active screen dimensions. Committing
+    // a Hardware selection alone does not change the native menu resolution.
     if (getWidth() !== config.screenWidth || getHeight() !== config.screenHeight) {
       reinitFramebuffer();
       reinitTerrainBuffers();
@@ -343,6 +344,14 @@ function gameLoop() {
   // EXE: No Kibitzing — K opens a 200×155 centered dialog during aiming
   // EXE: show_no_kibitzing at 0x43080 — dialog_create(0, 0, 200, 155), centered via dialog_position
   // EXE: paint callback draw_no_kibitzing_text at 0x4304B — embossed text at (dlg.x+30, dlg.y+70)
+  if (game.state === STATE.GUIDANCE_TARGET) {
+    gameTick();
+    if (game.state === STATE.GUIDANCE_TARGET) drawGuidanceTarget();
+    blit();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
   if (game.state === STATE.SCREEN_HIDE) {
     gameTick();
     if (game.state === STATE.SCREEN_HIDE) drawNoKibitzing();
@@ -469,6 +478,7 @@ function gameLoop() {
     if (screenFlash.frames <= 0) screenFlash.active = false;
   }
 
+  if (game.state === STATE.GUIDANCE_TARGET) drawGuidanceTarget();
   if (game.state === STATE.SCREEN_HIDE) drawNoKibitzing();
   if (shieldActivation.active) advanceShieldActivation();
   blit();

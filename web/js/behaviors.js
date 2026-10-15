@@ -1,3 +1,4 @@
+import {guidanceAttractionStep} from './guidance-attraction.js';
 // Scorched Earth - Weapon Behavior System
 // EXE source: extras.cpp (seg 0x1895, file base 0x20EA0)
 // EXE: central dispatch at file 0x1C6C8 — far call via weapon struct +0C:+0A
@@ -6,7 +7,7 @@
 // Each handler: onHit(proj, hitResult, ctx) → array of new projectiles to spawn
 
 import { config } from './config.js';
-import { BHV, WEAPONS } from './weapons.js';
+import { BHV, WEAPONS, WPN } from './weapons.js';
 import { terrain, terrainBitmap } from './terrain.js';
 import { random, clamp } from './utils.js';
 import { getPixel } from './framebuffer.js';
@@ -15,16 +16,13 @@ import { players } from './tank.js';
 import { WALL, resolvedWallType } from './physics.js';
 import { PLAYER_COLOR_MAX } from './constants.js';
 
-// Guidance weapon indices
-// EXE VERIFIED: Bal Guidance (idx 38) overridden with Earth Disrupter at fire_weapon
-// 0x3070C — handled in game.js fireWeapon(). Bal Guidance is not a valid guidance type.
-const GUIDANCE = { HEAT: 37, BAL: 38, HORZ: 39, VERT: 40 };
+// Use the canonical web inventory indices; stale numeric slots here consumed
+// Lazy Boy and Parachute equipment when firing instead of guidance ammo.
+const GUIDANCE = { HEAT: WPN.HEAT_GUIDANCE, BAL: WPN.BAL_GUIDANCE,
+  HORZ: WPN.HORZ_GUIDANCE, VERT: WPN.VERT_GUIDANCE };
 // EXE VERIFIED: Heat guidance uses continuous attraction force model (callback at 0x2589C).
 // Correction = GUIDANCE_K * DT / distSq^(1/4), where GUIDANCE_K = DS:0x3224 = 10000.0.
-// For Horz/Vert, a constant ±1 correction per step is fine (they redirect).
-const GUIDANCE_K = 10000.0;     // DS:0x3224 — guidance correction multiplier
 const GUIDANCE_DT = 0.02;       // DS:CEAC default timestep
-const GUIDANCE_MIN_DISTSQ = 0.001;  // DS:0x321C — skip if closer than this
 
 // Behavior dispatch — called when a projectile hits something
 // Returns: { explode: bool, radius: number, spawn: projectile[], dirtAdd: bool, skipDamage: bool }
@@ -447,8 +445,8 @@ function bhvPopcorn(proj, weapon, hitResult) {
 // EXE VERIFIED: extras.cpp 0x2263D — single-type, one-shot, consumed model.
 // See REVERSE.md "Guidance System" section for full EXE pseudocode.
 //
-// At fire time: selectGuidanceType() picks highest-priority guidance the player
-// has ammo for (Horz > Vert > Heat), decrements ammo, returns type constant.
+// At fire time: selectGuidanceType() consumes the selected guidance item
+// according to play mode, then clears the player selection.
 // Per step: applyGuidance() checks spatial trigger condition for the stored type.
 // On trigger: computes correction vector, stores as persistent wind_x/wind_y on
 // the projectile, and sets guidanceType = 0 (consumed). After trigger, the
@@ -456,24 +454,31 @@ function bhvPopcorn(proj, weapon, hitResult) {
 
 const HEAT_PROXIMITY = 40;  // EXE: DS:0x5186 = 40 pixel Euclidean distance threshold
 
-// Select which guidance type to use at fire time. Consumes 1 ammo.
-// EXE: priority order matches cascading if-else: Horz → Vert → Heat
-// Returns: GUIDANCE constant or 0 (none)
+// Native 0x30AF0 cycles the selected item, including Lazy Boy and None.
+export function cycleGuidance(player) {
+  let next = player.guidanceWeapon ?? WPN.LASER;
+  do {
+    next = next >= WPN.LAZY_BOY ? WPN.LASER : next + 1;
+  } while (next !== WPN.LASER && player.inventory[next] <= 0);
+  player.guidanceWeapon = next;
+}
+
+// Native firing 0x306E9..0x30729 consumes only the selected item via
+// 0x32090, then resets the selection. Synchronous mode skips consumption.
+export function consumeSelectedGuidance(player) {
+  let selected = player.guidanceWeapon ?? WPN.LASER;
+  if (selected !== WPN.LASER && config.playMode !== 2) {
+    if (player.inventory[selected] > 0) player.inventory[selected]--;
+    else selected = WPN.LASER;
+  }
+  return selected;
+}
+
 export function selectGuidanceType(player) {
-  // Priority: Horz > Vert > Heat (matches EXE cascading if-else order)
-  if (player.inventory[GUIDANCE.HORZ] > 0) {
-    player.inventory[GUIDANCE.HORZ]--;
-    return GUIDANCE.HORZ;
-  }
-  if (player.inventory[GUIDANCE.VERT] > 0) {
-    player.inventory[GUIDANCE.VERT]--;
-    return GUIDANCE.VERT;
-  }
-  if (player.inventory[GUIDANCE.HEAT] > 0) {
-    player.inventory[GUIDANCE.HEAT]--;
-    return GUIDANCE.HEAT;
-  }
-  return 0;
+  let selected = consumeSelectedGuidance(player);
+  if (selected === WPN.BAL_GUIDANCE) selected = WPN.LASER;
+  player.guidanceWeapon = WPN.LASER;
+  return selected === WPN.LASER ? 0 : selected;
 }
 
 // Find nearest enemy tank position for guidance targeting
@@ -500,29 +505,21 @@ function findNearestEnemy(proj) {
 export function applyGuidance(proj) {
   if (proj.isNapalmParticle || proj.isSubWarhead || proj.rolling) return;
 
-  // After Heat trigger: apply continuous attraction toward stored target
-  // EXE callback (0x2589C): correction = GUIDANCE_K * dt / distSq^(1/4) per step
+  if (proj.guidanceAttraction) {
+    const result=guidanceAttractionStep(proj,proj.guidanceTarget,
+      proj.guidanceCorrX,proj.guidanceCorrY,1,GUIDANCE_DT);
+    proj.vx=result.vx;proj.vy=result.vy;
+    if(result.action==='explode') return 'explode';
+    return;
+  }
+
+  // Heat uses the same native callback with mode 2: passing the target
+  // disables guidance, while vertical mode 1 requests an impact.
   if (proj.heatTarget) {
-    const dx = proj.heatTarget.x - proj.x;
-    const dy = proj.y - proj.heatTarget.y;  // EXE: fsubr = current.Y - target.Y
-    const distSq = dx * dx + dy * dy;
-    // Overshoot check: sign(dx) matches initial wind_x OR sign(dy) opposes wind_y
-    let overshot = false;
-    if (proj.heatWindX !== 0) {
-      if ((dx < 0 && proj.heatWindX < 0) || (dx > 0 && proj.heatWindX > 0)) overshot = true;
-    }
-    if (proj.heatWindY !== 0) {
-      if ((dy < 0 && proj.heatWindY > 0) || (dy > 0 && proj.heatWindY < 0)) overshot = true;
-    }
-    if (overshot) {
-      // EXE fire_mode==2: remove callback, stop guidance
-      delete proj.heatTarget;
-      return;
-    }
-    if (distSq < GUIDANCE_MIN_DISTSQ) return;  // too close
-    const correction = GUIDANCE_K * GUIDANCE_DT / Math.sqrt(Math.sqrt(distSq));
-    proj.vx += correction * dx;
-    proj.vy -= correction * dy;  // screen Y inverted: subtract to match EXE convention
+    const result=guidanceAttractionStep(proj,proj.heatTarget,
+      proj.heatWindX,proj.heatWindY,2,GUIDANCE_DT);
+    proj.vx=result.vx;proj.vy=result.vy;
+    if(result.action==='disable') delete proj.heatTarget;
     return;
   }
 
@@ -536,7 +533,7 @@ export function applyGuidance(proj) {
   // No guidance or already consumed
   if (!proj.guidanceType) return;
 
-  const target = findNearestEnemy(proj);
+  const target = proj.guidanceTarget ?? findNearestEnemy(proj);
   if (!target) return;
 
   const px = Math.round(proj.x);
@@ -556,7 +553,7 @@ export function applyGuidance(proj) {
         proj.guidanceType = 0;  // consumed
       }
     }
-  } else if (proj.guidanceType === GUIDANCE.VERT) {
+  } else if (proj.guidanceType === GUIDANCE.VERT && !proj.guidanceTarget) {
     // Vert Guidance: triggers when projectile X == target X (vertical alignment)
     // EXE: if (proj_target_X == current_X) → apply vertical correction
     if (Math.abs(px - tx) <= 2) {

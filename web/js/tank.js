@@ -10,7 +10,7 @@ import {resetTeamScores} from './team-scoring.js';
 
 import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
 import { getTerrainY, terrain, terrainBitmap, PLAYFIELD_TOP } from './terrain.js';
-import { config, GRAPHICS_MODES } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { resolvedSkyType, getPlayerColor, getGroundColor, palette6, setPaletteRgb } from './palette.js';
 import { walkExeLine, random } from './utils.js';
 import { createInventory, WPN } from './weapons.js';
@@ -53,9 +53,19 @@ const FALL_SPEED = 1;       // EXE 0x2091C increments Y by one per fall step
 // Player state
 export const players = [];
 
+// Slots enabled in configuration have not yet passed native player setup.
+export function createUninitializedPlayer(index) {
+  return Object.assign(createPlayer(index, ''), {
+    identityIndex: 0, colorIndex: 0, colorRgb: [0, 0, 0],
+    tankType: 0, aiSelection: 0, alive: false,
+  });
+}
+
 export function createPlayer(index, name) {
   return {
     index,
+    identityIndex: index, // native +0xA0, assigned during player initialization
+    colorRgb: [...getPlayerColor(index)], // native +0x1C/+0x1E/+0x20
     name,
     x: 0,                // center X on screen
     y: 0,                // ground Y (bottom of tank body)
@@ -68,6 +78,8 @@ export function createPlayer(index, name) {
     // Phase 3: weapon inventory
     inventory: createInventory(),
     selectedWeapon: WPN.BABY_MISSILE,
+    guidanceWeapon: WPN.LASER, // native tank+0x9A, None sentinel
+    parachuteArmed: false, // native tank+0x28
     contactTriggerArmed: false, // native tank+0x2A
 
     // Phase 3: falling state
@@ -78,6 +90,7 @@ export function createPlayer(index, name) {
 
     // Phase 4: AI + shields
     aiType: 0,           // 0 = human
+    aiSelection: -1,    // native +0x24; -2 retains the Unknown selection
     activeShield: 0,     // shield type index
     shieldEnergy: 0,
     shieldFlightUses: 0, // native +0x98, reset by between-turn maintenance
@@ -126,7 +139,7 @@ export function getTankBarrel(player) {
   const radians = angle * 0.017453293;
   const dx = Math.trunc(direction * Math.cos(radians) * type.barrelLen);
   const dy = Math.trunc(-Math.sin(radians) * type.barrelLen);
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = getActiveGraphicsMode().displayAspect;
   const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   return { x, y, endX: x + Math.floor(dx * sx / 65536), endY: y + Math.floor(dy * sy / 65536) };
@@ -148,7 +161,9 @@ export function createPlayers(numPlayers, setup = []) {
 
     if (setup[i]) {
       const { name, aiType, colorIndex, tankType } = setup[i];
-      Object.assign(player, { name, aiType, colorIndex, tankType });
+      Object.assign(player, { name, aiType: setup[i].resolvedAiType ?? aiType, colorIndex, tankType });
+      if(aiType)player.aiSelection=aiType===8?-2:aiType-1;
+      player.colorRgb = [...getPlayerColor(colorIndex)];
     }
 
     players.push(player);
@@ -190,6 +205,7 @@ export function resetAndPlaceTanks(slots = players.map(p => p.index)) {
     p.fallDamageAccum = 0;
     p.parachuteDeployed = false;
     p.hudParachuteCount = undefined;
+    p.hudParachuteArmed = undefined;
     p.hudEnergy = undefined;
     p.hudPower = undefined;
     p.hudShieldEnergy = undefined;
@@ -444,7 +460,11 @@ function* fallingMovementPass(wind) {
     }
     // EXE: Parachute deployment check (0x208CD–0x20913)
     // Guard checks (0x20871–0x208CA): sub[0x28]!=0, health>0, inventory[WPN.PARACHUTE]>0
-    if (!support.stable && !player.parachuteDeployed && player.inventory[WPN.PARACHUTE] > 0) {
+    if (!support.stable && !player.parachuteDeployed && player.parachuteArmed && player.energy > 0 && player.inventory[WPN.PARACHUTE] <= 0) {
+      player.inventory[WPN.PARACHUTE] = 0;
+      player.parachuteArmed = false;
+    }
+    if (!support.stable && !player.parachuteDeployed && player.parachuteArmed && player.energy > 0 && player.inventory[WPN.PARACHUTE] > 0) {
       const predictedDamage = predictFallDamage(player);
       const threshold = getDeployThreshold(player);
       // EXE: deploy if predicted_damage > threshold (or threshold==0 → immediate)
@@ -546,7 +566,9 @@ function resumeFallingLanding() {
       // Cleanup does not repaint the native inventory widget. Keep its count
       // until player selection performs the next full HUD refresh.
       player.hudParachuteCount ??= player.inventory[WPN.PARACHUTE];
+      player.hudParachuteArmed ??= player.parachuteArmed;
       player.inventory[WPN.PARACHUTE] = Math.max(0,player.inventory[WPN.PARACHUTE]-1);
+      if (player.inventory[WPN.PARACHUTE] === 0) player.parachuteArmed = false;
       player.parachuteDeployed = false;
     }
     // Native 0x202E4 settles dirt before recursively checking for new falls.
@@ -784,7 +806,7 @@ function stepDeathDirt(anim) {
       },
       markDirty:markTerrainCollapse,
       markCircle:(x,radius)=>{
-        const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+        const aspect=getActiveGraphicsMode().displayAspect;
         const scale=aspect<1?Math.trunc(aspect*65536):65536;
         const left=x+Math.floor(-radius*scale/65536)-1;
         const right=x+Math.floor(radius*scale/65536)+1;
@@ -994,7 +1016,7 @@ function stepDeathRadialRays(anim) {
     if (terrain[x]===y)
       while (terrain[x]<config.screenHeight && !terrainBitmap[terrain[x]*config.screenWidth+x]) terrain[x]++;
   }});
-  const aspect=GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect=getActiveGraphicsMode().displayAspect;
   const scaleX=aspect<1?Math.trunc(aspect*65536):65536;
   const left=anim.player.x+Math.floor(-anim.rays.radius*scaleX/65536);
   const right=anim.player.x+Math.floor(anim.rays.radius*scaleX/65536);

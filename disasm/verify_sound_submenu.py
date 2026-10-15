@@ -14,6 +14,7 @@ from compare_pipeline import extract_state,write_state_json,Memory,CPU,PortIO,In
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('checkpoint')
+parser.add_argument('--arrows',action='store_true',help='Compare ignored extended keys and dismissal')
 parser.add_argument('--save',action='store_true',help='Verify Save Changes in an isolated DOS file directory')
 parser.add_argument('--output-dir',type=Path,default=Path('/tmp/scorched-sound-submenu'))
 args=parser.parse_args()
@@ -45,6 +46,10 @@ cases=[('open',[]),('left',[('click',1)]),('right',[('click',2)]),
        ('changed-outside',[('key','KeyF'),('outside',1)]),
        ('reverted-escape',[('key','KeyS')]*2+[('key','Escape')]),
        ('reopen',[('key','KeyF'),('key','Escape'),('key','KeyO')])]
+if args.arrows:
+    cases=[(key,[('key',key)]) for key in ('ArrowLeft','ArrowRight','ArrowUp','ArrowDown')]
+    cases += [('down-right-close',[('key','ArrowDown'),('key','ArrowRight'),('key','Escape')]),
+              ('changed-arrows-close',[('key','KeyF'),('key','ArrowUp'),('key','ArrowLeft'),('key','Escape')])]
 if args.save:
     cases=[('disabled-save',[('key','Escape'),('key','KeyC')]),
            ('sound-save',[('key','KeyS'),('key','Escape'),('key','KeyC')]),
@@ -66,7 +71,7 @@ for name,actions in cases:
             run('python3','disasm/capture_shop_click.py',str(native)+'.state',target,cx,cy,'--button',value,'--earth-dir',earth)
             port_args+=['--menu-click',f'{cx},{cy},{1 if value==1 else 4}']
         else:
-            scan,ascii_code={'KeyF':(0x21,102),'KeyS':(0x1f,115),'Escape':(1,27),'Enter':(0x1c,13),'Space':(0x39,32),'KeyO':(0x18,111),'KeyC':(0x2e,99)}[value]
+            scan,ascii_code={'ArrowLeft':(0x4b,0),'ArrowRight':(0x4d,0),'ArrowUp':(0x48,0),'ArrowDown':(0x50,0),'KeyF':(0x21,102),'KeyS':(0x1f,115),'Escape':(1,27),'Enter':(0x1c,13),'Space':(0x39,32),'KeyO':(0x18,111),'KeyC':(0x2e,99)}[value]
             run('python3','disasm/capture_shop_click.py',str(native)+'.state',target,0,0,'--key',scan,'--ascii',ascii_code,'--earth-dir',earth)
             port_args+=['--menu-key',value]
         native=target
@@ -74,7 +79,8 @@ for name,actions in cases:
     run('node','disasm/web_screenshot.mjs','menu',port,'--from-state',fixture,'--menu-output',args.output_dir/f'{name}-settings.json','--storage-output',args.output_dir/f'{name}-storage.json',*port_args)
     load_state(str(native)+'.state',cpu,mem,ports,handler)
     expected=dict(soundEnabled=mem.read16(0x4fc80+0xef46),flySoundEnabled=mem.read16(0x4fc80+0x5146),configDirty=bool(mem.read16(0x4fc80+0x6314)))
-    assert json.loads((args.output_dir/f'{name}-settings.json').read_text())==expected,(name,'committed settings differ')
+    actual=json.loads((args.output_dir/f'{name}-settings.json').read_text())
+    assert {key:actual[key] for key in expected}==expected,(name,'committed settings differ')
     if args.save:
         storage=json.loads((args.output_dir/f'{name}-storage.json').read_text())
         assert storage['writes']==(0 if name=='disabled-save' else 1),(name,'save count',storage['writes'])

@@ -37,7 +37,10 @@ class DialogKeyTest(unittest.TestCase):
                 self.assertEqual(cpu.ip, 0x10)
                 self.assertEqual(cpu.sp, 0x8000)
                 self.assertTrue(cpu.intf)
-                self.assertEqual(handler.key_queue.popleft(), (scancode, ascii_char))
+                if scancode & 0x80:
+                    self.assertFalse(handler.key_queue)
+                else:
+                    self.assertEqual(handler.key_queue.popleft(), (scancode, ascii_char))
 
 
 if __name__ == '__main__':

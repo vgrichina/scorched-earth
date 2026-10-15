@@ -68,15 +68,16 @@ const { initSkyBackground, generateTerrain, loadMTNFiles, buildTerrainBitmap } =
 const { placeTanks, players, createPlayer } = await import(WEB + 'tank.js');
 const { drawHud, drawWindIndicator, drawPlayfieldBorder } = await import(WEB + 'hud.js');
 const { drawMainMenu, generateMenuPreviewTerrain, drawPlayerSetupScreen, menuTick, initPlayerSetup, menu, playerSetup } = await import(WEB + 'menu.js');
-const { game, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
-const { isShopActive, drawShop, openShop, selectShopCategory, shopTick } = await import(WEB + 'shop.js');
+const { game, gameTick, STATE, initGameRound, generateWind } = await import(WEB + 'game.js');
+const { shop, isShopActive, drawShop, openShop, selectShopCategory, shopTick } = await import(WEB + 'shop.js');
 const { drawText } = await import(WEB + 'font.js');
 const {getTeamScore,resetTeamScores}=await import(WEB+'team-scoring.js');
 const {mouse,initInput}=await import(WEB+'input.js');
-const { seedRandom, getRandomState } = await import(WEB + 'utils.js');
+const { seedRandom, getRandomState, setRandomState } = await import(WEB + 'utils.js');
 const { drawAllTanks } = await import(WEB + 'tank.js');
 const { blit, pixels, getWidth, getHeight } = fb;
 const terrainMod = await import(WEB + 'terrain.js');
+const {explosionTextureCache}=await import(WEB+'explosion-texture.js');
 const paletteMod = await import(WEB + 'palette.js');
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -113,8 +114,12 @@ function renderMenu() {
 function renderMenuFromState(stateJsonPath) {
   const state = JSON.parse(readFileSync(stateJsonPath, 'utf-8'));
   menu.activeSubmenu = state.activeSubmenu ?? null;
+  shop.frame = state.shopFrame ?? 0;
+  menu.setupBackdropPolls = state.setupBackdropPolls ?? 0;
+  if(state.reassignRoster) {players.length=0;for(const [i,p] of state.reassignRoster.entries())players.push(Object.assign(createPlayer(i,p.name),p));}
+  if(state.explosionTextureRadius!==undefined)explosionTextureCache.radius=state.explosionTextureRadius;
   menu.configDirty = state.configDirty ?? false;
-  for(const key of ['interest','startCash','computersBuy','freeMarket','scoringMode'])if(state[key]!==undefined)config[key]=state[key];
+  for(const key of ['armsLevel','bombIcon','tunneling','explosionScale','tracePaths','extraDirt','uselessItems','playMode','teamMode','statusBar','playOrder','fastComputers','talkingTanks','talkProbability','attackFile','dieFile','wind','changeWind','hostileEnvironment','land1','land2','flattenPeaks','randomLand','mtnPercent','viscosity','gravity','suspendDirt','fallingTanks','edgesExtend','wallType','interest','startCash','computersBuy','freeMarket','scoringMode','biosKeyboard','smallMemory','firingDelay','fallingDelay'])if(state[key]!==undefined)config[key]=state[key];
   if(state.soundEnabled!==undefined)config.soundEnabled=state.soundEnabled;
   if(state.flySoundEnabled!==undefined)config.flySoundEnabled=state.flySoundEnabled;
   config.numPlayers = state.numPlayers;
@@ -149,8 +154,8 @@ function renderMenuFromState(stateJsonPath) {
     for (let i = 170; i < 200; i++) {
       paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
     }
-    // UI palette including cyan hotkey color (151-161)
-    for (let i = 151; i <= 161; i++) {
+    // UI palette including hotkey and text-cursor colors (151-162)
+    for (let i = 151; i <= 162; i++) {
       paletteMod.setPaletteRgb(i, pal[i][0], pal[i][1], pal[i][2]);
     }
     paletteMod.updatePalette32();
@@ -170,6 +175,7 @@ function renderMenuFromState(stateJsonPath) {
     }
     buildTerrainBitmap();
   }
+  if(state.randomState)setRandomState(state.randomState);
   drawMainMenu();
 }
 
@@ -317,7 +323,7 @@ function renderShopFromState(stateJsonPath) {
       }else{
         const alt=input.startsWith('Alt+'),code=alt?input.slice(4):input;
         if(alt)_listeners.keydown({code:'AltLeft',key:'Alt',preventDefault(){}});
-        _listeners.keydown({code,key:code,preventDefault(){}});
+        _listeners.keydown({code,key:/^Key[A-Z]$/.test(code)?code.slice(3).toLowerCase():code==='Period'?'.':code,preventDefault(){}});
         shopTick(players[playerIndex]);
         _listeners.keyup({code,preventDefault(){}});
         if(alt)_listeners.keyup({code:'AltLeft',preventDefault(){}});
@@ -405,6 +411,7 @@ function renderFromState(stateJsonPath) {
       players[i].turretAngle = t.turretAngle;
       players[i].power = t.power;
       players[i].tankType = t.tankType;
+      players[i].parachuteArmed = !!t.parachuteArmed;
       for (const key of ['direction', 'barrelXOff', 'barrelYOff', 'barrelEndX', 'barrelEndY'])
         players[i][key] = t[key];
       if (t.inventory) {
@@ -469,16 +476,34 @@ function writePNG(outPath) {
 
 // Parse args: state output.png [--mode N] [--from-state state.json]
 const args = process.argv.slice(2);
-let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, rngOutputPath = null, menuOutputPath = null, storageOutputPath = null, shopInputs = [], menuInputs = [];
+let menuBlinkFrame = null;
+let stateName = null, outPath = null, modeIndex = 4, fromStatePath = null, rngOutputPath = null, inputSeed = null, menuOutputPath = null, storageOutputPath = null, shopInputs = [], menuInputs = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--mode') { modeIndex = parseInt(args[++i]); }
   else if (args[i] === '--shop-click') { shopInputs.push(args[++i].split(',').map(Number)); }
   else if (args[i] === '--shop-key') { shopInputs.push(args[++i]); }
+  else if (args[i] === '--menu-shop-callbacks') {
+    const shopCallbacks=Number(args[++i]);
+    if(!Number.isSafeInteger(shopCallbacks)||shopCallbacks<0)throw new Error('Invalid shop callback count');
+    menuInputs.push({shopCallbacks});
+  }
+  else if (args[i] === '--menu-setup-callbacks') {
+    const callbacks=Number(args[++i]);
+    if(!Number.isSafeInteger(callbacks)||callbacks<0)throw new Error('Invalid setup callback count');
+    menuInputs.push({callbacks});
+  }
+  else if (args[i] === '--menu-idle') {
+    const ticks = Number(args[++i]);
+    if (!Number.isSafeInteger(ticks) || ticks < 0) throw new Error('Invalid menu idle tick count');
+    menuInputs.push({ticks});
+  }
   else if (args[i] === '--menu-click') { menuInputs.push(args[++i].split(',').map(Number)); }
+  else if (args[i] === '--menu-blink-frame') { menuBlinkFrame = Number(args[++i]); }
   else if (args[i] === '--menu-key') { menuInputs.push(args[++i]); }
   else if (args[i] === '--from-state') { fromStatePath = args[++i]; }
   else if (args[i] === '--storage-output') { storageOutputPath = args[++i]; }
   else if (args[i] === '--menu-output') { menuOutputPath = args[++i]; }
+  else if (args[i] === '--input-seed') { inputSeed = Number(args[++i]); }
   else if (args[i] === '--rng-output') { rngOutputPath = args[++i]; }
   else if (!stateName) { stateName = args[i]; }
   else if (!outPath) { outPath = args[i]; }
@@ -525,23 +550,62 @@ if (fromStatePath && stateName === 'shop') {
   }
 }
 
+if(inputSeed!==null)seedRandom(inputSeed);
 if(menuInputs.length) {
   globalThis.addEventListener=(type,handler)=>{_listeners[type]=handler;};
   initInput({addEventListener(){}});
+  function replayMenuTick() {
+    if(menu.screen==='shop') {
+      const result=gameTick();
+      if(game.state===STATE.SHOP)drawShop(players[game.shopPlayerIdx]);
+      return result;
+    }
+    const result=menuTick();
+    if(result==='start_game') {
+      // Mirror main.js startGame so the replay can cross the final Done.
+      reinitFramebuffer();reinitTerrainBuffers();
+      game.round=1;game.turnCount=0;game.currentPlayer=0;
+      initGameRound(playerSetup);menu.screen='shop';
+      drawShop(players[game.shopPlayerIdx]);
+    }
+    return result;
+  }
+  let inputCallbacks=0,inputShopCallbacks=0;
   for(const input of menuInputs) {
-    if(Array.isArray(input)) {
+    const beforeCallbacks=menu.setupBackdropPolls,beforeShopCallbacks=shop.frame;
+    if(typeof input === 'object' && !Array.isArray(input)) {
+      const ticks=input.shopCallbacks!==undefined?input.shopCallbacks-inputShopCallbacks:
+        input.callbacks===undefined?input.ticks:input.callbacks-inputCallbacks;
+      if(ticks<0)throw new Error('Port input executed more setup callbacks than native');
+      for(let tick=0;tick<ticks;tick++)replayMenuTick();
+      if(input.shopCallbacks!==undefined && (shop.frame-beforeShopCallbacks+101)%101!==ticks%101)
+        throw new Error('Shop callbacks did not execute during replay idle ticks');
+      if(input.callbacks!==undefined && (menu.setupBackdropPolls-beforeCallbacks+101)%101!==ticks%101)
+        throw new Error('Setup callbacks did not execute during replay idle ticks');
+    } else if(Array.isArray(input)) {
       mouse.x=input[0];mouse.y=input[1];mouse.over=true;mouse.clicked=input[2]??1;
-      menuTick();
+      replayMenuTick();
     } else {
-      _listeners.keydown({code:input,key:input,preventDefault(){}});
-      menuTick();
-      _listeners.keyup({code:input,preventDefault(){}});
+      const parts=input.split('+'),code=parts.pop();
+      const modifier=parts.length?(parts[0]==='AltRight'?'AltRight':'AltLeft'):null;
+      if(modifier)_listeners.keydown({code:modifier,key:'Alt',preventDefault(){}});
+      _listeners.keydown({code,key:/^Key[A-Z]$/.test(code)?code.slice(3).toLowerCase():code==='Period'?'.':code,preventDefault(){}});
+      replayMenuTick();
+      _listeners.keyup({code,preventDefault(){}});
+      if(modifier)_listeners.keyup({code:modifier,preventDefault(){}});
+    }
+    if(typeof input!=='object'||Array.isArray(input)) {
+      inputCallbacks=(menu.setupBackdropPolls-beforeCallbacks+101)%101;
+      inputShopCallbacks=(shop.frame-beforeShopCallbacks+101)%101;
     }
   }
-  drawMainMenu();
+  if(menuBlinkFrame!==null)menu.blinkTimer=menuBlinkFrame;
+  if(menu.screen==='player_setup')drawPlayerSetupScreen();
+  else if(menu.screen==='shop')drawShop(players[game.shopPlayerIdx]);
+  else drawMainMenu();
 }
 if(storageOutputPath)writeFileSync(storageOutputPath,JSON.stringify({writes:localStorage._writes,data:localStorage._data}));
-if(menuOutputPath)writeFileSync(menuOutputPath,JSON.stringify({soundEnabled:config.soundEnabled,flySoundEnabled:config.flySoundEnabled,configDirty:menu.configDirty}));
+if(menuOutputPath)writeFileSync(menuOutputPath,JSON.stringify({shopPlayerIdx:game.shopPlayerIdx,shopPrivacy:shop.kibitz,shopFrame:shop.frame,setupBackdropPolls:menu.setupBackdropPolls,playerSetup:menu.screen==='player_setup'?{name:playerSetup[menu.playerSetupIdx].name,editName:playerSetup[menu.playerSetupIdx].editName,tankType:playerSetup[menu.playerSetupIdx].tankType,human:playerSetup[menu.playerSetupIdx].aiType===0,...(playerSetup[menu.playerSetupIdx].aiType?{aiType:playerSetup[menu.playerSetupIdx].aiType}:{})}:null,reassignRoster:players.map(p=>({identityIndex:p.identityIndex,colorRgb:p.colorRgb,name:p.name,aiType:p.aiType,aiSelection:p.aiSelection,colorIndex:p.colorIndex,tankType:p.tankType})),armsLevel:config.armsLevel,bombIcon:config.bombIcon,tunneling:config.tunneling,explosionScale:config.explosionScale,tracePaths:config.tracePaths,extraDirt:config.extraDirt,uselessItems:config.uselessItems,playMode:config.playMode,teamMode:config.teamMode,statusBar:config.statusBar,playOrder:config.playOrder,fastComputers:config.fastComputers,talkingTanks:config.talkingTanks,talkProbability:config.talkProbability,attackFile:config.attackFile,dieFile:config.dieFile,skyType:config.skyType,wind:config.wind,changeWind:config.changeWind,hostileEnvironment:config.hostileEnvironment,land1:config.land1,land2:config.land2,flattenPeaks:config.flattenPeaks,randomLand:config.randomLand,mtnPercent:config.mtnPercent,viscosity:config.viscosity,gravity:config.gravity,suspendDirt:config.suspendDirt,fallingTanks:config.fallingTanks,edgesExtend:config.edgesExtend,wallType:config.wallType,graphicsMode:config.graphicsMode,biosKeyboard:config.biosKeyboard,smallMemory:config.smallMemory,firingDelay:config.firingDelay,fallingDelay:config.fallingDelay,soundEnabled:config.soundEnabled,flySoundEnabled:config.flySoundEnabled,interest:config.interest,startCash:config.startCash,computersBuy:config.computersBuy,freeMarket:config.freeMarket,scoringMode:config.scoringMode,configDirty:menu.configDirty}));
 await writePNG(outPath);
 if (rngOutputPath) writeFileSync(rngOutputPath, JSON.stringify(getRandomState()));
 console.log(`Written ${outPath} (${getWidth()}x${getHeight()})`);

@@ -19,11 +19,12 @@ import {WPN} from './web/js/weapons.js';
 createPlayers(1);
 let input='';for await(const c of process.stdin)input+=c;
 console.log(JSON.stringify(JSON.parse(input).map(c=>{
+ createPlayers(1); // Reset falling continuations between independent fixtures.
  pixels.fill(80);
  for(let x=0;x<config.screenWidth;x++)setPixel(x,44+c.depth,120);
  for(let dx=-c.half;dx<=c.half;dx++)if(c.mask&(1<<(dx+c.half)))setPixel(c.x+dx,45,120);
  const p=players[0];
- Object.assign(p,{x:c.x,y:44,tankType:c.kind,alive:true,falling:true,energy:100,fallDamageAccum:0,parachuteDeployed:false});
+ Object.assign(p,{x:c.x,y:44,tankType:c.kind,alive:true,falling:true,energy:100,fallDamageAccum:0,parachuteDeployed:false,parachuteArmed:true});
  p.inventory.fill(0);p.inventory[WPN.PARACHUTE]=1;p.inventory[WPN.BATTERY]=c.depth===8?1:0;
  const damage=predictFallDamage(p);
  stepFallingTanks();

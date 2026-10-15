@@ -5,7 +5,7 @@
 // Runtime inventory entries 40..44: Mag Deflector, Shield, Force Shield,
 // Heavy Shield, Super Mag. Mag/Super Mag register the lift callback 0x23754.
 
-import { config, GRAPHICS_MODES } from './config.js';
+import { config, getActiveGraphicsMode } from './config.js';
 import { getEffectiveWallType, WALL } from './physics.js';
 import { setPixel, getPixel, getBackgroundColor } from './framebuffer.js';
 import { writeWorldPixel, retainWorldPixel } from './projectile-render.js';
@@ -171,7 +171,7 @@ function warpTank(player) {
 
 // EXE 0x4336F / 0x4325C: outline circle, signed fixed-point aspect scaling.
 export function walkShieldCircle(cx, cy, radius, visit) {
-  const aspect = GRAPHICS_MODES[config.graphicsMode].displayAspect;
+  const aspect = getActiveGraphicsMode().displayAspect;
   const sx = aspect < 1 ? Math.trunc(aspect * 65536) : 65536;
   const sy = aspect > 1 ? Math.trunc(65536 / aspect) : 65536;
   const left = 3, right = config.screenWidth - 4;

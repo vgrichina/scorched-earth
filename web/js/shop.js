@@ -3,7 +3,7 @@
 //
 // EXE functions:
 //   equipInit()        — file 0x1D5D4 (16BC:0014) — map 16 category boundaries via findWeaponByName()
-//   shopScreen()       — file 0x1DBB5 (171B:0005) — AI auto-buy dispatch (12-case jump table)
+//   AI purchase entry  — file 0x18A2F — Computers Buy gate and per-AI dispatch
 //   shopDialogBuild()  — file 0x15AF6 (0F0B:0046) — human player shop dialog construction
 //   paint callback     — file 0x1580D (0DBC:124D) — player-colored selection highlight
 //   palette tick       — file 0x14E34 (0DBC:0874) — animated UI accent palette cycling
@@ -47,9 +47,9 @@
 //   Player color: player_struct+0x1A, selection highlight = player_color+4 (lighter shade)
 //
 // EXE palette animation (palette tick at file 0x14E34, DS:0x00EC counter):
-//   Three effects: (1) VGA 2 pulsing red/orange triangle wave (100-frame period),
-//   (2) VGA 8-11 accent cycling entries 1-4 every 8 frames (4-step rotation),
-//   (3) VGA 14-18 gray gradient cycling every 2 frames (5 levels: 0,15,30,45,60)
+//   Published at VGA 170: (1) offset 2 pulsing red/orange triangle wave,
+//   (2) offsets 8-11 accent cycling entries 1-4 every 8 callbacks,
+//   (3) offsets 14-18 gray gradient cycling every 2 callbacks.
 //
 // The initial Weapons and Miscellaneous pages have full-frame RGB fixtures.
 // Inventory/selling dialogs and broader input/timing still require native checks.
@@ -58,10 +58,10 @@ import { config, getUIBorderHeight } from './config.js';
 import {playerCash,addPlayerCash} from './cash.js';
 import { fillRect, hline, vline, setPixel, drawBox3DRaised, drawBox3DSunken } from './framebuffer.js';
 import { drawText, drawTextShadow, drawTextEmbossed, measureText } from './font.js';
-import { BLACK, saveAccentPalette, restoreAccentPalette, tickAccentPalette } from './palette.js';
+import { BLACK, setupShopPalette, tickAccentPalette } from './palette.js';
 import { WEAPONS, WPN, CATEGORY } from './weapons.js';
 import { consumeAnyKey, consumeKey, consumeClick, isKeyDown, mouse } from './input.js';
-import { random } from './utils.js';
+import { legacyRandomFraction } from './utils.js';
 import { isAI } from './ai.js';
 import { SHIELD_TYPE } from './shields.js';
 import { players } from './tank.js';
@@ -126,6 +126,7 @@ export function buyWeapon(player, weaponIdx) {
   if (player.inventory[weaponIdx] >= MAX_WEAPON_QTY) return false;
   const price = getWeaponPrice(weaponIdx);
   if (playerCash(player) < price) return false;
+  if (weaponIdx === WPN.PARACHUTE && player.inventory[weaponIdx] === 0 && player.aiType === 0) player.parachuteArmed = true;
   const bundle = WEAPONS[weaponIdx].bundle;
   addPlayerCash(player,-price);
   player.inventory[weaponIdx] += bundle;
@@ -188,7 +189,7 @@ const TAB_MISC = 1;
 const TAB_NAMES = ['Weapons','Miscellaneous'];
 
 // Shop state
-const shop = {
+export const shop = {
   active: false,
   playerIdx: 0,
   category: TAB_WEAPONS,
@@ -200,7 +201,7 @@ const shop = {
   selling: false,     // EXE: "Sell Equipment" sub-dialog active
   descriptionItem: null,
   sellQty: 1,         // EXE: "~Quantity to sell:" field value
-  frame: 0,           // frame counter for palette animation
+  frame: 0,           // persistent native DS:00EC palette callback counter
   // EXE scrollbar: arrow buttons only, no track/thumb drag
   roundsLeft: 10,     // rounds remaining (set on openShop)
 };
@@ -238,7 +239,7 @@ function getSelectorY(){return Math.min(ITEM_Y_START+(getItemsPerPage()-1)*10,24
 // Open shop for a player
 // EXE: called from between-rounds loop at file 0x232E5 (play.cpp)
 // EXE: checks player.cash > 0 (32-bit compare at player+0xA2/+0xA4) before opening
-export function openShop(playerIdx, roundsLeft, { showPrivacy = true } = {}) {
+export function openShop(playerIdx, roundsLeft, { showPrivacy = false } = {}) {
   shop.active = true;
   shop.barMaxima=[Math.max(0,...players.map(playerCash)),
                   Math.max(0,...players.map(p=>p.earnedInterest??0))];
@@ -251,19 +252,17 @@ export function openShop(playerIdx, roundsLeft, { showPrivacy = true } = {}) {
   shop.updateOpen=false;
   shop.inventoryOpen=false;shop.inventorySelection=0;shop.sellItem=null;shop.descriptionItem=null;
   shop.sellQty = 1;
-  shop.frame = 0;
   shop.roundsLeft = roundsLeft || 10;
-  // EXE: "NO KIBITZING!!" shown before each non-first human player's shop (DS:0x231C)
+  // Native shop pass (0x1478A -> 0x16068) enters subsequent shoppers directly.
   shop.kibitz = showPrivacy && playerIdx > 0 && !isAI(players[playerIdx]);
-  // EXE: palette tick saves and animates palette entries 8-11 during shop
-  saveAccentPalette();
+  // First viewer initializes the shaded-icon palette for this shop pass.
+  if(playerIdx===0)setupShopPalette();
   updateItemList();
 }
 
 export function closeShop() {
   shop.active = false;
-  // EXE: restore player-1 palette entries 8-11 after shop animation
-  restoreAccentPalette();
+
 }
 
 export function isShopActive() {
@@ -306,129 +305,56 @@ function updateItemList() {
   shop.selectedItem=Math.min(shop.selectedItem,Math.max(0,shop.items.length-1));
 }
 
-// AI auto-purchase
-// EXE: shopScreen() at file 0x1DBB5 — 12-case jump table for AI buy decisions
-// EXE: random(0x0B) selects action 0-10; case 11 = display inventory (fall-through)
-// EXE: if DS:0x50D8 (castle terrain) && action==8, re-roll (skip guidance in mountain mode)
-// EXE jump table at file 0x1DF4D:
-//   0: NO-OP (thinking_anim+sound)  4: NO-OP (funky display)    8: buy guidance
-//   1: buy weapon + guidance         5: buy shields              9: buy mountain gear
-//   2: buy weapon + item + guidance  6: buy defense items       10: sell equipment
-//   3: buy weapon + item + accessory 7: NO-OP (show equipment)  11: NO-OP (show inventory)
+// Native AI shop entry is 0x18A2F: DS:515E gates a per-AI dispatch table.
+// Types 2..7 share 0x18B47; type 1 uses weighted buying at 0x2CD0E.
 export function aiAutoPurchase(player) {
-  // EXE: random(0x0B) at file 0x1DCA4
-  let action = random(11);
-  // EXE: re-roll if castle terrain and action==8 (guidance) — file 0x1DCAF..0x1DCBA
-  if ((config.landType === 3 || config.landType === 5) && action === 8) {
-    action = random(11);
-  }
-
-  switch (action) {
-    case 0: // NO-OP: thinking animation + draw callback + sound (EXE: file 0x1DCCE)
-      break;
-    case 1: // Buy weapon + guidance
-      aiBuyRandomWeapon(player);
-      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
-      break;
-    case 2: // Buy weapon + specific item + guidance
-      aiBuyRandomWeapon(player);
-      aiBuyRandomFromCategory(player, CATEGORY.ACCESSORY);
-      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
-      break;
-    case 3: // Buy weapon + specific item + accessory
-      aiBuyRandomWeapon(player);
-      aiBuyRandomFromCategory(player, CATEGORY.ACCESSORY);
-      aiBuyRandomFromCategory(player, CATEGORY.DEFENSE);
-      break;
-    case 4: // Display money — no purchase (EXE: file 0x1DD95)
-      break;
-    case 5: // Buy shields (EXE: file 0x1DDB0, near call 0x1E0F3)
-      aiBuyRandomShield(player);
-      break;
-    case 6: // Buy defense items (EXE: file 0x1DDC9)
-      aiBuyRandomFromCategory(player, CATEGORY.DEFENSE);
-      break;
-    case 7: // Show equipment summary — no purchase (EXE: file 0x1DDEE)
-      break;
-    case 8: // Buy guidance (EXE: file 0x1DE12)
-      aiBuyRandomFromCategory(player, CATEGORY.GUIDANCE);
-      break;
-    case 9: // Buy mountain gear — fuel/battery (EXE: file 0x1DE20)
-      aiBuyRandomMountainGear(player);
-      break;
-    case 10: // Sell equipment (EXE: file 0x1DE29, near call 0x1E3CB)
-      aiSellRandom(player);
-      break;
-    default:
-      break;
-  }
-}
-
-// Helper: buy 1 bundle of a random affordable weapon (idx 2..LAST_WEAPON)
-// EXE: buy_weapon_scroll animation at 0x1DF65 selects random weapon via UI scroll
-function aiBuyRandomWeapon(player) {
-  const available = [];
-  for (let i = 2; i <= WPN.LAST_WEAPON; i++) {
-    const w = WEAPONS[i];
-    if (isShopItemAvailable(w) && w.price > 0) {
-      const price = getWeaponPrice(i);
-      if (playerCash(player) >= price) {
-        available.push(i);
+  if (!config.computersBuy) return;
+  if (player.aiType >= 2 && player.aiType <= 7) {
+    // Native 0x18B47..0x1900B. All comparisons are strictly greater:
+    // spending the last dollar is deliberately avoided. No RNG is consumed.
+    const canBuy = idx => isShopItemAvailable(WEAPONS[idx]) && playerCash(player) > getWeaponPrice(idx);
+    const buyMissing = idx => {
+      if (player.inventory[idx] === 0 && canBuy(idx)) {
+        if (idx === WPN.PARACHUTE) player.parachuteArmed = true;
+        buyWeapon(player, idx);
+      }
+    };
+    if (playerCash(player) > 50000) {
+      buyMissing(WPN.HEAVY_SHIELD);
+      buyMissing(WPN.FORCE_SHIELD);
+    }
+    buyMissing(WPN.SHIELD);
+    buyMissing(WPN.PARACHUTE);
+    for (const idx of [WPN.BABY_NUKE, WPN.MISSILE]) {
+      while (player.inventory[idx] < 5 && canBuy(idx)) {
+        if (!buyWeapon(player, idx)) break;
       }
     }
+    if (player.inventory[WPN.BATTERY] < 8 && canBuy(WPN.BATTERY)) buyWeapon(player, WPN.BATTERY);
+    return;
   }
-  if (available.length === 0) return;
-  const idx = available[random(available.length)];
-  buyWeapon(player, idx);
-}
 
-// Helper: buy 1 bundle of a random affordable item from a category
-// EXE: cases 1-3, 6, 8 call buy_specific_item via 0x3D1E:0x015A
-function aiBuyRandomFromCategory(player, category) {
-  const available = [];
-  for (let i = WPN.FIRST_ACCESSORY; i < WEAPONS.length; i++) {
-    const w = WEAPONS[i];
-    if (w.category === category && isShopItemAvailable(w) && w.price > 0) {
-      const price = getWeaponPrice(i);
-      if (playerCash(player) >= price) {
-        available.push(i);
-      }
-    }
-  }
-  if (available.length === 0) return;
-  const idx = available[random(available.length)];
-  buyWeapon(player, idx);
-}
-
-// Helper: buy 1 bundle of a random affordable shield (idx 46-52)
-// EXE: buy_shields at near call 0x1E0F3 — scrolls through shield list with sine wave anim
-function aiBuyRandomShield(player) {
-  const available = [];
-  for (let i = WPN.MAG_DEFLECTOR; i <= WPN.SUPER_MAG; i++) {
-    const w = WEAPONS[i];
-    if (isShopItemAvailable(w) && w.price > 0) {
-      const price = getWeaponPrice(i);
-      if (playerCash(player) >= price) {
-        available.push(i);
-      }
-    }
-  }
-  if (available.length === 0) return;
-  const idx = available[random(available.length)];
-  buyWeapon(player, idx);
-}
-
-// Helper: buy mountain gear — fuel tank (55) or battery (43)
-// EXE: case 9 at 0x1DE20, call far 0x3451:0x016F
-function aiBuyRandomMountainGear(player) {
-  const candidates = [WPN.FUEL_TANK, WPN.BATTERY]; // Fuel Tank, Battery
-  const available = candidates.filter(i => {
-    const w = WEAPONS[i];
-    return isShopItemAvailable(w) && w.price > 0 && playerCash(player) >= getWeaponPrice(i);
+  if (player.aiType !== 1) return;
+  // Native Moron buyer 0x2CD0E: build weights once from missing weapons,
+  // then make ten draws, rechecking affordability after each purchase.
+  const baseWeights = [0,3,2,1,2,1,.2,.1,.2,.1,0,0,.2,.1,.1,0,0,0,0,.5,.5,2,.5,.5,2,.4,.2,.1,.2,0];
+  const weights = baseWeights.map((weight, i) => {
+    const idx = i + 2;
+    return player.inventory[idx] === 0 && isShopItemAvailable(WEAPONS[idx]) &&
+      playerCash(player) > getWeaponPrice(idx) ? weight : 0;
   });
-  if (available.length === 0) return;
-  const idx = available[random(available.length)];
-  buyWeapon(player, idx);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  if (total === 0) return;
+  const scale = 1 / total;
+  for (let i = 0; i < weights.length; i++) weights[i] *= scale;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let remaining = legacyRandomFraction(), i = 0;
+    // Preserve native 0x32AF5's post-subtraction index, including its
+    // apparent off-by-one and final-index clamp.
+    while (remaining > 0 && i < weights.length) remaining -= weights[i++];
+    const idx = Math.min(i, weights.length - 1) + 2;
+    if (isShopItemAvailable(WEAPONS[idx]) && playerCash(player) > getWeaponPrice(idx)) buyWeapon(player, idx);
+  }
 }
 
 // Native sell acceptance 0x37C0C uses the same cash owner as purchases.
@@ -440,22 +366,6 @@ export function sellWeapon(player,weaponIdx,quantity) {
   player.inventory[weaponIdx]-=qty;
   addPlayerCash(player,refund);
   return true;
-}
-
-// Helper: sell a random inventory item
-// EXE: case 10 at 0x1DE29, sell_dialog at near call 0x1E3CB
-// EXE refund: floor(qty × price × factor / bundle), factor = 0.8 (or 0.65 free market)
-function aiSellRandom(player) {
-  const owned = [];
-  for (let i = 2; i < WEAPONS.length; i++) {
-    if (player.inventory[i] > 0 && i !== WPN.BABY_MISSILE) {
-      owned.push(i);
-    }
-  }
-  if (owned.length === 0) return;
-  const idx = owned[random(owned.length)];
-  const qty = Math.min(player.inventory[idx], WEAPONS[idx].bundle);
-  sellWeapon(player,idx,qty);
 }
 
 // Handle shop input, returns true when shop is done
@@ -472,7 +382,7 @@ export function shopTick(player) {
   }
 
   // EXE: palette tick at file 0x14E34 — animate accent colors every 8 frames
-  shop.frame++;
+  shop.frame=(shop.frame+1)%101;
   tickAccentPalette(shop.frame);
 
   // EXE: "NO KIBITZING!!" — wait for any key/click before showing shop

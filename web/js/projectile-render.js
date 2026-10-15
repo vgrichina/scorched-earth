@@ -22,14 +22,14 @@ export class ProjectileDrawingLayer {
       },
     };
   }
-  advance(projectile) {
+  advance(projectile, x = projectile.x, y = projectile.y) {
     if (projectile.isNapalmParticle) return;
     let state = this.states.get(projectile);
     if (!state) {
       state = { icon: config.bombIcon, traceColor: projectile.traceColor };
       this.states.set(projectile, state);
     }
-    transitionProjectileHead(state, projectile.x, projectile.y,
+    transitionProjectileHead(state, x, y,
       (x, y) => this.io.setPixel(x, y, this.background(x, y)), false, this.io);
   }
   finish(projectile) {
@@ -77,7 +77,7 @@ export function drawProjectileTrackingMarks(x, y, icon = config.bombIcon) {
 }
 
 // The port relocates native sky and terrain palette entries.
-function nativeIndex(c) {
+export function nativeIndex(c) {
   if (c >= 80 && c < 110) return c + 40;
   if (c === 120) return 80;
   if (c === 127) return 87;
